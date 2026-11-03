@@ -4,15 +4,17 @@ Issues and specs for this repo live in Linear, team `CORE`.
 
 ## Access
 
-- Use the Linear MCP connector to read and write issues. It must be authorized (`/mcp`). If it is not, stop and tell the user; do not fall back to local files.
+- Use the Linear MCP connector to read and write issues when it is authorized (`/mcp`).
+- If it is not, use the Linear GraphQL API (`https://api.linear.app/graphql`) with the API key saved in Jean's settings. Never print, log or commit the key.
+- If neither works, stop and tell the user; do not fall back to local files.
 - Jean `list_linear_issues` can list issues read-only.
 - No Linear CLI.
 
 ## Conventions
 
-- One Linear project per feature (e.g. "Phase 1").
-- The spec is the project description.
-- Implementation tickets are issues in that project, one issue per ticket, never one combined issue.
+- One Linear project, `atomes`. Each build-guide phase adds project milestones; each milestone is a gate you can check (e.g. "M1 · Signed in").
+- The spec of the current phase is the project content (description body).
+- Implementation tickets are issues in that project, each in one milestone, one issue per ticket, never one combined issue.
 - Triage state is a Linear label (see `triage-labels.md`).
 - Blocking uses Linear "blocked by" relations.
 - Comments and conversation history are Linear issue comments.

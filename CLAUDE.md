@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues live in Linear, team `CORE`, one project per feature. See `docs/agents/issue-tracker.md`.
+Issues live in Linear, team `CORE`, project `atomes`, one milestone per gate. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
