@@ -11,7 +11,7 @@ Turn this folder into the Atomes repository and complete **Phase 0** (repo found
 | What | Where |
 | --- | --- |
 | Domain glossary (use these words in code, UI and tickets) | `GLOSSARY.md` |
-| Architecture decisions | `docs/adr/0001` to `0005` |
+| Architecture decisions | `docs/adr/0001` to `0008` |
 | Architecture diagrams (6 figures: deployment, visibility, data model, New Volume alert, Quick Add, Shelf Check) | `docs/architecture.html` (open in a browser) |
 | Build guide: AT Protocol primer, roadmap with phases and gates, hosting, costs, risks | Claude Doc "Atomes — step-by-step build guide": https://claude.ai/artifact/CejTumXCG6FXS1JWaYhr2G |
 | Screen designs: 13 screens, desktop and mobile, light and dark, clickable | Design canvas: https://claude.ai/artifact/PqRAzaTcVkYY8p6EfeKJpB |
@@ -19,13 +19,9 @@ Turn this folder into the Atomes repository and complete **Phase 0** (repo found
 
 The two claude.ai links need the owner's login; an agent cannot open them. Ask the owner for screenshots, or read `docs/design/source/` for exact values.
 
-## Decided in conversation but not yet in an ADR
+## Decided in conversation, now recorded
 
-Write these up as ADRs when the repo is created (suggested numbers in brackets):
-
-- **Licences** [0006]: application and Catalog under AGPL-3.0, so hosted forks stay open; lexicons under MIT (or CC0) so any app can adopt them.
-- **Runtime and storage** [0007]: Astro in server mode with the Node adapter, shipped as one Docker image; the Catalog uses SQLite (Postgres if it outgrows it). Supabase is not used. Self-hosters run the same image.
-- **No AppView in v1**: the app reads and writes the owner's PDS directly. Records must be designed so an indexer can be added later without migrating data.
+Licences, runtime and storage, and the absence of an AppView in v1 are now ADRs [0006](adr/0006-agpl-for-app-and-catalog-mit-for-lexicons.md), [0007](adr/0007-one-docker-image-astro-node-and-sqlite.md) and [0008](adr/0008-no-appview-in-v1.md).
 
 ## Product details agreed after the ADRs
 
@@ -62,7 +58,7 @@ Write these up as ADRs when the repo is created (suggested numbers in brackets):
 
 1. Create the GitHub repository from this folder and push it.
 2. Write `CLAUDE.md` with the rules above and pointers to `GLOSSARY.md` and the ADRs.
-3. Add ADRs 0006 and 0007.
+3. Add ADRs 0006 to 0008 (done).
 4. Set up an Astro project with a test runner and a CI job on pull requests.
 5. Turn Phase 1 of the build guide into tickets, then build them one by one, tests first.
 
