@@ -6,6 +6,7 @@ The Library is Private by default; the reader chooses what to share, by category
 
 ## Consequences
 
+- The Space uses the `com.atproto.personalspace` policy: only the reader can read it. A Space gives access control, not encryption, so the reader's PDS operator can read Private records (spike `docs/spikes/0001-oauth-and-spaces-alpha.md`).
 - Cover photos sent to the server for recognition are processed and deleted immediately. They are never stored and never used for training. Barcode scanning runs on the device. The only exception is when the reader explicitly chooses to use their photo as the cover of a book the Catalog doesn't know.
 
 ## Considered Options
