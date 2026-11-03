@@ -5,3 +5,15 @@ A personal library tracker built on AT Protocol: what you own, what you have rea
 Start here: [docs/HANDOFF.md](docs/HANDOFF.md). Vocabulary: [GLOSSARY.md](GLOSSARY.md). Decisions: [docs/adr/](docs/adr/).
 
 Licence: [AGPL-3.0](LICENSE). Lexicon definitions (`app.atomes.*`) are MIT, so any app can adopt them ([ADR 0006](docs/adr/0006-agpl-for-app-and-catalog-mit-for-lexicons.md)).
+
+## Develop
+
+Needs Node 22.23.4+ and [Bun](https://bun.sh).
+
+```sh
+bun install
+bun run check   # type check
+bun run test    # tests (not `bun test`)
+bun run build   # Node server in dist/
+bun run dev     # http://localhost:4321
+```
