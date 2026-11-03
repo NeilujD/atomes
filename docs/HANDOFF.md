@@ -10,7 +10,7 @@ Turn this folder into the Atomes repository and complete **Phase 0** (repo found
 
 | What | Where |
 | --- | --- |
-| Domain glossary (use these words in code, UI and tickets) | `CONTEXT.md` |
+| Domain glossary (use these words in code, UI and tickets) | `GLOSSARY.md` |
 | Architecture decisions | `docs/adr/0001` to `0005` |
 | Architecture diagrams (6 figures: deployment, visibility, data model, New Volume alert, Quick Add, Shelf Check) | `docs/architecture.html` (open in a browser) |
 | Build guide: AT Protocol primer, roadmap with phases and gates, hosting, costs, risks | Claude Doc "Atomes — step-by-step build guide": https://claude.ai/artifact/CejTumXCG6FXS1JWaYhr2G |
@@ -61,7 +61,7 @@ Write these up as ADRs when the repo is created (suggested numbers in brackets):
 ## Suggested first steps
 
 1. Create the GitHub repository from this folder and push it.
-2. Write `CLAUDE.md` with the rules above and pointers to `CONTEXT.md` and the ADRs.
+2. Write `CLAUDE.md` with the rules above and pointers to `GLOSSARY.md` and the ADRs.
 3. Add ADRs 0006 and 0007.
 4. Set up an Astro project with a test runner and a CI job on pull requests.
 5. Turn Phase 1 of the build guide into tickets, then build them one by one, tests first.
@@ -70,7 +70,7 @@ Write these up as ADRs when the repo is created (suggested numbers in brackets):
 
 - `setup-matt-pocock-skills`: configure the repo's issue tracker and docs layout before the other engineering skills.
 - `writing-for-agents`: write `CLAUDE.md`.
-- `domain-modeling`: keep `CONTEXT.md` and the ADRs current as terms and decisions change.
+- `domain-modeling`: keep `GLOSSARY.md` and the ADRs current as terms and decisions change.
 - `grill-with-docs`: when a new design question comes up.
 - `to-spec`, then `to-tickets`: turn Phase 1 into tickets.
 - `tdd` and `implement`: build each ticket.
