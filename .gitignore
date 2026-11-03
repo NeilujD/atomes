@@ -1,0 +1,20 @@
+# build output
+dist/
+# generated types
+.astro/
+
+# dependencies
+node_modules/
+
+# environment variables
+.env
+.env.*
+
+# macOS-specific files
+.DS_Store
+
+# editor folders
+.idea/
+
+# local agent notes
+.ai/
