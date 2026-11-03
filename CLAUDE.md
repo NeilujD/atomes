@@ -1,6 +1,6 @@
 ## Commands
 
-Needs Node 22+ (`.nvmrc`) and Bun (`packageManager` in `package.json`). Bun installs and runs scripts; Node runs Astro and Vitest.
+Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) and Bun (`packageManager` in `package.json`). Bun installs and runs scripts; Node runs Astro and Vitest.
 
 - `bun install` — install dependencies
 - `bun run check` — type check (`astro check`)

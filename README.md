@@ -6,7 +6,7 @@ Start here: [docs/HANDOFF.md](docs/HANDOFF.md). Vocabulary: [GLOSSARY.md](GLOSSA
 
 ## Develop
 
-Needs Node 22+ and [Bun](https://bun.sh).
+Needs Node 22.23.4+ and [Bun](https://bun.sh).
 
 ```sh
 bun install
