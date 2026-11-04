@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "setup": "bun install --frozen-lockfile",
+    "setup": "find \"$JEAN_ROOT_PATH\" -maxdepth 1 -type f -name '.env*' -exec cp {} \"$JEAN_WORKSPACE_PATH\"/ \\; && bun install --frozen-lockfile",
     "run": "bun run dev"
   }
 }
