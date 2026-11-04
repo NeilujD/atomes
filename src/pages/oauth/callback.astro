@@ -1,0 +1,40 @@
+---
+// The PDS sends the reader back here after sign-in, with the result in the URL
+// fragment. The script finishes the sign-in in the browser, then goes to Settings.
+import AppShell from '../../layouts/AppShell.astro';
+---
+
+<AppShell title="Signing in" current="settings">
+  <div class="callback">
+    <p data-callback-status aria-live="polite">Finishing sign-in…</p>
+    <a href="/settings" data-callback-back hidden>Back to Settings</a>
+  </div>
+</AppShell>
+
+<script>
+  import { createAuthClient } from '../../lib/auth/browser-client';
+  import { errorMessage, loadSession, type AuthState } from '../../lib/auth/session';
+
+  const status = document.querySelector<HTMLElement>('[data-callback-status]')!;
+  const back = document.querySelector<HTMLElement>('[data-callback-back]')!;
+
+  void createAuthClient()
+    .then(loadSession, (error: unknown): AuthState => ({ status: 'signed-out', message: errorMessage(error) }))
+    .then((state) => {
+      if (state.status === 'signed-in' || !state.message) {
+        location.replace('/settings');
+      } else {
+        status.textContent = state.message;
+        back.hidden = false;
+      }
+    });
+</script>
+
+<style>
+  .callback {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+</style>
