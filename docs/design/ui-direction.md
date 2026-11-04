@@ -70,7 +70,7 @@ Mix in `oklab`, not `oklch`: Chrome gives an `oklch` mix of near-greys the hue `
 
 **Tab bar (phone).** Home, Library, Check, To Buy, You. Check is a 52 px ink circle in the centre, labelled for screen readers only. The bar sits on the surface colour with a top hairline and the bottom safe-area inset.
 
-**Appearance.** `color-scheme` follows the system. `data-appearance="light|dark"` on `<html>` forces one; `data-contrast="more"` raises contrast. The Settings screen will set both.
+**Appearance.** `color-scheme` follows the system. `data-appearance="light|dark"` on `<html>` forces one; `data-contrast="more"` raises contrast. Settings sets Appearance (System, Light, Dark), kept on the device; an inline script in `AppShell` applies it before first paint. Rule and storage: `src/lib/appearance.ts`. The contrast control is still to build.
 
 **Colour roles.** Ink: text, read spines, primary buttons. Secondary: metadata, inactive navigation. Soft: fills, hover, active navigation. Line: hairlines, panel edge. Cobalt: New and Upcoming Volumes, links, focus. Covers: their own colours, with a thin edge (`--cover-edge`).
 

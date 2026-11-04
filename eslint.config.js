@@ -26,6 +26,13 @@ export default defineConfig(
     files: ["**/*.{js,mjs}"],
     extends: [tseslint.configs.disableTypeChecked],
   },
+  {
+    // Served as is, outside the Vite build: a plain service worker script.
+    files: ["public/sw.js"],
+    languageOptions: {
+      globals: { self: "readonly", caches: "readonly", fetch: "readonly", Response: "readonly", URL: "readonly" },
+    },
+  },
   astro.configs.recommended,
   astro.configs["jsx-a11y-recommended"],
 );
