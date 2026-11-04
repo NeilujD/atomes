@@ -7,7 +7,7 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 - `bun run lint` — lint (ESLint, type-aware rules, Astro and a11y rules).
 - `bun run test` — run tests (Vitest). Never `bun test`: that starts Bun's own test runner, not Vitest.
 - `bun run build` — build the Node server into `dist/`
-- `bun run dev` — dev server on http://localhost:4321
+- `bun run dev` — dev server on http://127.0.0.1:4321 (not `localhost`: the OAuth loopback client needs a loopback IP; `localhost` pages move there)
 
 `jean.json`: Jean runs `bun install --frozen-lockfile` in each new worktree, and `bun run dev` as its Run command.
 

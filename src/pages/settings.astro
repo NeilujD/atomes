@@ -13,6 +13,33 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
 
 <AppShell title="Settings" current="settings">
   <div class="settings">
+    <section class="group" data-auth>
+      <h2 class="group-title">Account</h2>
+      <div class="row">
+        <div>
+          <p class="row-label">AT Protocol account</p>
+          <p class="row-hint" data-auth-status aria-live="polite">Checking…</p>
+        </div>
+        <form class="sign-in" data-sign-in hidden>
+          <label class="visually-hidden" for="handle">Your handle</label>
+          <input
+            class="field"
+            id="handle"
+            name="handle"
+            type="text"
+            inputmode="url"
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
+            placeholder="alice.bsky.social"
+          />
+          <button class="button" type="submit">Sign in</button>
+        </form>
+        <button class="button" type="button" data-sign-out hidden>Sign out</button>
+      </div>
+      <p class="row-error" data-auth-error role="alert" hidden></p>
+    </section>
+
     <section class="group">
       <h2 class="group-title">Display</h2>
       <div class="row">
@@ -44,6 +71,55 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
 
 <script>
   import { applyAppearance, parseAppearance, readAppearance, saveAppearance } from '../lib/appearance';
+  import { createAuthClient } from '../lib/auth/browser-client';
+  import { errorMessage, loadSession, signIn, signOut, type AuthClient, type AuthState } from '../lib/auth/session';
+
+  const auth = document.querySelector<HTMLElement>('[data-auth]')!;
+  const status = auth.querySelector<HTMLElement>('[data-auth-status]')!;
+  const form = auth.querySelector<HTMLFormElement>('[data-sign-in]')!;
+  const handleInput = form.querySelector<HTMLInputElement>('input[name="handle"]')!;
+  const signOutButton = auth.querySelector<HTMLButtonElement>('[data-sign-out]')!;
+  const error = auth.querySelector<HTMLElement>('[data-auth-error]')!;
+
+  let state: AuthState = { status: 'signed-out' };
+
+  function render(next: AuthState) {
+    state = next;
+    const signedIn = next.status === 'signed-in';
+    status.textContent = signedIn
+      ? `Signed in as @${next.account.handle}`
+      : 'Sign in on your PDS page. Atomes never sees your password.';
+    form.hidden = signedIn;
+    signOutButton.hidden = !signedIn;
+    error.textContent = signedIn ? '' : (next.message ?? '');
+    error.hidden = !error.textContent;
+  }
+
+  function busy(on: boolean) {
+    for (const control of auth.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')) control.disabled = on;
+  }
+
+  createAuthClient().then(
+    async (client: AuthClient) => {
+      render(await loadSession(client));
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        busy(true);
+        void signIn(client, handleInput.value)
+          .then(render)
+          .finally(() => busy(false));
+      });
+      signOutButton.addEventListener('click', () => {
+        if (state.status !== 'signed-in') return;
+        busy(true);
+        void signOut(client, state.account)
+          .then(render)
+          .finally(() => busy(false));
+      });
+    },
+    (cause: unknown) => render({ status: 'signed-out', message: errorMessage(cause) }),
+  );
+
 
   const radios = document.querySelectorAll<HTMLInputElement>('[data-appearance-picker] input[name="appearance"]');
   const stored = readAppearance();
@@ -131,6 +207,51 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
   .segment:has(input:focus-visible) {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+
+  .sign-in {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .field {
+    flex: 1;
+    min-width: 0;
+    min-height: var(--row);
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  .button {
+    min-height: var(--row);
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .button:hover:not(:disabled) {
+    background: var(--soft);
+  }
+
+  .button:disabled,
+  .field:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .row-error {
+    color: var(--ink);
+    font-size: 13px;
   }
 
   /* Desktop: list group on a hairline, label left and control right. */
