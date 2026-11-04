@@ -19,6 +19,23 @@ const SHELL = [
   '/icons/atomes-icon-512.png',
 ];
 
+// The OAuth metadata that the offline session restore (`init(false)`) reads,
+// network first like pages. Without it, an offline reload shows "Could not open
+// your session." and the library removes the session pointer on this device:
+// - `/oauth/client-metadata.json`: the app fetches it on an HTTPS origin,
+//   before the restore (src/lib/auth/client-metadata.ts). Not in SHELL: an instance without
+//   PUBLIC_APP_ORIGIN answers 404, and `cache.addAll` then fails the install.
+// - `/.well-known/oauth-authorization-server` on the authorization server: the
+//   restore reads it on every host. The library keeps its copy 60 s only.
+// Its own cache, with no version: a new worker must not delete it.
+const OAUTH_CACHE = 'atomes-oauth';
+
+function isOAuthMetadata(url) {
+  return url.origin === self.location.origin
+    ? url.pathname === '/oauth/client-metadata.json'
+    : url.pathname === '/.well-known/oauth-authorization-server';
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
@@ -41,22 +58,28 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
 
-  if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(event));
+  if (isOAuthMetadata(url)) {
+    event.respondWith(networkFirst(event, OAUTH_CACHE));
+  } else if (url.origin !== self.location.origin) {
+    return;
+  } else if (request.mode === 'navigate') {
+    event.respondWith(networkFirst(event, CACHE, '/'));
   } else {
     event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request)));
   }
 });
 
-async function networkFirst(event) {
-  const cache = await caches.open(CACHE);
+// Keeps the last good response; offline, serves it, else the `fallback` path.
+async function networkFirst(event, cacheName, fallback) {
+  const cache = await caches.open(cacheName);
   try {
     const response = await fetch(event.request);
     if (response.ok) event.waitUntil(cache.put(event.request, response.clone()));
     return response;
   } catch {
-    return (await cache.match(event.request)) ?? (await cache.match('/')) ?? Response.error();
+    return (await cache.match(event.request)) ?? (fallback && (await cache.match(fallback))) ?? Response.error();
   }
 }
