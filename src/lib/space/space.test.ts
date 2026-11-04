@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { memoryLocalCopy } from './local-copy.fake';
 import { newRecordKey, openSpace, SpaceError, spaceErrorMessage, type FetchHandler } from './space';
 
 const owner = 'did:plc:owner';
@@ -7,6 +8,7 @@ const collection = 'app.atomes.testItem';
 // An in-memory PDS that answers the com.atproto.space.* calls the way the
 // alpha PDS does (lexicons and handlers on bluesky-social/atproto, branch
 // permissioned-data at d009736). Everything else is a public repo call.
+// `online = false` stands for the network off: fetch() rejects with a TypeError.
 function fakePds() {
   const spaces = new Map<string, { spaceType: string; policy: unknown }>();
   // space ref -> "collection/rkey" -> value. Only the owner writes here.
@@ -71,16 +73,20 @@ function fakePds() {
     }
   }
 
-  const handler: FetchHandler = (pathname, init) => Promise.resolve(answer(pathname, init));
-  return { handler, spaces, calls };
+  const network = { online: true };
+  const handler: FetchHandler = (pathname, init) =>
+    network.online ? Promise.resolve(answer(pathname, init)) : Promise.reject(new TypeError('Failed to fetch'));
+  return { handler, spaces, calls, network };
 }
+
+const textsOf = (records: { value: unknown }[]) => records.map(({ value }) => (value as { text: string }).text);
 
 describe('Space', () => {
   test('reading before the first save gives nothing and creates no Space', async () => {
     const pds = fakePds();
-    const space = openSpace(pds.handler, owner);
+    const space = openSpace(pds.handler, owner, memoryLocalCopy());
 
-    expect(await space.list(collection)).toEqual([]);
+    expect(await space.list(collection)).toEqual({ records: [], stale: false });
     expect(await space.get(collection, 'missing')).toBeUndefined();
     expect(pds.spaces.size).toBe(0);
   });
@@ -89,7 +95,10 @@ describe('Space', () => {
     const pds = fakePds();
     const rkey = newRecordKey();
 
-    await openSpace(pds.handler, owner).put(collection, rkey, { text: 'hello', createdAt: '2026-11-04T10:00:00.000Z' });
+    await openSpace(pds.handler, owner, memoryLocalCopy()).put(collection, rkey, {
+      text: 'hello',
+      createdAt: '2026-11-04T10:00:00.000Z',
+    });
 
     expect([...pds.spaces.entries()]).toEqual([
       [
@@ -98,40 +107,149 @@ describe('Space', () => {
       ],
     ]);
     // A new Space object on the same PDS stands for a reload.
-    const reloaded = openSpace(pds.handler, owner);
+    const reloaded = openSpace(pds.handler, owner, memoryLocalCopy());
     const value = { $type: collection, text: 'hello', createdAt: '2026-11-04T10:00:00.000Z' };
     expect(await reloaded.get(collection, rkey)).toEqual(value);
-    expect(await reloaded.list(collection)).toEqual([{ rkey, value }]);
+    expect(await reloaded.list(collection)).toEqual({ records: [{ rkey, value }], stale: false });
   });
 
   test('later saves reuse the Space', async () => {
     const pds = fakePds();
-    const space = openSpace(pds.handler, owner);
+    const space = openSpace(pds.handler, owner, memoryLocalCopy());
 
     await space.put(collection, newRecordKey(), { text: 'one' });
     await space.put(collection, newRecordKey(), { text: 'two' });
     await space.ensure();
 
     expect(pds.spaces.size).toBe(1);
-    expect(await space.list(collection)).toHaveLength(2);
+    expect((await space.list(collection)).records).toHaveLength(2);
   });
 
   test('list reads every page', async () => {
     const pds = fakePds();
-    const space = openSpace(pds.handler, owner);
+    const space = openSpace(pds.handler, owner, memoryLocalCopy());
     for (let i = 0; i < 120; i++) await space.put(collection, newRecordKey(), { text: `${i}` });
 
-    expect(await space.list(collection)).toHaveLength(120);
+    expect((await space.list(collection)).records).toHaveLength(120);
   });
 
   test('a PDS error is a SpaceError with the XRPC error name', async () => {
     const handler: FetchHandler = () =>
       Promise.resolve(Response.json({ error: 'InvalidToken', message: 'Bad token scope' }, { status: 401 }));
 
-    const error = await openSpace(handler, owner).list(collection).catch((cause: unknown) => cause);
+    const error = await openSpace(handler, owner, memoryLocalCopy())
+      .list(collection)
+      .catch((cause: unknown) => cause);
 
     expect(error).toBeInstanceOf(SpaceError);
     expect(error).toMatchObject({ error: 'InvalidToken', message: 'Bad token scope' });
+  });
+});
+
+// The local copy on the device. A new Space on the same copy stands for a reload.
+describe('with the network off', () => {
+  test('list gives the records last read, marked stale, after a reload', async () => {
+    const pds = fakePds();
+    const copy = memoryLocalCopy();
+    const space = openSpace(pds.handler, owner, copy);
+    await space.put(collection, newRecordKey(), { text: 'one' });
+    await space.put(collection, newRecordKey(), { text: 'two' });
+    const online = await space.list(collection);
+
+    pds.network.online =false;
+    const offline = await openSpace(pds.handler, owner, copy).list(collection);
+
+    expect(online.stale).toBe(false);
+    expect(offline).toEqual({ records: online.records, stale: true });
+    expect(textsOf(offline.records)).toEqual(['two', 'one']);
+  });
+
+  test('a record saved online shows offline with no further list (write-through)', async () => {
+    const pds = fakePds();
+    const copy = memoryLocalCopy();
+    const space = openSpace(pds.handler, owner, copy);
+    const first = newRecordKey();
+    await space.put(collection, first, { text: 'one' });
+    await space.list(collection);
+    await space.put(collection, newRecordKey(), { text: 'two' });
+    await space.put(collection, first, { text: 'one, edited' });
+
+    // Read the PDS through another copy, so this copy holds only what write-through put in it.
+    const fromPds = await openSpace(pds.handler, owner, memoryLocalCopy()).list(collection);
+    pds.network.online =false;
+    const offline = await openSpace(pds.handler, owner, copy).list(collection);
+
+    expect(textsOf(offline.records)).toEqual(['two', 'one, edited']);
+    expect(offline.records).toEqual(fromPds.records);
+  });
+
+  test('a save fails visibly, and nothing is kept or queued', async () => {
+    const pds = fakePds();
+    const copy = memoryLocalCopy();
+    const space = openSpace(pds.handler, owner, copy);
+    await space.put(collection, newRecordKey(), { text: 'one' });
+    await space.list(collection);
+
+    pds.network.online =false;
+    const error = await space.put(collection, newRecordKey(), { text: 'lost' }).catch((cause: unknown) => cause);
+
+    expect(spaceErrorMessage(error)).toBe('Could not reach your PDS. Check your connection and try again.');
+    expect(textsOf((await space.list(collection)).records)).toEqual(['one']);
+    pds.network.online =true;
+    expect(await space.list(collection)).toMatchObject({ stale: false });
+    expect(textsOf((await space.list(collection)).records)).toEqual(['one']);
+  });
+
+  test('a token refresh that cannot reach the server also falls back to the copy', async () => {
+    const pds = fakePds();
+    const copy = memoryLocalCopy();
+    await openSpace(pds.handler, owner, copy).put(collection, newRecordKey(), { text: 'one' });
+    await openSpace(pds.handler, owner, copy).list(collection);
+    // What the OAuth client throws: its own error, with the fetch TypeError as cause.
+    const refreshFails: FetchHandler = () =>
+      Promise.reject(new Error('Failed to fetch', { cause: new TypeError('Failed to fetch') }));
+
+    expect(await openSpace(refreshFails, owner, copy).list(collection)).toMatchObject({ stale: true });
+  });
+
+  test('list fails when this device has no copy yet', async () => {
+    const pds = fakePds();
+    pds.network.online =false;
+
+    await expect(openSpace(pds.handler, owner, memoryLocalCopy()).list(collection)).rejects.toThrow(TypeError);
+  });
+
+  test('another account on the device never gets the copy', async () => {
+    const pds = fakePds();
+    const copy = memoryLocalCopy();
+    await openSpace(pds.handler, owner, copy).put(collection, newRecordKey(), { text: 'private' });
+    await openSpace(pds.handler, owner, copy).list(collection);
+
+    pds.network.online =false;
+
+    await expect(openSpace(pds.handler, 'did:plc:other', copy).list(collection)).rejects.toThrow(TypeError);
+  });
+
+  test('an answer from the PDS is never hidden behind the copy', async () => {
+    const pds = fakePds();
+    const copy = memoryLocalCopy();
+    await openSpace(pds.handler, owner, copy).put(collection, newRecordKey(), { text: 'one' });
+    await openSpace(pds.handler, owner, copy).list(collection);
+    const refused: FetchHandler = () => Promise.resolve(Response.json({ error: 'InvalidToken' }, { status: 401 }));
+
+    await expect(openSpace(refused, owner, copy).list(collection)).rejects.toThrow(SpaceError);
+  });
+
+  test('a cleared copy (sign-out) shows nothing', async () => {
+    const pds = fakePds();
+    const copy = memoryLocalCopy();
+    await openSpace(pds.handler, owner, copy).put(collection, newRecordKey(), { text: 'private' });
+    await openSpace(pds.handler, owner, copy).list(collection);
+
+    await copy.clear();
+    pds.network.online =false;
+
+    await expect(openSpace(pds.handler, owner, copy).list(collection)).rejects.toThrow(TypeError);
   });
 });
 
@@ -143,7 +261,7 @@ describe('record data', () => {
   test('goes only to the Space on the PDS: no public repo call, nothing sent to the Atomes server', async () => {
     const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
     const pds = fakePds();
-    const space = openSpace(pds.handler, owner);
+    const space = openSpace(pds.handler, owner, memoryLocalCopy());
 
     const rkey = newRecordKey();
     await space.put(collection, rkey, { text: 'private' });
@@ -170,6 +288,11 @@ describe('spaceErrorMessage', () => {
   test.each([
     ['the PDS refuses the call', new SpaceError('InvalidToken', 'Bad token scope'), 'Your PDS refused the request: Bad token scope'],
     ['the network is down', new TypeError('Failed to fetch'), 'Could not reach your PDS. Check your connection and try again.'],
+    [
+      'a token refresh cannot reach the server',
+      new Error('Failed to fetch', { cause: new TypeError('Failed to fetch') }),
+      'Could not reach your PDS. Check your connection and try again.',
+    ],
     ['anything else', new Error('boom'), 'Something went wrong with your private Space. Try again.'],
   ])('%s', (_, error, message) => {
     expect(spaceErrorMessage(error)).toBe(message);

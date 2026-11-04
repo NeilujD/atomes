@@ -12,7 +12,7 @@ function memorySpace(seed: SpaceRecord[] = []): Space {
       return Promise.resolve();
     },
     get: (_, rkey) => Promise.resolve(records.get(rkey)),
-    list: () => Promise.resolve([...records].map(([rkey, value]) => ({ rkey, value }))),
+    list: () => Promise.resolve({ records: [...records].map(([rkey, value]) => ({ rkey, value })), stale: false }),
   };
 }
 
@@ -23,7 +23,7 @@ describe('test items', () => {
     await saveTestItem(space, '  first  ', new Date('2026-11-04T10:00:00.000Z'));
     await saveTestItem(space, 'second', new Date('2026-11-04T11:00:00.000Z'));
 
-    expect(await listTestItems(space)).toEqual([
+    expect((await listTestItems(space)).items).toEqual([
       { text: 'second', createdAt: '2026-11-04T11:00:00.000Z' },
       { text: 'first', createdAt: '2026-11-04T10:00:00.000Z' },
     ]);
@@ -33,7 +33,7 @@ describe('test items', () => {
     const space = memorySpace();
 
     await expect(saveTestItem(space, '   ')).rejects.toThrow('Type a short text.');
-    expect(await listTestItems(space)).toEqual([]);
+    expect((await listTestItems(space)).items).toEqual([]);
   });
 
   test('records written by another app in a bad shape are skipped', async () => {
@@ -43,6 +43,6 @@ describe('test items', () => {
       { rkey: 'c', value: null },
     ]);
 
-    expect(await listTestItems(space)).toEqual([{ text: 'ok', createdAt: '2026-11-04T10:00:00.000Z' }]);
+    expect((await listTestItems(space)).items).toEqual([{ text: 'ok', createdAt: '2026-11-04T10:00:00.000Z' }]);
   });
 });

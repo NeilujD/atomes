@@ -8,6 +8,7 @@ import {
 } from '@atproto/oauth-client-browser';
 import { callbackPath, isLoopbackHost, metadataPath, oauthScope } from './client-config';
 import type { Account, AuthClient } from './session';
+import { indexedDbLocalCopy } from '../space/local-copy';
 import { openSpace, type Space } from '../space/space';
 
 // Resolves handles over DNS-over-HTTPS, so Bluesky does not learn who signs in.
@@ -41,16 +42,23 @@ async function loadClient(): Promise<BrowserOAuthClient> {
     : await BrowserOAuthClient.load({ ...options, clientId: new URL(metadataPath, location.origin).href });
 }
 
+// Restores the session with no network call: `init(false)` does not refresh an
+// expired token here (the first PDS call does). With `init()`, a refresh that
+// fails offline makes the library forget the session on this device.
+function restore(client: BrowserOAuthClient) {
+  return client.init(false);
+}
+
 // Restores the stored session and opens the reader's private Space with it.
 // Undefined when signed out.
 export async function openOwnSpace(): Promise<{ account: Account; space: Space } | undefined> {
   const client = await loadClient();
-  const result = await client.init();
+  const result = await restore(client);
   if (!result) return undefined;
   const { session } = result;
   return {
     account: await toAccount(client, session.did),
-    space: openSpace((pathname, init) => session.fetchHandler(pathname, init), session.did),
+    space: openSpace((pathname, init) => session.fetchHandler(pathname, init), session.did, indexedDbLocalCopy()),
   };
 }
 
@@ -59,7 +67,7 @@ export async function createAuthClient(): Promise<AuthClient> {
 
   return {
     async init() {
-      const result = await client.init();
+      const result = await restore(client);
       return result && toAccount(client, result.session.did);
     },
     async signIn(handle) {

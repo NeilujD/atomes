@@ -5,9 +5,12 @@
 
 const BUILD = { version: 'dev', assets: [] };
 const CACHE = `atomes-shell-${BUILD.version}`;
+// Every page that must open offline. A page cached only when visited is lost on
+// the next deploy: the old worker caches it, then the new worker deletes that cache.
 const SHELL = [
   '/',
   '/settings',
+  '/dev/space',
   '/manifest.webmanifest',
   '/favicon.svg',
   '/favicon-32.png',
