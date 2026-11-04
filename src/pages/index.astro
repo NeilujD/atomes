@@ -1,17 +1,67 @@
 ---
+import AppShell from '../layouts/AppShell.astro';
+
+// Home before sign-in and storage exist: every section shows its empty state.
+const sections = [
+  {
+    title: 'New & upcoming',
+    empty: 'Nothing new yet. Mark a Volume read and its Series is followed: new and announced Volumes appear here.',
+  },
+  { title: 'Reading now', empty: 'No book in progress.' },
+  { title: 'Owned, not read yet', empty: 'Books you own and have not read appear here.' },
+];
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-		<link rel="apple-touch-icon" href="/apple-touch-icon-180.png" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Atomes</title>
-	</head>
-	<body>
-		<h1>Atomes</h1>
-	</body>
-</html>
+<AppShell title="Home" current="home">
+  <div class="home">
+    {
+      sections.map((section) => (
+        <section class="group">
+          <h2 class="group-title">{section.title}</h2>
+          <p class="empty">{section.empty}</p>
+        </section>
+      ))
+    }
+  </div>
+</AppShell>
+
+<style>
+  .home {
+    max-width: 880px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .group-title {
+    font-size: 18px;
+  }
+
+  .empty {
+    color: var(--secondary);
+    font-size: 14px;
+  }
+
+  /* Desktop: sections read as list groups (header row on a hairline), not as cards. */
+  @media (min-width: 960px) {
+    .home {
+      gap: 28px;
+    }
+
+    .group-title {
+      display: flex;
+      align-items: center;
+      min-height: var(--row);
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+  }
+</style>

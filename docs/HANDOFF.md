@@ -15,9 +15,10 @@ Turn this folder into the Atomes repository and complete **Phase 0** (repo found
 | Architecture diagrams (6 figures: deployment, visibility, data model, New Volume alert, Quick Add, Shelf Check) | `docs/architecture.html` (open in a browser) |
 | Build guide: AT Protocol primer, roadmap with phases and gates, hosting, costs, risks | Claude Doc "Atomes — step-by-step build guide": https://claude.ai/artifact/CejTumXCG6FXS1JWaYhr2G |
 | Screen designs: 13 screens, desktop and mobile, light and dark, clickable | Design canvas: https://claude.ai/artifact/PqRAzaTcVkYY8p6EfeKJpB |
-| Generator source of those screens (tokens, sample data, search, sort, filter and cover flow logic) | `docs/design/source/*.py` (reference only, not production code) |
+| Generator source of those screens (tokens, sample data, search, sort, filter and cover flow logic) | `docs/design/source/*.py` (reference only, not production code; see its README) |
+| UI direction: app frame, density, colour roles, behaviour rules | `docs/design/ui-direction.md` (replaces the canvas desktop frame) |
 
-The two claude.ai links need the owner's login; an agent cannot open them. Ask the owner for screenshots, or read `docs/design/source/` for exact values.
+The two claude.ai links need the owner's login; an agent cannot open them. Ask the owner for screenshots, or read `docs/design/source/` for exact content values. For the frame, density and colour roles, `docs/design/ui-direction.md` replaces the canvas.
 
 ## Decided in conversation, now recorded
 

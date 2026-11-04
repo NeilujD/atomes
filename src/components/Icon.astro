@@ -1,0 +1,13 @@
+---
+import { icons, type IconName } from './icons';
+
+interface Props {
+  name: IconName;
+  size?: number;
+}
+
+const { name, size = 16 } = Astro.props;
+const LucideIcon = icons[name];
+---
+
+<LucideIcon size={size} stroke-width={1.75} aria-hidden="true" />

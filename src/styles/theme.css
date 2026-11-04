@@ -1,0 +1,115 @@
+/*
+ * Atomes theme. Rules and reasons: docs/design/ui-direction.md.
+ *
+ * The canvas colours are the only source. Each pair is (light, dark); the
+ * browser picks one from `color-scheme`, so one declaration serves both themes.
+ * Every other colour is derived from these, never typed again.
+ */
+:root {
+  color-scheme: light dark;
+
+  --ground: light-dark(#f6f6f3, #121317);
+  --surface: light-dark(#ffffff, #1b1d22);
+  --ink: light-dark(#17181c, #f1f1ec);
+  --soft: light-dark(#ecece6, #25282e);
+  --accent: light-dark(#2e46d1, #8a9bff);
+  --accent-tint: light-dark(#e9ecfb, #1f2547);
+  --secondary-base: light-dark(#5c606a, #a3a7b0);
+  --line-base: light-dark(#e3e3de, #2c2f36);
+  --off-base: light-dark(#c9cac4, #4a4e57);
+  --cover-edge: light-dark(rgb(23 24 28 / 0.08), rgb(255 255 255 / 0.1));
+  --scrim: light-dark(rgb(23 24 28 / 0.45), rgb(0 0 0 / 0.62));
+
+  /*
+   * Contrast: how far secondary text, lines and inactive controls move toward
+   * ink. 0% is the canvas. Raised by the OS setting or by Settings > Appearance.
+   * Mix in oklab, not oklch: Chrome gives an oklch mix of near-greys a hue of
+   * `none`, which paints as red.
+   */
+  --contrast: 0%;
+  --secondary: color-mix(in oklab, var(--ink) var(--contrast), var(--secondary-base));
+  --line: color-mix(in oklab, var(--ink) var(--contrast), var(--line-base));
+  --off: color-mix(in oklab, var(--ink) var(--contrast), var(--off-base));
+
+  --font: 'Schibsted Grotesk Variable', 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Row height follows the input, not a preference: dense for a pointer, roomy for a thumb. */
+  --row: 32px;
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --radius-cover: 4px;
+}
+
+:root[data-appearance='light'] {
+  color-scheme: light;
+}
+:root[data-appearance='dark'] {
+  color-scheme: dark;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --contrast: 45%;
+  }
+}
+:root[data-contrast='more'] {
+  --contrast: 45%;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --row: 44px;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
