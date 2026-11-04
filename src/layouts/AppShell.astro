@@ -6,6 +6,7 @@ import '@fontsource-variable/schibsted-grotesk';
 import '../styles/theme.css';
 import Icon from '../components/Icon.astro';
 import type { IconName } from '../components/icons';
+import { bootScript } from '../lib/appearance';
 
 type Section = 'home' | 'library' | 'new' | 'to-buy' | 'check' | 'settings';
 
@@ -38,8 +39,10 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f6f3" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121317" />
+    <meta name="theme-color" data-theme="light" media="(prefers-color-scheme: light)" content="#f6f6f3" />
+    <meta name="theme-color" data-theme="dark" media="(prefers-color-scheme: dark)" content="#121317" />
+    <script is:inline set:html={bootScript} />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180.png" />
@@ -133,6 +136,25 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
     </div>
   </body>
 </html>
+
+<script>
+  import { applyAppearance, readAppearance } from '../lib/appearance';
+
+  // Keep the theme-color metas right, follow the system while open, and follow
+  // a change made in Settings in another tab.
+  const systemDark = matchMedia('(prefers-color-scheme: dark)');
+  const sync = () => applyAppearance(document, readAppearance(), systemDark.matches);
+  sync();
+  systemDark.addEventListener('change', sync);
+  addEventListener('storage', sync);
+
+  // Dev serves unbundled modules that change on every edit: cache only a build.
+  if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
+      console.error('Service worker registration failed', error);
+    });
+  }
+</script>
 
 <style>
   /* Phone first: no sidebar, large title, tab bar. */

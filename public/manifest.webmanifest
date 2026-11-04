@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "Atomes",
+  "short_name": "Atomes",
+  "description": "Your books, series and volumes. Private by default.",
+  "lang": "en",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f6f3",
+  "theme_color": "#f6f6f3",
+  "icons": [
+    { "src": "/icons/atomes-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/atomes-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/atomes-icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/atomes-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

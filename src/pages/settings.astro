@@ -1,0 +1,159 @@
+---
+import Icon from '../components/Icon.astro';
+import type { IconName } from '../components/icons';
+import AppShell from '../layouts/AppShell.astro';
+import type { Appearance } from '../lib/appearance';
+
+const options: { value: Appearance; label: string; icon: IconName }[] = [
+  { value: 'system', label: 'System', icon: 'monitor' },
+  { value: 'light', label: 'Light', icon: 'sun' },
+  { value: 'dark', label: 'Dark', icon: 'moon' },
+];
+---
+
+<AppShell title="Settings" current="settings">
+  <div class="settings">
+    <section class="group">
+      <h2 class="group-title">Display</h2>
+      <div class="row">
+        <div>
+          <p class="row-label" id="appearance-label">Appearance</p>
+          <p class="row-hint" id="appearance-hint">Kept on this device.</p>
+        </div>
+        <div
+          class="segmented"
+          role="radiogroup"
+          aria-labelledby="appearance-label"
+          aria-describedby="appearance-hint"
+          data-appearance-picker
+        >
+          {
+            options.map((option) => (
+              <label class="segment">
+                <input type="radio" name="appearance" value={option.value} checked={option.value === 'system'} />
+                <Icon name={option.icon} />
+                <span>{option.label}</span>
+              </label>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+  </div>
+</AppShell>
+
+<script>
+  import { applyAppearance, parseAppearance, readAppearance, saveAppearance } from '../lib/appearance';
+
+  const radios = document.querySelectorAll<HTMLInputElement>('[data-appearance-picker] input[name="appearance"]');
+  const stored = readAppearance();
+  for (const radio of radios) {
+    radio.checked = radio.value === stored;
+    radio.addEventListener('change', () => {
+      const appearance = parseAppearance(radio.value);
+      saveAppearance(appearance);
+      applyAppearance(document, appearance, matchMedia('(prefers-color-scheme: dark)').matches);
+    });
+  }
+</script>
+
+<style>
+  .settings {
+    max-width: 880px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .group-title {
+    font-size: 18px;
+  }
+
+  .row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .row-label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .row-hint {
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
+  .segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--radius-control);
+    background: var(--soft);
+  }
+
+  .segment {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: calc(var(--row) - 4px);
+    padding: 0 12px;
+    border-radius: calc(var(--radius-control) - 2px);
+    color: var(--secondary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .segment input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .segment:has(input:checked) {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 0 0 1px var(--line);
+  }
+
+  .segment:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* Desktop: list group on a hairline, label left and control right. */
+  @media (min-width: 960px) {
+    .settings {
+      gap: 28px;
+    }
+
+    .group-title {
+      display: flex;
+      align-items: center;
+      min-height: var(--row);
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    .row {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+  }
+</style>
