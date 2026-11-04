@@ -8,6 +8,8 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 - `bun run build` — build the Node server into `dist/`
 - `bun run dev` — dev server on http://localhost:4321
 
+`jean.json`: Jean runs `bun install --frozen-lockfile` in each new worktree, and `bun run dev` as its Run command.
+
 CI (`.github/workflows/ci.yml`) runs install, check, test and build on every pull request, with no secrets. Tests must never call a real PDS.
 
 `main` is protected by the GitHub ruleset `protect-main`: direct pushes, force pushes and deletion are refused, and a pull request merges only when the CI `check` job is green. Never merge without the owner's review.

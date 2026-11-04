@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "setup": "bun install --frozen-lockfile",
+    "run": "bun run dev"
+  }
+}
