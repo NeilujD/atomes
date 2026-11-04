@@ -10,6 +10,8 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 
 CI (`.github/workflows/ci.yml`) runs install, check, test and build on every pull request, with no secrets. Tests must never call a real PDS.
 
+`main` is protected by the GitHub ruleset `protect-main`: direct pushes, force pushes and deletion are refused, and a pull request merges only when the CI `check` job is green. Never merge without the owner's review.
+
 ## Agent skills
 
 ### Issue tracker
