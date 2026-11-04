@@ -6,6 +6,7 @@ import {
 } from '@atproto/oauth-client-browser';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { memoryLocalCopy } from '../space/local-copy.fake';
+import { ClientMetadataError } from './client-metadata';
 import { errorMessage, loadSession, signIn, signOut, type AuthClient } from './session';
 
 const reader = { did: 'did:plc:reader', handle: 'reader.test' };
@@ -158,7 +159,17 @@ describe('errorMessage', () => {
       new OAuthResolverError('Failed to resolve identity: x.test', { cause: new TypeError('Failed to fetch') }),
       'Could not reach your PDS. Check your connection and try again.',
     ],
-    ['the session expired', new TokenRefreshError('did:plc:reader', 'expired'), 'Your session has ended. Sign in again.'],
+    [
+      'this Atomes server is not set up for sign-in',
+      new ClientMetadataError(true, 'HTTP 500'),
+      'This Atomes server is not set up for sign-in. Its owner must set PUBLIC_APP_ORIGIN to its https origin.',
+    ],
+    [
+      'this Atomes server cannot be reached',
+      new ClientMetadataError(false, 'Unreachable', { cause: new TypeError('Failed to fetch') }),
+      'Could not reach this Atomes server. Check your connection and try again.',
+    ],
+    ['the session expired',new TokenRefreshError('did:plc:reader', 'expired'), 'Your session has ended. Sign in again.'],
     ['anything else', new Error('boom'), 'Sign-in failed. Try again.'],
   ])('%s', (_, error, message) => {
     expect(errorMessage(error)).toBe(message);

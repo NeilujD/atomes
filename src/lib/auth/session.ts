@@ -12,6 +12,7 @@ import {
 } from '@atproto/oauth-client-browser';
 import { isNetworkFailure } from '../network';
 import type { LocalCopy } from '../space/local-copy';
+import { ClientMetadataError } from './client-metadata';
 
 export interface Account {
   did: string;
@@ -81,6 +82,11 @@ export function errorMessage(error: unknown): string {
   }
   if (error instanceof TokenRefreshError || error instanceof TokenRevokedError || error instanceof TokenInvalidError) {
     return 'Your session has ended. Sign in again.';
+  }
+  if (error instanceof ClientMetadataError) {
+    return error.reachable
+      ? 'This Atomes server is not set up for sign-in. Its owner must set PUBLIC_APP_ORIGIN to its https origin.'
+      : 'Could not reach this Atomes server. Check your connection and try again.';
   }
   if (isNetworkFailure(error)) return 'Could not reach your PDS. Check your connection and try again.';
   if (error instanceof OAuthResolverError || error instanceof HandleResolverError) {

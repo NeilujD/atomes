@@ -7,6 +7,7 @@ import {
   buildAtprotoLoopbackClientId,
 } from '@atproto/oauth-client-browser';
 import { callbackPath, isLoopbackHost, metadataPath, oauthScope } from './client-config';
+import { fetchClientMetadata } from './client-metadata';
 import type { Account, AuthClient } from './session';
 import { indexedDbLocalCopy } from '../space/local-copy';
 import { openSpace, type Space } from '../space/space';
@@ -37,14 +38,17 @@ async function loadClient(): Promise<BrowserOAuthClient> {
     return new Promise(() => {});
   }
 
-  return isLoopbackHost(location.hostname)
-    ? new BrowserOAuthClient({ ...options, clientMetadata: loopbackClientMetadata(location.origin) })
-    : await BrowserOAuthClient.load({ ...options, clientId: new URL(metadataPath, location.origin).href });
+  const clientMetadata = isLoopbackHost(location.hostname)
+    ? loopbackClientMetadata(location.origin)
+    : await fetchClientMetadata(new URL(metadataPath, location.origin).href);
+  return new BrowserOAuthClient({ ...options, clientMetadata });
 }
 
-// Restores the session with no network call: `init(false)` does not refresh an
+// Restores the session with no call to the PDS: `init(false)` does not refresh an
 // expired token here (the first PDS call does). With `init()`, a refresh that
 // fails offline makes the library forget the session on this device.
+// It still reads the OAuth metadata; offline, the service worker serves its last
+// copy (public/sw.js).
 function restore(client: BrowserOAuthClient) {
   return client.init(false);
 }
