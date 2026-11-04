@@ -9,7 +9,7 @@ describe('webClientMetadata', () => {
       client_id: 'https://mymac.tail1234.ts.net/oauth/client-metadata.json',
       application_type: 'web',
       redirect_uris: ['https://mymac.tail1234.ts.net/oauth/callback'],
-      scope: 'atproto',
+      scope: 'atproto space:app.atomes.library?skey=self&manage=create',
       token_endpoint_auth_method: 'none',
       dpop_bound_access_tokens: true,
     });

@@ -8,6 +8,7 @@ import {
 } from '@atproto/oauth-client-browser';
 import { callbackPath, isLoopbackHost, metadataPath, oauthScope } from './client-config';
 import type { Account, AuthClient } from './session';
+import { openSpace, type Space } from '../space/space';
 
 // Resolves handles over DNS-over-HTTPS, so Bluesky does not learn who signs in.
 // Needs a server that answers JSON DoH queries with CORS.
@@ -26,7 +27,7 @@ export function loopbackClientMetadata(origin: string) {
   return atprotoLoopbackClientMetadata(buildAtprotoLoopbackClientId({ scope: oauthScope, redirect_uris: [redirectUri] }));
 }
 
-export async function createAuthClient(): Promise<AuthClient> {
+async function loadClient(): Promise<BrowserOAuthClient> {
   // The loopback client refuses `localhost`: move to the same page on 127.0.0.1.
   if (location.hostname === 'localhost') {
     const url = new URL(location.href);
@@ -35,9 +36,26 @@ export async function createAuthClient(): Promise<AuthClient> {
     return new Promise(() => {});
   }
 
-  const client = isLoopbackHost(location.hostname)
+  return isLoopbackHost(location.hostname)
     ? new BrowserOAuthClient({ ...options, clientMetadata: loopbackClientMetadata(location.origin) })
     : await BrowserOAuthClient.load({ ...options, clientId: new URL(metadataPath, location.origin).href });
+}
+
+// Restores the stored session and opens the reader's private Space with it.
+// Undefined when signed out.
+export async function openOwnSpace(): Promise<{ account: Account; space: Space } | undefined> {
+  const client = await loadClient();
+  const result = await client.init();
+  if (!result) return undefined;
+  const { session } = result;
+  return {
+    account: await toAccount(client, session.did),
+    space: openSpace((pathname, init) => session.fetchHandler(pathname, init), session.did),
+  };
+}
+
+export async function createAuthClient(): Promise<AuthClient> {
+  const client = await loadClient();
 
   return {
     async init() {
