@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
+    "@lucide/astro": "^1.68.0",
     "astro": "^7.4.5"
   },
   "devDependencies": {
