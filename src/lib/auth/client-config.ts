@@ -1,9 +1,11 @@
 // OAuth client settings, shared by the browser client and the metadata endpoint
 // (ADR 0009). Plain data: no OAuth library import, so the server can use it.
 
-// `atproto` only for now: the Space scope (`space:app.atomes.library?...`) gives
-// `invalid_scope` until the `app.atomes.*` lexicons are published (CORE-17).
-export const oauthScope = 'atproto';
+// The Space scope lets the app create the private Space and read and write the
+// collections that `lexicons/app/atomes/library.json` lists. The PDS resolves
+// that lexicon at sign-in: unpublished, it answers `invalid_scope`
+// (run `scripts/publish-lexicons.ts` after every lexicon change).
+export const oauthScope = 'atproto space:app.atomes.library?skey=self&manage=create';
 export const callbackPath = '/oauth/callback';
 export const metadataPath = '/oauth/client-metadata.json';
 
