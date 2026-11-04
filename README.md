@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/icons/atomes-icon-dark.svg">
+    <img src="public/icons/atomes-icon.svg" alt="Atomes logo: three book spines, one missing" width="128">
+  </picture>
+</p>
+
 # Atomes
 
 A personal library tracker built on AT Protocol: what you own, what you have read, and which series have new volumes.
