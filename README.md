@@ -22,5 +22,8 @@ bun install
 bun run check   # type check
 bun run test    # tests (not `bun test`)
 bun run build   # Node server in dist/
-bun run dev     # http://localhost:4321
+bun run dev     # http://127.0.0.1:4321
+bun run phone   # built app for a phone test over HTTPS
 ```
+
+Test on a phone: [docs/phone-https.md](docs/phone-https.md).
