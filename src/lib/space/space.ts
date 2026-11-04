@@ -3,6 +3,10 @@
 // fixed here. Calls go from the browser straight to the PDS through the OAuth
 // session; the Atomes server never sees record data (ADR 0001, ADR 0003).
 // Wire shapes: lexicons on bluesky-social/atproto, branch permissioned-data at d009736.
+// Behind it, a local copy on the device keeps the last records read, for offline
+// reads (ADR 0002). Offline writes fail; nothing is queued.
+import { isNetworkFailure } from '../network';
+import type { LocalCopy } from './local-copy';
 
 // `OAuthSession.fetchHandler`: sends a DPoP-signed request to the reader's PDS.
 export type FetchHandler = (pathname: string, init?: RequestInit) => Promise<Response>;
@@ -12,15 +16,24 @@ export interface SpaceRecord {
   value: unknown;
 }
 
+export interface Listing {
+  records: SpaceRecord[];
+  // True when the PDS could not be reached: the records are the local copy,
+  // as last read on this device, and may be out of date.
+  stale: boolean;
+}
+
 export interface Space {
   // Creates the Space if it does not exist yet.
   ensure(): Promise<void>;
-  // Writes a record; creates the Space on the first write.
+  // Writes a record; creates the Space on the first write. Rejects when the PDS
+  // cannot be reached: nothing is saved, nothing is queued.
   put(collection: string, rkey: string, value: Record<string, unknown>): Promise<void>;
-  // Undefined when the record, or the Space, does not exist.
+  // Undefined when the record, or the Space, does not exist. Reads the PDS only.
   get(collection: string, rkey: string): Promise<unknown>;
   // Every record of the collection; empty when the Space does not exist.
-  list(collection: string): Promise<SpaceRecord[]>;
+  // With no network: the local copy, marked stale, if this device has one.
+  list(collection: string): Promise<Listing>;
 }
 
 // One-member Space: only its owner can read it (personalspace policy).
@@ -41,8 +54,10 @@ export class SpaceError extends Error {
   }
 }
 
-export function openSpace(fetchHandler: FetchHandler, did: string): Space {
+export function openSpace(fetchHandler: FetchHandler, did: string, localCopy: LocalCopy): Space {
   const space = `at://${did}/space/${spaceType}/${skey}`;
+  // One entry per account and collection: another account never sees these records.
+  const copyKey = (collection: string) => `${space}/${collection}`;
 
   async function call(method: string, init: { query?: Record<string, string>; body?: unknown }) {
     const query = init.query ? `?${new URLSearchParams(init.query).toString()}` : '';
@@ -69,14 +84,23 @@ export function openSpace(fetchHandler: FetchHandler, did: string): Space {
   }
 
   async function put(collection: string, rkey: string, value: Record<string, unknown>) {
+    const record = { $type: collection, ...value };
     // validate: false, as the reference app does: the PDS stores the record as is.
-    const body = { space, repo: did, collection, rkey, validate: false, record: { $type: collection, ...value } };
+    const body = { space, repo: did, collection, rkey, validate: false, record };
     try {
       await call('putRecord', { body });
     } catch (error) {
       if (!(error instanceof SpaceError && error.error === 'SpaceNotFound')) throw error;
       await ensure();
       await call('putRecord', { body });
+    }
+    // Write-through, only into a copy that a full list filled: a copy with
+    // only this record would look like the whole collection when offline.
+    const copy = await localCopy.read(copyKey(collection));
+    if (copy) {
+      const records = [...copy.filter((kept) => kept.rkey !== rkey), { rkey, value: record }];
+      // Newest key first, as the PDS lists them.
+      await localCopy.write(copyKey(collection), records.sort((a, b) => b.rkey.localeCompare(a.rkey)));
     }
   }
 
@@ -90,7 +114,20 @@ export function openSpace(fetchHandler: FetchHandler, did: string): Space {
     }
   }
 
-  async function list(collection: string) {
+  async function list(collection: string): Promise<Listing> {
+    let records: SpaceRecord[];
+    try {
+      records = await listFromPds(collection);
+    } catch (error) {
+      const copy = isNetworkFailure(error) ? await localCopy.read(copyKey(collection)) : undefined;
+      if (!copy) throw error;
+      return { records: copy, stale: true };
+    }
+    await localCopy.write(copyKey(collection), records);
+    return { records, stale: false };
+  }
+
+  async function listFromPds(collection: string) {
     const records: SpaceRecord[] = [];
     let cursor: string | undefined;
     try {
@@ -132,7 +169,6 @@ export function newRecordKey(): string {
 
 export function spaceErrorMessage(error: unknown): string {
   if (error instanceof SpaceError) return `Your PDS refused the request: ${error.message}`;
-  // fetch() rejects with a TypeError when offline or when the PDS refuses browser (CORS) calls.
-  if (error instanceof TypeError) return 'Could not reach your PDS. Check your connection and try again.';
+  if (isNetworkFailure(error)) return 'Could not reach your PDS. Check your connection and try again.';
   return 'Something went wrong with your private Space. Try again.';
 }

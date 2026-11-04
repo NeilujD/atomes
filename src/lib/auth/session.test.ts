@@ -5,6 +5,7 @@ import {
   TokenRefreshError,
 } from '@atproto/oauth-client-browser';
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { memoryLocalCopy } from '../space/local-copy.fake';
 import { errorMessage, loadSession, signIn, signOut, type AuthClient } from './session';
 
 const reader = { did: 'did:plc:reader', handle: 'reader.test' };
@@ -57,7 +58,7 @@ describe('session', () => {
 
     expect(await loadSession(fakeClient(device))).toEqual({ status: 'signed-in', account: reader });
 
-    expect(await signOut(fakeClient(device), reader)).toEqual({ status: 'signed-out' });
+    expect(await signOut(fakeClient(device), reader, memoryLocalCopy())).toEqual({ status: 'signed-out' });
     expect(device.stored).toBeUndefined();
     expect(await loadSession(fakeClient(device))).toEqual({ status: 'signed-out' });
   });
@@ -89,10 +90,24 @@ describe('session', () => {
   test('sign-out tells the reader when the PDS could not be reached', async () => {
     const client = { ...fakeClient({}), signOut: () => Promise.reject(new TypeError('Failed to fetch')) };
 
-    expect(await signOut(client, reader)).toEqual({
+    expect(await signOut(client, reader, memoryLocalCopy())).toEqual({
       status: 'signed-out',
       message: 'Signed out on this device. Your PDS could not be reached to end the session there.',
     });
+  });
+
+  test.each<[string, AuthClient]>([
+    ['the PDS ends the session', fakeClient({})],
+    ['the PDS cannot be reached', { ...fakeClient({}), signOut: () => Promise.reject(new TypeError('Failed to fetch')) }],
+  ])('sign-out clears the local copy of the Space when %s', async (_, client) => {
+    const copy = memoryLocalCopy();
+    await copy.write('at://did:plc:reader/space/app.atomes.library/self/app.atomes.testItem', [
+      { rkey: 'a', value: { text: 'private' } },
+    ]);
+
+    await signOut(client, reader, copy);
+
+    expect(await copy.read('at://did:plc:reader/space/app.atomes.library/self/app.atomes.testItem')).toBeUndefined();
   });
 });
 
@@ -114,7 +129,7 @@ describe('tokens', () => {
     device.callback = 'approved';
     states.push(await loadSession(fakeClient(device)));
     states.push(await loadSession(fakeClient(device)));
-    states.push(await signOut(fakeClient(device), reader));
+    states.push(await signOut(fakeClient(device), reader, memoryLocalCopy()));
     device.callback = 'denied';
     states.push(await loadSession(fakeClient(device)));
 

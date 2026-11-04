@@ -9,7 +9,7 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 - `bun run build` — build the Node server into `dist/`
 - `bun run dev` — dev server on http://127.0.0.1:4321 (not `localhost`: the OAuth loopback client needs a loopback IP; `localhost` pages move there)
 
-`jean.json`: Jean runs `bun install --frozen-lockfile` in each new worktree, and `bun run dev` as its Run command.
+`jean.json`: in each new worktree, Jean copies the `.env*` files of the base project (`$JEAN_ROOT_PATH`, top level only) and runs `bun install --frozen-lockfile`. Its Run command is `bun run dev`.
 
 CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Tests must never call a real PDS.
 

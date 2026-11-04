@@ -10,6 +10,8 @@ import {
   TokenRefreshError,
   TokenRevokedError,
 } from '@atproto/oauth-client-browser';
+import { isNetworkFailure } from '../network';
+import type { LocalCopy } from '../space/local-copy';
 
 export interface Account {
   did: string;
@@ -48,7 +50,13 @@ export async function signIn(client: AuthClient, input: string): Promise<AuthSta
   }
 }
 
-export async function signOut(client: AuthClient, account: Account): Promise<AuthState> {
+// Clears the local copy of the Space first, so it goes even when the PDS cannot be reached.
+export async function signOut(
+  client: AuthClient,
+  account: Account,
+  localCopy: Pick<LocalCopy, 'clear'>,
+): Promise<AuthState> {
+  await localCopy.clear();
   try {
     await client.signOut(account.did);
     return { status: 'signed-out' };
@@ -74,15 +82,9 @@ export function errorMessage(error: unknown): string {
   if (error instanceof TokenRefreshError || error instanceof TokenRevokedError || error instanceof TokenInvalidError) {
     return 'Your session has ended. Sign in again.';
   }
-  // fetch() rejects with a TypeError when offline or when a server refuses browser (CORS) calls.
-  if (causedByTypeError(error)) return 'Could not reach your PDS. Check your connection and try again.';
+  if (isNetworkFailure(error)) return 'Could not reach your PDS. Check your connection and try again.';
   if (error instanceof OAuthResolverError || error instanceof HandleResolverError) {
     return 'No account found for this handle. Check the spelling.';
   }
   return 'Sign-in failed. Try again.';
-}
-
-function causedByTypeError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return error instanceof TypeError || causedByTypeError(error.cause);
 }

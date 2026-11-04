@@ -21,6 +21,9 @@ import AppShell from '../../layouts/AppShell.astro';
 
     <section class="group" data-probe-records hidden>
       <h2 class="group-title">Saved records</h2>
+      <p class="hint" data-probe-offline role="status" hidden>
+        Offline. This is the copy on this device, from the last time it loaded. It may be out of date.
+      </p>
       <p class="hint" data-probe-empty hidden>Nothing saved yet.</p>
       <ul class="records" data-probe-list></ul>
     </section>
@@ -29,8 +32,9 @@ import AppShell from '../../layouts/AppShell.astro';
 
 <script>
   import { openOwnSpace } from '../../lib/auth/browser-client';
-  import { spaceErrorMessage, type Space } from '../../lib/space/space';
-  import { listTestItems, saveTestItem } from '../../lib/space/test-item';
+  import { freshListing } from '../../lib/space/fresh-listing';
+  import { spaceErrorMessage } from '../../lib/space/space';
+  import { listTestItems, saveTestItem, type TestItem } from '../../lib/space/test-item';
 
   const status = document.querySelector<HTMLElement>('[data-probe-status]')!;
   const signInLink = document.querySelector<HTMLElement>('[data-probe-sign-in]')!;
@@ -38,16 +42,19 @@ import AppShell from '../../layouts/AppShell.astro';
   const input = form.querySelector<HTMLInputElement>('input[name="text"]')!;
   const error = document.querySelector<HTMLElement>('[data-probe-error]')!;
   const records = document.querySelector<HTMLElement>('[data-probe-records]')!;
+  const offline = document.querySelector<HTMLElement>('[data-probe-offline]')!;
   const empty = document.querySelector<HTMLElement>('[data-probe-empty]')!;
   const list = document.querySelector<HTMLElement>('[data-probe-list]')!;
 
-  function showError(cause?: unknown) {
-    error.textContent = cause === undefined ? '' : spaceErrorMessage(cause);
+  function showError(cause?: unknown, prefix = '') {
+    error.textContent = cause === undefined ? '' : prefix + spaceErrorMessage(cause);
     error.hidden = !error.textContent;
   }
 
-  async function refresh(space: Space) {
-    const items = await listTestItems(space);
+  function render({ items, stale }: { items: TestItem[]; stale: boolean }) {
+    offline.hidden = !stale;
+    // Fresh records: an earlier "Not saved" from offline no longer applies.
+    if (!stale) showError();
     list.replaceChildren(
       ...items.map((item) => {
         const row = document.createElement('li');
@@ -72,6 +79,8 @@ import AppShell from '../../layouts/AppShell.astro';
       const { account, space } = opened;
       status.textContent = `Signed in as @${account.handle}. Records go to your private Space, not to your public repo.`;
       form.hidden = false;
+      // Back online: replaces the local copy with the records on the PDS.
+      const listing = freshListing(() => listTestItems(space), render, showError);
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         const button = form.querySelector('button')!;
@@ -80,12 +89,13 @@ import AppShell from '../../layouts/AppShell.astro';
         void saveTestItem(space, input.value)
           .then(() => {
             input.value = '';
-            return refresh(space);
+            return listing.refresh();
           })
-          .catch(showError)
+          // Offline saves fail here; nothing is queued.
+          .catch((cause: unknown) => showError(cause, 'Not saved. '))
           .finally(() => (button.disabled = false));
       });
-      await refresh(space).catch(showError);
+      await listing.refresh();
     },
     (cause: unknown) => {
       status.textContent = 'Could not open your session.';

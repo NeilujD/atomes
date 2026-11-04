@@ -73,6 +73,7 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
   import { applyAppearance, parseAppearance, readAppearance, saveAppearance } from '../lib/appearance';
   import { createAuthClient } from '../lib/auth/browser-client';
   import { errorMessage, loadSession, signIn, signOut, type AuthClient, type AuthState } from '../lib/auth/session';
+  import { indexedDbLocalCopy } from '../lib/space/local-copy';
 
   const auth = document.querySelector<HTMLElement>('[data-auth]')!;
   const status = auth.querySelector<HTMLElement>('[data-auth-status]')!;
@@ -112,7 +113,7 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
       signOutButton.addEventListener('click', () => {
         if (state.status !== 'signed-in') return;
         busy(true);
-        void signOut(client, state.account)
+        void signOut(client, state.account, indexedDbLocalCopy())
           .then(render)
           .finally(() => busy(false));
       });

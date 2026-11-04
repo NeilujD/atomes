@@ -17,13 +17,15 @@ export async function saveTestItem(space: Space, input: string, now = new Date()
   await space.put(testItemCollection, newRecordKey(), { ...item });
 }
 
-export async function listTestItems(space: Space): Promise<TestItem[]> {
-  const records = await space.list(testItemCollection);
-  return records
+// stale: the PDS could not be reached; the items are the copy on this device.
+export async function listTestItems(space: Space): Promise<{ items: TestItem[]; stale: boolean }> {
+  const { records, stale } = await space.list(testItemCollection);
+  const items = records
     .map((record) => record.value)
     .filter(isTestItem)
     .map(({ text, createdAt }) => ({ text, createdAt }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { items, stale };
 }
 
 function isTestItem(value: unknown): value is TestItem {
