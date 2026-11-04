@@ -19,7 +19,7 @@ The owner runs these steps with their own Tailscale account. Nothing here goes i
 ## Each test session
 
 1. Stop the dev server first (also Jean's Run environment): it uses the same port 4321. If it still runs, `bun run phone` stops with `EADDRINUSE`, and a funnel to the dev server only shows Vite's "Blocked request" page.
-2. Start the app: `bun run phone`. It builds the app and serves it on `http://127.0.0.1:4321` with `PUBLIC_APP_ORIGIN` from `.env.local`. The dev server is not enough: it does not register the service worker, so the phone cannot install the app.
+2. Start the app: `bun run phone`. It builds the app and serves it on `http://127.0.0.1:4321` with `PUBLIC_APP_ORIGIN` from `.env.local`. It stops before the build if `PUBLIC_APP_ORIGIN` is missing or is not an `https://` origin: without the scheme, the metadata endpoint answers 500 and sign-in shows "This Atomes server is not set up for sign-in". The dev server is not enough: it does not register the service worker, so the phone cannot install the app.
 3. In a second terminal: `tailscale funnel 4321`. The first time, public DNS can take up to 10 minutes.
 4. Check the public path, the one the PDS and the phone use. It returns JSON with `client_id` on that hostname:
 
