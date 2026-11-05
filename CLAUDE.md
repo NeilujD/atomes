@@ -8,10 +8,11 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 - `bun run test` — run tests (Vitest). Never `bun test`: that starts Bun's own test runner, not Vitest.
 - `bun run build` — build the Node server into `dist/`
 - `bun run dev` — dev server on http://127.0.0.1:4321 (not `localhost`: the OAuth loopback client needs a loopback IP; `localhost` pages move there)
+- `bun scripts/record-catalog-answers.ts <isbn>…` — ask the real book sources and save their answers in `src/lib/catalog/fixtures/` for the Catalog tests
 
 `jean.json`: in each new worktree, Jean copies the `.env*` files of the base project (`$JEAN_ROOT_PATH`, top level only) and runs `bun install --frozen-lockfile`. Its Run command is `bun run dev`.
 
-CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Its `image` job builds the `Dockerfile` and waits for the container health check. Tests must never call a real PDS.
+CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Its `image` job builds the `Dockerfile` and waits for the container health check. Tests must never call a real PDS or a real book source (the Catalog tests use recorded answers). The Catalog stores its SQLite file in `DATA_DIR` (`data/` in development).
 
 `main` is protected by the GitHub ruleset `protect-main`: direct pushes, force pushes and deletion are refused, and a pull request merges only when the CI `check` job is green. Never merge without the owner's review.
 
