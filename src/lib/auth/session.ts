@@ -52,23 +52,36 @@ export async function signIn(client: AuthClient, input: string): Promise<AuthSta
 }
 
 // Clears what the device keeps for the reader first (device-data.ts), so it
-// goes even when the PDS cannot be reached.
+// goes even when the PDS cannot be reached. The session ends even when that
+// clearing fails.
 export async function signOut(
   client: AuthClient,
   account: Account,
   device: Pick<LocalCopy, 'clear'>,
 ): Promise<AuthState> {
-  await device.clear();
-  try {
-    await client.signOut(account.did);
-    return { status: 'signed-out' };
-  } catch {
-    // The client deletes the local session even when the PDS cannot be reached.
+  const cleared = await device.clear().then(
+    () => true,
+    () => false,
+  );
+  // The client deletes the local session even when the PDS cannot be reached.
+  const revoked = await client.signOut(account.did).then(
+    () => true,
+    () => false,
+  );
+  // Data left on the device matters more than a session left on the PDS.
+  if (!cleared) {
+    return {
+      status: 'signed-out',
+      message: 'Signed out, but some of your data could not be removed from this device. Clear this site’s data in the browser.',
+    };
+  }
+  if (!revoked) {
     return {
       status: 'signed-out',
       message: 'Signed out on this device. Your PDS could not be reached to end the session there.',
     };
   }
+  return { status: 'signed-out' };
 }
 
 export function errorMessage(error: unknown): string {
