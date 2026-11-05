@@ -9,10 +9,16 @@ function memorySpace(seed: SpaceRecord[] = []): Space {
     ensure: () => Promise.resolve(),
     put: (collection, rkey, value) => {
       records.set(rkey, { $type: collection, ...value });
-      return Promise.resolve();
+      return Promise.resolve('sent');
+    },
+    delete: (_, rkey) => {
+      records.delete(rkey);
+      return Promise.resolve('sent');
     },
     get: (_, rkey) => Promise.resolve(records.get(rkey)),
     list: () => Promise.resolve({ records: [...records].map(([rkey, value]) => ({ rkey, value })), stale: false }),
+    sendWaiting: () => Promise.resolve(),
+    pending: () => Promise.resolve([]),
   };
 }
 
