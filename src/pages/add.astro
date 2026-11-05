@@ -72,7 +72,7 @@ const answers = [
     </div>
 
     <form class="preview" data-add-form hidden>
-      <div class="book">
+      <div class="book" data-preview>
         <div class="cover" data-cover></div>
         <div class="book-text">
           <h2 class="book-title" data-title>Book</h2>
@@ -81,6 +81,34 @@ const answers = [
           <p class="book-meta" data-edition></p>
         </div>
       </div>
+
+      <!-- A book the Catalog does not know: the reader types it. Disabled (so not
+           required) while a Catalog book is shown. maxlength keeps each field
+           inside the Copy lexicon (bookDetails). -->
+      <fieldset class="details" data-details hidden disabled>
+        <legend class="details-title">Type the book</legend>
+        <p class="hint" data-details-isbn></p>
+        <label class="details-field">
+          <span class="label">Title</span>
+          <input class="field" name="title" type="text" maxlength="300" autocomplete="off" required />
+        </label>
+        <label class="details-field">
+          <span class="label">Authors</span>
+          <input class="field" name="authors" type="text" maxlength="1300" autocomplete="off" aria-describedby="authors-hint" />
+          <span class="hint" id="authors-hint">Separate several authors with commas.</span>
+        </label>
+        <div class="details-row">
+          <label class="details-field">
+            <span class="label">Series</span>
+            <input class="field" name="series" type="text" maxlength="300" autocomplete="off" />
+          </label>
+          <label class="details-field volume">
+            <span class="label">Volume</span>
+            <input class="field" name="volume" type="text" maxlength="16" autocomplete="off" />
+          </label>
+        </div>
+        <p class="hint" data-details-problem data-error aria-live="polite"></p>
+      </fieldset>
 
       <fieldset class="question">
         <legend class="label">Have you read it?</legend>
@@ -116,8 +144,8 @@ const answers = [
   import { openOwnSpace } from '../lib/auth/browser-client';
   import type { Edition } from '../lib/catalog/catalog';
   import { coverUrl, lookupEdition } from '../lib/catalog/client';
-  import { saveCopy } from '../lib/library/copy';
-  import { isbnProblemText, readIsbn } from '../lib/library/ids';
+  import { saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
+  import { editionWork, isbnProblemText, readIsbn } from '../lib/library/ids';
   import { cameraProblem, cameraProblemText, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { loadLibrary, savedMessage, sendWhenOnline, waitingCount } from '../lib/library/library';
@@ -136,10 +164,21 @@ const answers = [
   const addForm = document.querySelector<HTMLFormElement>('[data-add-form]')!;
   const addButton = addForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const radios = addForm.querySelectorAll<HTMLInputElement>('input[name="status"]');
+  const preview = addForm.querySelector<HTMLElement>('[data-preview]')!;
+  const details = addForm.querySelector<HTMLFieldSetElement>('[data-details]')!;
+  const detailsProblem = details.querySelector<HTMLElement>('[data-details-problem]')!;
+  const detail = (name: keyof TypedFields) => details.querySelector<HTMLInputElement>(`input[name="${name}"]`)!;
 
   // The Space opens once; undefined when signed out.
   const own = openOwnSpace();
-  let edition: Edition | undefined;
+  // The book on the form: a Catalog Edition, or an ISBN the Catalog does not
+  // know, which the reader types (its Work is then `isbn:<isbn>`, ADR 0010).
+  interface Book {
+    isbn: string;
+    work: string;
+    edition?: Edition;
+  }
+  let book: Book | undefined;
   let library: Library = { copies: [], readingStatuses: [] };
   let sending = false;
 
@@ -162,18 +201,18 @@ const answers = [
   async function lookUp() {
     const read = readIsbn(isbnInput.value);
     addForm.hidden = true;
-    edition = undefined;
+    book = undefined;
     if ('problem' in read) return problem(isbnProblemText[read.problem]);
     const { isbn } = read;
     problem();
     busy(lookUpButton, true);
     skeleton.hidden = false;
-    let found: Edition;
+    // Undefined: no book source knows this ISBN, so the reader types the book.
+    let found: Edition | undefined;
     try {
       const answer = await lookupEdition(isbn);
-      if ('notFound' in answer) return problem('No book source knows this ISBN yet.');
       if ('unavailable' in answer) return problem('The book sources do not answer. Try again later.');
-      found = answer.found;
+      if ('found' in answer) found = answer.found;
       reportNetwork(true);
     } catch (error) {
       if (isNetworkFailure(error)) reportNetwork(false);
@@ -186,8 +225,7 @@ const answers = [
       busy(lookUpButton, false);
       skeleton.hidden = true;
     }
-    edition = found;
-    await show(found);
+    await (found ? show(found) : showUnknown(isbn));
   }
 
   async function show(found: Edition) {
@@ -212,9 +250,34 @@ const answers = [
     addForm.querySelector('[data-edition]')!.textContent = [editionLabel(found), `ISBN ${found.isbn}`]
       .filter(Boolean)
       .join(' · ');
+    await ready({ isbn: found.isbn, work: found.work.id, edition: found });
+  }
+
+  async function showUnknown(isbn: string) {
+    details.querySelector('[data-details-isbn]')!.textContent =
+      `ISBN ${isbn}. No book source knows it yet: type what is on the cover.`;
+    fillDetails({ title: '' });
+    await ready({ isbn, work: editionWork(isbn) });
+  }
+
+  function fillDetails(typed: BookDetails) {
+    detail('title').value = typed.title;
+    detail('authors').value = typed.authors?.join(', ') ?? '';
+    detail('series').value = typed.series ?? '';
+    detail('volume').value = typed.volume ?? '';
+    detailsProblem.textContent = '';
+  }
+
+  // Shows the form for this book, then starts from what the Library already has.
+  async function ready(next: Book) {
+    book = next;
+    const typing = !next.edition;
+    preview.hidden = typing;
+    details.hidden = !typing;
+    details.disabled = !typing;
     for (const radio of radios) radio.checked = radio.value === 'unread';
     addForm.hidden = false;
-    addButton.focus();
+    (typing ? detail('title') : addButton).focus();
 
     // Already in the Library: start from its Reading Status, and say so.
     const space = await openSpaceOrSay();
@@ -228,13 +291,16 @@ const answers = [
       // No copy on this device and no network: the status starts at "Not yet".
       library = { copies: [], readingStatuses: [] };
     }
-    if (edition !== found) return;
+    if (book !== next) return;
     // Abandoned is not an answer here: no choice keeps it.
-    const status = currentStatus(found.work.id, library);
+    const status = currentStatus(next.work, library);
     for (const radio of radios) radio.checked = radio.value === status;
-    if (bookPage(found.work.id, library, new Map())) {
+    // Another Copy of a book typed before: start from what the reader typed then.
+    const before = library.copies.find(({ value }) => value.isbn === next.isbn && value.details)?.value.details;
+    if (typing && before && !detail('title').value) fillDetails(before);
+    if (bookPage(next.work, library, new Map())) {
       toast('You already have this book. Adding it again adds another Copy.', {
-        link: { href: bookHref(found.work.id), label: 'Open its Book page' },
+        link: { href: bookHref(next.work), label: 'Open its Book page' },
       });
     }
   }
@@ -251,8 +317,22 @@ const answers = [
   }
 
   async function add() {
-    const found = edition;
-    if (!found) return;
+    const current = book;
+    if (!current) return;
+    const typed = current.edition
+      ? undefined
+      : typedDetails({
+          title: detail('title').value,
+          authors: detail('authors').value,
+          series: detail('series').value,
+          volume: detail('volume').value,
+        });
+    if (typed && 'problem' in typed) {
+      detailsProblem.textContent = typed.problem;
+      return;
+    }
+    const typedBook = typed?.details;
+    const title = current.edition?.title ?? typedBook?.title ?? `ISBN ${current.isbn}`;
     const checked = [...radios].find((radio) => radio.checked)?.value;
     const chosen = statuses.find((status) => status === checked);
     const space = await openSpaceOrSay();
@@ -260,20 +340,21 @@ const answers = [
     busy(addButton, true);
     try {
       const now = new Date();
-      const work = found.work.id;
+      const { isbn, work } = current;
+      const copy = { isbn, works: [work], ...(typedBook && { details: typedBook }), createdAt: now.toISOString() };
       const states: WriteState[] = [];
-      states.push((await saveCopy(space, { isbn: found.isbn, works: [work], createdAt: now.toISOString() })).state);
-      const change = chosen && statusChange(work, found.isbn, chosen, library, now);
+      states.push((await saveCopy(space, copy)).state);
+      const change = chosen && statusChange(work, isbn, chosen, library, now);
       if (change) states.push(await saveReadingStatus(space, change));
       const state = states.find((each) => each === 'refused') ?? states.find((each) => each === 'waiting') ?? 'sent';
       if (state !== 'refused') reportNetwork(state === 'sent');
       reportWaiting(await waitingCount(space));
 
       addForm.hidden = true;
-      edition = undefined;
+      book = undefined;
       isbnInput.value = '';
       const link = { href: bookHref(work), label: 'Open its Book page' };
-      const close = toast(`${found.title} is in your Library. ${savedMessage[state]}`, {
+      const close = toast(`${title} is in your Library. ${savedMessage[state]}`, {
         link,
         error: state === 'refused',
       });
@@ -286,7 +367,7 @@ const answers = [
             reportNetwork(true);
             reportWaiting(0);
             close();
-            toast(`${found.title} is in your Library. ${savedMessage.sent}`, { link });
+            toast(`${title} is in your Library. ${savedMessage.sent}`, { link });
           },
           (error) => toast(spaceErrorMessage(error), { error: true }),
         );
@@ -404,6 +485,9 @@ const answers = [
   });
   isbnInput.addEventListener('input', () => {
     if (hint.hasAttribute('data-error')) problem();
+  });
+  details.addEventListener('input', () => {
+    detailsProblem.textContent = '';
   });
   addForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -720,6 +804,43 @@ const answers = [
   }
 
   .book-line:empty {
+    display: none;
+  }
+
+  .details {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+
+  .details-title {
+    padding: 0;
+    font-size: 22px;
+    font-weight: 600;
+  }
+
+  .details-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .details-row {
+    display: flex;
+    gap: 12px;
+  }
+
+  .details-field.volume {
+    flex: 0 0 96px;
+  }
+
+  [data-details-problem]:empty {
     display: none;
   }
 
