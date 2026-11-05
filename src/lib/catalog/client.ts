@@ -2,6 +2,12 @@
 // else (ADR 0001). Rejects like fetch when the Atomes server cannot be reached.
 import type { Edition, Lookup } from './catalog';
 
+// The cover of an Edition, served by the Atomes server (api.ts): the browser
+// never asks a book source, which would learn who looks at which book.
+export function coverUrl(edition: Pick<Edition, 'isbn' | 'cover'>): string | null {
+  return edition.cover ? `/api/catalog/editions/${edition.isbn}/cover` : null;
+}
+
 export async function lookupEdition(isbn: string): Promise<Lookup> {
   const response = await fetch(`/api/catalog/editions/${encodeURIComponent(isbn)}`);
   if (response.ok) return { found: (await response.json()) as Edition };

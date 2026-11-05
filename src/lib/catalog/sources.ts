@@ -1,7 +1,8 @@
 // The open sources the Catalog asks on a miss, in the order of spike 0002
 // (section 1): BnF SRU, then SUDOC when BnF has no Series or Volume, Inventaire
 // for shared Work and Series identifiers and the cover, Open Library for a
-// cover, Series or Volume still missing. Only ISBNs leave the server.
+// cover, Series or Volume still missing. Only ISBNs leave the server, and the
+// cover URLs these sources gave.
 import { isSeriesId } from '../library/ids';
 import type { Facts } from './facts';
 import { volumeNumber } from './facts';
@@ -132,4 +133,17 @@ export function politeFetch(userAgent: string, gapMs = 1100): SourceFetch {
     if (slot > now) await new Promise((resolve) => setTimeout(resolve, slot - now));
     return fetch(url, { headers: { 'user-agent': userAgent }, signal: AbortSignal.timeout(10_000) });
   };
+}
+
+// The cover URLs the sources give (Inventaire images, Open Library covers). The
+// server fetches covers for the browser, so it fetches nothing else: a cover URL
+// is source data, and a source could name any address.
+export function isCoverUrl(raw: string): boolean {
+  if (!URL.canParse(raw)) return false;
+  const url = new URL(raw);
+  if (url.protocol !== 'https:' || url.port || url.username || url.password) return false;
+  return (
+    (url.hostname === 'inventaire.io' && url.pathname.startsWith('/img/')) ||
+    (url.hostname === 'covers.openlibrary.org' && url.pathname.startsWith('/b/'))
+  );
 }

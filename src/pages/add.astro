@@ -78,7 +78,7 @@ const answers = [
 <script>
   import { openOwnSpace } from '../lib/auth/browser-client';
   import type { Edition } from '../lib/catalog/catalog';
-  import { lookupEdition } from '../lib/catalog/client';
+  import { coverUrl, lookupEdition } from '../lib/catalog/client';
   import { saveCopy } from '../lib/library/copy';
   import { isIsbn13 } from '../lib/library/ids';
   import { loadLibrary, savedMessage, sendWhenOnline } from '../lib/library/library';
@@ -140,11 +140,11 @@ const answers = [
   async function show(found: Edition) {
     const cover = addForm.querySelector<HTMLElement>('[data-cover]')!;
     cover.replaceChildren();
-    if (found.cover) {
+    const src = coverUrl(found);
+    if (src) {
       const image = document.createElement('img');
-      image.src = found.cover;
+      image.src = src;
       image.alt = '';
-      image.referrerPolicy = 'no-referrer';
       cover.append(image);
     }
     addForm.querySelector('[data-title]')!.textContent = found.title;

@@ -40,7 +40,8 @@ describe('Book page', () => {
       authors: ['Eiichirō Oda'],
       series: 'One Piece',
       volume: '56',
-      cover: onePiece56.cover,
+      // From the Atomes server, never from the source: the source would learn who looks at this book.
+      cover: '/api/catalog/editions/9782723478991/cover',
       status: 'unread',
       finishedAt: undefined,
       copies: [{ rkey: '3m2a', isbn: onePiece56.isbn, edition: 'Glénat · French · 18 x 12 cm', lentTo: undefined }],

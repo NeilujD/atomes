@@ -1,6 +1,7 @@
 // The Library model: the reader's records and Catalog data in, what a screen
 // shows out. Pure: no Space, no network, so every rule here is tested alone.
 import type { Edition } from '../catalog/catalog';
+import { coverUrl } from '../catalog/client';
 import type { Copy } from './copy';
 import { statuses, type ReadingStatus, type Status } from './reading-status';
 import type { Saved } from './records';
@@ -23,6 +24,7 @@ export interface BookPage {
   authors: string[];
   series: string | null;
   volume: string | null;
+  // A path on the Atomes server.
   cover: string | null;
   status: Status;
   finishedAt: string | undefined;
@@ -61,7 +63,7 @@ export function bookPage(work: string, library: Library, editions: Editions): Bo
     authors: edition?.authors ?? details?.authors ?? [],
     series: edition?.series?.title ?? details?.series ?? null,
     volume: edition && edition.volume !== null ? String(edition.volume) : (details?.volume ?? null),
-    cover: edition?.cover ?? null,
+    cover: edition ? coverUrl(edition) : null,
     status: readingStatus?.status ?? 'unread',
     finishedAt: readingStatus?.finishedAt,
     copies: copies.map(({ rkey, value }) => ({

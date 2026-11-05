@@ -3,10 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { isSeriesId } from '../library/ids';
-import { answerEdition, answerVolumes } from './api';
+import { answerCover, answerEdition, answerVolumes } from './api';
 import type { Catalog, Edition } from './catalog';
 import { createCatalog } from './catalog';
 import { recordedFetch } from './recorded.fake';
+import { isCoverUrl, type SourceFetch } from './sources';
 
 const onePiece56 = '9782723478991';
 const onePiece112 = '9782344068922'; // 2026: no 461 in any source, 19 cm (56 is 18 x 12 cm)
@@ -17,12 +18,14 @@ const unknown = '9791099999993'; // valid check digit, no source knows it
 const dirs: string[] = [];
 const open: Catalog[] = [];
 
-function setup(down: string[] = []) {
+// `covers`: what the cover hosts answer; the recorded sources answer the rest.
+function setup(down: string[] = [], covers?: (url: string) => Response) {
   const dir = mkdtempSync(join(tmpdir(), 'atomes-catalog-'));
   dirs.push(dir);
   const file = join(dir, 'catalog.sqlite');
   const sources = recordedFetch(down);
-  const catalog = createCatalog({ file, fetch: sources.fetch, host: 'catalog.test' });
+  const fetch: SourceFetch = (url) => (covers && isCoverUrl(url) ? Promise.resolve(covers(url)) : sources.fetch(url));
+  const catalog = createCatalog({ file, fetch, host: 'catalog.test' });
   open.push(catalog);
   // A second Catalog on the same file, as after a server restart.
   const reopen = (fetch = recordedFetch().fetch) => {
@@ -205,5 +208,83 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
     const { catalog } = setup();
 
     expect((await answerVolumes(catalog, unknown)).status).toBe(404);
+  });
+});
+
+describe('GET /api/catalog/editions/{isbn}/cover', () => {
+  const onePieceCover = 'https://inventaire.io/img/entities/65883d822ab1b56d8f46aeb26c35d1feb9098a9b';
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+  const picture = (bytes: Uint8Array<ArrayBuffer> = jpeg, type = 'image/jpeg') =>
+    new Response(bytes, { headers: { 'content-type': type } });
+
+  test('the server fetches the cover once and serves it from SQLite, also after a restart', async () => {
+    const asked: string[] = [];
+    const { catalog, reopen } = setup([], (url) => {
+      asked.push(url);
+      return picture();
+    });
+
+    const first = await answerCover(catalog, onePiece56);
+    const again = await answerCover(catalog, onePiece56);
+    const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
+    const afterRestart = await answerCover(reopen(offline.fetch), onePiece56);
+
+    expect(first.status).toBe(200);
+    expect(first.headers.get('content-type')).toBe('image/jpeg');
+    expect(first.headers.get('x-content-type-options')).toBe('nosniff');
+    // The service worker keeps it, and sign-out clears that; the HTTP cache would not be cleared.
+    expect(first.headers.get('cache-control')).toBe('no-store');
+    expect(new Uint8Array(await first.arrayBuffer())).toEqual(jpeg);
+    expect(new Uint8Array(await again.arrayBuffer())).toEqual(jpeg);
+    expect(new Uint8Array(await afterRestart.arrayBuffer())).toEqual(jpeg);
+    expect(asked).toEqual([onePieceCover]);
+  });
+
+  test.each<[string, () => Response]>([
+    ['the source has no picture', () => new Response('', { status: 404 })],
+    ['the answer is SVG, which can run scripts', () => picture(new TextEncoder().encode('<svg/>'), 'image/svg+xml')],
+    ['the answer is a web page', () => picture(new TextEncoder().encode('<html>'), 'text/html')],
+    ['the picture is over 2 MB', () => picture(new Uint8Array(2 * 1024 * 1024 + 1))],
+  ])('no cover when %s, and it is asked again next time', async (_, answer) => {
+    let asked = 0;
+    const { catalog } = setup([], () => {
+      asked++;
+      return answer();
+    });
+
+    const response = await answerCover(catalog, onePiece56);
+    await answerCover(catalog, onePiece56);
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ error: 'NoCover' });
+    expect(asked).toBe(2);
+  });
+
+  test('when the cover host is down, the answer says so', async () => {
+    const { catalog } = setup([], () => new Response('down', { status: 503 }));
+
+    const response = await answerCover(catalog, onePiece56);
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: 'SourcesUnavailable' });
+  });
+
+  test('an unknown ISBN has no cover; a wrong ISBN is refused', async () => {
+    const { catalog } = setup([], () => picture());
+
+    expect((await answerCover(catalog, unknown)).status).toBe(404);
+    expect((await answerCover(catalog, '9782723478992')).status).toBe(400);
+  });
+
+  test.each([
+    [onePieceCover, true],
+    ['https://covers.openlibrary.org/b/id/12345-M.jpg', true],
+    ['http://inventaire.io/img/entities/abc', false],
+    ['https://inventaire.io.example.com/img/entities/abc', false],
+    ['https://inventaire.io/api/entities?action=by-uris', false],
+    ['https://127.0.0.1/img/entities/abc', false],
+    ['https://example.com/cover.jpg', false],
+  ])('only covers from the known cover hosts are fetched: %s', (url, allowed) => {
+    expect(isCoverUrl(url)).toBe(allowed);
   });
 });
