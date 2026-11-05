@@ -1,0 +1,14 @@
+.git
+.github
+.ai
+.astro
+.remember
+node_modules
+dist
+docs
+.env
+.env.*
+.DS_Store
+.idea
+Dockerfile
+.dockerignore
