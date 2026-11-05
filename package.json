@@ -23,7 +23,9 @@
     "@atproto/oauth-client-browser": "0.0.0-spaces-alpha-20261029171913",
     "@fontsource-variable/schibsted-grotesk": "^5.3.0",
     "@lucide/astro": "^1.68.0",
-    "astro": "^7.4.5"
+    "astro": "^7.4.5",
+    "barcode-detector": "3.2.3",
+    "zxing-wasm": "3.1.6"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",

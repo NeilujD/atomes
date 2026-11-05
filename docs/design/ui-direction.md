@@ -88,7 +88,7 @@ Before a screen is built, check that its view type works in the frame, in light,
 | List with groups | Library (List), New & upcoming, To Buy | Letter headers as list groups; A to Z index fits the panel edge. |
 | Cover flow | Library (Cover flow) | Full panel width; toolbar stays visible. |
 | Detail | Book, Series | Large title in content; spine row legible in high contrast. |
-| Camera | Shelf Check, Quick Add | Full screen on the phone (no tab bar); colours not themed. |
+| Camera | Shelf Check, Quick Add (scan built: modal `<dialog>` in `src/pages/add.astro`, reader in `src/lib/scan/barcode.ts`) | Full screen on the phone (no tab bar); a card on desktop; colours not themed (`--camera`, `--camera-ink`); Close and "Type the ISBN" always reachable. |
 | Flow | Sign in (callback built: `AppShell flow`, `src/pages/oauth/callback.astro`), Series Onboarding | No sidebar or tab bar; one action per step; content centred (a card on desktop). The mark is the progress: books lift while working, a book lands in the empty slot when done; no motion with reduced motion. |
 | Settings | Settings & privacy | Appearance and contrast controls. |
 

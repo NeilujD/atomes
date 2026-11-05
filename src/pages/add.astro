@@ -1,7 +1,8 @@
 ---
-// Quick Add by ISBN: type the ISBN, check the book, say if it is read, add it.
-// The Copy and the Reading Status go to the reader's Space from the browser;
-// the Atomes server only gets the ISBN to look up (ADR 0001).
+// Quick Add by ISBN: scan the barcode or type the ISBN, check the book, say if
+// it is read, add it. The barcode is read on the device (ADR 0003). The Copy
+// and the Reading Status go to the reader's Space from the browser; the Atomes
+// server only gets the ISBN to look up (ADR 0001).
 import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
 
@@ -14,6 +15,27 @@ const answers = [
 
 <AppShell title="Add to your Library">
   <div class="quick-add">
+    <!-- Shown only where the browser can open a camera (HTTPS or loopback). -->
+    <button class="button button-primary scan" type="button" data-scan hidden>
+      <Icon name="scan-barcode" />
+      <span>Scan the barcode</span>
+    </button>
+
+    <dialog class="camera" data-camera aria-label="Scan the barcode">
+      <video class="camera-video" data-video muted playsinline></video>
+      <div class="viewfinder" aria-hidden="true"></div>
+      <button class="camera-close" type="button" aria-label="Close" data-camera-close>
+        <Icon name="x" size={22} />
+      </button>
+      <div class="camera-bottom">
+        <p class="camera-text" data-camera-text aria-live="polite">Point at the barcode on the back cover.</p>
+        <button class="camera-type" type="button" data-camera-close>
+          <Icon name="keyboard" />
+          <span>Type the ISBN</span>
+        </button>
+      </div>
+    </dialog>
+
     <form class="isbn-form" data-isbn-form>
       <label class="label" for="isbn">ISBN</label>
       <div class="isbn-row">
@@ -91,7 +113,8 @@ const answers = [
   import type { Edition } from '../lib/catalog/catalog';
   import { coverUrl, lookupEdition } from '../lib/catalog/client';
   import { saveCopy } from '../lib/library/copy';
-  import { isIsbn13 } from '../lib/library/ids';
+  import { isbnProblemText, readIsbn } from '../lib/library/ids';
+  import { cameraProblem, cameraProblemText, openCamera, watchBarcodes } from '../lib/scan/barcode';
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { loadLibrary, savedMessage, sendWhenOnline, waitingCount } from '../lib/library/library';
   import { bookPage, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
@@ -116,11 +139,12 @@ const answers = [
   let library: Library = { copies: [], readingStatuses: [] };
   let sending = false;
 
-  // A problem with the ISBN, in the hint line; no argument puts the hint back.
-  function problem(text?: string) {
+  // A problem, in the hint line; no argument puts the hint back. Only a wrong
+  // ISBN marks the field invalid, not a camera that did not open.
+  function problem(text?: string, fieldIsWrong = Boolean(text)) {
     hint.textContent = text ?? defaultHint;
     hint.toggleAttribute('data-error', Boolean(text));
-    isbnInput.toggleAttribute('aria-invalid', Boolean(text));
+    isbnInput.toggleAttribute('aria-invalid', fieldIsWrong);
   }
 
   function busy(button: HTMLButtonElement, on: boolean) {
@@ -132,10 +156,11 @@ const answers = [
   const bookHref = (work: string) => `/book?work=${encodeURIComponent(work)}`;
 
   async function lookUp() {
-    const isbn = isbnInput.value.replace(/[\s-]/g, '');
+    const read = readIsbn(isbnInput.value);
     addForm.hidden = true;
     edition = undefined;
-    if (!isIsbn13(isbn)) return problem('This is not an ISBN-13. Type the 13 digits that start with 978 or 979.');
+    if ('problem' in read) return problem(isbnProblemText[read.problem]);
+    const { isbn } = read;
     problem();
     busy(lookUpButton, true);
     skeleton.hidden = false;
@@ -270,6 +295,75 @@ const answers = [
     }
   }
 
+  const scanButton = document.querySelector<HTMLButtonElement>('[data-scan]')!;
+  const camera = document.querySelector<HTMLDialogElement>('[data-camera]')!;
+  const video = camera.querySelector<HTMLVideoElement>('[data-video]')!;
+  const cameraText = camera.querySelector<HTMLElement>('[data-camera-text]')!;
+  const defaultCameraText = cameraText.textContent.trim();
+  // Aborted when the camera view closes, for any reason (Close, Escape, a book found).
+  let scanning = new AbortController();
+
+  // The camera view over the whole screen; the first good ISBN fills the field
+  // and looks the book up. Any failure goes back to typing, with the reason.
+  async function scan() {
+    problem();
+    cameraText.textContent = defaultCameraText;
+    scanning = new AbortController();
+    const { signal } = scanning;
+    camera.showModal();
+    let stream: MediaStream;
+    try {
+      stream = await openCamera();
+    } catch (error) {
+      camera.close();
+      return typeInstead(cameraProblemText[cameraProblem(error)]);
+    }
+    const stop = () => stream.getTracks().forEach((track) => track.stop());
+    if (signal.aborted) return stop(); // closed while the permission prompt was open
+    signal.addEventListener('abort', stop);
+    video.srcObject = stream;
+    try {
+      await video.play();
+      await watchBarcodes(video, found, signal);
+    } catch {
+      if (signal.aborted) return;
+      camera.close();
+      typeInstead('Could not read barcodes on this device. Type the ISBN.');
+    }
+  }
+
+  function found(text: string): boolean {
+    const read = readIsbn(text);
+    if ('isbn' in read) {
+      camera.close();
+      isbnInput.value = read.isbn;
+      void lookUp();
+      return true;
+    }
+    // A wrong check digit is a misread: keep reading without a word.
+    if (read.problem !== 'check-digit') cameraText.textContent = isbnProblemText[read.problem];
+    return false;
+  }
+
+  function typeInstead(reason?: string) {
+    if (reason) problem(reason, false);
+    isbnInput.focus();
+  }
+
+  // `mediaDevices` exists only in a secure context (HTTPS or loopback).
+  if ('mediaDevices' in navigator) scanButton.hidden = false;
+  scanButton.addEventListener('click', () => void scan());
+  for (const button of camera.querySelectorAll('[data-camera-close]')) {
+    button.addEventListener('click', () => {
+      camera.close();
+      typeInstead();
+    });
+  }
+  camera.addEventListener('close', () => {
+    scanning.abort();
+    video.srcObject = null;
+  });
+
   isbnForm.addEventListener('submit', (event) => {
     event.preventDefault();
     void lookUp();
@@ -296,6 +390,98 @@ const answers = [
     display: flex;
     flex-direction: column;
     gap: 20px;
+  }
+
+  .scan {
+    width: 100%;
+  }
+
+  /* Camera (ui-direction: Camera): the whole screen on the phone, over the tab
+     bar (a modal dialog is in the top layer); colours not themed. */
+  .camera {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    background: var(--camera);
+    color: var(--camera-ink);
+  }
+
+  .camera[open] {
+    display: grid;
+  }
+
+  .camera::backdrop {
+    background: var(--scrim);
+  }
+
+  .camera > * {
+    grid-area: 1 / 1;
+  }
+
+  .camera-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* A barcode is wide: a wide frame tells where to hold it. */
+  .viewfinder {
+    place-self: center;
+    width: min(76%, 320px);
+    aspect-ratio: 2 / 1;
+    border: 3px solid var(--camera-ink);
+    border-radius: var(--radius-panel);
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.35);
+  }
+
+  .camera-close,
+  .camera-type {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 0;
+    background: var(--camera-control);
+    color: var(--camera-ink);
+    cursor: pointer;
+  }
+
+  .camera-close {
+    place-self: start end;
+    width: 44px;
+    height: 44px;
+    margin: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 0 0;
+    padding: 0;
+    border-radius: 22px;
+  }
+
+  .camera-bottom {
+    align-self: end;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 0 20px max(24px, env(safe-area-inset-bottom));
+    text-align: center;
+  }
+
+  .camera-text {
+    font-size: 15px;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
+  }
+
+  .camera-type {
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 22px;
+    font-size: 15px;
+    font-weight: 600;
   }
 
   .isbn-form {
@@ -448,6 +634,14 @@ const answers = [
 
     .cover {
       width: 104px;
+    }
+
+    /* Desktop: the camera is a card in the middle of the window. */
+    .camera {
+      width: min(640px, calc(100% - 48px));
+      height: min(480px, calc(100dvh - 48px));
+      margin: auto;
+      border-radius: var(--radius-panel);
     }
   }
 </style>

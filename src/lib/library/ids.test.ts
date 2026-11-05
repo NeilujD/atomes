@@ -1,6 +1,35 @@
 import { isValidRecordKey } from '@atproto/syntax';
 import { describe, expect, test } from 'vitest';
-import { editionWork, isIsbn13, isSeriesId, isWorkId } from './ids';
+import { editionWork, isIsbn13, isSeriesId, isWorkId, readIsbn } from './ids';
+
+describe('reading an ISBN from a barcode or from what the reader typed', () => {
+  test.each([
+    ['an EAN-13 with prefix 978', '9782723478991', '9782723478991'],
+    ['an EAN-13 with prefix 979-10', '9791032713662', '9791032713662'],
+    ['hyphens', '978-2-7234-7899-1', '9782723478991'],
+    ['spaces around and inside', ' 978 2 7234 7899 1 ', '9782723478991'],
+    ['an ISBN-10', '2723478998', '9782723478991'],
+    ['an ISBN-10 with hyphens', '2-7234-7899-8', '9782723478991'],
+    ['an ISBN-10 that ends in X', '080442957X', '9780804429573'],
+    ['an ISBN-10 that ends in a small x', '080442957x', '9780804429573'],
+  ])('%s gives the ISBN-13', (_, text, isbn) => {
+    expect(readIsbn(text)).toEqual({ isbn });
+  });
+
+  test.each([
+    ['an EAN-13 with a wrong check digit', '9782723478992', 'check-digit'],
+    ['an ISBN-10 with a wrong check digit', '2723478997', 'check-digit'],
+    ['sheet music (ISMN, 979-0)', '9790230000001', 'sheet-music'],
+    ['a magazine (ISSN, 977)', '9771234567003', 'magazine'],
+    ['an EAN-13 that is not a book', '5901234123457', 'not-isbn'],
+    ['a UPC-A', '036000291452', 'not-isbn'],
+    ['an X that is not last', '08044295X7', 'not-isbn'],
+    ['words', 'one piece', 'not-isbn'],
+    ['nothing', '', 'not-isbn'],
+  ])('%s is refused', (_, text, problem) => {
+    expect(readIsbn(text)).toEqual({ problem });
+  });
+});
 
 describe('ISBN-13', () => {
   test.each(['9782723478991', '9791032713662', '9782070348633'])('%s is accepted', (isbn) => {
