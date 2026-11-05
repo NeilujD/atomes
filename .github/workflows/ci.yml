@@ -24,3 +24,19 @@ jobs:
       - run: bun run lint
       - run: bun run test
       - run: bun run build
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t atomes:ci .
+      - name: Run the image and wait for its health check
+        run: |
+          docker run -d --name atomes -v atomes-data:/data atomes:ci
+          for _ in $(seq 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' atomes)
+            [ "$status" = healthy ] && exit 0
+            sleep 2
+          done
+          docker logs atomes
+          exit 1
