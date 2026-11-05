@@ -308,18 +308,23 @@ const answers = [
   .cover {
     flex: none;
     width: 88px;
-    aspect-ratio: 2 / 3;
+    align-self: flex-start;
     overflow: hidden;
     border-radius: var(--radius-cover);
-    background: var(--soft);
     box-shadow: 0 0 0 1px var(--cover-edge);
   }
 
+  /* No cover: a book-shaped placeholder. */
+  .cover:empty {
+    aspect-ratio: 2 / 3;
+    background: var(--soft);
+  }
+
+  /* The whole cover, at its own ratio: covers are not all 2:3. */
   .cover :global(img) {
     display: block;
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
   }
 
   .book-text {
