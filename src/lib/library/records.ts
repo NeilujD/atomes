@@ -2,7 +2,7 @@
 // lexicons in `lexicons/` (ADR 0010). The PDS stores Space records without
 // validating them, so this is the only check before a record is saved.
 import { Lexicons, parseLexiconDoc } from '@atproto/lexicon';
-import type { Space } from '../space/space';
+import type { Space, WriteState } from '../space/space';
 
 const files = import.meta.glob<unknown>('../../../lexicons/app/atomes/*.json', { eager: true, import: 'default' });
 export const lexicons = new Lexicons(Object.values(files).map((file) => parseLexiconDoc(file)));
@@ -13,10 +13,10 @@ export interface Saved<T> {
 }
 
 // Throws, and writes nothing, when the record does not match its lexicon.
-export async function putRecord(space: Space, collection: string, rkey: string, value: object): Promise<void> {
+export async function putRecord(space: Space, collection: string, rkey: string, value: object): Promise<WriteState> {
   const record = { $type: collection, ...value };
   lexicons.assertValidRecord(collection, record);
-  await space.put(collection, rkey, record);
+  return space.put(collection, rkey, record);
 }
 
 // stale: the PDS could not be reached; the records are the copy on this device.

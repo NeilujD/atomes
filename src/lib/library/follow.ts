@@ -1,7 +1,7 @@
 // `app.atomes.follow`: a Followed or Dropped Series, in one Edition Line (ADR 0010).
 // The record key is the Series identifier: one record per Series. The Catalog
 // derives the Edition Line from the anchor Edition.
-import type { Space } from '../space/space';
+import type { Space, WriteState } from '../space/space';
 import { isIsbn13, isSeriesId } from './ids';
 import { listRecords, putRecord } from './records';
 
@@ -19,12 +19,12 @@ export interface Follow {
   updatedAt: string;
 }
 
-export async function saveFollow(space: Space, follow: Follow): Promise<void> {
+export async function saveFollow(space: Space, follow: Follow): Promise<WriteState> {
   if (!isSeriesId(follow.series)) throw new Error(`Not a Series identifier: ${follow.series}`);
   if (!isIsbn13(follow.anchorIsbn)) throw new Error(`Not an ISBN-13: ${follow.anchorIsbn}`);
   // The lexicon leaves `status` open (knownValues) so it can grow; this app writes only these.
   if (!followStatuses.includes(follow.status)) throw new Error(`Not a follow status: ${follow.status}`);
-  await putRecord(space, followCollection, follow.series, follow);
+  return putRecord(space, followCollection, follow.series, follow);
 }
 
 export function listFollows(space: Space) {

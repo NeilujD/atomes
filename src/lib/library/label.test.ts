@@ -19,7 +19,7 @@ describe('Label records', () => {
   test('a rename keeps the same record', async () => {
     const { space } = memorySpace();
 
-    const rkey = await saveLabel(space, manga);
+    const { rkey } = await saveLabel(space, manga);
     await saveLabel(space, { ...manga, name: 'Mangas' }, rkey);
 
     expect((await listLabels(space)).records.map(({ rkey: key, value }) => [key, value.name])).toEqual([[rkey, 'Mangas']]);
