@@ -12,10 +12,14 @@ type Section = 'home' | 'library' | 'new' | 'to-buy' | 'check' | 'settings';
 
 interface Props {
   title: string;
-  current: Section;
+  // The navigation item to mark as current; none for a page outside the navigation.
+  current?: Section;
+  // Detail page (Book, Series): the content has its own large title, so the
+  // phone does not show the view title above it.
+  detail?: boolean;
 }
 
-const { title, current } = Astro.props;
+const { title, current, detail = false } = Astro.props;
 
 const sidebarItems: { key: Section; href: string; label: string; icon: IconName }[] = [
   { key: 'home', href: '/', label: 'Home', icon: 'house' },
@@ -108,8 +112,8 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
       </nav>
 
       <main class="panel">
-        <header class="view-header">
-          <h1 class="view-title">{title}</h1>
+        <header class:list={['view-header', { detail }]}>
+          <h1 class="view-title" data-view-title>{title}</h1>
           <slot name="actions" />
         </header>
         <div class="view-body">
@@ -178,6 +182,21 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
   .view-title {
     font-size: 28px;
     letter-spacing: -0.03em;
+  }
+
+  @media (max-width: 959.98px) {
+    .view-header.detail {
+      padding-bottom: 8px;
+    }
+
+    .view-header.detail .view-title {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
   }
 
   .view-body {

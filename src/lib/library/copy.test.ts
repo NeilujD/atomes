@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { copyCollection, listCopies, saveCopy, type Copy } from './copy';
+import { copyCollection, deleteCopy, listCopies, saveCopy, type Copy } from './copy';
 import { memorySpace } from './memory-space.fake';
 import { lexicons } from './records';
 
@@ -29,6 +29,16 @@ describe('Copy records', () => {
     await saveCopy(space, onePiece56);
 
     expect((await listCopies(space)).records).toHaveLength(2);
+  });
+
+  test('a removed Copy is gone; the other Copy of the same Edition stays', async () => {
+    const { space } = memorySpace();
+    const { rkey: first } = await saveCopy(space, onePiece56);
+    const { rkey: second } = await saveCopy(space, onePiece56);
+
+    await deleteCopy(space, first);
+
+    expect((await listCopies(space)).records.map(({ rkey }) => rkey)).toEqual([second]);
   });
 
   test('a book the Catalog does not know keeps the details the reader typed', async () => {

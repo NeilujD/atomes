@@ -1,0 +1,380 @@
+---
+// Quick Add by ISBN: type the ISBN, check the book, say if it is read, add it.
+// The Copy and the Reading Status go to the reader's Space from the browser;
+// the Atomes server only gets the ISBN to look up (ADR 0001).
+import Icon from '../components/Icon.astro';
+import AppShell from '../layouts/AppShell.astro';
+
+const answers = [
+  { value: 'unread', label: 'Not yet' },
+  { value: 'reading', label: 'Reading' },
+  { value: 'read', label: 'Read' },
+];
+---
+
+<AppShell title="Add to your Library">
+  <div class="quick-add">
+    <form class="isbn-form" data-isbn-form>
+      <label class="label" for="isbn">ISBN</label>
+      <div class="isbn-row">
+        <input
+          class="field"
+          id="isbn"
+          name="isbn"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="978 2 7234 7899 1"
+          aria-describedby="isbn-hint"
+        />
+        <button class="button" type="submit">Look up</button>
+      </div>
+      <p class="hint" id="isbn-hint">The 13 digits under the barcode, on the back cover.</p>
+      <p class="message" data-message role="status"></p>
+    </form>
+
+    <form class="preview" data-add-form hidden>
+      <div class="book">
+        <div class="cover" data-cover></div>
+        <div class="book-text">
+          <h2 class="book-title" data-title>Book</h2>
+          <p class="book-line" data-authors></p>
+          <p class="book-line" data-series></p>
+          <p class="book-meta" data-edition></p>
+        </div>
+      </div>
+
+      <fieldset class="question">
+        <legend class="label">Have you read it?</legend>
+        <div class="segmented">
+          {
+            answers.map((answer) => (
+              <label class="segment">
+                <input type="radio" name="status" value={answer.value} checked={answer.value === 'unread'} />
+                <span>{answer.label}</span>
+              </label>
+            ))
+          }
+        </div>
+      </fieldset>
+
+      <div class="private">
+        <Icon name="lock" size={18} />
+        <div>
+          <p class="private-title">Private</p>
+          <p class="hint">Only you can see this book. It is saved in your own Space, on your PDS.</p>
+        </div>
+      </div>
+
+      <button class="button button-primary add" type="submit">
+        <Icon name="book-plus" />
+        <span>Add to Library</span>
+      </button>
+    </form>
+  </div>
+</AppShell>
+
+<script>
+  import { openOwnSpace } from '../lib/auth/browser-client';
+  import type { Edition } from '../lib/catalog/catalog';
+  import { lookupEdition } from '../lib/catalog/client';
+  import { saveCopy } from '../lib/library/copy';
+  import { isIsbn13 } from '../lib/library/ids';
+  import { loadLibrary, savedMessage, sendWhenOnline } from '../lib/library/library';
+  import { bookPage, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
+  import { saveReadingStatus, statuses } from '../lib/library/reading-status';
+  import { isNetworkFailure } from '../lib/network';
+  import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+
+  const isbnForm = document.querySelector<HTMLFormElement>('[data-isbn-form]')!;
+  const isbnInput = isbnForm.querySelector<HTMLInputElement>('input[name="isbn"]')!;
+  const message = document.querySelector<HTMLElement>('[data-message]')!;
+  const addForm = document.querySelector<HTMLFormElement>('[data-add-form]')!;
+  const addButton = addForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const radios = addForm.querySelectorAll<HTMLInputElement>('input[name="status"]');
+
+  // The Space opens once; undefined when signed out.
+  const own = openOwnSpace();
+  let edition: Edition | undefined;
+  let library: Library = { copies: [], readingStatuses: [] };
+  let sending = false;
+
+  function say(text: string, link?: { href: string; label: string }) {
+    message.replaceChildren(text);
+    if (link) {
+      const anchor = document.createElement('a');
+      anchor.href = link.href;
+      anchor.textContent = link.label;
+      message.append(' ', anchor);
+    }
+  }
+
+  const bookHref = (work: string) => `/book?work=${encodeURIComponent(work)}`;
+
+  async function lookUp() {
+    const isbn = isbnInput.value.replace(/[\s-]/g, '');
+    addForm.hidden = true;
+    edition = undefined;
+    if (!isIsbn13(isbn)) {
+      say('This is not an ISBN-13. Type the 13 digits that start with 978 or 979.');
+      return;
+    }
+    say('Looking up…');
+    try {
+      const answer = await lookupEdition(isbn);
+      if ('notFound' in answer) return say('No book source knows this ISBN yet.');
+      if ('unavailable' in answer) return say('The book sources do not answer. Try again later.');
+      edition = answer.found;
+    } catch (error) {
+      return say(
+        isNetworkFailure(error)
+          ? 'Could not reach Atomes to look up the book. Check your connection and try again.'
+          : 'Could not look up this ISBN. Try again.',
+      );
+    }
+    say('');
+    await show(edition);
+  }
+
+  async function show(found: Edition) {
+    const cover = addForm.querySelector<HTMLElement>('[data-cover]')!;
+    cover.replaceChildren();
+    if (found.cover) {
+      const image = document.createElement('img');
+      image.src = found.cover;
+      image.alt = '';
+      image.referrerPolicy = 'no-referrer';
+      cover.append(image);
+    }
+    addForm.querySelector('[data-title]')!.textContent = found.title;
+    addForm.querySelector('[data-authors]')!.textContent = found.authors.join(', ');
+    addForm.querySelector('[data-series]')!.textContent = [
+      found.series && found.series.title !== found.title ? found.series.title : '',
+      found.volume !== null ? `Volume ${found.volume}` : '',
+      found.volumeTitle ?? '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    addForm.querySelector('[data-edition]')!.textContent = [editionLabel(found), `ISBN ${found.isbn}`]
+      .filter(Boolean)
+      .join(' · ');
+    for (const radio of radios) radio.checked = radio.value === 'unread';
+    addForm.hidden = false;
+    addButton.focus();
+
+    // Already in the Library: start from its Reading Status, and say so.
+    const space = await openSpaceOrSay();
+    if (!space) return;
+    try {
+      library = (await loadLibrary(space)).library;
+    } catch {
+      // No copy on this device and no network: the status starts at "Not yet".
+      library = { copies: [], readingStatuses: [] };
+    }
+    if (edition !== found) return;
+    // Abandoned is not an answer here: no choice keeps it.
+    const status = currentStatus(found.work.id, library);
+    for (const radio of radios) radio.checked = radio.value === status;
+    if (bookPage(found.work.id, library, new Map())) {
+      say('You already have this book. Adding it again adds another Copy.', {
+        href: bookHref(found.work.id),
+        label: 'Open its Book page',
+      });
+    }
+  }
+
+  async function openSpaceOrSay(): Promise<Space | undefined> {
+    try {
+      const opened = await own;
+      if (opened) return opened.space;
+      say('Sign in to add books to your Library.', { href: '/settings', label: 'Go to Settings' });
+    } catch (error) {
+      say(spaceErrorMessage(error));
+    }
+    return undefined;
+  }
+
+  async function add() {
+    const found = edition;
+    if (!found) return;
+    const checked = [...radios].find((radio) => radio.checked)?.value;
+    const chosen = statuses.find((status) => status === checked);
+    const space = await openSpaceOrSay();
+    if (!space) return;
+    addButton.disabled = true;
+    try {
+      const now = new Date();
+      const work = found.work.id;
+      const states: WriteState[] = [];
+      states.push((await saveCopy(space, { isbn: found.isbn, works: [work], createdAt: now.toISOString() })).state);
+      const change = chosen && statusChange(work, found.isbn, chosen, library, now);
+      if (change) states.push(await saveReadingStatus(space, change));
+      const state = states.find((each) => each === 'refused') ?? states.find((each) => each === 'waiting') ?? 'sent';
+
+      addForm.hidden = true;
+      edition = undefined;
+      isbnInput.value = '';
+      const link = { href: bookHref(work), label: 'Open its Book page' };
+      say(`${found.title} is in your Library. ${savedMessage[state]}`, link);
+      if (state === 'waiting' && !sending) {
+        sending = true;
+        sendWhenOnline(
+          space,
+          () => {
+            sending = false;
+            say(`${found.title} is in your Library. ${savedMessage.sent}`, link);
+          },
+          (error) => say(spaceErrorMessage(error)),
+        );
+      }
+      isbnInput.focus();
+    } catch (error) {
+      say(spaceErrorMessage(error));
+    } finally {
+      addButton.disabled = false;
+    }
+  }
+
+  isbnForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void lookUp();
+  });
+  addForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void add();
+  });
+
+  // From the Book page ("Add another Copy"): the ISBN is already known.
+  const given = new URLSearchParams(location.search).get('isbn');
+  if (given) {
+    isbnInput.value = given;
+    void lookUp();
+  }
+</script>
+
+<style>
+  .quick-add {
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .isbn-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .label {
+    padding: 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .isbn-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .isbn-row .field {
+    flex: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hint,
+  .book-meta {
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
+  .message {
+    font-size: 14px;
+  }
+
+  .preview {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .book {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .cover {
+    flex: none;
+    width: 88px;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border-radius: var(--radius-cover);
+    background: var(--soft);
+    box-shadow: 0 0 0 1px var(--cover-edge);
+  }
+
+  .cover :global(img) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .book-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .book-title {
+    font-size: 22px;
+  }
+
+  .book-line {
+    font-size: 14px;
+  }
+
+  .book-line:empty {
+    display: none;
+  }
+
+  .question {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .question legend {
+    margin-bottom: 8px;
+  }
+
+  .private {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-panel);
+    background: var(--soft);
+  }
+
+  .private-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .add {
+    width: 100%;
+  }
+
+  @media (min-width: 960px) {
+    .cover {
+      width: 104px;
+    }
+  }
+</style>

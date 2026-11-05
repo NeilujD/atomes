@@ -9,6 +9,8 @@ const CACHE = `atomes-shell-${BUILD.version}`;
 // the next deploy: the old worker caches it, then the new worker deletes that cache.
 const SHELL = [
   '/',
+  '/add',
+  '/book',
   '/settings',
   '/manifest.webmanifest',
   '/favicon.svg',
@@ -28,6 +30,11 @@ const SHELL = [
 //   restore reads it on every host. The library keeps its copy 60 s only.
 // Its own cache, with no version: a new worker must not delete it.
 const OAUTH_CACHE = 'atomes-oauth';
+
+// Catalog answers (`/api/catalog/...`), network first: offline, a Book page
+// still shows the title of a book looked up before. Book data only, never
+// Library data (ADR 0001). Its own cache, so a new worker keeps it.
+const CATALOG_CACHE = 'atomes-catalog';
 
 function isOAuthMetadata(url) {
   return url.origin === self.location.origin
@@ -65,20 +72,25 @@ self.addEventListener('fetch', (event) => {
   } else if (url.origin !== self.location.origin) {
     return;
   } else if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(event, CACHE, '/'));
+    // A page is the same for every query (`/book?work=…`): its script reads the query.
+    event.respondWith(networkFirst(event, CACHE, '/', { ignoreSearch: true }));
+  } else if (url.pathname.startsWith('/api/catalog/')) {
+    event.respondWith(networkFirst(event, CATALOG_CACHE));
   } else {
     event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request)));
   }
 });
 
 // Keeps the last good response; offline, serves it, else the `fallback` path.
-async function networkFirst(event, cacheName, fallback) {
+async function networkFirst(event, cacheName, fallback, matchOptions) {
   const cache = await caches.open(cacheName);
   try {
     const response = await fetch(event.request);
     if (response.ok) event.waitUntil(cache.put(event.request, response.clone()));
     return response;
   } catch {
-    return (await cache.match(event.request)) ?? (fallback && (await cache.match(fallback))) ?? Response.error();
+    return (
+      (await cache.match(event.request, matchOptions)) ?? (fallback && (await cache.match(fallback))) ?? Response.error()
+    );
   }
 }

@@ -32,6 +32,10 @@ export async function saveCopy(space: Space, copy: Copy, rkey = newRecordKey()):
   return { rkey, state };
 }
 
+export function deleteCopy(space: Space, rkey: string): Promise<WriteState> {
+  return space.delete(copyCollection, rkey);
+}
+
 export function listCopies(space: Space) {
   return listRecords<Copy>(space, copyCollection);
 }
