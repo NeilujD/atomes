@@ -110,6 +110,17 @@ describe('session', () => {
 
     expect(await copy.read('at://did:plc:reader/space/app.atomes.library/self/app.atomes.copy')).toBeUndefined();
   });
+
+  test('when the data on this device cannot be cleared, the session still ends and the reader is told', async () => {
+    const device: Device = { stored: { ...reader, accessToken, refreshToken } };
+    const broken = { clear: () => Promise.reject(new Error('IndexedDB is blocked')) };
+
+    expect(await signOut(fakeClient(device), reader, broken)).toEqual({
+      status: 'signed-out',
+      message: 'Signed out, but some of your data could not be removed from this device. Clear this site’s data in the browser.',
+    });
+    expect(device.stored).toBeUndefined();
+  });
 });
 
 describe('tokens', () => {

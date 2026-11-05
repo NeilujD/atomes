@@ -72,6 +72,7 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
 <script>
   import { applyAppearance, parseAppearance, readAppearance, saveAppearance } from '../lib/appearance';
   import { createAuthClient } from '../lib/auth/browser-client';
+  import { deviceData } from '../lib/auth/device-data';
   import { errorMessage, loadSession, signIn, signOut, type AuthClient, type AuthState } from '../lib/auth/session';
   import { indexedDbLocalCopy } from '../lib/space/local-copy';
 
@@ -113,7 +114,7 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
       signOutButton.addEventListener('click', () => {
         if (state.status !== 'signed-in') return;
         busy(true);
-        void signOut(client, state.account, indexedDbLocalCopy())
+        void signOut(client, state.account, deviceData(indexedDbLocalCopy()))
           .then(render)
           .finally(() => busy(false));
       });
@@ -169,47 +170,6 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
     font-size: 13px;
   }
 
-  .segmented {
-    display: inline-flex;
-    gap: 2px;
-    padding: 2px;
-    border-radius: var(--radius-control);
-    background: var(--soft);
-  }
-
-  .segment {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: calc(var(--row) - 4px);
-    padding: 0 12px;
-    border-radius: calc(var(--radius-control) - 2px);
-    color: var(--secondary);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .segment input {
-    position: absolute;
-    inset: 0;
-    margin: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .segment:has(input:checked) {
-    background: var(--surface);
-    color: var(--ink);
-    box-shadow: 0 0 0 1px var(--line);
-  }
-
-  .segment:has(input:focus-visible) {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
   .sign-in {
     display: flex;
     gap: 8px;
@@ -217,37 +177,8 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
     max-width: 360px;
   }
 
-  .field {
+  .sign-in .field {
     flex: 1;
-    min-width: 0;
-    min-height: var(--row);
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-control);
-    background: var(--surface);
-    color: var(--ink);
-  }
-
-  .button {
-    min-height: var(--row);
-    padding: 0 12px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-control);
-    background: var(--surface);
-    color: var(--ink);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .button:hover:not(:disabled) {
-    background: var(--soft);
-  }
-
-  .button:disabled,
-  .field:disabled {
-    opacity: 0.6;
-    cursor: default;
   }
 
   .row-error {

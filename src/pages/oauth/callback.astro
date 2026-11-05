@@ -1,40 +1,207 @@
 ---
 // The PDS sends the reader back here after sign-in, with the result in the URL
 // fragment. The script finishes the sign-in in the browser, then goes to Settings.
+// A Flow screen (ui-direction): no sidebar or tab bar, one thing at a time.
+import Mark from '../../components/Mark.astro';
 import AppShell from '../../layouts/AppShell.astro';
 ---
 
-<AppShell title="Signing in" current="settings">
-  <div class="callback">
-    <p data-callback-status aria-live="polite">Finishing sign-in…</p>
-    <a href="/settings" data-callback-back hidden>Back to Settings</a>
-  </div>
+<AppShell title="Signing in" flow>
+  <section class="card" data-callback data-state="working" aria-labelledby="callback-title">
+    <div class="mark-box">
+      <Mark size={72} animated />
+    </div>
+    <div class="text" role="status">
+      <h1 class="title" id="callback-title" data-callback-title>Finishing sign-in</h1>
+      <p class="hint" data-callback-text>Opening your private Space on your PDS.</p>
+    </div>
+    <a class="button button-primary back" href="/settings" data-callback-back hidden>Back to Settings</a>
+  </section>
 </AppShell>
 
 <script>
   import { createAuthClient } from '../../lib/auth/browser-client';
   import { errorMessage, loadSession, type AuthState } from '../../lib/auth/session';
 
-  const status = document.querySelector<HTMLElement>('[data-callback-status]')!;
-  const back = document.querySelector<HTMLElement>('[data-callback-back]')!;
+  const card = document.querySelector<HTMLElement>('[data-callback]')!;
+  const title = card.querySelector<HTMLElement>('[data-callback-title]')!;
+  const text = card.querySelector<HTMLElement>('[data-callback-text]')!;
+  const back = card.querySelector<HTMLAnchorElement>('[data-callback-back]')!;
+
+  // Long enough to read "Signed in"; the book lands in the slot meanwhile.
+  const doneMs = matchMedia('(prefers-reduced-motion: reduce)').matches ? 600 : 1100;
 
   void createAuthClient()
     .then(loadSession, (error: unknown): AuthState => ({ status: 'signed-out', message: errorMessage(error) }))
     .then((state) => {
-      if (state.status === 'signed-in' || !state.message) {
+      if (state.status === 'signed-in') {
+        card.dataset.state = 'done';
+        title.textContent = 'Signed in';
+        text.textContent = `Welcome, @${state.account.handle}. Your Library is private, on your PDS.`;
+        setTimeout(() => location.replace('/settings'), doneMs);
+      } else if (!state.message) {
         location.replace('/settings');
       } else {
-        status.textContent = state.message;
+        card.dataset.state = 'failed';
+        title.textContent = 'Could not sign in';
+        text.textContent = state.message;
         back.hidden = false;
+        back.focus();
       }
     });
 </script>
 
 <style>
-  .callback {
+  .card {
+    width: min(100%, 400px);
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+    align-items: center;
+    gap: 24px;
+    text-align: center;
+    animation: rise 320ms ease-out;
+  }
+
+  .mark-box {
+    display: grid;
+    place-items: center;
+    width: 128px;
+    height: 128px;
+    border-radius: 32px;
+    background: var(--surface);
+    box-shadow:
+      0 0 0 1px var(--line),
+      0 12px 32px rgb(0 0 0 / 0.08);
+    color: var(--ink);
+  }
+
+  .text {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .title {
+    font-size: 24px;
+    letter-spacing: -0.03em;
+  }
+
+  .hint {
+    color: var(--secondary);
+    font-size: 14px;
+    text-wrap: pretty;
+  }
+
+  .back {
+    min-width: 200px;
+  }
+
+  /* Desktop: the screen is a card on the ground colour. */
+  @media (min-width: 960px) {
+    .card {
+      padding: 48px 40px 40px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface);
+    }
+
+    .mark-box {
+      background: var(--ground);
+      box-shadow: 0 0 0 1px var(--line);
+    }
+  }
+
+  /*
+   * The mark tells the state. Working: the books lift one after the other and
+   * the empty slot's dashes run. Done: a book lands in the slot. Failed: still,
+   * the slot stays empty.
+   */
+  .card :global(.spine),
+  .card :global(.arrival) {
+    transform-box: fill-box;
+    transform-origin: bottom;
+  }
+
+  .card :global(.arrival) {
+    opacity: 0;
+  }
+
+  [data-state='working'] :global(.spine) {
+    animation: lift 1.2s ease-in-out infinite;
+  }
+
+  [data-state='working'] :global(.spine-2) {
+    animation-delay: 0.12s;
+  }
+
+  [data-state='working'] :global(.spine-4) {
+    animation-delay: 0.36s;
+  }
+
+  [data-state='working'] :global(.slot) {
+    animation: dashes 0.9s linear infinite;
+  }
+
+  [data-state='done'] :global(.slot) {
+    opacity: 0;
+    transition: opacity 200ms ease-out;
+  }
+
+  [data-state='done'] :global(.arrival) {
+    animation: land 520ms cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+  }
+
+  [data-state='failed'] :global(.slot) {
+    opacity: 0.45;
+  }
+
+  @keyframes lift {
+    0%,
+    60%,
+    100% {
+      transform: translateY(0);
+    }
+    30% {
+      transform: translateY(-9%);
+    }
+  }
+
+  @keyframes dashes {
+    to {
+      stroke-dashoffset: -86;
+    }
+  }
+
+  @keyframes land {
+    from {
+      opacity: 0;
+      transform: translateY(-45%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  /* Reduced motion: no movement; the book still appears in the slot. */
+  @media (prefers-reduced-motion: reduce) {
+    .card,
+    [data-state='working'] :global(.spine),
+    [data-state='working'] :global(.slot) {
+      animation: none;
+    }
+
+    [data-state='done'] :global(.arrival) {
+      animation: none;
+      opacity: 1;
+      transition: opacity 200ms;
+    }
   }
 </style>

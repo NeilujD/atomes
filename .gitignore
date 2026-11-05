@@ -21,3 +21,6 @@ node_modules/
 
 # local agent notes
 .ai/
+
+# Playwright MCP screenshots and snapshots
+.playwright-mcp/

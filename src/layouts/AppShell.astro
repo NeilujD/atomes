@@ -4,7 +4,9 @@
 // Behaviour rules: docs/design/ui-direction.md.
 import '@fontsource-variable/schibsted-grotesk';
 import '../styles/theme.css';
+import ConnectionStatus from '../components/ConnectionStatus.astro';
 import Icon from '../components/Icon.astro';
+import Mark from '../components/Mark.astro';
 import type { IconName } from '../components/icons';
 import { bootScript } from '../lib/appearance';
 
@@ -12,10 +14,17 @@ type Section = 'home' | 'library' | 'new' | 'to-buy' | 'check' | 'settings';
 
 interface Props {
   title: string;
-  current: Section;
+  // The navigation item to mark as current; none for a page outside the navigation.
+  current?: Section;
+  // Detail page (Book, Series): the content has its own large title, so the
+  // phone does not show the view title above it.
+  detail?: boolean;
+  // Flow screen (sign-in): no sidebar, no tab bar, the content centred. The
+  // page brings its own heading (ui-direction: Flow).
+  flow?: boolean;
 }
 
-const { title, current } = Astro.props;
+const { title, current, detail = false, flow = false } = Astro.props;
 
 const sidebarItems: { key: Section; href: string; label: string; icon: IconName }[] = [
   { key: 'home', href: '/', label: 'Home', icon: 'house' },
@@ -51,94 +60,107 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
   </head>
   <body>
     <div class="app">
-      <nav class="sidebar" aria-label="Main">
-        <div class="sidebar-top">
-          <a class="brand" href="/" aria-label="Atomes, Home">
-            <svg class="mark" viewBox="220 236 584 552" aria-hidden="true">
-              <rect x="236" y="252" width="96" height="520" rx="14" fill="currentColor"></rect>
-              <rect x="388" y="252" width="96" height="520" rx="14" fill="currentColor"></rect>
-              <rect
-                x="551"
-                y="263"
-                width="74"
-                height="498"
-                rx="14"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="22"
-                stroke-dasharray="52 34"
-                stroke-linecap="round"></rect>
-              <rect x="692" y="252" width="96" height="520" rx="14" fill="var(--accent)"></rect>
-            </svg>
-            <span>Atomes</span>
-          </a>
-          <a class="icon-button" href="/library" aria-label="Search the Library">
-            <Icon name="search" />
-          </a>
-        </div>
+      {
+        flow ? (
+          <main class="flow">
+            <slot />
+          </main>
+        ) : (
+          <>
+          <nav class="sidebar" aria-label="Main">
+            <div class="sidebar-top">
+              <a class="brand" href="/" aria-label="Atomes, Home">
+                <Mark size={18} />
+                <span>Atomes</span>
+              </a>
+              <a class="icon-button" href="/library" aria-label="Search the Library">
+                <Icon name="search" />
+              </a>
+            </div>
 
-        <a class="check-button" href="/check" aria-current={ariaCurrent('check')}>
-          <Icon name="scan-barcode" />
-          <span>Check a book</span>
-        </a>
-
-        <ul class="nav-list">
-          {
-            sidebarItems.map((item) => (
-              <li>
-                <a class="nav-item" href={item.href} aria-current={ariaCurrent(item.key)}>
-                  <Icon name={item.icon} />
-                  <span>{item.label}</span>
-                </a>
-              </li>
-            ))
-          }
-        </ul>
-
-        <div class="sidebar-bottom">
-          <a class="nav-item" href="/settings" aria-current={ariaCurrent('settings')}>
-            <Icon name="settings" />
-            <span>Settings</span>
-          </a>
-          <p class="privacy">
-            <Icon name="lock" size={14} />
-            <span>Private by default</span>
-          </p>
-        </div>
-      </nav>
-
-      <main class="panel">
-        <header class="view-header">
-          <h1 class="view-title">{title}</h1>
-          <slot name="actions" />
-        </header>
-        <div class="view-body">
-          <slot />
-        </div>
-      </main>
-
-      <nav class="tabbar" aria-label="Main">
-        {
-          tabItems.map((item) => (
-            <a
-              class:list={['tab', { 'tab-check': item.key === 'check' }]}
-              href={item.href}
-              aria-current={ariaCurrent(item.key)}
-            >
-              <span class="tab-icon">
-                <Icon name={item.icon} size={22} />
-              </span>
-              <span class:list={{ 'visually-hidden': item.key === 'check' }}>{item.label}</span>
+            <a class="check-button" href="/check" aria-current={ariaCurrent('check')}>
+              <Icon name="scan-barcode" />
+              <span>Check a book</span>
             </a>
-          ))
-        }
-      </nav>
+
+            <ul class="nav-list">
+              {
+                sidebarItems.map((item) => (
+                  <li>
+                    <a class="nav-item" href={item.href} aria-current={ariaCurrent(item.key)}>
+                      <Icon name={item.icon} />
+                      <span>{item.label}</span>
+                    </a>
+                  </li>
+                ))
+              }
+            </ul>
+
+            <div class="sidebar-bottom">
+              <ConnectionStatus place="sidebar" />
+              <a class="nav-item" href="/settings" aria-current={ariaCurrent('settings')}>
+                <Icon name="settings" />
+                <span>Settings</span>
+              </a>
+              <p class="privacy">
+                <Icon name="lock" size={14} />
+                <span>Private by default</span>
+              </p>
+            </div>
+          </nav>
+
+          <main class="panel">
+            <header class:list={['view-header', { detail }]}>
+              <h1 class="view-title" data-view-title>{title}</h1>
+              <slot name="actions" />
+            </header>
+            <div class="view-body">
+              <slot />
+            </div>
+          </main>
+
+          <div class="bottom">
+            <ConnectionStatus place="bar" />
+            <nav class="tabbar" aria-label="Main">
+              {
+                tabItems.map((item) => (
+                  <a
+                    class:list={['tab', { 'tab-check': item.key === 'check' }]}
+                    href={item.href}
+                    aria-current={ariaCurrent(item.key)}
+                  >
+                    <span class="tab-icon">
+                      <Icon name={item.icon} size={22} />
+                    </span>
+                    <span class:list={{ 'visually-hidden': item.key === 'check' }}>{item.label}</span>
+                  </a>
+                ))
+              }
+            </nav>
+          </div>
+          </>
+        )
+      }
+
+      <!-- Toasts (src/lib/toast.ts): results over the page, so the content does not move. -->
+      <div class="toasts" data-toasts role="status" aria-live="polite"></div>
+      <template data-toast-template>
+        <div class="toast" data-toast>
+          <p class="toast-text" data-toast-text></p>
+          <button class="toast-close" type="button" aria-label="Close" data-toast-close>
+            <Icon name="x" />
+          </button>
+        </div>
+      </template>
     </div>
   </body>
 </html>
 
 <script>
   import { applyAppearance, readAppearance } from '../lib/appearance';
+  import { startConnectionStatus } from '../lib/connection';
+
+  startConnectionStatus();
 
   // Keep the theme-color metas right, follow the system while open, and follow
   // a change made in Settings in another tab.
@@ -161,6 +183,15 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
 </script>
 
 <style>
+  /* Flow (sign-in): no chrome; the content in the middle of the window. */
+  .flow {
+    grid-column: 1 / -1;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  }
+
   /* Phone first: no sidebar, large title, tab bar. */
   .sidebar {
     display: none;
@@ -180,13 +211,33 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
     letter-spacing: -0.03em;
   }
 
+  @media (max-width: 959.98px) {
+    .view-header.detail {
+      padding-bottom: 8px;
+    }
+
+    .view-header.detail .view-title {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+
   .view-body {
     padding: 0 20px calc(96px + env(safe-area-inset-bottom));
   }
 
-  .tabbar {
+  /* Phone: the connection strip (when offline) and the tab bar, fixed under the thumb. */
+  .bottom {
     position: fixed;
     inset: auto 0 0;
+    z-index: 5;
+  }
+
+  .tabbar {
     display: flex;
     align-items: center;
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
@@ -232,7 +283,7 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
       height: 100dvh;
     }
 
-    .tabbar {
+    .bottom {
       display: none;
     }
 
@@ -289,11 +340,6 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
     font-weight: 700;
     letter-spacing: -0.02em;
     text-decoration: none;
-  }
-
-  .mark {
-    width: 18px;
-    height: 18px;
   }
 
   .icon-button {
@@ -354,6 +400,7 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
   }
 
   .sidebar-bottom {
+    position: relative;
     margin-top: auto;
     display: flex;
     flex-direction: column;
@@ -367,5 +414,101 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
     padding: 0 8px;
     color: var(--secondary);
     font-size: 12px;
+  }
+
+  /* Phone: centred above the tab bar. Desktop: bottom right of the panel. */
+  .toasts {
+    position: fixed;
+    inset: auto 16px calc(80px + env(safe-area-inset-bottom));
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  @media (min-width: 960px) {
+    .toasts {
+      inset: auto 24px 24px auto;
+      align-items: flex-end;
+    }
+  }
+
+  .toast {
+    width: min(100%, 400px);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 6px 10px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--surface);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.06),
+      0 8px 24px rgb(0 0 0 / 0.14);
+    font-size: 14px;
+    pointer-events: auto;
+    animation: toast-in 180ms ease-out;
+  }
+
+  /* No danger colour in the palette (ui-direction: colour roles): an error stands out by its weight and stays. */
+  .toast[data-error] {
+    border-color: var(--ink);
+    font-weight: 500;
+  }
+
+  .toast-text {
+    flex: 1;
+    min-width: 0;
+    padding-top: 2px;
+  }
+
+  .toast-text :global(a) {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .toast-close {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--secondary);
+    cursor: pointer;
+  }
+
+  .toast-close:hover {
+    background: var(--soft);
+    color: var(--ink);
+  }
+
+  /* While the phone strip shows, the content and the toasts stay above it. */
+  @media (max-width: 959.98px) {
+    .app:has(.bottom :global([data-connection-body]:not([hidden]))) .view-body {
+      padding-bottom: calc(96px + var(--row) + env(safe-area-inset-bottom));
+    }
+
+    .app:has(.bottom :global([data-connection-body]:not([hidden]))) .toasts {
+      bottom: calc(80px + var(--row) + env(safe-area-inset-bottom));
+    }
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast {
+      animation: none;
+    }
   }
 </style>

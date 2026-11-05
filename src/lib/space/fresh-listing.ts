@@ -2,8 +2,8 @@
 // network at all), reads it again until the PDS answers: at once when the
 // browser says it is back online, and every `retryMs`. The `online` event can
 // come before the network works, or not come at all, so one read on it is not
-// enough.
-import { isNetworkFailure } from '../network';
+// enough. Reconnect (src/lib/connection.ts) also reads it again at once.
+import { isNetworkFailure, reconnectEvent } from '../network';
 
 export function freshListing<T extends { stale: boolean }>(
   load: () => Promise<T>,
@@ -28,9 +28,11 @@ export function freshListing<T extends { stale: boolean }>(
     if (waiting) retry = setTimeout(() => void refresh(), retryMs);
   }
 
-  events.addEventListener('online', () => {
+  const again = () => {
     if (waiting) void refresh();
-  });
+  };
+  events.addEventListener('online', again);
+  events.addEventListener(reconnectEvent, again);
 
   return { refresh };
 }

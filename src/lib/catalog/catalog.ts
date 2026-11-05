@@ -1,11 +1,12 @@
 // The Catalog (ADR 0004, 0007, 0010): answers "what is this ISBN?" from its own
-// SQLite file, and asks the open sources only on a miss. It stores books only:
-// no reader identity, no Library data.
+// SQLite file, and asks the open sources only on a miss. It also serves covers,
+// so the reader's browser never asks a source for one (ADR 0001). It stores
+// books only: no reader identity, no Library data.
 import { DatabaseSync } from 'node:sqlite';
 import { editionWork } from '../library/ids';
 import type { Facts, SourceName } from './facts';
 import type { SourceFetch } from './sources';
-import { fetchFacts } from './sources';
+import { fetchFacts, isCoverUrl } from './sources';
 
 type Series = { id: string; title: string };
 
@@ -28,11 +29,20 @@ export interface Edition {
 
 export type Lookup = { found: Edition } | { notFound: true } | { unavailable: true };
 
+export interface Cover {
+  type: string;
+  bytes: Uint8Array<ArrayBuffer>;
+}
+
+export type CoverLookup = { found: Cover } | { notFound: true } | { unavailable: true };
+
 export interface Catalog {
   lookup(isbn: string): Promise<Lookup>;
   // The Volumes this Catalog knows in the Edition Line of `anchor` (ADR 0010),
   // by Volume number. Only `anchor` when it has no Series.
   volumes(anchor: Edition): Edition[];
+  // The cover of the Edition, fetched once from its source and kept.
+  cover(isbn: string): Promise<CoverLookup>;
   close(): void;
 }
 
@@ -40,6 +50,10 @@ export interface Catalog {
 // an Edition again after a month, and an unknown ISBN again after a day.
 const editionTtlMs = 30 * 24 * 3600 * 1000;
 const missTtlMs = 24 * 3600 * 1000;
+
+// Pictures only, never SVG: it can hold scripts.
+const coverTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const maxCoverBytes = 2 * 1024 * 1024;
 
 const schema = `
   create table if not exists series (
@@ -70,6 +84,12 @@ const schema = `
   create table if not exists miss (
     isbn text primary key,
     checked_at text not null
+  );
+  create table if not exists cover (
+    isbn text primary key,
+    url text not null,
+    type text not null,
+    bytes blob not null
   );
 `;
 
@@ -178,26 +198,55 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     db.prepare('delete from miss where isbn = ?').run(edition.isbn);
   }
 
-  return {
-    async lookup(isbn) {
-      const row = editionRow(isbn);
-      if (row && age(row.fetched_at) < editionTtlMs) return { found: toEdition(row) };
-      const miss = db.prepare('select checked_at from miss where isbn = ?').get(isbn) as { checked_at: string } | undefined;
-      if (!row && miss && age(miss.checked_at) < missTtlMs) return { notFound: true };
+  async function lookup(isbn: string): Promise<Lookup> {
+    const row = editionRow(isbn);
+    if (row && age(row.fetched_at) < editionTtlMs) return { found: toEdition(row) };
+    const miss = db.prepare('select checked_at from miss where isbn = ?').get(isbn) as { checked_at: string } | undefined;
+    if (!row && miss && age(miss.checked_at) < missTtlMs) return { notFound: true };
 
-      const { facts, failed } = await fetchFacts(options.fetch, isbn);
-      if (failed && row) return { found: toEdition(row) };
-      const edition = merge(isbn, facts);
-      if (!edition) {
-        if (row) return { found: toEdition(row) };
-        if (failed) return { unavailable: true };
-        db.prepare('insert or replace into miss (isbn, checked_at) values (?, ?)').run(isbn, now().toISOString());
-        return { notFound: true };
-      }
-      // An answer missing a source is not stored: the next lookup asks again.
-      if (!failed) store(edition);
-      return { found: edition };
-    },
+    const { facts, failed } = await fetchFacts(options.fetch, isbn);
+    if (failed && row) return { found: toEdition(row) };
+    const edition = merge(isbn, facts);
+    if (!edition) {
+      if (row) return { found: toEdition(row) };
+      if (failed) return { unavailable: true };
+      db.prepare('insert or replace into miss (isbn, checked_at) values (?, ?)').run(isbn, now().toISOString());
+      return { notFound: true };
+    }
+    // An answer missing a source is not stored: the next lookup asks again.
+    if (!failed) store(edition);
+    return { found: edition };
+  }
+
+  // A missing or unusable picture is not remembered: the next request asks again.
+  async function cover(isbn: string): Promise<CoverLookup> {
+    const result = await lookup(isbn);
+    if (!('found' in result)) return result;
+    const url = result.found.cover;
+    if (!url || !isCoverUrl(url)) return { notFound: true };
+    // Kept for this URL only: a refreshed Edition with another cover fetches it.
+    const kept = db.prepare('select type, bytes from cover where isbn = ? and url = ?').get(isbn, url) as Cover | undefined;
+    if (kept) return { found: kept };
+
+    let found: Cover;
+    try {
+      const response = await options.fetch(url);
+      if (response.status === 404) return { notFound: true };
+      if (!response.ok) return { unavailable: true };
+      const type = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() ?? '';
+      if (!coverTypes.includes(type) || Number(response.headers.get('content-length')) > maxCoverBytes) return { notFound: true };
+      found = { type, bytes: new Uint8Array(await response.arrayBuffer()) };
+    } catch {
+      return { unavailable: true };
+    }
+    if (found.bytes.byteLength > maxCoverBytes) return { notFound: true };
+    db.prepare('insert or replace into cover (isbn, url, type, bytes) values (?, ?, ?, ?)').run(isbn, url, found.type, found.bytes);
+    return { found };
+  }
+
+  return {
+    lookup,
+    cover,
     volumes(edition) {
       const anchor = db.prepare('select edition_line from edition where isbn = ?').get(edition.isbn) as
         | { edition_line: string | null }

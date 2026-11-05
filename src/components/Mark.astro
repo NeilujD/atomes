@@ -1,0 +1,30 @@
+---
+// The Atomes mark: three books, an empty slot (dashed), and a cobalt book.
+// `animated` adds the book that fills the slot; the page animates the parts
+// through the classes (see the sign-in callback).
+interface Props {
+  size: number;
+  animated?: boolean;
+}
+
+const { size, animated = false } = Astro.props;
+---
+
+<svg class="mark" viewBox="220 236 584 552" width={size} height={size} aria-hidden="true">
+  <rect class="spine spine-1" x="236" y="252" width="96" height="520" rx="14" fill="currentColor"></rect>
+  <rect class="spine spine-2" x="388" y="252" width="96" height="520" rx="14" fill="currentColor"></rect>
+  <rect
+    class="slot"
+    x="551"
+    y="263"
+    width="74"
+    height="498"
+    rx="14"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="22"
+    stroke-dasharray="52 34"
+    stroke-linecap="round"></rect>
+  {animated && <rect class="arrival" x="540" y="252" width="96" height="520" rx="14" fill="currentColor" />}
+  <rect class="spine spine-4" x="692" y="252" width="96" height="520" rx="14" fill="var(--accent)"></rect>
+</svg>

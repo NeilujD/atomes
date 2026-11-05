@@ -1,0 +1,561 @@
+---
+// Book page: one Work of the Library, from the reader's records and the
+// Catalog (src/lib/library/model.ts). `?work=<Catalog identifier>`.
+import Icon from '../components/Icon.astro';
+import AppShell from '../layouts/AppShell.astro';
+
+const choices = [
+  { value: 'unread', label: 'Not yet' },
+  { value: 'reading', label: 'Reading' },
+  { value: 'read', label: 'Read' },
+  { value: 'abandoned', label: 'Abandoned' },
+];
+---
+
+<AppShell title="Book" current="library" detail>
+  <div class="book-page" data-page aria-busy="true">
+    <!-- Only when there is no book to show (not signed in, not in the Library); results of a change are toasts. -->
+    <p class="message" data-message role="status" hidden></p>
+
+    <div class="book" data-skeleton aria-hidden="true">
+      <div class="cover skeleton"></div>
+      <div class="content">
+        <div class="head-text skeleton-text">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-line"></div>
+          <div class="skeleton skeleton-line short"></div>
+        </div>
+      </div>
+    </div>
+
+    <article class="book" data-book hidden>
+      <div class="cover" data-cover></div>
+      <div class="content">
+        <div class="head-text">
+          <p class="title" data-title aria-hidden="true"></p>
+          <p class="line" data-volume-title></p>
+          <p class="line strong" data-authors></p>
+          <p class="line" data-series></p>
+        </div>
+
+        <section class="group" aria-labelledby="status-title">
+          <h2 class="group-title" id="status-title">Reading Status</h2>
+          <div class="segmented" role="radiogroup" aria-labelledby="status-title" data-status>
+            {
+              choices.map((choice) => (
+                <label class="segment">
+                  <input type="radio" name="status" value={choice.value} />
+                  <span>{choice.label}</span>
+                </label>
+              ))
+            }
+          </div>
+          <div class="finished" data-finished hidden>
+            <label class="label" for="finished-at">Finished on</label>
+            <input class="field" id="finished-at" type="date" data-finished-at />
+            <span class="hint">Optional</span>
+          </div>
+        </section>
+
+        <section class="group" aria-labelledby="copies-title">
+          <h2 class="group-title" id="copies-title">Your Copies</h2>
+          <p class="hint" data-no-copies hidden>You have no Copy of this book.</p>
+          <ul class="copies" data-copies></ul>
+          <a class="button" href="/add" data-add-copy>
+            <Icon name="plus" />
+            <span>Add another Copy</span>
+          </a>
+        </section>
+      </div>
+    </article>
+  </div>
+
+  <template data-copy-template>
+    <li class="copy">
+      <div class="copy-head">
+        <div class="copy-text">
+          <p class="strong" data-edition></p>
+          <p class="hint" data-isbn></p>
+        </div>
+        <button class="button button-quiet" type="button" data-remove>
+          <Icon name="trash" />
+          <span>Remove</span>
+        </button>
+      </div>
+      <form class="lent" data-lent>
+        <label class="lent-field">
+          <span class="label">Lent To</span>
+          <input class="field" name="lentTo" type="text" maxlength="64" autocomplete="off" placeholder="Nobody: you have it" />
+        </label>
+        <button class="button" type="submit">Save</button>
+      </form>
+    </li>
+  </template>
+</AppShell>
+
+<script>
+  import { openOwnSpace } from '../lib/auth/browser-client';
+  import type { Edition } from '../lib/catalog/catalog';
+  import { lookupEditions } from '../lib/catalog/client';
+  import { deleteCopy, saveCopy, type Copy } from '../lib/library/copy';
+  import { isWorkId } from '../lib/library/ids';
+  import { reportNetwork, reportWaiting } from '../lib/connection';
+  import { loadLibrary, savedMessage, sendWhenOnline, waitingCount } from '../lib/library/library';
+  import { bookPage, statusChange, type BookPage, type Library } from '../lib/library/model';
+  import { saveReadingStatus, statuses, type ReadingStatus } from '../lib/library/reading-status';
+  import { isNetworkFailure } from '../lib/network';
+  import { freshListing } from '../lib/space/fresh-listing';
+  import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+  import { toast } from '../lib/toast';
+
+  const pageBox = document.querySelector<HTMLElement>('[data-page]')!;
+  const message = document.querySelector<HTMLElement>('[data-message]')!;
+  const skeleton = document.querySelector<HTMLElement>('[data-skeleton]')!;
+  const article = document.querySelector<HTMLElement>('[data-book]')!;
+  const statusRadios = article.querySelectorAll<HTMLInputElement>('[data-status] input[name="status"]');
+  const finished = article.querySelector<HTMLElement>('[data-finished]')!;
+  const finishedAt = article.querySelector<HTMLInputElement>('[data-finished-at]')!;
+  const copyList = article.querySelector<HTMLUListElement>('[data-copies]')!;
+  const copyTemplate = document.querySelector<HTMLTemplateElement>('[data-copy-template]')!;
+
+  const work = new URLSearchParams(location.search).get('work') ?? '';
+  // Catalog answers kept for this visit, so an offline reload of the records keeps the titles.
+  const editions = new Map<string, Edition>();
+  let library: Library = { copies: [], readingStatuses: [] };
+  let page: BookPage | undefined;
+  let renderedCopies = '';
+  let sending = false;
+
+  function loaded() {
+    skeleton.hidden = true;
+    pageBox.removeAttribute('aria-busy');
+  }
+
+  // The page has no book to show: say why, in place of the book.
+  function say(text: string, link?: { href: string; label: string }) {
+    loaded();
+    article.hidden = true;
+    message.hidden = false;
+    message.replaceChildren(text);
+    if (link) {
+      const anchor = document.createElement('a');
+      anchor.href = link.href;
+      anchor.textContent = link.label;
+      message.append(' ', anchor);
+    }
+  }
+
+  // No network: the connection status says it, and the listing tries again.
+  // Another problem while the book is shown goes in a toast; before, in place of the book.
+  function fail(error: unknown) {
+    const network = isNetworkFailure(error);
+    if (network) reportNetwork(false);
+    if (article.hidden) say(spaceErrorMessage(error));
+    else if (!network) toast(spaceErrorMessage(error), { error: true });
+  }
+
+  function render() {
+    page = bookPage(work, library, editions);
+    if (!page) {
+      say('This book is not in your Library.', { href: '/add', label: 'Add a book' });
+      return;
+    }
+    loaded();
+    message.hidden = true;
+    article.hidden = false;
+
+    document.title = `${page.title} · Atomes`;
+    document.querySelector('[data-view-title]')!.textContent = page.title;
+    const cover = article.querySelector<HTMLElement>('[data-cover]')!;
+    if (cover.querySelector('img')?.getAttribute('src') !== page.cover) {
+      cover.replaceChildren();
+      if (page.cover) {
+        const image = document.createElement('img');
+        image.src = page.cover;
+        image.alt = '';
+        cover.append(image);
+      }
+    }
+    article.querySelector('[data-title]')!.textContent = page.title;
+    article.querySelector('[data-volume-title]')!.textContent = page.volumeTitle ?? '';
+    article.querySelector('[data-authors]')!.textContent = page.authors.join(', ');
+    article.querySelector('[data-series]')!.textContent = [
+      page.series && page.series !== page.title ? page.series : '',
+      page.volume ? `Volume ${page.volume}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    for (const radio of statusRadios) radio.checked = radio.value === page.status;
+    finished.hidden = page.status !== 'read';
+    finishedAt.value = page.finishedAt?.slice(0, 10) ?? '';
+
+    article.querySelector<HTMLElement>('[data-no-copies]')!.hidden = page.copies.length > 0;
+    // Rebuilt only when they change: a reload while offline must not clear a Lent To being typed.
+    const copies = JSON.stringify(page.copies);
+    if (copies !== renderedCopies) {
+      renderedCopies = copies;
+      copyList.replaceChildren(...page.copies.map(copyRow));
+    }
+    article.querySelector<HTMLAnchorElement>('[data-add-copy]')!.href = `/add?isbn=${page.isbn}`;
+  }
+
+  function copyRow(copy: BookPage['copies'][number]): HTMLLIElement {
+    const row = copyTemplate.content.firstElementChild!.cloneNode(true) as HTMLLIElement;
+    row.querySelector('[data-edition]')!.textContent = copy.edition || 'Edition not known yet';
+    row.querySelector('[data-isbn]')!.textContent = `ISBN ${copy.isbn}`;
+    const input = row.querySelector<HTMLInputElement>('input[name="lentTo"]')!;
+    input.value = copy.lentTo ?? '';
+    const lent = row.querySelector<HTMLFormElement>('[data-lent]')!;
+    lent.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void save(() => lend(copy.rkey, input.value.trim()), lent.querySelector('button'));
+    });
+    const remove = row.querySelector<HTMLButtonElement>('[data-remove]')!;
+    remove.setAttribute('aria-label', `Remove the Copy with ISBN ${copy.isbn}`);
+    remove.addEventListener('click', () => void save((space) => deleteCopy(space, copy.rkey), remove));
+    return row;
+  }
+
+  // Set by start(): the open Space and its listing.
+  let space: Space;
+  let listing: { refresh: () => Promise<void> };
+  // The toast of a change still waiting for the network; replaced when it is sent.
+  let closeWaiting: () => void = () => undefined;
+
+  // One change at a time: the book is inert while it saves (no dimming), and
+  // the button that started it, if any, shows a spinner.
+  async function save(change: (space: Space) => Promise<WriteState | undefined>, button?: HTMLButtonElement | null) {
+    const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    article.inert = true;
+    button?.setAttribute('aria-busy', 'true');
+    try {
+      const state = await change(space);
+      if (state) {
+        closeWaiting();
+        const close = toast(savedMessage[state], { error: state === 'refused' });
+        if (state === 'waiting') {
+          closeWaiting = close;
+          sendLater();
+        }
+      }
+    } catch (error) {
+      toast(spaceErrorMessage(error), { error: true });
+    } finally {
+      button?.removeAttribute('aria-busy');
+      article.inert = false;
+      // Shows what is saved now, also after a refused change.
+      await listing.refresh();
+      if (focused?.isConnected) focused.focus();
+    }
+  }
+
+  function sendLater() {
+    if (sending) return;
+    sending = true;
+    sendWhenOnline(
+      space,
+      () => {
+        sending = false;
+        reportNetwork(true);
+        reportWaiting(0);
+        closeWaiting();
+        toast(savedMessage.sent);
+      },
+      (error) => toast(spaceErrorMessage(error), { error: true }),
+    );
+  }
+
+  async function lend(rkey: string, name: string) {
+    const saved = library.copies.find((copy) => copy.rkey === rkey);
+    if (!saved) return undefined;
+    const copy: Copy = { ...saved.value };
+    if (name) copy.lentTo = name;
+    else delete copy.lentTo;
+    return (await saveCopy(space, copy, rkey)).state;
+  }
+
+  function readingStatus(): ReadingStatus | undefined {
+    return library.readingStatuses.find(({ rkey }) => rkey === work)?.value;
+  }
+
+  for (const radio of statusRadios) {
+    radio.addEventListener('change', () => {
+      const chosen = statuses.find((status) => status === radio.value);
+      if (!page || !chosen) return;
+      const change = statusChange(work, page.isbn, chosen, library, new Date());
+      if (change) void save(() => saveReadingStatus(space, change));
+    });
+  }
+
+  finishedAt.addEventListener('change', () => {
+    const current = readingStatus();
+    if (current?.status !== 'read') return;
+    const next: ReadingStatus = { ...current, updatedAt: new Date().toISOString() };
+    if (finishedAt.value) next.finishedAt = `${finishedAt.value}T00:00:00.000Z`;
+    else delete next.finishedAt;
+    void save(() => saveReadingStatus(space, next));
+  });
+
+  async function start() {
+    if (!isWorkId(work)) return say('No book here.', { href: '/', label: 'Go to Home' });
+    const own = await openOwnSpace();
+    if (!own) return say('Sign in to see your Library.', { href: '/settings', label: 'Go to Settings' });
+    space = own.space;
+    listing = freshListing(
+      async () => {
+        const loaded = await loadLibrary(space);
+        const isbns = [
+          ...loaded.library.copies.filter(({ value }) => value.works.includes(work)).map(({ value }) => value.isbn),
+          ...loaded.library.readingStatuses.filter(({ rkey }) => rkey === work).map(({ value }) => value.isbn),
+        ];
+        const missing = isbns.filter((isbn) => !editions.has(isbn));
+        for (const [isbn, edition] of await lookupEditions(missing)) editions.set(isbn, edition);
+        return { ...loaded, waiting: await waitingCount(space) };
+      },
+      (loaded) => {
+        // Stale: the PDS did not answer, so this is the copy on this device.
+        reportNetwork(!loaded.stale);
+        reportWaiting(loaded.waiting);
+        library = loaded.library;
+        render();
+      },
+      fail,
+    );
+    await listing.refresh();
+  }
+
+  start().catch(fail);
+</script>
+
+<style>
+  .book-page {
+    max-width: 880px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .skeleton-text {
+    gap: 10px;
+  }
+
+  .skeleton-title {
+    width: 80%;
+    height: 26px;
+  }
+
+  .skeleton-line {
+    width: 55%;
+    height: 14px;
+  }
+
+  .skeleton-line.short {
+    width: 40%;
+  }
+
+  .message {
+    font-size: 14px;
+  }
+
+  /* Phone: cover and title side by side, then the sections at full width. */
+  .book {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 28px 16px;
+    align-items: end;
+  }
+
+  .content {
+    display: contents;
+  }
+
+  .content > section {
+    grid-column: 1 / -1;
+  }
+
+  .cover {
+    flex: none;
+    width: 96px;
+    align-self: flex-start;
+    overflow: hidden;
+    border-radius: var(--radius-cover);
+    box-shadow: 0 0 0 1px var(--cover-edge);
+  }
+
+  /* No cover: a book-shaped placeholder. */
+  .cover:empty {
+    aspect-ratio: 2 / 3;
+    background: var(--soft);
+  }
+
+  /* The whole cover, at its own ratio: covers are not all 2:3. */
+  .cover :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .head-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .title {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+  }
+
+  .line {
+    color: var(--secondary);
+    font-size: 14px;
+  }
+
+  .line.strong {
+    color: var(--ink);
+    font-size: 16px;
+  }
+
+  .line:empty {
+    display: none;
+  }
+
+  .strong {
+    font-weight: 600;
+  }
+
+  .group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .group-title {
+    font-size: 16px;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .hint {
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
+  .finished {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .copies {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .copy {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .copy-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .copy-text {
+    min-width: 0;
+  }
+
+  .lent {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .lent-field {
+    flex: 1 1 200px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .lent-field .field {
+    flex: 1;
+  }
+
+  /* Desktop: cover at the left, the rest beside it; the title is content (ui-direction: Detail). */
+  @media (min-width: 960px) {
+    .book-page {
+      margin: 16px auto 0;
+    }
+
+    .skeleton-title {
+      height: 36px;
+    }
+
+    .book {
+      display: flex;
+      align-items: flex-start;
+      gap: 40px;
+    }
+
+    .content {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .cover {
+      width: 200px;
+    }
+
+    .head-text {
+      gap: 6px;
+    }
+
+    .title {
+      font-size: 36px;
+    }
+
+    .group-title {
+      display: flex;
+      align-items: center;
+      align-self: stretch;
+      min-height: var(--row);
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    .copies {
+      border-top: 0;
+    }
+
+    .lent-field {
+      flex: 0 1 320px;
+    }
+  }
+</style>

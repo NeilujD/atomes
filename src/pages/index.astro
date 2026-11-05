@@ -1,4 +1,5 @@
 ---
+import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
 
 // Home before sign-in and storage exist: every section shows its empty state.
@@ -13,6 +14,10 @@ const sections = [
 ---
 
 <AppShell title="Home" current="home">
+  <a slot="actions" class="button" href="/add">
+    <Icon name="keyboard" />
+    <span>Type an ISBN</span>
+  </a>
   <div class="home">
     {
       sections.map((section) => (
