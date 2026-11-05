@@ -138,8 +138,7 @@ export function openSpace(fetchHandler: FetchHandler, did: string, localCopy: Lo
   function sendWaiting() {
     return inTurn(async () => {
       for (;;) {
-        const queue = await localCopy.readQueue(queueKey);
-        const next = queue.find((pending) => pending.refused === undefined);
+        const next = (await localCopy.readQueue(queueKey)).find((pending) => pending.refused === undefined);
         if (!next) return;
         let refused: string | undefined;
         try {
@@ -150,11 +149,14 @@ export function openSpace(fetchHandler: FetchHandler, did: string, localCopy: Lo
           if (!(error instanceof SpaceError)) throw error;
           refused = error.message;
         }
+        // Read again: a sign-out in another tab may have cleared the queue during the send.
+        const queue = await localCopy.readQueue(queueKey);
+        const sent = (pending: PendingWrite) => JSON.stringify(pending) === JSON.stringify(next);
         await localCopy.writeQueue(
           queueKey,
           refused === undefined
-            ? queue.filter((pending) => pending !== next)
-            : queue.map((pending) => (pending === next ? { ...pending, refused } : pending)),
+            ? queue.filter((pending) => !sent(pending))
+            : queue.map((pending) => (sent(pending) ? { ...pending, refused } : pending)),
         );
       }
     });

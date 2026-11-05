@@ -450,6 +450,24 @@ describe('offline writes', () => {
 
     expect(await space.pending()).toEqual([]);
   });
+
+  test('sign-out during a send (in another tab) does not bring the waiting writes back', async () => {
+    const { pds, copy, space } = await offlineSpace('one');
+    await space.put(collection, newRecordKey(), { text: 'a' });
+    await space.put(collection, newRecordKey(), { text: 'b' });
+    pds.network.online = true;
+    // The other tab signs out while the PDS is answering the first write.
+    const signOutMidway: FetchHandler = async (pathname, init) => {
+      const answer = await pds.handler(pathname, init);
+      await copy.clear();
+      pds.network.online = false;
+      return answer;
+    };
+
+    await openSpace(signOutMidway, owner, copy).sendWaiting();
+
+    expect(await space.pending()).toEqual([]);
+  });
 });
 
 describe('record data', () => {
