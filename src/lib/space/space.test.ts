@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { ClientMetadataError } from '../auth/client-metadata';
 import { memoryLocalCopy } from './local-copy.fake';
 import { newRecordKey, openSpace, SpaceError, spaceErrorMessage, type FetchHandler } from './space';
 
@@ -14,6 +15,8 @@ function fakePds() {
   // space ref -> "collection/rkey" -> value. Only the owner writes here.
   const records = new Map<string, Map<string, unknown>>();
   const calls: string[] = [];
+  // The writes the PDS applied, in order: "put <rkey>" or "delete <rkey>".
+  const writes: string[] = [];
 
   const reply = (status: number, body: unknown) => Response.json(body, { status });
   const fail = (error: string) => reply(400, { error, message: `${error} (fake PDS)` });
@@ -45,7 +48,16 @@ function fakePds() {
         const written = records.get(body.space) ?? new Map<string, unknown>();
         records.set(body.space, written);
         written.set(`${body.collection}/${body.rkey}`, body.record);
+        writes.push(`put ${body.rkey}`);
         return reply(200, { uri: `${body.space}/${owner}/${body.collection}/${body.rkey}`, cid: 'bafyfake' });
+      }
+      // Succeeds whether or not the record was there.
+      case '/xrpc/com.atproto.space.deleteRecord': {
+        if (!spaces.has(body.space)) return fail('SpaceNotFound');
+        if (body.repo !== owner) return reply(403, { error: 'Forbidden' });
+        records.get(body.space)?.delete(`${body.collection}/${body.rkey}`);
+        writes.push(`delete ${body.rkey}`);
+        return reply(200, {});
       }
       case '/xrpc/com.atproto.space.getRecord': {
         const written = recordsOf(query.get('space'), query.get('repo'));
@@ -76,7 +88,7 @@ function fakePds() {
   const network = { online: true };
   const handler: FetchHandler = (pathname, init) =>
     network.online ? Promise.resolve(answer(pathname, init)) : Promise.reject(new TypeError('Failed to fetch'));
-  return { handler, spaces, calls, network };
+  return { handler, spaces, calls, writes, network };
 }
 
 const textsOf = (records: { value: unknown }[]) => records.map(({ value }) => (value as { text: string }).text);
@@ -183,22 +195,6 @@ describe('with the network off', () => {
     expect(offline.records).toEqual(fromPds.records);
   });
 
-  test('a save fails visibly, and nothing is kept or queued', async () => {
-    const pds = fakePds();
-    const copy = memoryLocalCopy();
-    const space = openSpace(pds.handler, owner, copy);
-    await space.put(collection, newRecordKey(), { text: 'one' });
-    await space.list(collection);
-
-    pds.network.online =false;
-    const error = await space.put(collection, newRecordKey(), { text: 'lost' }).catch((cause: unknown) => cause);
-
-    expect(spaceErrorMessage(error)).toBe('Could not reach your PDS. Check your connection and try again.');
-    expect(textsOf((await space.list(collection)).records)).toEqual(['one']);
-    pds.network.online =true;
-    expect(await space.list(collection)).toMatchObject({ stale: false });
-    expect(textsOf((await space.list(collection)).records)).toEqual(['one']);
-  });
 
   test('a token refresh that cannot reach the server also falls back to the copy', async () => {
     const pds = fakePds();
@@ -253,6 +249,237 @@ describe('with the network off', () => {
   });
 });
 
+describe('delete', () => {
+  test('removes the record from the PDS, the listing and the local copy', async () => {
+    const pds = fakePds();
+    const copy = memoryLocalCopy();
+    const space = openSpace(pds.handler, owner, copy);
+    const kept = newRecordKey();
+    const gone = newRecordKey();
+    await space.put(collection, kept, { text: 'kept' });
+    await space.put(collection, gone, { text: 'gone' });
+    await space.list(collection);
+
+    expect(await space.delete(collection, gone)).toBe('sent');
+
+    expect(await space.get(collection, gone)).toBeUndefined();
+    expect(textsOf((await openSpace(pds.handler, owner, memoryLocalCopy()).list(collection)).records)).toEqual(['kept']);
+    pds.network.online = false;
+    expect(textsOf((await openSpace(pds.handler, owner, copy).list(collection)).records)).toEqual(['kept']);
+  });
+
+  test('succeeds for a record that does not exist, and before the Space exists, and creates no Space', async () => {
+    const pds = fakePds();
+    const space = openSpace(pds.handler, owner, memoryLocalCopy());
+
+    expect(await space.delete(collection, 'missing')).toBe('sent');
+    expect(pds.spaces.size).toBe(0);
+    await space.put(collection, newRecordKey(), { text: 'one' });
+    expect(await space.delete(collection, 'missing')).toBe('sent');
+    expect(await space.pending()).toEqual([]);
+  });
+});
+
+// Writes made with no network wait on the device. A new Space on the same copy stands for a reload.
+describe('offline writes', () => {
+  // A Space whose collection copy is filled, then the network goes off.
+  async function offlineSpace(...texts: string[]) {
+    const pds = fakePds();
+    const copy = memoryLocalCopy();
+    const space = openSpace(pds.handler, owner, copy);
+    const keys: string[] = [];
+    for (const text of texts) {
+      const rkey = newRecordKey();
+      keys.push(rkey);
+      await space.put(collection, rkey, { text });
+    }
+    await space.list(collection);
+    pds.writes.length = 0;
+    pds.network.online = false;
+    return { pds, copy, space, keys };
+  }
+
+  test('a put waits, and the local copy shows it at once', async () => {
+    const { pds, space } = await offlineSpace('one');
+
+    expect(await space.put(collection, newRecordKey(), { text: 'two' })).toBe('waiting');
+
+    expect(await space.list(collection)).toMatchObject({ stale: true });
+    expect(textsOf((await space.list(collection)).records)).toEqual(['two', 'one']);
+    expect(await space.pending()).toHaveLength(1);
+    expect(pds.writes).toEqual([]);
+  });
+
+  test('after a reload with the network still off, the list shows the waiting write, marked stale', async () => {
+    const { pds, copy, space } = await offlineSpace('one');
+    await space.put(collection, newRecordKey(), { text: 'two' });
+
+    const reloaded = await openSpace(pds.handler, owner, copy).list(collection);
+
+    expect(reloaded.stale).toBe(true);
+    expect(textsOf(reloaded.records)).toEqual(['two', 'one']);
+  });
+
+  test('a delete waits, and the local copy drops the record at once', async () => {
+    const { pds, space, keys } = await offlineSpace('one', 'two');
+
+    expect(await space.delete(collection, keys[0])).toBe('waiting');
+
+    expect(textsOf((await space.list(collection)).records)).toEqual(['two']);
+    expect(await space.pending()).toEqual([{ collection, rkey: keys[0] }]);
+    pds.network.online = true;
+    await space.sendWaiting();
+    expect(pds.writes).toEqual([`delete ${keys[0]}`]);
+    expect(textsOf((await space.list(collection)).records)).toEqual(['two']);
+  });
+
+  test('the waiting writes survive a reload and go out in the order they were made', async () => {
+    const { pds, copy, space, keys } = await offlineSpace('one');
+    const [a, b] = [newRecordKey(), newRecordKey()];
+    await space.put(collection, b, { text: 'b' });
+    await space.put(collection, a, { text: 'a' });
+    await space.delete(collection, keys[0]);
+
+    const reloaded = openSpace(pds.handler, owner, copy);
+    expect((await reloaded.pending()).map(({ rkey }) => rkey)).toEqual([b, a, keys[0]]);
+    pds.network.online = true;
+    // A list with the network back sends them first.
+    const listing = await reloaded.list(collection);
+
+    expect(pds.writes).toEqual([`put ${b}`, `put ${a}`, `delete ${keys[0]}`]);
+    expect(listing).toMatchObject({ stale: false });
+    expect(textsOf(listing.records)).toEqual(['b', 'a']);
+    expect(await reloaded.pending()).toEqual([]);
+  });
+
+  test('last write wins: a newer write to the same record replaces the waiting one', async () => {
+    const { pds, space, keys } = await offlineSpace('one');
+    const other = newRecordKey();
+    await space.put(collection, keys[0], { text: 'first edit' });
+    await space.put(collection, other, { text: 'other' });
+    await space.put(collection, keys[0], { text: 'second edit' });
+
+    expect(await space.pending()).toHaveLength(2);
+    expect(textsOf((await space.list(collection)).records)).toEqual(['other', 'second edit']);
+    pds.network.online = true;
+    await space.sendWaiting();
+
+    expect(pds.writes).toEqual([`put ${other}`, `put ${keys[0]}`]);
+    expect(await space.get(collection, keys[0])).toMatchObject({ text: 'second edit' });
+  });
+
+  test('the network failing again stops the send and keeps the rest, in order', async () => {
+    const { pds, copy, space } = await offlineSpace('one');
+    const [a, b, c] = [newRecordKey(), newRecordKey(), newRecordKey()];
+    for (const rkey of [a, b, c]) await space.put(collection, rkey, { text: rkey });
+    // The network comes back for one call only.
+    pds.network.online = true;
+    const once: FetchHandler = (pathname, init) => {
+      const answer = pds.handler(pathname, init);
+      pds.network.online = false;
+      return answer;
+    };
+
+    await openSpace(once, owner, copy).sendWaiting();
+
+    expect(pds.writes).toEqual([`put ${a}`]);
+    expect((await space.pending()).map(({ rkey }) => rkey)).toEqual([b, c]);
+  });
+
+  test('a write made while online goes after the waiting ones', async () => {
+    const { pds, space } = await offlineSpace('one');
+    const waiting = newRecordKey();
+    await space.put(collection, waiting, { text: 'waiting' });
+
+    pds.network.online = true;
+    const now = newRecordKey();
+    expect(await space.put(collection, now, { text: 'now' })).toBe('sent');
+
+    expect(pds.writes).toEqual([`put ${waiting}`, `put ${now}`]);
+  });
+
+  test('writes started together go out in order, and the last one wins', async () => {
+    const pds = fakePds();
+    const space = openSpace(pds.handler, owner, memoryLocalCopy());
+    const [a, b] = [newRecordKey(), newRecordKey()];
+    await space.put(collection, a, { text: 'a' });
+    pds.writes.length = 0;
+
+    await Promise.all([
+      space.put(collection, b, { text: 'b' }),
+      space.put(collection, a, { text: 'a, edited' }),
+      space.delete(collection, a),
+    ]);
+
+    expect(pds.writes).toEqual([`put ${b}`, `delete ${a}`]);
+    expect(await space.get(collection, a)).toBeUndefined();
+  });
+
+  test('a write the PDS refuses stays visible with its reason, is not sent again, and does not block the others', async () => {
+    const pds = fakePds();
+    // The PDS refuses records with the text "bad".
+    const handler: FetchHandler = (pathname, init) =>
+      typeof init?.body === 'string' && init.body.includes('"text":"bad"')
+        ? Promise.resolve(Response.json({ error: 'InvalidRecord', message: 'Record is not valid' }, { status: 400 }))
+        : pds.handler(pathname, init);
+    const space = openSpace(handler, owner, memoryLocalCopy());
+    const [bad, good] = [newRecordKey(), newRecordKey()];
+
+    expect(await space.put(collection, bad, { text: 'bad' })).toBe('refused');
+    expect(await space.put(collection, good, { text: 'good' })).toBe('sent');
+    await space.sendWaiting();
+
+    expect(await space.pending()).toEqual([
+      { collection, rkey: bad, record: { $type: collection, text: 'bad' }, refused: 'Record is not valid' },
+    ]);
+    expect(pds.writes).toEqual([`put ${good}`]);
+    expect(textsOf((await space.list(collection)).records)).toEqual(['good']);
+    // A new write to the same record replaces the refused one.
+    expect(await space.put(collection, bad, { text: 'fixed' })).toBe('sent');
+    expect(await space.pending()).toEqual([]);
+  });
+
+  test('another account on the device never gets the waiting writes', async () => {
+    const { pds, copy, space } = await offlineSpace('one');
+    await space.put(collection, newRecordKey(), { text: 'private' });
+
+    pds.network.online = true;
+    const other = openSpace(pds.handler, 'did:plc:other', copy);
+    await other.sendWaiting();
+
+    expect(await other.pending()).toEqual([]);
+    expect(pds.writes).toEqual([]);
+    expect(await space.pending()).toHaveLength(1);
+  });
+
+  test('sign-out (a cleared copy) drops the waiting writes', async () => {
+    const { copy, space } = await offlineSpace('one');
+    await space.put(collection, newRecordKey(), { text: 'private' });
+
+    await copy.clear();
+
+    expect(await space.pending()).toEqual([]);
+  });
+
+  test('sign-out during a send (in another tab) does not bring the waiting writes back', async () => {
+    const { pds, copy, space } = await offlineSpace('one');
+    await space.put(collection, newRecordKey(), { text: 'a' });
+    await space.put(collection, newRecordKey(), { text: 'b' });
+    pds.network.online = true;
+    // The other tab signs out while the PDS is answering the first write.
+    const signOutMidway: FetchHandler = async (pathname, init) => {
+      const answer = await pds.handler(pathname, init);
+      await copy.clear();
+      pds.network.online = false;
+      return answer;
+    };
+
+    await openSpace(signOutMidway, owner, copy).sendWaiting();
+
+    expect(await space.pending()).toEqual([]);
+  });
+});
+
 describe('record data', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -267,8 +494,14 @@ describe('record data', () => {
     await space.put(collection, rkey, { text: 'private' });
     await space.get(collection, rkey);
     await space.list(collection);
+    pds.network.online = false;
+    await space.put(collection, newRecordKey(), { text: 'waiting' });
+    await space.delete(collection, rkey);
+    pds.network.online = true;
+    await space.sendWaiting();
 
-    expect(pds.calls.length).toBeGreaterThan(0);
+    expect(pds.writes).toHaveLength(3);
+    expect(pds.calls.every((call) => call.startsWith('/xrpc/com.atproto.space.'))).toBe(true);
     expect(pds.calls.every((call) => call.startsWith('/xrpc/com.atproto.space.'))).toBe(true);
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -284,8 +517,19 @@ describe('newRecordKey', () => {
   });
 });
 
+// Each failure names its own cause: the Atomes server, the reader's PDS, or the network.
 describe('spaceErrorMessage', () => {
   test.each([
+    [
+      'the Atomes server is down (Phase 1: this read as a PDS failure)',
+      new ClientMetadataError(false, 'Could not load', { cause: new TypeError('Failed to fetch') }),
+      'Could not reach this Atomes server. Check your connection and try again.',
+    ],
+    [
+      'the Atomes server is set up wrongly',
+      new ClientMetadataError(true, 'HTTP 500'),
+      'This Atomes server is not set up correctly. Tell its owner.',
+    ],
     ['the PDS refuses the call', new SpaceError('InvalidToken', 'Bad token scope'), 'Your PDS refused the request: Bad token scope'],
     ['the network is down', new TypeError('Failed to fetch'), 'Could not reach your PDS. Check your connection and try again.'],
     [
