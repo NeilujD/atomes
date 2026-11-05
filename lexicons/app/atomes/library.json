@@ -7,7 +7,13 @@
       "key": "literal:self",
       "name": "Atomes Library",
       "description": "The reader's Library in Atomes. Only its owner can read it.",
-      "collections": ["app.atomes.testItem"]
+      "collections": [
+        "app.atomes.copy",
+        "app.atomes.follow",
+        "app.atomes.label",
+        "app.atomes.readingStatus",
+        "app.atomes.toBuy"
+      ]
     }
   }
 }

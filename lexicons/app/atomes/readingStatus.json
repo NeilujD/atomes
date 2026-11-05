@@ -1,0 +1,38 @@
+{
+  "lexicon": 1,
+  "id": "app.atomes.readingStatus",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Where the reader stands with a Work. One per Work: the record key is the Work's Catalog identifier. Exists with or without a Copy. No record means unread.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["work", "isbn", "status", "updatedAt"],
+        "properties": {
+          "work": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Catalog identifier of the Work; equals the record key. 'isbn:<isbn13>' when the Catalog does not know the Work."
+          },
+          "isbn": {
+            "type": "string",
+            "minLength": 13,
+            "maxLength": 13,
+            "description": "ISBN-13 of the Edition the reader read or is reading."
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["unread", "reading", "read", "abandoned"]
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the reader finished the Work, if they said."
+          },
+          "updatedAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

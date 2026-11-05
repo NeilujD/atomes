@@ -1,0 +1,71 @@
+{
+  "lexicon": 1,
+  "id": "app.atomes.copy",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A physical book the reader owns: one Copy of an Edition. A reader can own several Copies of the same Edition. Never Shared.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["isbn", "works", "createdAt"],
+        "properties": {
+          "isbn": {
+            "type": "string",
+            "minLength": 13,
+            "maxLength": 13,
+            "description": "The Edition: ISBN-13, 13 digits, no hyphens."
+          },
+          "works": {
+            "type": "array",
+            "minLength": 1,
+            "maxLength": 50,
+            "description": "Catalog identifiers of the Works this Copy contains; several for an omnibus. 'isbn:<isbn13>' when the Catalog does not know the Work.",
+            "items": { "type": "string", "maxLength": 128 }
+          },
+          "lentTo": {
+            "type": "string",
+            "maxLength": 640,
+            "maxGraphemes": 64,
+            "description": "Who has this Copy now. Absent when the reader has it."
+          },
+          "acquiredAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the reader got this Copy, if they said."
+          },
+          "details": {
+            "type": "ref",
+            "ref": "#bookDetails",
+            "description": "Typed by the reader when the Catalog does not know this ISBN."
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    },
+    "bookDetails": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string", "maxLength": 3000, "maxGraphemes": 300 },
+        "authors": {
+          "type": "array",
+          "maxLength": 20,
+          "items": { "type": "string", "maxLength": 640, "maxGraphemes": 64 }
+        },
+        "series": {
+          "type": "string",
+          "maxLength": 3000,
+          "maxGraphemes": 300,
+          "description": "Series title, as typed. Not a Catalog identifier."
+        },
+        "volume": {
+          "type": "string",
+          "maxLength": 64,
+          "maxGraphemes": 16,
+          "description": "Volume in the Series, as printed (e.g. '12', '12.5')."
+        }
+      }
+    }
+  }
+}

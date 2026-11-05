@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "app.atomes.follow",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A Series the reader follows, or has dropped, in one Edition Line. One per Series: the record key is the Series' Catalog identifier.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["series", "anchorIsbn", "status", "updatedAt"],
+        "properties": {
+          "series": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Catalog identifier of the Series; equals the record key."
+          },
+          "anchorIsbn": {
+            "type": "string",
+            "minLength": 13,
+            "maxLength": 13,
+            "description": "ISBN-13 of an Edition in the followed Edition Line. The Catalog derives the Edition Line (publisher, language, format) from it."
+          },
+          "fromVolume": {
+            "type": "string",
+            "maxLength": 64,
+            "maxGraphemes": 16,
+            "description": "The Volume from which the reader collects this Edition Line, after a switch. Absent: from the first Volume."
+          },
+          "status": {
+            "type": "string",
+            "knownValues": ["following", "dropped"]
+          },
+          "updatedAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

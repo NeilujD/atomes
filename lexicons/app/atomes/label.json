@@ -1,0 +1,25 @@
+{
+  "lexicon": 1,
+  "id": "app.atomes.label",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A word the reader attaches to Works to group and filter them.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["name", "works", "createdAt"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 640, "maxGraphemes": 64 },
+          "works": {
+            "type": "array",
+            "maxLength": 5000,
+            "description": "Catalog identifiers of the Works that carry this Label, each once.",
+            "items": { "type": "string", "maxLength": 128 }
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

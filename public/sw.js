@@ -10,7 +10,6 @@ const CACHE = `atomes-shell-${BUILD.version}`;
 const SHELL = [
   '/',
   '/settings',
-  '/dev/space',
   '/manifest.webmanifest',
   '/favicon.svg',
   '/favicon-32.png',
