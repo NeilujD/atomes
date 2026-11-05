@@ -4,7 +4,7 @@ import { memoryLocalCopy } from './local-copy.fake';
 import { newRecordKey, openSpace, SpaceError, spaceErrorMessage, type FetchHandler } from './space';
 
 const owner = 'did:plc:owner';
-const collection = 'app.atomes.testItem';
+const collection = 'app.atomes.copy';
 
 // An in-memory PDS that answers the com.atproto.space.* calls the way the
 // alpha PDS does (lexicons and handlers on bluesky-social/atproto, branch

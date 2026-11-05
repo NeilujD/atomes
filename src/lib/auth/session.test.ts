@@ -102,13 +102,13 @@ describe('session', () => {
     ['the PDS cannot be reached', { ...fakeClient({}), signOut: () => Promise.reject(new TypeError('Failed to fetch')) }],
   ])('sign-out clears the local copy of the Space when %s', async (_, client) => {
     const copy = memoryLocalCopy();
-    await copy.write('at://did:plc:reader/space/app.atomes.library/self/app.atomes.testItem', [
+    await copy.write('at://did:plc:reader/space/app.atomes.library/self/app.atomes.copy', [
       { rkey: 'a', value: { text: 'private' } },
     ]);
 
     await signOut(client, reader, copy);
 
-    expect(await copy.read('at://did:plc:reader/space/app.atomes.library/self/app.atomes.testItem')).toBeUndefined();
+    expect(await copy.read('at://did:plc:reader/space/app.atomes.library/self/app.atomes.copy')).toBeUndefined();
   });
 });
 

@@ -1,0 +1,24 @@
+{
+  "lexicon": 1,
+  "id": "app.atomes.toBuy",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An Edition the reader added to To Buy by hand. One per Edition: the record key is the ISBN-13. Missing and New Volumes are computed, never stored here. Never Shared.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["isbn", "createdAt"],
+        "properties": {
+          "isbn": {
+            "type": "string",
+            "minLength": 13,
+            "maxLength": 13,
+            "description": "The Edition: ISBN-13, 13 digits, no hyphens; equals the record key."
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}
