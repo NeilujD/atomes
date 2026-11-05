@@ -11,7 +11,7 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 
 `jean.json`: in each new worktree, Jean copies the `.env*` files of the base project (`$JEAN_ROOT_PATH`, top level only) and runs `bun install --frozen-lockfile`. Its Run command is `bun run dev`.
 
-CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Tests must never call a real PDS.
+CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Its `image` job builds the `Dockerfile` and waits for the container health check. Tests must never call a real PDS.
 
 `main` is protected by the GitHub ruleset `protect-main`: direct pushes, force pushes and deletion are refused, and a pull request merges only when the CI `check` job is green. Never merge without the owner's review.
 
