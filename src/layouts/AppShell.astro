@@ -153,6 +153,10 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
     navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
       console.error('Service worker registration failed', error);
     });
+  } else if ('serviceWorker' in navigator) {
+    // A build run earlier on this origin (`bun run phone`) left its worker. Offline,
+    // it would serve the page without the dev modules, so no script runs.
+    void navigator.serviceWorker.getRegistrations().then((workers) => workers.forEach((worker) => void worker.unregister()));
   }
 </script>
 
