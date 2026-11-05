@@ -38,7 +38,7 @@ docker run -d --name atomes -p 4321:4321 -v atomes-data:/data \
   -e PUBLIC_APP_ORIGIN=https://atomes.example.org atomes
 ```
 
-Put an HTTPS reverse proxy in front of it (Coolify, Caddy, Traefik): sign-in needs the app on its https origin.
+Put an HTTPS reverse proxy in front of it (Coolify, Caddy, Traefik): sign-in needs the app on its https origin. The project's own staging runs on Coolify ([ADR 0011](docs/adr/0011-project-instances-run-on-self-hosted-coolify.md)): [docs/staging-coolify.md](docs/staging-coolify.md).
 
 | Setting | Default | What it does |
 | --- | --- | --- |
