@@ -310,6 +310,16 @@ describe('offline writes', () => {
     expect(pds.writes).toEqual([]);
   });
 
+  test('after a reload with the network still off, the list shows the waiting write, marked stale', async () => {
+    const { pds, copy, space } = await offlineSpace('one');
+    await space.put(collection, newRecordKey(), { text: 'two' });
+
+    const reloaded = await openSpace(pds.handler, owner, copy).list(collection);
+
+    expect(reloaded.stale).toBe(true);
+    expect(textsOf(reloaded.records)).toEqual(['two', 'one']);
+  });
+
   test('a delete waits, and the local copy drops the record at once', async () => {
     const { pds, space, keys } = await offlineSpace('one', 'two');
 
