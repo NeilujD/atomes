@@ -51,13 +51,14 @@ export async function signIn(client: AuthClient, input: string): Promise<AuthSta
   }
 }
 
-// Clears the local copy of the Space first, so it goes even when the PDS cannot be reached.
+// Clears what the device keeps for the reader first (device-data.ts), so it
+// goes even when the PDS cannot be reached.
 export async function signOut(
   client: AuthClient,
   account: Account,
-  localCopy: Pick<LocalCopy, 'clear'>,
+  device: Pick<LocalCopy, 'clear'>,
 ): Promise<AuthState> {
-  await localCopy.clear();
+  await device.clear();
   try {
     await client.signOut(account.did);
     return { status: 'signed-out' };

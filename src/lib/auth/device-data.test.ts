@@ -1,0 +1,43 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, test } from 'vitest';
+import { memoryLocalCopy } from '../space/local-copy.fake';
+import { catalogCacheName, deviceData } from './device-data';
+
+const copyKey = 'at://did:plc:reader/space/app.atomes.library/self/app.atomes.copy';
+
+// The CacheStorage calls deviceData uses, in memory.
+function memoryCaches(names: string[]) {
+  const kept = new Set(names);
+  return {
+    kept,
+    caches: { delete: (name: string) => Promise.resolve(kept.delete(name)) },
+  };
+}
+
+describe('data this device keeps for the reader', () => {
+  test('clearing it removes the local copy of the Space and the Catalog answers looked up', async () => {
+    const localCopy = memoryLocalCopy();
+    await localCopy.write(copyKey, [{ rkey: 'a', value: { isbn: '9782723478991' } }]);
+    const { kept, caches } = memoryCaches([catalogCacheName, 'atomes-shell-abc', 'atomes-oauth']);
+
+    await deviceData(localCopy, caches).clear();
+
+    expect(await localCopy.read(copyKey)).toBeUndefined();
+    expect([...kept]).toEqual(['atomes-shell-abc', 'atomes-oauth']);
+  });
+
+  test('with no Cache Storage (not a secure origin), the local copy is still cleared', async () => {
+    const localCopy = memoryLocalCopy();
+    await localCopy.write(copyKey, [{ rkey: 'a', value: {} }]);
+
+    await deviceData(localCopy, undefined).clear();
+
+    expect(await localCopy.read(copyKey)).toBeUndefined();
+  });
+
+  test('the service worker keeps Catalog answers under the same cache name', () => {
+    const worker = readFileSync(new URL('../../../public/sw.js', import.meta.url), 'utf8');
+
+    expect(worker).toContain(`const CATALOG_CACHE = '${catalogCacheName}';`);
+  });
+});
