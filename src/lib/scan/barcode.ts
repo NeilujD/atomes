@@ -20,6 +20,12 @@ const formats: ['ean_13'] = ['ean_13'];
 
 let detector: Promise<Detector> | undefined;
 
+// Resolves when the reader can decode: at once for the native one, after the
+// wasm loads for the fallback (first scan on an iPhone).
+export function loadReader(): Promise<unknown> {
+  return bookDetector();
+}
+
 function bookDetector(): Promise<Detector> {
   detector ??= createDetector().catch((error: unknown) => {
     detector = undefined;

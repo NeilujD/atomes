@@ -21,14 +21,18 @@ const answers = [
       <span>Scan the barcode</span>
     </button>
 
-    <dialog class="camera" data-camera aria-label="Scan the barcode">
+    <!-- data-state: starting | looking | wrong | found (set by the script, styled below). -->
+    <dialog class="camera" data-camera data-state="starting" aria-label="Scan the barcode">
       <video class="camera-video" data-video muted playsinline></video>
-      <div class="viewfinder" aria-hidden="true"></div>
+      <div class="viewfinder" aria-hidden="true">
+        <span class="scan-line"></span>
+        <span class="found-mark"><Icon name="check" size={32} /></span>
+      </div>
       <button class="camera-close" type="button" aria-label="Close" data-camera-close>
         <Icon name="x" size={22} />
       </button>
       <div class="camera-bottom">
-        <p class="camera-text" data-camera-text aria-live="polite">Point at the barcode on the back cover.</p>
+        <p class="camera-text" data-camera-text aria-live="polite">Starting the camera…</p>
         <button class="camera-type" type="button" data-camera-close>
           <Icon name="keyboard" />
           <span>Type the ISBN</span>
@@ -114,7 +118,7 @@ const answers = [
   import { coverUrl, lookupEdition } from '../lib/catalog/client';
   import { saveCopy } from '../lib/library/copy';
   import { isbnProblemText, readIsbn } from '../lib/library/ids';
-  import { cameraProblem, cameraProblemText, openCamera, watchBarcodes } from '../lib/scan/barcode';
+  import { cameraProblem, cameraProblemText, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { loadLibrary, savedMessage, sendWhenOnline, waitingCount } from '../lib/library/library';
   import { bookPage, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
@@ -299,15 +303,32 @@ const answers = [
   const camera = document.querySelector<HTMLDialogElement>('[data-camera]')!;
   const video = camera.querySelector<HTMLVideoElement>('[data-video]')!;
   const cameraText = camera.querySelector<HTMLElement>('[data-camera-text]')!;
-  const defaultCameraText = cameraText.textContent.trim();
   // Aborted when the camera view closes, for any reason (Close, Escape, a book found).
   let scanning = new AbortController();
+  let later: ReturnType<typeof setTimeout> | undefined;
+
+  type ScanState = 'starting' | 'looking' | 'wrong' | 'found';
+  const lookingText = 'Point at the barcode on the back cover.';
+  // A detector returns only barcodes it could decode, so "nothing yet" is all
+  // the reader knows. After a while, say what usually helps.
+  const stuckText = 'Nothing read yet. Hold the book 20 to 40 cm away, in good light, the barcode inside the frame.';
+
+  // What the camera view shows: the frame (styled by data-state) and one line.
+  // `then` runs after `delay` unless the view shows something else first.
+  function showScan(state: ScanState, text: string, then?: () => void, delay = 0) {
+    clearTimeout(later);
+    camera.dataset.state = state;
+    if (cameraText.textContent !== text) cameraText.textContent = text; // no repeat for screen readers
+    if (then) later = setTimeout(then, delay);
+  }
+
+  const looking = () => showScan('looking', lookingText, () => showScan('looking', stuckText), 8000);
 
   // The camera view over the whole screen; the first good ISBN fills the field
   // and looks the book up. Any failure goes back to typing, with the reason.
   async function scan() {
     problem();
-    cameraText.textContent = defaultCameraText;
+    showScan('starting', 'Starting the camera…');
     scanning = new AbortController();
     const { signal } = scanning;
     camera.showModal();
@@ -324,6 +345,9 @@ const answers = [
     video.srcObject = stream;
     try {
       await video.play();
+      await loadReader();
+      if (signal.aborted) return;
+      looking();
       await watchBarcodes(video, found, signal);
     } catch {
       if (signal.aborted) return;
@@ -335,13 +359,22 @@ const answers = [
   function found(text: string): boolean {
     const read = readIsbn(text);
     if ('isbn' in read) {
-      camera.close();
-      isbnInput.value = read.isbn;
-      void lookUp();
+      // Show the read before the view goes away: the reader sees it worked.
+      showScan('found', `ISBN ${read.isbn}`);
+      navigator.vibrate?.(40);
+      const { signal } = scanning;
+      setTimeout(() => {
+        if (signal.aborted) return; // closed by hand in the meantime
+        camera.close();
+        isbnInput.value = read.isbn;
+        void lookUp();
+      }, 600);
       return true;
     }
-    // A wrong check digit is a misread: keep reading without a word.
-    if (read.problem !== 'check-digit') cameraText.textContent = isbnProblemText[read.problem];
+    // A wrong check digit is a misread: keep reading without a word. While the
+    // wrong barcode stays in view the state stays (no new shake); 2.5 s after
+    // it leaves, back to looking.
+    if (read.problem !== 'check-digit') showScan('wrong', isbnProblemText[read.problem], looking, 2500);
     return false;
   }
 
@@ -360,6 +393,7 @@ const answers = [
     });
   }
   camera.addEventListener('close', () => {
+    clearTimeout(later);
     scanning.abort();
     video.srcObject = null;
   });
@@ -423,6 +457,13 @@ const answers = [
     grid-area: 1 / 1;
   }
 
+  /* Explicit layers: with a live camera, Chromium on macOS can draw the video
+     on its own layer, over siblings that only rely on paint order. */
+  .camera > :not(video) {
+    position: relative;
+    z-index: 1;
+  }
+
   .camera-video {
     width: 100%;
     height: 100%;
@@ -437,6 +478,93 @@ const answers = [
     border: 3px solid var(--camera-ink);
     border-radius: var(--radius-panel);
     box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.35);
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    transition:
+      border-color 150ms,
+      background-color 150ms;
+  }
+
+  .scan-line,
+  .found-mark {
+    display: none;
+  }
+
+  /* Starting: the camera or the reader is not ready yet. */
+  .camera[data-state='starting'] .viewfinder {
+    border-color: rgb(255 255 255 / 0.4);
+  }
+
+  /* Looking: a line sweeps the frame while the reader works on each picture. */
+  .camera[data-state='looking'] .scan-line {
+    display: block;
+    position: absolute;
+    inset: 0 8px auto;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--camera-ink);
+    box-shadow: 0 0 8px var(--camera-ink);
+    animation: sweep 1.6s ease-in-out infinite alternate;
+  }
+
+  /* Wrong: a barcode that is not a book's; the frame shakes once. */
+  .camera[data-state='wrong'] .viewfinder {
+    border-style: dashed;
+    animation: shake 300ms ease-in-out;
+  }
+
+  /* Found: the frame fills and shows a check before the view closes. */
+  .camera[data-state='found'] .viewfinder {
+    background: rgb(255 255 255 / 0.2);
+  }
+
+  .camera[data-state='found'] .found-mark {
+    width: 56px;
+    height: 56px;
+    display: grid;
+    place-items: center;
+    border-radius: 28px;
+    background: var(--camera-ink);
+    color: var(--camera);
+    animation: pop 200ms ease-out;
+  }
+
+  @keyframes sweep {
+    from {
+      top: 8%;
+    }
+    to {
+      top: 90%;
+    }
+  }
+
+  @keyframes shake {
+    25% {
+      translate: -6px 0;
+    }
+    75% {
+      translate: 6px 0;
+    }
+  }
+
+  @keyframes pop {
+    from {
+      scale: 0.6;
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .camera[data-state='looking'] .scan-line {
+      top: 50%;
+      animation: none;
+    }
+
+    .camera[data-state='wrong'] .viewfinder,
+    .camera[data-state='found'] .found-mark {
+      animation: none;
+    }
   }
 
   .camera-close,
