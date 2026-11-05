@@ -17,7 +17,7 @@ Linear: CORE-22. Researched 2026-11-05. All web sources were opened on that date
 
 | Source | Data licence | Cover images | Rate limits and headers | Series and Volume field | Subjects (for Label suggestions) |
 |---|---|---|---|---|---|
-| [BnF SRU](https://api.bnf.fr/fr/api-sru-catalogue-general) 1.2, `unimarcXchange` | [Licence Ouverte / Etalab](https://www.bnf.fr/fr/conditions-de-reutilisations-des-donnees-de-la-bnf#:~:text=sous%20la%20%C2%AB%20Licence%20Ouverte%20%2F%20Open%20Licence%20%C2%BB): give the source and the date | None | No figure published; max 1000 records per call | UNIMARC **461** `$t` title, `$v` number, `$3` Series record. 225/410 are publisher collections (Folio, Pika Shônen), not Series. Fallback number: 200 `$h` | RAMEAU (606, 608) |
+| [BnF SRU](https://api.bnf.fr/fr/api-sru-catalogue-general) 1.2, `unimarcXchange` | [Licence Ouverte / Etalab](https://www.bnf.fr/fr/conditions-de-reutilisations-des-donnees-de-la-bnf#:~:text=sous%20la%20%C2%AB%20Licence%20Ouverte%20%2F%20Open%20Licence%20%C2%BB): give the source and the date | None | No figure published; max 1000 records per call | UNIMARC **461** `$t` title, `$v` number, `$0` Series record (corrected 2026-11-05: recorded answers use `$0`, not `$3`). 225/410 are publisher collections (Folio, Pika Shônen), not Series. Fallback number: 200 `$h` | RAMEAU (606, 608) |
 | SUDOC (ABES): `isbn2ppn`, then the UNIMARC record | [Licence Ouverte](https://abes.fr/reseau-sudoc/reutiliser-les-donnees-sudoc/formats-de-donnees-disponibles/#:~:text=sous%20Licence%20Ouverte%20%2F%20Open%20Licence) | None | No figure found | 461 `$t`/`$v`, title only (no link) | RAMEAU, richer than BnF (e.g. "Football / Mangas / Shônen") |
 | [Inventaire](https://api.inventaire.io/) 5.1.1, `entities/by-uris` | [CC0](https://wiki.inventaire.io/wiki/Entities_data#:~:text=published%20under%20a%20CC0%20license) | Licence not stated | Asks for a User-Agent with a contact URL; returns 429, no figure | `wdt:P179` Series (`wd:Q…` or `inv:…`), `wdt:P1545` number | Genres `wdt:P136` |
 | [Open Library](https://openlibrary.org/developers/api) | [No new rights asserted](https://openlibrary.org/developers/licensing#:~:text=does%20not%20assert%20any%20new%20copyright) | No licence; [100 requests per IP per 5 min](https://openlibrary.org/dev/docs/api/covers#:~:text=Currently%20only%20100%20requests%2FIP%20are%20allowed%20for%20every%205%20minutes) | [1 request/s anonymous](https://openlibrary.org/developers/api#:~:text=Default%20(non-identified%20requests)%3A%201%20request%20per%20second); 3/s only with an email | Only through `search.json`: `series_key`, `series_name`, `series_position`. The edition `series` field was empty for all 20 | Work subjects |
@@ -104,7 +104,7 @@ What the sources give:
 
 | Source | Series | Work | Edition |
 |---|---|---|---|
-| BnF | 461 `$3`: record of the French publication of the Series (One Piece `38888890` → ark). Probably closer to an Edition Line than to a Series; not confirmed | None | ark, e.g. `ark:/12148/cb43407362n` |
+| BnF | 461 `$0`: record of the French publication of the Series (One Piece `38888890` → ark). Probably closer to an Edition Line than to a Series; not confirmed | None | ark, e.g. `ark:/12148/cb43407362n` |
 | Wikidata / Inventaire | `wd:Q673` or `inv:<32 hex>` | `wd:Q…` or `inv:…` | Inventaire `isbn:` URI |
 | Open Library | `/series/OL…L` | `/works/OL…W` | `/books/OL…M` |
 | SUDOC | Title only | None | PPN |
@@ -129,7 +129,7 @@ Open points for ADR 0010:
 
 - `atomes:` identifiers depend on the minting host staying alive. A Catalog that cannot resolve one shows the Series from the reader's own records (title on the Copy), and links it later through `same_as`.
 - How a Catalog finds a Series in Wikidata when Inventaire has nothing (title search with `P31` = manga series or comic series) is not tested.
-- BnF 461 `$3` could identify an Edition Line for French books. Check it on Series with two French Edition Lines (One Piece standard and One Piece édition originale) before relying on it.
+- BnF 461 `$0` could identify an Edition Line for French books. Check it on Series with two French Edition Lines (One Piece standard and One Piece édition originale) before relying on it.
 
 ## 3. Barcode scanning
 

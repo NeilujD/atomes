@@ -5,6 +5,7 @@
 .remember
 node_modules
 dist
+data
 docs
 .env
 .env.*

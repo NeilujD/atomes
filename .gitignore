@@ -3,6 +3,9 @@ dist/
 # generated types
 .astro/
 
+# local Catalog SQLite file (DATA_DIR in development)
+data/
+
 # dependencies
 node_modules/
 

@@ -24,7 +24,7 @@ Each record type also has a `createdAt` or `updatedAt` datetime.
   - `atomes:<host>:<ULID>`: minted by a Catalog instance when no source knows the entity. The host keeps it unique across instances.
 - **Work, when no Catalog identifies it**: `isbn:<isbn13>`, the one Work of that Edition. The Catalog learns the real Work later and links it.
 - **An identifier never changes once a record uses it.** Each Catalog keeps `same_as` links (for example `atomes:catalog.example:01J…` = `wd:Q123`) and resolves both. It never rewrites reader records. A Catalog that cannot resolve an `atomes:` identifier (its host is gone) shows the Series from the reader's own records until a `same_as` link exists.
-- **Edition Line is not stored.** A follow holds an anchor ISBN, an Edition in the Edition Line the reader collects. Every Catalog derives the Edition Line from it (publisher, language, format). Inside a Catalog the Edition Line key is internal and may change when the Catalog fixes its data.
+- **Edition Line is not stored.** A follow holds an anchor ISBN, an Edition in the Edition Line the reader collects. Every Catalog derives the Edition Line from it (Series, publisher, language; see the amendment below). Inside a Catalog the Edition Line key is internal and may change when the Catalog fixes its data.
 
 Every identifier above is also a valid atproto record key, so it is the key itself where the table says so.
 
@@ -53,3 +53,12 @@ Lexicons are published by the owner (`scripts/publish-lexicons.ts`), so changes 
 - One record per Work for Labels (a Work's Label list): rejected. Renaming or deleting a Label would rewrite every Work that carries it.
 - Store Missing Volumes on To Buy: rejected, see "Computed, never stored".
 - TID keys for Reading Status, with a lookup by Work: rejected. Two devices could each create one and the app would need to merge them.
+
+## Amendment 2026-11-05: Edition Line without format
+
+This ADR first said the Edition Line is derived from publisher, language and format. Catalog v0 (CORE-27) derives it from **Series, publisher and language** only. The sources give no format: BnF and SUDOC give the book size in cm (UNIMARC 215 `$d`), and it changes inside one Edition Line (One Piece, Glénat: Volume 56 is "18 x 12 cm", Volume 112 is "19 cm"). With the size in the key, one Edition Line split in two.
+
+- Consequence: two Edition Lines of one Series with the same publisher and language (for example a standard and a deluxe edition) are grouped as one until the Catalog can tell them apart. The reader's records do not change when that is fixed, because the Edition Line key is internal (see Identifiers).
+- Follow-up: tell such Edition Lines apart from their own Series record when they have one (BnF 461 `$0`) or from title words ("Perfect Edition", "Deluxe"), once recorded answers for such a Series exist.
+- Using the size in cm: rejected, see above.
+
