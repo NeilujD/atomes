@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { reconnectEvent } from '../network';
 import { freshListing } from './fresh-listing';
 import { SpaceError } from './space';
 
@@ -57,6 +58,20 @@ describe('freshListing', () => {
 
     await listing.refresh();
     await vi.advanceTimersByTimeAsync(1000);
+
+    expect(shown).toEqual([stale, fresh]);
+  });
+
+  test('Reconnect: a waiting listing is read at once, not at the next timer', async () => {
+    const load = reads(
+      () => Promise.resolve(stale),
+      () => Promise.resolve(fresh),
+    );
+    const { listing, events, shown } = setup(load);
+
+    await listing.refresh();
+    events.dispatchEvent(new Event(reconnectEvent));
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(shown).toEqual([stale, fresh]);
   });

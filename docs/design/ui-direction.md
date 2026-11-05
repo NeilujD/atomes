@@ -70,9 +70,13 @@ Mix in `oklab`, not `oklch`: Chrome gives an `oklch` mix of near-greys the hue `
 
 **Tab bar (phone).** Home, Library, Check, To Buy, You. Check is a 52 px ink circle in the centre, labelled for screen readers only. The bar sits on the surface colour with a top hairline and the bottom safe-area inset.
 
+**Connection status.** As Linear does, the frame says when Atomes is offline; the pages do not. Desktop: a yellow box over the free space of the sidebar, right above Settings, so nothing in the sidebar moves. Phone: a yellow strip on top of the tab bar. Both read "Offline", then the number of saves waiting on this device, then a Reconnect button. Hidden while online. Offline means the browser says so, or a page could not reach the network and nothing answered since. Reconnect asks the Atomes server; if it answers, the pages read and send again at once. Caution colours (yellow) and the `wifi-off` icon, not red: Atomes still works offline, partly. Code: `src/lib/connection.ts`, `src/components/ConnectionStatus.astro`.
+
+**Notices.** The result of an action (saved, waiting, refused) is a toast, over the page, so the content does not move: bottom right of the panel on desktop, above the tab bar on the phone. Errors stay until closed. A problem with what the reader typed stays next to the field. Code: `src/lib/toast.ts`.
+
 **Appearance.** `color-scheme` follows the system. `data-appearance="light|dark"` on `<html>` forces one; `data-contrast="more"` raises contrast. Settings sets Appearance (System, Light, Dark), kept on the device; an inline script in `AppShell` applies it before first paint. Rule and storage: `src/lib/appearance.ts`. The contrast control is still to build.
 
-**Colour roles.** Ink: text, read spines, primary buttons. Secondary: metadata, inactive navigation. Soft: fills, hover, active navigation. Line: hairlines, panel edge. Cobalt: New and Upcoming Volumes, links, focus. Covers: their own colours, with a thin edge (`--cover-edge`).
+**Colour roles.** Ink: text, read spines, primary buttons. Secondary: metadata, inactive navigation. Soft: fills, hover, active navigation. Line: hairlines, panel edge. Cobalt: New and Upcoming Volumes, links, focus. Caution (yellow, `--caution` on `--caution-tint`): the offline status, nothing else. Covers: their own colours, with a thin edge (`--cover-edge`).
 
 ## Stress test before building screens
 
@@ -85,7 +89,7 @@ Before a screen is built, check that its view type works in the frame, in light,
 | Cover flow | Library (Cover flow) | Full panel width; toolbar stays visible. |
 | Detail | Book, Series | Large title in content; spine row legible in high contrast. |
 | Camera | Shelf Check, Quick Add | Full screen on the phone (no tab bar); colours not themed. |
-| Flow | Sign in, Series Onboarding | No sidebar or tab bar; one action per step. |
+| Flow | Sign in (callback built: `AppShell flow`, `src/pages/oauth/callback.astro`), Series Onboarding | No sidebar or tab bar; one action per step; content centred (a card on desktop). The mark is the progress: books lift while working, a book lands in the empty slot when done; no motion with reduced motion. |
 | Settings | Settings & privacy | Appearance and contrast controls. |
 
 ## Not now

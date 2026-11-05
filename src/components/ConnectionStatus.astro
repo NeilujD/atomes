@@ -1,0 +1,119 @@
+---
+// "Offline", the saves that wait on this device, and Reconnect (src/lib/connection.ts).
+// Shown only while offline. AppShell puts one in the sidebar (desktop) and one
+// above the tab bar (phone); the other one is not displayed, so it is not read out.
+import Icon from './Icon.astro';
+
+interface Props {
+  place: 'sidebar' | 'bar';
+}
+
+const { place } = Astro.props;
+---
+
+<div class:list={['connection', place]} data-connection role="status">
+  <div class="body" data-connection-body hidden>
+    <p class="state">
+      <Icon name="wifi-off" />
+      <span>Offline</span>
+    </p>
+    <p class="waiting" data-connection-waiting></p>
+    <button class="button reconnect" type="button" data-reconnect>
+      <Icon name="refresh-cw" />
+      <span>Reconnect</span>
+    </button>
+  </div>
+</div>
+
+<style>
+  /* Yellow (caution), not red: offline, Atomes still works, partly. */
+  .body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--caution-tint);
+    color: var(--caution);
+  }
+
+  .state {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .waiting {
+    margin-right: auto;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .waiting:empty {
+    display: none;
+  }
+
+  .waiting::before {
+    content: '· ';
+  }
+
+  .reconnect,
+  .reconnect:hover:not(:disabled) {
+    padding: 0 8px;
+    border-color: transparent;
+    background: transparent;
+    color: var(--caution);
+    font-size: 13px;
+    --busy-ink: var(--caution);
+  }
+
+  .reconnect:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--caution) 12%, transparent);
+  }
+
+  /* Busy: the spinner alone (theme.css), whatever order the styles load in. */
+  .reconnect[aria-busy='true'] {
+    color: transparent;
+  }
+
+  /*
+   * Desktop: over the free space at the bottom of the sidebar, right above
+   * Settings, so nothing in the sidebar moves when it shows.
+   */
+  .sidebar {
+    position: absolute;
+    inset: auto 0 100%;
+    margin-bottom: 8px;
+  }
+
+  .state :global(svg) {
+    flex: none;
+  }
+
+  .sidebar .body {
+    flex-wrap: wrap;
+    row-gap: 0;
+    padding: 2px 0 2px 8px;
+    border-radius: var(--radius-control);
+  }
+
+  /* The sidebar is narrow: the waiting saves go on a second line, under "Offline". */
+  .sidebar .waiting {
+    order: 1;
+    flex-basis: 100%;
+    margin: -6px 0 4px;
+    padding-left: 24px;
+  }
+
+  .sidebar .waiting::before {
+    content: none;
+  }
+
+  /* Phone: a strip on top of the tab bar, under the thumb, never over the content. */
+  .bar .body {
+    padding: 0 12px 0 20px;
+    border-top: 1px solid color-mix(in oklab, var(--caution) 25%, transparent);
+  }
+</style>

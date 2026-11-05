@@ -30,9 +30,20 @@ const answers = [
         />
         <button class="button" type="submit">Look up</button>
       </div>
-      <p class="hint" id="isbn-hint">The 13 digits under the barcode, on the back cover.</p>
-      <p class="message" data-message role="status"></p>
+      <!-- The hint line also says what is wrong with the ISBN: the page does not move. -->
+      <p class="hint" id="isbn-hint" data-hint aria-live="polite">
+        The 13 digits under the barcode, on the back cover.
+      </p>
     </form>
+
+    <div class="book" data-skeleton hidden aria-hidden="true">
+      <div class="cover skeleton"></div>
+      <div class="book-text skeleton-text">
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line short"></div>
+      </div>
+    </div>
 
     <form class="preview" data-add-form hidden>
       <div class="book">
@@ -81,15 +92,20 @@ const answers = [
   import { coverUrl, lookupEdition } from '../lib/catalog/client';
   import { saveCopy } from '../lib/library/copy';
   import { isIsbn13 } from '../lib/library/ids';
-  import { loadLibrary, savedMessage, sendWhenOnline } from '../lib/library/library';
+  import { reportNetwork, reportWaiting } from '../lib/connection';
+  import { loadLibrary, savedMessage, sendWhenOnline, waitingCount } from '../lib/library/library';
   import { bookPage, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
   import { saveReadingStatus, statuses } from '../lib/library/reading-status';
   import { isNetworkFailure } from '../lib/network';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+  import { toast } from '../lib/toast';
 
   const isbnForm = document.querySelector<HTMLFormElement>('[data-isbn-form]')!;
   const isbnInput = isbnForm.querySelector<HTMLInputElement>('input[name="isbn"]')!;
-  const message = document.querySelector<HTMLElement>('[data-message]')!;
+  const lookUpButton = isbnForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const hint = isbnForm.querySelector<HTMLElement>('[data-hint]')!;
+  const defaultHint = hint.textContent.trim();
+  const skeleton = document.querySelector<HTMLElement>('[data-skeleton]')!;
   const addForm = document.querySelector<HTMLFormElement>('[data-add-form]')!;
   const addButton = addForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const radios = addForm.querySelectorAll<HTMLInputElement>('input[name="status"]');
@@ -100,14 +116,17 @@ const answers = [
   let library: Library = { copies: [], readingStatuses: [] };
   let sending = false;
 
-  function say(text: string, link?: { href: string; label: string }) {
-    message.replaceChildren(text);
-    if (link) {
-      const anchor = document.createElement('a');
-      anchor.href = link.href;
-      anchor.textContent = link.label;
-      message.append(' ', anchor);
-    }
+  // A problem with the ISBN, in the hint line; no argument puts the hint back.
+  function problem(text?: string) {
+    hint.textContent = text ?? defaultHint;
+    hint.toggleAttribute('data-error', Boolean(text));
+    isbnInput.toggleAttribute('aria-invalid', Boolean(text));
+  }
+
+  function busy(button: HTMLButtonElement, on: boolean) {
+    button.disabled = on;
+    if (on) button.setAttribute('aria-busy', 'true');
+    else button.removeAttribute('aria-busy');
   }
 
   const bookHref = (work: string) => `/book?work=${encodeURIComponent(work)}`;
@@ -116,25 +135,30 @@ const answers = [
     const isbn = isbnInput.value.replace(/[\s-]/g, '');
     addForm.hidden = true;
     edition = undefined;
-    if (!isIsbn13(isbn)) {
-      say('This is not an ISBN-13. Type the 13 digits that start with 978 or 979.');
-      return;
-    }
-    say('Looking up…');
+    if (!isIsbn13(isbn)) return problem('This is not an ISBN-13. Type the 13 digits that start with 978 or 979.');
+    problem();
+    busy(lookUpButton, true);
+    skeleton.hidden = false;
+    let found: Edition;
     try {
       const answer = await lookupEdition(isbn);
-      if ('notFound' in answer) return say('No book source knows this ISBN yet.');
-      if ('unavailable' in answer) return say('The book sources do not answer. Try again later.');
-      edition = answer.found;
+      if ('notFound' in answer) return problem('No book source knows this ISBN yet.');
+      if ('unavailable' in answer) return problem('The book sources do not answer. Try again later.');
+      found = answer.found;
+      reportNetwork(true);
     } catch (error) {
-      return say(
+      if (isNetworkFailure(error)) reportNetwork(false);
+      return problem(
         isNetworkFailure(error)
           ? 'Could not reach Atomes to look up the book. Check your connection and try again.'
           : 'Could not look up this ISBN. Try again.',
       );
+    } finally {
+      busy(lookUpButton, false);
+      skeleton.hidden = true;
     }
-    say('');
-    await show(edition);
+    edition = found;
+    await show(found);
   }
 
   async function show(found: Edition) {
@@ -167,7 +191,10 @@ const answers = [
     const space = await openSpaceOrSay();
     if (!space) return;
     try {
-      library = (await loadLibrary(space)).library;
+      const loaded = await loadLibrary(space);
+      library = loaded.library;
+      reportNetwork(!loaded.stale);
+      reportWaiting(await waitingCount(space));
     } catch {
       // No copy on this device and no network: the status starts at "Not yet".
       library = { copies: [], readingStatuses: [] };
@@ -177,9 +204,8 @@ const answers = [
     const status = currentStatus(found.work.id, library);
     for (const radio of radios) radio.checked = radio.value === status;
     if (bookPage(found.work.id, library, new Map())) {
-      say('You already have this book. Adding it again adds another Copy.', {
-        href: bookHref(found.work.id),
-        label: 'Open its Book page',
+      toast('You already have this book. Adding it again adds another Copy.', {
+        link: { href: bookHref(found.work.id), label: 'Open its Book page' },
       });
     }
   }
@@ -188,9 +214,9 @@ const answers = [
     try {
       const opened = await own;
       if (opened) return opened.space;
-      say('Sign in to add books to your Library.', { href: '/settings', label: 'Go to Settings' });
+      toast('Sign in to add books to your Library.', { link: { href: '/settings', label: 'Go to Settings' } });
     } catch (error) {
-      say(spaceErrorMessage(error));
+      toast(spaceErrorMessage(error), { error: true });
     }
     return undefined;
   }
@@ -202,7 +228,7 @@ const answers = [
     const chosen = statuses.find((status) => status === checked);
     const space = await openSpaceOrSay();
     if (!space) return;
-    addButton.disabled = true;
+    busy(addButton, true);
     try {
       const now = new Date();
       const work = found.work.id;
@@ -211,34 +237,45 @@ const answers = [
       const change = chosen && statusChange(work, found.isbn, chosen, library, now);
       if (change) states.push(await saveReadingStatus(space, change));
       const state = states.find((each) => each === 'refused') ?? states.find((each) => each === 'waiting') ?? 'sent';
+      if (state !== 'refused') reportNetwork(state === 'sent');
+      reportWaiting(await waitingCount(space));
 
       addForm.hidden = true;
       edition = undefined;
       isbnInput.value = '';
       const link = { href: bookHref(work), label: 'Open its Book page' };
-      say(`${found.title} is in your Library. ${savedMessage[state]}`, link);
+      const close = toast(`${found.title} is in your Library. ${savedMessage[state]}`, {
+        link,
+        error: state === 'refused',
+      });
       if (state === 'waiting' && !sending) {
         sending = true;
         sendWhenOnline(
           space,
           () => {
             sending = false;
-            say(`${found.title} is in your Library. ${savedMessage.sent}`, link);
+            reportNetwork(true);
+            reportWaiting(0);
+            close();
+            toast(`${found.title} is in your Library. ${savedMessage.sent}`, { link });
           },
-          (error) => say(spaceErrorMessage(error)),
+          (error) => toast(spaceErrorMessage(error), { error: true }),
         );
       }
       isbnInput.focus();
     } catch (error) {
-      say(spaceErrorMessage(error));
+      toast(spaceErrorMessage(error), { error: true });
     } finally {
-      addButton.disabled = false;
+      busy(addButton, false);
     }
   }
 
   isbnForm.addEventListener('submit', (event) => {
     event.preventDefault();
     void lookUp();
+  });
+  isbnInput.addEventListener('input', () => {
+    if (hint.hasAttribute('data-error')) problem();
   });
   addForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -255,7 +292,7 @@ const answers = [
 
 <style>
   .quick-add {
-    max-width: 480px;
+    max-width: 520px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -289,8 +326,34 @@ const answers = [
     font-size: 13px;
   }
 
-  .message {
-    font-size: 14px;
+  /* No danger colour in the palette (ui-direction: colour roles): ink and weight. */
+  .hint[data-error] {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .field[aria-invalid] {
+    border-color: var(--ink);
+  }
+
+  .skeleton-text {
+    flex: 1;
+    gap: 10px;
+    padding-top: 4px;
+  }
+
+  .skeleton-title {
+    width: 70%;
+    height: 22px;
+  }
+
+  .skeleton-line {
+    width: 50%;
+    height: 14px;
+  }
+
+  .skeleton-line.short {
+    width: 35%;
   }
 
   .preview {
@@ -377,7 +440,12 @@ const answers = [
     width: 100%;
   }
 
+  /* Desktop: one narrow column in the middle of the panel. */
   @media (min-width: 960px) {
+    .quick-add {
+      margin: 32px auto 0;
+    }
+
     .cover {
       width: 104px;
     }

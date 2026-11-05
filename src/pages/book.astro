@@ -13,9 +13,20 @@ const choices = [
 ---
 
 <AppShell title="Book" current="library" detail>
-  <div class="book-page">
-    <p class="message" data-message role="status"></p>
-    <p class="hint" data-stale hidden>Offline: this is the copy of your Library on this device.</p>
+  <div class="book-page" data-page aria-busy="true">
+    <!-- Only when there is no book to show (not signed in, not in the Library); results of a change are toasts. -->
+    <p class="message" data-message role="status" hidden></p>
+
+    <div class="book" data-skeleton aria-hidden="true">
+      <div class="cover skeleton"></div>
+      <div class="content">
+        <div class="head-text skeleton-text">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-line"></div>
+          <div class="skeleton skeleton-line short"></div>
+        </div>
+      </div>
+    </div>
 
     <article class="book" data-book hidden>
       <div class="cover" data-cover></div>
@@ -88,13 +99,18 @@ const choices = [
   import { lookupEditions } from '../lib/catalog/client';
   import { deleteCopy, saveCopy, type Copy } from '../lib/library/copy';
   import { isWorkId } from '../lib/library/ids';
-  import { loadLibrary, savedMessage, sendWhenOnline } from '../lib/library/library';
+  import { reportNetwork, reportWaiting } from '../lib/connection';
+  import { loadLibrary, savedMessage, sendWhenOnline, waitingCount } from '../lib/library/library';
   import { bookPage, statusChange, type BookPage, type Library } from '../lib/library/model';
   import { saveReadingStatus, statuses, type ReadingStatus } from '../lib/library/reading-status';
+  import { isNetworkFailure } from '../lib/network';
   import { freshListing } from '../lib/space/fresh-listing';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+  import { toast } from '../lib/toast';
 
+  const pageBox = document.querySelector<HTMLElement>('[data-page]')!;
   const message = document.querySelector<HTMLElement>('[data-message]')!;
+  const skeleton = document.querySelector<HTMLElement>('[data-skeleton]')!;
   const article = document.querySelector<HTMLElement>('[data-book]')!;
   const statusRadios = article.querySelectorAll<HTMLInputElement>('[data-status] input[name="status"]');
   const finished = article.querySelector<HTMLElement>('[data-finished]')!;
@@ -110,7 +126,16 @@ const choices = [
   let renderedCopies = '';
   let sending = false;
 
+  function loaded() {
+    skeleton.hidden = true;
+    pageBox.removeAttribute('aria-busy');
+  }
+
+  // The page has no book to show: say why, in place of the book.
   function say(text: string, link?: { href: string; label: string }) {
+    loaded();
+    article.hidden = true;
+    message.hidden = false;
     message.replaceChildren(text);
     if (link) {
       const anchor = document.createElement('a');
@@ -120,14 +145,24 @@ const choices = [
     }
   }
 
-  function render(stale: boolean) {
+  // No network: the connection status says it, and the listing tries again.
+  // Another problem while the book is shown goes in a toast; before, in place of the book.
+  function fail(error: unknown) {
+    const network = isNetworkFailure(error);
+    if (network) reportNetwork(false);
+    if (article.hidden) say(spaceErrorMessage(error));
+    else if (!network) toast(spaceErrorMessage(error), { error: true });
+  }
+
+  function render() {
     page = bookPage(work, library, editions);
-    article.hidden = !page;
-    document.querySelector<HTMLElement>('[data-stale]')!.hidden = !stale;
     if (!page) {
       say('This book is not in your Library.', { href: '/add', label: 'Add a book' });
       return;
     }
+    loaded();
+    message.hidden = true;
+    article.hidden = false;
 
     document.title = `${page.title} · Atomes`;
     document.querySelector('[data-view-title]')!.textContent = page.title;
@@ -171,34 +206,47 @@ const choices = [
     row.querySelector('[data-isbn]')!.textContent = `ISBN ${copy.isbn}`;
     const input = row.querySelector<HTMLInputElement>('input[name="lentTo"]')!;
     input.value = copy.lentTo ?? '';
-    row.querySelector<HTMLFormElement>('[data-lent]')!.addEventListener('submit', (event) => {
+    const lent = row.querySelector<HTMLFormElement>('[data-lent]')!;
+    lent.addEventListener('submit', (event) => {
       event.preventDefault();
-      void save(() => lend(copy.rkey, input.value.trim()));
+      void save(() => lend(copy.rkey, input.value.trim()), lent.querySelector('button'));
     });
     const remove = row.querySelector<HTMLButtonElement>('[data-remove]')!;
     remove.setAttribute('aria-label', `Remove the Copy with ISBN ${copy.isbn}`);
-    remove.addEventListener('click', () => void save((space) => deleteCopy(space, copy.rkey)));
+    remove.addEventListener('click', () => void save((space) => deleteCopy(space, copy.rkey), remove));
     return row;
   }
 
   // Set by start(): the open Space and its listing.
   let space: Space;
   let listing: { refresh: () => Promise<void> };
+  // The toast of a change still waiting for the network; replaced when it is sent.
+  let closeWaiting: () => void = () => undefined;
 
-  async function save(change: (space: Space) => Promise<WriteState | undefined>) {
-    for (const control of article.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button')) control.disabled = true;
+  // One change at a time: the book is inert while it saves (no dimming), and
+  // the button that started it, if any, shows a spinner.
+  async function save(change: (space: Space) => Promise<WriteState | undefined>, button?: HTMLButtonElement | null) {
+    const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    article.inert = true;
+    button?.setAttribute('aria-busy', 'true');
     try {
       const state = await change(space);
       if (state) {
-        say(savedMessage[state]);
-        if (state === 'waiting') sendLater();
+        closeWaiting();
+        const close = toast(savedMessage[state], { error: state === 'refused' });
+        if (state === 'waiting') {
+          closeWaiting = close;
+          sendLater();
+        }
       }
     } catch (error) {
-      say(spaceErrorMessage(error));
+      toast(spaceErrorMessage(error), { error: true });
     } finally {
-      for (const control of article.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button')) control.disabled = false;
+      button?.removeAttribute('aria-busy');
+      article.inert = false;
       // Shows what is saved now, also after a refused change.
       await listing.refresh();
+      if (focused?.isConnected) focused.focus();
     }
   }
 
@@ -209,9 +257,12 @@ const choices = [
       space,
       () => {
         sending = false;
-        say(savedMessage.sent);
+        reportNetwork(true);
+        reportWaiting(0);
+        closeWaiting();
+        toast(savedMessage.sent);
       },
-      (error) => say(spaceErrorMessage(error)),
+      (error) => toast(spaceErrorMessage(error), { error: true }),
     );
   }
 
@@ -248,7 +299,6 @@ const choices = [
 
   async function start() {
     if (!isWorkId(work)) return say('No book here.', { href: '/', label: 'Go to Home' });
-    say('Loading…');
     const own = await openOwnSpace();
     if (!own) return say('Sign in to see your Library.', { href: '/settings', label: 'Go to Settings' });
     space = own.space;
@@ -261,19 +311,21 @@ const choices = [
         ];
         const missing = isbns.filter((isbn) => !editions.has(isbn));
         for (const [isbn, edition] of await lookupEditions(missing)) editions.set(isbn, edition);
-        return loaded;
+        return { ...loaded, waiting: await waitingCount(space) };
       },
       (loaded) => {
-        if (message.textContent === 'Loading…') say('');
+        // Stale: the PDS did not answer, so this is the copy on this device.
+        reportNetwork(!loaded.stale);
+        reportWaiting(loaded.waiting);
         library = loaded.library;
-        render(loaded.stale);
+        render();
       },
-      (error) => say(spaceErrorMessage(error)),
+      fail,
     );
     await listing.refresh();
   }
 
-  start().catch((error: unknown) => say(spaceErrorMessage(error)));
+  start().catch(fail);
 </script>
 
 <style>
@@ -282,6 +334,24 @@ const choices = [
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+
+  .skeleton-text {
+    gap: 10px;
+  }
+
+  .skeleton-title {
+    width: 80%;
+    height: 26px;
+  }
+
+  .skeleton-line {
+    width: 55%;
+    height: 14px;
+  }
+
+  .skeleton-line.short {
+    width: 40%;
   }
 
   .message {
@@ -435,6 +505,14 @@ const choices = [
 
   /* Desktop: cover at the left, the rest beside it; the title is content (ui-direction: Detail). */
   @media (min-width: 960px) {
+    .book-page {
+      margin: 16px auto 0;
+    }
+
+    .skeleton-title {
+      height: 36px;
+    }
+
     .book {
       display: flex;
       align-items: flex-start;

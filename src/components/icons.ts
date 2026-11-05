@@ -9,6 +9,7 @@ import Lock from '@lucide/astro/icons/lock';
 import Monitor from '@lucide/astro/icons/monitor';
 import Moon from '@lucide/astro/icons/moon';
 import Plus from '@lucide/astro/icons/plus';
+import RefreshCw from '@lucide/astro/icons/refresh-cw';
 import ScanBarcode from '@lucide/astro/icons/scan-barcode';
 import Search from '@lucide/astro/icons/search';
 import Settings from '@lucide/astro/icons/settings';
@@ -16,6 +17,8 @@ import ShoppingBag from '@lucide/astro/icons/shopping-bag';
 import Sun from '@lucide/astro/icons/sun';
 import Trash from '@lucide/astro/icons/trash';
 import User from '@lucide/astro/icons/user';
+import WifiOff from '@lucide/astro/icons/wifi-off';
+import X from '@lucide/astro/icons/x';
 
 export const icons = {
   'arrow-left': ArrowLeft,
@@ -28,6 +31,7 @@ export const icons = {
   monitor: Monitor,
   moon: Moon,
   plus: Plus,
+  'refresh-cw': RefreshCw,
   'scan-barcode': ScanBarcode,
   search: Search,
   settings: Settings,
@@ -35,6 +39,8 @@ export const icons = {
   sun: Sun,
   trash: Trash,
   user: User,
+  'wifi-off': WifiOff,
+  x: X,
 };
 
 export type IconName = keyof typeof icons;
