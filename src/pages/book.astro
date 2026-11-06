@@ -98,7 +98,7 @@ const choices = [
   import type { Edition } from '../lib/catalog/catalog';
   import { lookupEditions } from '../lib/catalog/client';
   import { deleteCopy, saveCopy, type Copy } from '../lib/library/copy';
-  import { isWorkId } from '../lib/library/ids';
+  import { isEditionWork, isWorkId } from '../lib/library/ids';
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { loadLibrary, savedMessage, sendWhenOnline, waitingCount } from '../lib/library/library';
   import { bookPage, statusChange, type BookPage, type Library } from '../lib/library/model';
@@ -309,7 +309,9 @@ const choices = [
           ...loaded.library.copies.filter(({ value }) => value.works.includes(work)).map(({ value }) => value.isbn),
           ...loaded.library.readingStatuses.filter(({ rkey }) => rkey === work).map(({ value }) => value.isbn),
         ];
-        const missing = isbns.filter((isbn) => !editions.has(isbn));
+        // An `isbn:` Work is a book the Catalog did not know: the page shows what
+        // the reader typed, and asking again only gets a 404 on each load.
+        const missing = isEditionWork(work) ? [] : isbns.filter((isbn) => !editions.has(isbn));
         for (const [isbn, edition] of await lookupEditions(missing)) editions.set(isbn, edition);
         return { ...loaded, waiting: await waitingCount(space) };
       },

@@ -1,6 +1,6 @@
 import { isValidRecordKey } from '@atproto/syntax';
 import { describe, expect, test } from 'vitest';
-import { editionWork, isIsbn13, isSeriesId, isWorkId, readIsbn } from './ids';
+import { editionWork, isEditionWork, isIsbn13, isSeriesId, isWorkId, readIsbn } from './ids';
 
 describe('reading an ISBN from a barcode or from what the reader typed', () => {
   test.each([
@@ -60,6 +60,8 @@ describe('Catalog identifiers', () => {
     expect(isWorkId('isbn:9782723478991')).toBe(true);
     expect(isSeriesId('isbn:9782723478991')).toBe(false);
     expect(isWorkId('isbn:9782723478992')).toBe(false);
+    expect(isEditionWork('isbn:9782723478991')).toBe(true);
+    expect(isEditionWork('wd:Q673')).toBe(false);
   });
 
   test.each(['Q673', 'wd:673', 'wd:Q0', 'inv:XYZ', 'atomes:catalog.example.org:not-a-ulid', 'one piece', ''])('%s is refused', (id) => {

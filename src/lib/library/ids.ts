@@ -56,7 +56,12 @@ export function isSeriesId(value: string): boolean {
 // A Work can also be `isbn:<isbn13>`: the one Work of an Edition that no
 // Catalog identifies yet. It stays valid once the Catalog learns more.
 export function isWorkId(value: string): boolean {
-  return isSeriesId(value) || (value.startsWith('isbn:') && isIsbn13(value.slice('isbn:'.length)));
+  return isSeriesId(value) || isEditionWork(value);
+}
+
+// The Work of an Edition the Catalog did not know when the reader added it.
+export function isEditionWork(value: string): boolean {
+  return value.startsWith('isbn:') && isIsbn13(value.slice('isbn:'.length));
 }
 
 export function editionWork(isbn: string): string {
