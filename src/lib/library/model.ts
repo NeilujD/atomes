@@ -3,12 +3,14 @@
 import type { Edition } from '../catalog/catalog';
 import { coverUrl } from '../catalog/client';
 import type { Copy } from './copy';
+import type { Follow } from './follow';
 import { statuses, type ReadingStatus, type Status } from './reading-status';
 import type { Saved } from './records';
 
 export interface Library {
   copies: Saved<Copy>[];
   readingStatuses: Saved<ReadingStatus>[];
+  follows: Saved<Follow>[];
 }
 
 // Catalog answers by ISBN. An ISBN missing here is unknown to the Catalog, or

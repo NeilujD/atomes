@@ -3,15 +3,16 @@
 import { freshListing } from '../space/fresh-listing';
 import type { Space, WriteState } from '../space/space';
 import { listCopies } from './copy';
+import { listFollows } from './follow';
 import type { Library } from './model';
 import { listReadingStatuses } from './reading-status';
 
 // stale: the PDS could not be reached; this is the copy on this device.
 export async function loadLibrary(space: Space): Promise<{ library: Library; stale: boolean }> {
-  const [copies, readingStatuses] = await Promise.all([listCopies(space), listReadingStatuses(space)]);
+  const [copies, readingStatuses, follows] = await Promise.all([listCopies(space), listReadingStatuses(space), listFollows(space)]);
   return {
-    library: { copies: copies.records, readingStatuses: readingStatuses.records },
-    stale: copies.stale || readingStatuses.stale,
+    library: { copies: copies.records, readingStatuses: readingStatuses.records, follows: follows.records },
+    stale: copies.stale || readingStatuses.stale || follows.stale,
   };
 }
 
@@ -20,6 +21,11 @@ export const savedMessage: Record<WriteState, string> = {
   waiting: 'Waiting: saved on this device. It goes to your PDS as soon as your PDS can be reached.',
   refused: 'Your PDS refused this change, so it is not saved.',
 };
+
+// What to tell about several saves at once: refused wins, then waiting.
+export function worstState(states: WriteState[]): WriteState {
+  return states.find((each) => each === 'refused') ?? states.find((each) => each === 'waiting') ?? 'sent';
+}
 
 // The saves kept on this device for the PDS (refused ones do not wait: they stay as they are).
 export async function waitingCount(space: Space): Promise<number> {
