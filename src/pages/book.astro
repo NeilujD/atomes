@@ -179,7 +179,8 @@ const choices = [
   }
 
   // No network: the connection status says it, and the listing tries again.
-  // Another problem while the book is shown goes in a toast; before, in place of the book.
+  // Another problem while the book or the Not found screen is shown goes in a
+  // toast; before, in place of the book.
   function fail(error: unknown) {
     const network = isNetworkFailure(error);
     if (network) reportNetwork(false);
