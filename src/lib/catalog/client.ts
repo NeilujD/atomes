@@ -22,3 +22,11 @@ export async function lookupEditions(isbns: string[]): Promise<Map<string, Editi
   );
   return new Map(answers.flatMap((answer) => ('found' in answer ? [[answer.found.isbn, answer.found] as const] : [])));
 }
+
+// The Volumes the Catalog knows in the Edition Line of `isbn` (its anchor
+// Edition first looked up), by Volume number. Undefined when the Catalog does
+// not know the ISBN or cannot answer.
+export async function lookupVolumes(isbn: string): Promise<{ series: Edition['series']; volumes: Edition[] } | undefined> {
+  const response = await fetch(`/api/catalog/editions/${encodeURIComponent(isbn)}/volumes`);
+  return response.ok ? ((await response.json()) as { series: Edition['series']; volumes: Edition[] }) : undefined;
+}

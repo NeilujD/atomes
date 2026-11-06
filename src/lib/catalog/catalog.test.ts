@@ -211,6 +211,62 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
   });
 });
 
+describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)', () => {
+  const volumesOf = async (catalog: Catalog, isbn: string) =>
+    ((await (await answerVolumes(catalog, isbn)).json()) as { volumes: Edition[] }).volumes;
+
+  test('BnF lists the Edition Line: one Edition per Volume, 1 to 16, other books left out', async () => {
+    const { catalog } = setup();
+
+    const volumes = await volumesOf(catalog, spyFamily16);
+
+    expect(volumes.map((v) => v.volume)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+    const isbns = volumes.map((v) => v.isbn);
+    // Volume 11 has two printings; the one in the BnF Series record of the line counts.
+    expect(isbns).toContain('9782380715378');
+    expect(isbns).not.toContain('9782380714340');
+    // Another BnF Series with the same title (its own Volume 1) is another book.
+    expect(isbns).not.toContain('9782380714487');
+    expect(new Set(volumes.map((v) => v.series?.id)).size).toBe(1);
+  });
+
+  test('a listed Volume gets the Work a lookup gives it: Inventaire, even when BnF names the Volume itself', async () => {
+    const { catalog } = setup();
+
+    const volumes = await volumesOf(catalog, spyFamily16);
+
+    // BnF titles Volume 2 "Mission start"; Inventaire says "Spy × Family, Tome 2".
+    expect(volumes.find((v) => v.volume === 2)).toMatchObject({
+      isbn: '9782380710250',
+      title: 'Mission start',
+      work: { id: 'inv:3fdcb00a816ff62049c076960e840d89' },
+      sources: ['BnF', 'Inventaire'],
+    });
+    // Unknown to Inventaire: the one Work of that Edition.
+    expect(volumes.find((v) => v.volume === 13)?.work.id).toBe('isbn:9791042014704');
+  });
+
+  test('the Edition Line is asked for once, also after a restart; its Volumes are then served from SQLite', async () => {
+    const { catalog, reopen } = setup();
+    await volumesOf(catalog, spyFamily16);
+
+    const later = recordedFetch();
+    const again = reopen(later.fetch);
+    expect(await volumesOf(again, spyFamily16)).toHaveLength(16);
+    expect((await edition(await answerEdition(again, '9782380710250'))).work.id).toBe('inv:3fdcb00a816ff62049c076960e840d89');
+    expect(later.calls).toEqual([]);
+  });
+
+  test('when a source is down nothing is added, and the next call asks again', async () => {
+    const { catalog, reopen } = setup();
+    await answerEdition(catalog, spyFamily16);
+
+    expect(await volumesOf(reopen(recordedFetch(['inventaire.io']).fetch), spyFamily16)).toHaveLength(1);
+    expect(await volumesOf(reopen(recordedFetch(['catalogue.bnf.fr']).fetch), spyFamily16)).toHaveLength(1);
+    expect(await volumesOf(reopen(), spyFamily16)).toHaveLength(16);
+  });
+});
+
 describe('GET /api/catalog/editions/{isbn}/cover', () => {
   const onePieceCover = 'https://inventaire.io/img/entities/65883d822ab1b56d8f46aeb26c35d1feb9098a9b';
   const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);

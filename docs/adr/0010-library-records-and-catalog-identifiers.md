@@ -62,3 +62,12 @@ This ADR first said the Edition Line is derived from publisher, language and for
 - Follow-up: tell such Edition Lines apart from their own Series record when they have one (BnF 461 `$0`) or from title words ("Perfect Edition", "Deluxe"), once recorded answers for such a Series exist.
 - Using the size in cm: rejected, see above.
 
+
+## Amendment 2026-11-06: the Catalog fills an Edition Line from BnF
+
+Series Onboarding (CORE-31) needs every Volume of an Edition Line, but a Catalog knew only the ISBNs readers had looked up (One Piece: 1 of 113). When the Volumes of an Edition Line are asked for, the Catalog now searches BnF by Series title and publisher (`bib.title all … and bib.publisher all …`, 50 records per page, at most 500), at most once a week per Edition Line, and asks Inventaire for the Works of the new ISBNs, 50 per request.
+
+- An Edition counts when it has a Volume number, the Series title, the publisher and the language of the line, and the BnF Series record (461 `$0`) of the line, or none. One Edition per Volume number: one the Catalog has already, else the latest printing. Measured on 2026-11-06: One Piece, Glénat: 112 of 113 Volumes (BnF gives no Volume number for 13) in 7.5 s; Spy x Family, Kurokawa: 16 of 16.
+- Like a lookup, nothing is stored when a source fails, so a listed Volume gets the Work identifier a lookup would give it.
+- Only a Series title and a publisher leave the server, never an ISBN a reader asked about, and they say nothing about who asked (ADR 0001).
+- Rejected: a full lookup (four sources) per Volume, about 4 minutes for One Piece at one request per second per host; Inventaire's Series to Works links, 37 Works for One Piece.

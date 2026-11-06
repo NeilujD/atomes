@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { editionWork } from '../library/ids';
 import type { Facts, SourceName } from './facts';
 import type { SourceFetch } from './sources';
-import { fetchFacts, isCoverUrl } from './sources';
+import { bnfSearch, fetchFacts, inventaireEditions, isCoverUrl, type Listed } from './sources';
 
 type Series = { id: string; title: string };
 
@@ -38,9 +38,10 @@ export type CoverLookup = { found: Cover } | { notFound: true } | { unavailable:
 
 export interface Catalog {
   lookup(isbn: string): Promise<Lookup>;
-  // The Volumes this Catalog knows in the Edition Line of `anchor` (ADR 0010),
-  // by Volume number. Only `anchor` when it has no Series.
-  volumes(anchor: Edition): Edition[];
+  // The Volumes of the Edition Line of `anchor` (ADR 0010), by Volume number.
+  // Only `anchor` when it has no Series. Asks BnF for the whole Edition Line
+  // at most once a week; the Volumes known so far when that fails.
+  volumes(anchor: Edition): Promise<Edition[]>;
   // The cover of the Edition, fetched once from its source and kept.
   cover(isbn: string): Promise<CoverLookup>;
   close(): void;
@@ -50,6 +51,8 @@ export interface Catalog {
 // an Edition again after a month, and an unknown ISBN again after a day.
 const editionTtlMs = 30 * 24 * 3600 * 1000;
 const missTtlMs = 24 * 3600 * 1000;
+// New Volumes come out about once a month in a Series.
+const fillTtlMs = 7 * 24 * 3600 * 1000;
 
 // Pictures only, never SVG: it can hold scripts.
 const coverTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -84,6 +87,10 @@ const schema = `
   create table if not exists miss (
     isbn text primary key,
     checked_at text not null
+  );
+  create table if not exists line_fill (
+    edition_line text primary key,
+    filled_at text not null
   );
   create table if not exists cover (
     isbn text primary key,
@@ -142,11 +149,15 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   // One Edition from the facts of every source, best source first. Sources
   // sometimes attach an ISBN to the wrong book (9780000000002 is three
   // different books in SUDOC, Inventaire and Open Library), so only sources
-  // whose title matches the best source's title are merged.
+  // whose title matches the best source's title, or its Series title, are
+  // merged: BnF may title a Volume by its own name ("Mission start") where
+  // Inventaire says "Spy × Family, Tome 2".
   function merge(isbn: string, all: Facts[]): Edition | undefined {
-    const title = all.find((f) => f.title)?.title;
+    const best = all.find((f) => f.title);
+    const title = best?.title;
     if (!title) return undefined;
-    const facts = all.filter((f) => f.title && sameBook(f.title, title));
+    const seriesTitle = best.series?.title;
+    const facts = all.filter((f) => f.title && (sameBook(f.title, title) || (seriesTitle && sameBook(f.title, seriesTitle))));
     const pick = <T>(get: (f: Facts) => T | undefined) => facts.map(get).find((v) => v !== undefined && v !== '');
     const series = seriesFor(facts);
     const work = facts.find((f) => f.work)?.work;
@@ -170,11 +181,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
 
   function store(edition: Edition): void {
     const { series } = edition;
-    // Edition Line (ADR 0010): one Series, publisher and language. The sources
-    // give no format, only a size in cm that varies inside one line (One Piece
-    // 56 "18 x 12 cm", 112 "19 cm"), so it is not part of the key. The key is
-    // internal and may change when the Catalog fixes its data.
-    const line = series && [series.id, edition.publisher, edition.language].map((v) => key(v ?? '')).join('|');
+    const line = editionLine(edition);
     db.prepare(
       `insert or replace into edition (isbn, title, volume_title, authors, publisher, language, format, cover, work_id,
         work_title, series_id, volume, edition_line, sources, fetched_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -218,6 +225,66 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     return { found: edition };
   }
 
+  // Adds the Volumes BnF lists for the Edition Line of `anchor` (CORE-31). A
+  // BnF search by Series title and publisher also finds other books (One Piece
+  // Color Walk, magazines, quiz books): an Edition counts when it has a Volume
+  // number, the Series title, the publisher and the language of the line, and
+  // the BnF Series record of the line. One Edition per Volume number: one the
+  // Catalog has already, else the latest printing. Like a lookup, nothing is
+  // stored when a source fails, so Work identifiers stay the ones a lookup gives.
+  async function fill(anchor: Edition & { series: Series }, line: string): Promise<void> {
+    const filled = db.prepare('select filled_at from line_fill where edition_line = ?').get(line) as { filled_at: string } | undefined;
+    if ((filled && age(filled.filled_at) < fillTtlMs) || !anchor.publisher) return;
+    const known = db.prepare('select isbn, volume from edition where edition_line = ?').all(line) as { isbn: string; volume: number | null }[];
+    const lineBnfId = (db.prepare('select bnf_id from series where id = ?').get(anchor.series.id) as { bnf_id: string | null } | undefined)
+      ?.bnf_id;
+    let listed: Listed[];
+    try {
+      listed = await bnfSearch(options.fetch, anchor.series.title, anchor.publisher);
+    } catch (error) {
+      console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
+      return;
+    }
+    const inLine = listed.filter(
+      ({ facts }) =>
+        facts.volume !== undefined &&
+        key(facts.series?.title ?? '') === key(anchor.series.title) &&
+        key(facts.publisher ?? '') === key(anchor.publisher ?? '') &&
+        facts.language === anchor.language,
+    );
+    // The line's BnF Series record, else the one most of these Editions name.
+    const counts = new Map<string, number>();
+    for (const { facts } of inLine) if (facts.series?.bnfId) counts.set(facts.series.bnfId, (counts.get(facts.series.bnfId) ?? 0) + 1);
+    const bnfId = lineBnfId ?? [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+    const byVolume = new Map<number, Listed>();
+    const newer = (a: Listed, b: Listed) => (a.facts.series?.bnfId === bnfId) !== (b.facts.series?.bnfId === bnfId)
+      ? a.facts.series?.bnfId === bnfId
+      : (a.year ?? 0) > (b.year ?? 0);
+    for (const each of inLine) {
+      const theirs = each.facts.series?.bnfId;
+      if (theirs && bnfId && theirs !== bnfId) continue;
+      const volume = each.facts.volume!;
+      const kept = byVolume.get(volume);
+      if (!kept || newer(each, kept)) byVolume.set(volume, each);
+    }
+    const knownIsbns = new Set(known.map(({ isbn }) => isbn));
+    const knownVolumes = new Set(known.map(({ volume }) => volume));
+    const added = [...byVolume.values()].filter(({ isbn, facts }) => !knownIsbns.has(isbn) && !knownVolumes.has(facts.volume!));
+    let fromInventaire: Map<string, Facts>;
+    try {
+      fromInventaire = await inventaireEditions(options.fetch, added.map(({ isbn }) => isbn));
+    } catch (error) {
+      console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
+      return;
+    }
+    for (const { isbn, facts } of added) {
+      const edition = merge(isbn, [facts, ...(fromInventaire.get(isbn) ? [fromInventaire.get(isbn)!] : [])]);
+      // The Series this Catalog gives it must be the line's.
+      if (edition && editionLine(edition) === line) store(edition);
+    }
+    db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(line, now().toISOString());
+  }
+
   // A missing or unusable picture is not remembered: the next request asks again.
   async function cover(isbn: string): Promise<CoverLookup> {
     const result = await lookup(isbn);
@@ -247,18 +314,29 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   return {
     lookup,
     cover,
-    volumes(edition) {
+    async volumes(edition) {
       const anchor = db.prepare('select edition_line from edition where isbn = ?').get(edition.isbn) as
         | { edition_line: string | null }
         | undefined;
-      if (!anchor?.edition_line) return [edition];
+      const line = anchor?.edition_line;
+      if (!line || !edition.series) return [edition];
+      await fill({ ...edition, series: edition.series }, line);
       const rows = db
         .prepare(`${selectEdition} where edition.edition_line = ? order by edition.volume is null, edition.volume, edition.isbn`)
-        .all(anchor.edition_line) as EditionRow[];
+        .all(line) as EditionRow[];
       return rows.map(toEdition);
     },
     close: () => db.close(),
   };
+}
+
+// Edition Line (ADR 0010): one Series, publisher and language. The sources
+// give no format, only a size in cm that varies inside one line (One Piece 56
+// "18 x 12 cm", 112 "19 cm"), so it is not part of the key. The key is
+// internal and may change when the Catalog fixes its data.
+function editionLine(edition: Edition): string | null {
+  const { series } = edition;
+  return series && [series.id, edition.publisher, edition.language].map((v) => key(v ?? '')).join('|');
 }
 
 function toEdition(row: EditionRow): Edition {
@@ -286,9 +364,16 @@ function sameBook(a: string, b: string): boolean {
   return shorter.every((word) => longer.includes(word));
 }
 
-// Compares titles, publishers and formats: "Glénat" = "glenat", "One Piece" = "One piece".
+// Compares titles, publishers and formats: "Glénat" = "glenat", "One Piece" = "One piece",
+// "Spy × Family" = "Spy x family".
 function key(value: string): string {
-  return value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  return value
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/×/g, 'x')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
 }
 
 const crockford = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
