@@ -34,15 +34,16 @@ export interface PendingWrite {
   refused?: string;
 }
 
-// sent: the PDS has it. waiting: kept on this device, sent when the network
-// returns. refused: the PDS refused it; it stays in `pending()` with the reason.
+// sent: the PDS has it. waiting: kept on this device, sent when the PDS can be
+// reached and works again. refused: the PDS refused it; it stays in `pending()`
+// with the reason.
 export type WriteState = 'sent' | 'waiting' | 'refused';
 
 export interface Space {
   // Creates the Space if it does not exist yet.
   ensure(): Promise<void>;
-  // Writes a record; creates the Space on the first write. With no network the
-  // write waits on this device, in order, and the local copy shows it at once.
+  // Writes a record; creates the Space on the first write. With no network, or
+  // while the PDS fails (`isTemporaryFailure`), the write waits on this device, in order, and the local copy shows it at once.
   // Last write wins: a newer write to the same record replaces a waiting one.
   put(collection: string, rkey: string, value: Record<string, unknown>): Promise<WriteState>;
   // Deletes a record, as put does: waits on this device with no network. Deleting a
@@ -53,7 +54,8 @@ export interface Space {
   get(collection: string, rkey: string): Promise<unknown>;
   // Every record of the collection, waiting writes included; empty when the Space
   // does not exist. Sends the waiting writes first.
-  // With no network: the local copy, marked stale, if this device has one.
+  // With no network, or while the PDS fails: the local copy, marked stale, if
+  // this device has one.
   list(collection: string): Promise<Listing>;
   // Sends the waiting writes, oldest first. Stops at the first network failure.
   sendWaiting(): Promise<void>;
@@ -69,6 +71,7 @@ const policy = { $type: 'com.atproto.personalspace.policy' };
 // What the PDS answers before the Space exists, or before the first write in it.
 const notCreatedYet = ['SpaceNotFound', 'RepoNotFound'];
 
+// The PDS refused the call (HTTP 4xx): sending it again gives the same answer.
 export class SpaceError extends Error {
   constructor(
     readonly error: string,
@@ -77,6 +80,23 @@ export class SpaceError extends Error {
     super(message);
     this.name = 'SpaceError';
   }
+}
+
+// The PDS was reached but could not do the work now: a server error (HTTP 5xx)
+// or too many requests (HTTP 429). Like no network, it passes: try again later.
+export class PdsUnavailableError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'PdsUnavailableError';
+  }
+}
+
+// A failure that passes on its own: no network, or the PDS failing for a while.
+export function isTemporaryFailure(error: unknown): boolean {
+  return isNetworkFailure(error) || error instanceof PdsUnavailableError;
 }
 
 export function openSpace(fetchHandler: FetchHandler, did: string, localCopy: LocalCopy): Space {
@@ -104,7 +124,9 @@ export function openSpace(fetchHandler: FetchHandler, did: string, localCopy: Lo
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     if (!response.ok) {
       const error = typeof payload.error === 'string' ? payload.error : `HTTP ${response.status}`;
-      throw new SpaceError(error, typeof payload.message === 'string' ? payload.message : error);
+      const message = typeof payload.message === 'string' ? payload.message : error;
+      if (response.status >= 500 || response.status === 429) throw new PdsUnavailableError(response.status, message);
+      throw new SpaceError(error, message);
     }
     return payload;
   }
@@ -144,8 +166,8 @@ export function openSpace(fetchHandler: FetchHandler, did: string, localCopy: Lo
         try {
           await send(next);
         } catch (error) {
-          // Kept as is: sent when the network returns.
-          if (isNetworkFailure(error)) return;
+          // Kept as is: sent when the PDS can be reached and works again.
+          if (isTemporaryFailure(error)) return;
           if (!(error instanceof SpaceError)) throw error;
           refused = error.message;
         }
@@ -200,7 +222,7 @@ export function openSpace(fetchHandler: FetchHandler, did: string, localCopy: Lo
     try {
       fromPds = await listFromPds(collection);
     } catch (error) {
-      const copy = isNetworkFailure(error) ? await localCopy.read(copyKey(collection)) : undefined;
+      const copy = isTemporaryFailure(error) ? await localCopy.read(copyKey(collection)) : undefined;
       if (!copy) throw error;
       return { records: copy, stale: true };
     }
@@ -283,6 +305,7 @@ export function spaceErrorMessage(error: unknown): string {
       : 'Could not reach this Atomes server. Check your connection and try again.';
   }
   if (error instanceof SpaceError) return `Your PDS refused the request: ${error.message}`;
+  if (error instanceof PdsUnavailableError) return `Your PDS has a problem (${error.message}). Try again later.`;
   if (isNetworkFailure(error)) return 'Could not reach your PDS. Check your connection and try again.';
   return 'Something went wrong with your private Space. Try again.';
 }
