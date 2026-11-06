@@ -53,6 +53,9 @@ const editionTtlMs = 30 * 24 * 3600 * 1000;
 const missTtlMs = 24 * 3600 * 1000;
 // New Volumes come out about once a month in a Series.
 const fillTtlMs = 7 * 24 * 3600 * 1000;
+// After a failed fill, the sources rest: /volumes needs no sign-in, so each
+// call must not start a new BnF search while a source is down.
+const fillRetryMs = 3600 * 1000;
 
 // Pictures only, never SVG: it can hold scripts.
 const coverTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -232,9 +235,25 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   // the BnF Series record of the line. One Edition per Volume number: one the
   // Catalog has already, else the latest printing. Like a lookup, nothing is
   // stored when a source fails, so Work identifiers stay the ones a lookup gives.
+  // Calls at the same time for one Edition Line share one fill.
+  const filling = new Map<string, Promise<void>>();
+  const failedAt = new Map<string, string>();
+
+  function fillOnce(anchor: Edition & { series: Series }, line: string): Promise<void> {
+    const running = filling.get(line) ?? fill(anchor, line).finally(() => filling.delete(line));
+    filling.set(line, running);
+    return running;
+  }
+
   async function fill(anchor: Edition & { series: Series }, line: string): Promise<void> {
     const filled = db.prepare('select filled_at from line_fill where edition_line = ?').get(line) as { filled_at: string } | undefined;
     if ((filled && age(filled.filled_at) < fillTtlMs) || !anchor.publisher) return;
+    const failed = failedAt.get(line);
+    if (failed && age(failed) < fillRetryMs) return;
+    const fail = (error: unknown) => {
+      failedAt.set(line, now().toISOString());
+      console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
+    };
     const known = db.prepare('select isbn, volume from edition where edition_line = ?').all(line) as { isbn: string; volume: number | null }[];
     const lineBnfId = (db.prepare('select bnf_id from series where id = ?').get(anchor.series.id) as { bnf_id: string | null } | undefined)
       ?.bnf_id;
@@ -242,8 +261,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     try {
       listed = await bnfSearch(options.fetch, anchor.series.title, anchor.publisher);
     } catch (error) {
-      console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
-      return;
+      return fail(error);
     }
     const inLine = listed.filter(
       ({ facts }) =>
@@ -274,8 +292,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     try {
       fromInventaire = await inventaireEditions(options.fetch, added.map(({ isbn }) => isbn));
     } catch (error) {
-      console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
-      return;
+      return fail(error);
     }
     for (const { isbn, facts } of added) {
       const edition = merge(isbn, [facts, ...(fromInventaire.get(isbn) ? [fromInventaire.get(isbn)!] : [])]);
@@ -283,6 +300,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       if (edition && editionLine(edition) === line) store(edition);
     }
     db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(line, now().toISOString());
+    failedAt.delete(line);
   }
 
   // A missing or unusable picture is not remembered: the next request asks again.
@@ -320,7 +338,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
         | undefined;
       const line = anchor?.edition_line;
       if (!line || !edition.series) return [edition];
-      await fill({ ...edition, series: edition.series }, line);
+      await fillOnce({ ...edition, series: edition.series }, line);
       const rows = db
         .prepare(`${selectEdition} where edition.edition_line = ? order by edition.volume is null, edition.volume, edition.isbn`)
         .all(line) as EditionRow[];

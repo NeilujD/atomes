@@ -257,6 +257,36 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
     expect(later.calls).toEqual([]);
   });
 
+  test('calls at the same time share one BnF search', async () => {
+    const { catalog, calls } = setup();
+    await answerEdition(catalog, spyFamily16);
+
+    await Promise.all([volumesOf(catalog, spyFamily16), volumesOf(catalog, spyFamily16), volumesOf(catalog, spyFamily16)]);
+
+    expect(calls.filter((url) => url.includes('bib.title')).length).toBe(1);
+  });
+
+  test('after a failed fill the sources rest for an hour, then are asked again', async () => {
+    let clock = new Date('2026-11-06T10:00:00.000Z');
+    const sources = recordedFetch();
+    let bnfDown = false;
+    const fetch: SourceFetch = (url) =>
+      bnfDown && url.includes('bib.title') ? Promise.resolve(new Response('down', { status: 503 })) : sources.fetch(url);
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => clock });
+    open.push(catalog);
+    await answerEdition(catalog, spyFamily16);
+    const searches = () => sources.calls.filter((url) => url.includes('bib.title')).length;
+
+    bnfDown = true;
+    expect(await volumesOf(catalog, spyFamily16)).toHaveLength(1);
+    bnfDown = false;
+    expect(await volumesOf(catalog, spyFamily16)).toHaveLength(1);
+    expect(searches()).toBe(0);
+
+    clock = new Date('2026-11-06T11:00:01.000Z');
+    expect(await volumesOf(catalog, spyFamily16)).toHaveLength(16);
+  });
+
   test('when a source is down nothing is added, and the next call asks again', async () => {
     const { catalog, reopen } = setup();
     await answerEdition(catalog, spyFamily16);
