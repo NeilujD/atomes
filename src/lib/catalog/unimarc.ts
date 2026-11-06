@@ -46,7 +46,7 @@ function subfield(record: UnimarcRecord, tag: string, code: string): string | un
 }
 
 // The ISBN-13s of a record (field 010 `$a`), ISBN-10s converted.
-function isbns(record: UnimarcRecord): string[] {
+export function isbns(record: UnimarcRecord): string[] {
   return record
     .filter((f) => f.tag === '010')
     .flatMap((f) => f.subfields.filter(([c]) => c === 'a').map(([, v]) => v.replace(/[\s-]/g, '').toUpperCase()))
@@ -65,10 +65,21 @@ export function recordFor(records: UnimarcRecord[], isbn: string): UnimarcRecord
   return records.find((record) => isbns(record).includes(isbn));
 }
 
+// The year of publication (214 `$d`, else 210 `$d`), e.g. "DL 2013" → 2013.
+export function publishedYear(record: UnimarcRecord): number | undefined {
+  const year = /\d{4}/.exec(subfield(record, '214', 'd') ?? subfield(record, '210', 'd') ?? '')?.[0];
+  return year ? Number(year) : undefined;
+}
+
+// A title that holds the Volume, as records made before publication have it:
+// "One Piece - Édition originale - Tome 113", "Spy x Family - Tome 16".
+const volumeInTitle = /^(.+?)\s+-\s+(?:.+\s+-\s+)?(?:tome|t\.|vol(?:ume)?\.?)\s*(\d+(?:[.,]\d+)?)$/i;
+
 // 461 is the Series link (`$t` title, `$v` number, `$0` BnF Series record).
 // 225 and 410 are publisher collections (Folio, Pika Shônen), not Series.
 // Recent records often have no 461 yet (One Piece 112, Spy x Family 16): then a
-// Volume number in 200 `$h` means "Volume <h> of the Series named <200 $a>".
+// Volume number in 200 `$h` means "Volume <h> of the Series named <200 $a>",
+// and so does a title ending in "- Tome <n>".
 export function unimarcFacts(record: UnimarcRecord, source: SourceName): Facts {
   const authors = record
     .filter((f) => f.tag === '700' || f.tag === '701')
@@ -78,8 +89,10 @@ export function unimarcFacts(record: UnimarcRecord, source: SourceName): Facts {
     })
     .filter(Boolean);
   const title = subfield(record, '200', 'a');
-  const volume = volumeNumber(subfield(record, '461', 'v')) ?? volumeNumber(subfield(record, '200', 'h'));
-  const seriesTitle = subfield(record, '461', 't') ?? (volume !== undefined ? title : undefined);
+  const inTitle = title ? volumeInTitle.exec(title) : null;
+  const volume =
+    volumeNumber(subfield(record, '461', 'v')) ?? volumeNumber(subfield(record, '200', 'h')) ?? volumeNumber(inTitle?.[2]);
+  const seriesTitle = subfield(record, '461', 't') ?? (volume === undefined ? undefined : inTitle ? inTitle[1] : title);
   const bnfSeries = source === 'BnF' ? subfield(record, '461', '0') : undefined;
   return {
     source,

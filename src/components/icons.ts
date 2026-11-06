@@ -5,8 +5,10 @@ import BookPlus from '@lucide/astro/icons/book-plus';
 import Check from '@lucide/astro/icons/check';
 import House from '@lucide/astro/icons/house';
 import Keyboard from '@lucide/astro/icons/keyboard';
+import Layers from '@lucide/astro/icons/layers';
 import Library from '@lucide/astro/icons/library';
 import Lock from '@lucide/astro/icons/lock';
+import Minus from '@lucide/astro/icons/minus';
 import Monitor from '@lucide/astro/icons/monitor';
 import Moon from '@lucide/astro/icons/moon';
 import Plus from '@lucide/astro/icons/plus';
@@ -28,8 +30,10 @@ export const icons = {
   check: Check,
   house: House,
   keyboard: Keyboard,
+  layers: Layers,
   library: Library,
   lock: Lock,
+  minus: Minus,
   monitor: Monitor,
   moon: Moon,
   plus: Plus,

@@ -1,0 +1,162 @@
+---
+// Development only: removes the records of one Series from the reader's Space
+// (Copies, Reading Statuses, follow), so Series Onboarding can be tested again.
+// Two steps: find the records, then delete them. 404 in a built server.
+import AppShell from '../../layouts/AppShell.astro';
+
+if (!import.meta.env.DEV) return new Response(null, { status: 404 });
+---
+
+<AppShell title="Clear a Series (development)">
+  <div class="reset">
+    <p class="hint">
+      Removes every Copy, Reading Status and follow of one Series from your Space, so Quick Add starts Series Onboarding
+      again. Only in development.
+    </p>
+    <form class="find" data-find>
+      <label class="label" for="isbn">ISBN of any Volume of the Series</label>
+      <div class="row">
+        <input class="field" id="isbn" name="isbn" type="text" inputmode="numeric" autocomplete="off" />
+        <button class="button" type="submit">Find its records</button>
+      </div>
+    </form>
+    <section data-found hidden>
+      <h2 class="title" data-found-title>Records</h2>
+      <ul class="records" data-records></ul>
+      <button class="button button-primary" type="button" data-delete></button>
+    </section>
+  </div>
+</AppShell>
+
+<script>
+  import { openOwnSpace } from '../../lib/auth/browser-client';
+  import { lookupVolumes } from '../../lib/catalog/client';
+  import { copyCollection } from '../../lib/library/copy';
+  import { followCollection } from '../../lib/library/follow';
+  import { readIsbn } from '../../lib/library/ids';
+  import { loadLibrary, savedMessage, waitingCount, worstState } from '../../lib/library/library';
+  import { seriesRecords } from '../../lib/library/onboarding';
+  import { readingStatusCollection } from '../../lib/library/reading-status';
+  import { spaceErrorMessage, type Space, type WriteState } from '../../lib/space/space';
+  import { reportWaiting } from '../../lib/connection';
+  import { toast } from '../../lib/toast';
+
+  const form = document.querySelector<HTMLFormElement>('[data-find]')!;
+  const found = document.querySelector<HTMLElement>('[data-found]')!;
+  const list = found.querySelector<HTMLUListElement>('[data-records]')!;
+  const deleteButton = found.querySelector<HTMLButtonElement>('[data-delete]')!;
+  // The records found last, as [collection, rkey]: Delete removes exactly these.
+  let targets: [string, string][] = [];
+
+  async function space(): Promise<Space | undefined> {
+    const own = await openOwnSpace();
+    if (!own) toast('Sign in first.', { error: true, link: { href: '/settings', label: 'Go to Settings' } });
+    return own?.space;
+  }
+
+  async function find() {
+    found.hidden = true;
+    const read = readIsbn(new FormData(form).get('isbn')?.toString() ?? '');
+    if (!('isbn' in read)) return toast('Type a valid ISBN.', { error: true });
+    const own = await space();
+    if (!own) return;
+    const [answer, { library }] = await Promise.all([lookupVolumes(read.isbn), loadLibrary(own)]);
+    if (!answer?.series) return toast('The Catalog knows no Series for this ISBN.', { error: true });
+    const records = seriesRecords(answer.series.id, answer.volumes, library);
+    targets = [
+      ...records.copies.map(({ rkey }): [string, string] => [copyCollection, rkey]),
+      ...records.readingStatuses.map(({ rkey }): [string, string] => [readingStatusCollection, rkey]),
+      ...(records.follow ? [[followCollection, records.follow.rkey] as [string, string]] : []),
+    ];
+    found.querySelector('[data-found-title]')!.textContent =
+      `${answer.series.title}: ${targets.length} ${targets.length === 1 ? 'record' : 'records'}`;
+    list.replaceChildren(
+      ...records.copies.map(({ value }) => item(`Copy, ISBN ${value.isbn}`)),
+      ...records.readingStatuses.map(({ value }) => item(`Reading Status ${value.status}, ISBN ${value.isbn}`)),
+      ...(records.follow ? [item(`Follow (${records.follow.value.status}), anchor ISBN ${records.follow.value.anchorIsbn}`)] : []),
+    );
+    deleteButton.textContent = `Delete these ${targets.length} records`;
+    deleteButton.hidden = targets.length === 0;
+    found.hidden = false;
+  }
+
+  function item(text: string) {
+    const li = document.createElement('li');
+    li.textContent = text;
+    return li;
+  }
+
+  deleteButton.addEventListener('click', () => {
+    void (async () => {
+      const own = await space();
+      if (!own) return;
+      deleteButton.setAttribute('aria-busy', 'true');
+      try {
+        const states: WriteState[] = [];
+        for (const [collection, rkey] of targets) states.push(await own.delete(collection, rkey));
+        toast(`Deleted ${targets.length} records. ${savedMessage[worstState(states)]}`);
+        reportWaiting(await waitingCount(own));
+        await find();
+      } catch (error) {
+        toast(spaceErrorMessage(error), { error: true });
+      } finally {
+        deleteButton.removeAttribute('aria-busy');
+      }
+    })();
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    find().catch((error: unknown) => toast(spaceErrorMessage(error), { error: true }));
+  });
+</script>
+
+<style>
+  .reset {
+    max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .find,
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  section[hidden] {
+    display: none;
+  }
+
+  .row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .row .field {
+    flex: 1;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .hint {
+    color: var(--secondary);
+    font-size: 14px;
+  }
+
+  .title {
+    font-size: 17px;
+  }
+
+  .records {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
