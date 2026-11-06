@@ -23,6 +23,34 @@ export interface Copy {
   createdAt: string;
 }
 
+// The Quick Add form fields, as typed. Authors are one field, split at commas.
+export type TypedFields = Record<'title' | 'authors' | 'series' | 'volume', string>;
+
+// What the reader typed for a book the Catalog does not know, or what to fix.
+// The form's maxlength keeps each field inside the lexicon; the author list
+// is one field, so its count and each name are checked here.
+export function typedDetails(fields: TypedFields): { details: BookDetails } | { problem: string } {
+  const title = fields.title.trim();
+  if (!title) return { problem: 'Type the title.' };
+  const authors = fields.authors
+    .split(',')
+    .map((author) => author.trim())
+    .filter(Boolean);
+  if (authors.length > 20) return { problem: 'At most 20 authors.' };
+  if (authors.some((author) => graphemes(author) > 64)) return { problem: 'An author name has at most 64 characters.' };
+  const details: BookDetails = { title };
+  if (authors.length > 0) details.authors = authors;
+  const series = fields.series.trim();
+  if (series) details.series = series;
+  const volume = fields.volume.trim();
+  if (volume) details.volume = volume;
+  return { details };
+}
+
+function graphemes(text: string): number {
+  return [...new Intl.Segmenter().segment(text)].length;
+}
+
 // A new Copy gets a new key; pass the key of an existing Copy to change it.
 export async function saveCopy(space: Space, copy: Copy, rkey = newRecordKey()): Promise<{ rkey: string; state: WriteState }> {
   if (!isIsbn13(copy.isbn)) throw new Error(`Not an ISBN-13: ${copy.isbn}`);

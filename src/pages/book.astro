@@ -17,6 +17,22 @@ const choices = [
     <!-- Only when there is no book to show (not signed in, not in the Library); results of a change are toasts. -->
     <p class="message" data-message role="status" hidden></p>
 
+    <!-- No Copy and no Reading Status for this Work, or no Work in the link. -->
+    <section class="not-found" data-not-found aria-labelledby="not-found-title" hidden>
+      <div class="not-found-cover" aria-hidden="true">
+        <Icon name="book-plus" size={24} />
+      </div>
+      <h2 class="not-found-title" id="not-found-title" data-not-found-title>Not in your Library</h2>
+      <p class="not-found-text" data-not-found-text>You have no Copy of this book and no Reading Status for it.</p>
+      <div class="not-found-actions">
+        <a class="button button-primary" href="/add" data-not-found-add>
+          <Icon name="plus" />
+          <span data-not-found-add-label>Add a book</span>
+        </a>
+        <a class="button button-quiet" href="/">Go to Home</a>
+      </div>
+    </section>
+
     <div class="book" data-skeleton aria-hidden="true">
       <div class="cover skeleton"></div>
       <div class="content">
@@ -98,7 +114,7 @@ const choices = [
   import type { Edition } from '../lib/catalog/catalog';
   import { lookupEditions } from '../lib/catalog/client';
   import { deleteCopy, saveCopy, type Copy } from '../lib/library/copy';
-  import { isWorkId } from '../lib/library/ids';
+  import { isEditionWork, isWorkId } from '../lib/library/ids';
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { loadLibrary, savedMessage, sendWhenOnline, waitingCount } from '../lib/library/library';
   import { bookPage, statusChange, type BookPage, type Library } from '../lib/library/model';
@@ -110,6 +126,7 @@ const choices = [
 
   const pageBox = document.querySelector<HTMLElement>('[data-page]')!;
   const message = document.querySelector<HTMLElement>('[data-message]')!;
+  const notFound = document.querySelector<HTMLElement>('[data-not-found]')!;
   const skeleton = document.querySelector<HTMLElement>('[data-skeleton]')!;
   const article = document.querySelector<HTMLElement>('[data-book]')!;
   const statusRadios = article.querySelectorAll<HTMLInputElement>('[data-status] input[name="status"]');
@@ -135,6 +152,7 @@ const choices = [
   function say(text: string, link?: { href: string; label: string }) {
     loaded();
     article.hidden = true;
+    notFound.hidden = true;
     message.hidden = false;
     message.replaceChildren(text);
     if (link) {
@@ -145,23 +163,41 @@ const choices = [
     }
   }
 
+  // No book to show for this link. With a known ISBN (a book just removed,
+  // or a book the Catalog did not know), Quick Add opens on that ISBN.
+  function showNotFound(isbn: string | undefined, why = { title: 'Not in your Library', text: 'You have no Copy of this book and no Reading Status for it.' }) {
+    loaded();
+    article.hidden = true;
+    message.hidden = true;
+    notFound.hidden = false;
+    document.title = `${why.title} · Atomes`;
+    notFound.querySelector('[data-not-found-title]')!.textContent = why.title;
+    notFound.querySelector('[data-not-found-text]')!.textContent = why.text;
+    const add = notFound.querySelector<HTMLAnchorElement>('[data-not-found-add]')!;
+    add.href = isbn ? `/add?isbn=${isbn}` : '/add';
+    notFound.querySelector('[data-not-found-add-label]')!.textContent = isbn ? 'Add this book' : 'Add a book';
+  }
+
   // No network: the connection status says it, and the listing tries again.
-  // Another problem while the book is shown goes in a toast; before, in place of the book.
+  // Another problem while the book or the Not found screen is shown goes in a
+  // toast; before, in place of the book.
   function fail(error: unknown) {
     const network = isNetworkFailure(error);
     if (network) reportNetwork(false);
-    if (article.hidden) say(spaceErrorMessage(error));
+    if (article.hidden && notFound.hidden) say(spaceErrorMessage(error));
     else if (!network) toast(spaceErrorMessage(error), { error: true });
   }
 
   function render() {
+    const shown = page;
     page = bookPage(work, library, editions);
     if (!page) {
-      say('This book is not in your Library.', { href: '/add', label: 'Add a book' });
+      showNotFound(shown?.isbn ?? (isEditionWork(work) ? work.slice('isbn:'.length) : undefined));
       return;
     }
     loaded();
     message.hidden = true;
+    notFound.hidden = true;
     article.hidden = false;
 
     document.title = `${page.title} · Atomes`;
@@ -298,7 +334,7 @@ const choices = [
   });
 
   async function start() {
-    if (!isWorkId(work)) return say('No book here.', { href: '/', label: 'Go to Home' });
+    if (!isWorkId(work)) return showNotFound(undefined, { title: 'Book not found', text: 'This link does not point to a book.' });
     const own = await openOwnSpace();
     if (!own) return say('Sign in to see your Library.', { href: '/settings', label: 'Go to Settings' });
     space = own.space;
@@ -309,7 +345,9 @@ const choices = [
           ...loaded.library.copies.filter(({ value }) => value.works.includes(work)).map(({ value }) => value.isbn),
           ...loaded.library.readingStatuses.filter(({ rkey }) => rkey === work).map(({ value }) => value.isbn),
         ];
-        const missing = isbns.filter((isbn) => !editions.has(isbn));
+        // An `isbn:` Work is a book the Catalog did not know: the page shows what
+        // the reader typed, and asking again only gets a 404 on each load.
+        const missing = isEditionWork(work) ? [] : isbns.filter((isbn) => !editions.has(isbn));
         for (const [isbn, edition] of await lookupEditions(missing)) editions.set(isbn, edition);
         return { ...loaded, waiting: await waitingCount(space) };
       },
@@ -356,6 +394,53 @@ const choices = [
 
   .message {
     font-size: 14px;
+  }
+
+  .not-found {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    max-width: 360px;
+    margin: 48px auto 0;
+    text-align: center;
+  }
+
+  .not-found[hidden] {
+    display: none;
+  }
+
+  /* An empty book, the size of a small cover. */
+  .not-found-cover {
+    display: grid;
+    place-items: center;
+    width: 72px;
+    aspect-ratio: 2 / 3;
+    margin-bottom: 12px;
+    border-radius: var(--radius-cover);
+    background: var(--soft);
+    color: var(--secondary);
+  }
+
+  .not-found-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .not-found-text {
+    margin: 0;
+    color: var(--secondary);
+    font-size: 14px;
+  }
+
+  .not-found-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
   }
 
   /* Phone: cover and title side by side, then the sections at full width. */

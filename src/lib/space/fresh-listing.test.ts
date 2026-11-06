@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { reconnectEvent } from '../network';
 import { freshListing } from './fresh-listing';
-import { SpaceError } from './space';
+import { PdsUnavailableError, SpaceError } from './space';
 
 type Listing = { stale: boolean };
 const stale: Listing = { stale: true };
@@ -89,6 +89,17 @@ describe('freshListing', () => {
 
   test('no copy and no network: it tries again, and shows the records when the PDS answers', async () => {
     const load = reads(offline, () => Promise.resolve(fresh));
+    const { listing, shown, failed } = setup(load);
+
+    await listing.refresh();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(failed).toHaveLength(1);
+    expect(shown).toEqual([fresh]);
+  });
+
+  test('no copy and the PDS failing for a while (HTTP 5xx): it tries again, and shows the records when it works', async () => {
+    const load = reads(() => Promise.reject(new PdsUnavailableError(500, 'Internal Server Error')), () => Promise.resolve(fresh));
     const { listing, shown, failed } = setup(load);
 
     await listing.refresh();

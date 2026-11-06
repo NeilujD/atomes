@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { ClientMetadataError } from '../auth/client-metadata';
 import { memoryLocalCopy } from './local-copy.fake';
-import { newRecordKey, openSpace, SpaceError, spaceErrorMessage, type FetchHandler } from './space';
+import { newRecordKey, openSpace, PdsUnavailableError, SpaceError, spaceErrorMessage, type FetchHandler } from './space';
 
 const owner = 'did:plc:owner';
 const collection = 'app.atomes.copy';
@@ -85,9 +85,16 @@ function fakePds() {
     }
   }
 
-  const network = { online: true };
-  const handler: FetchHandler = (pathname, init) =>
-    network.online ? Promise.resolve(answer(pathname, init)) : Promise.reject(new TypeError('Failed to fetch'));
+  // `failing`: the PDS is reached but cannot do the work now (HTTP 5xx, or 429 rate limit).
+  const network: { online: boolean; failing?: number } = { online: true };
+  const handler: FetchHandler = (pathname, init) => {
+    if (!network.online) return Promise.reject(new TypeError('Failed to fetch'));
+    if (network.failing) {
+      calls.push(pathname);
+      return Promise.resolve(reply(network.failing, { error: 'InternalServerError', message: 'Internal Server Error' }));
+    }
+    return Promise.resolve(answer(pathname, init));
+  };
   return { handler, spaces, calls, writes, network };
 }
 
@@ -480,6 +487,60 @@ describe('offline writes', () => {
   });
 });
 
+// Seen on the hosted alpha PDS (2026-11-05): listRecords answered 500 after a delete.
+describe('the PDS fails for a while (HTTP 5xx or 429)', () => {
+  async function failingSpace(status: number) {
+    const pds = fakePds();
+    const copy = memoryLocalCopy();
+    const space = openSpace(pds.handler, owner, copy);
+    const [kept, removed] = [newRecordKey(), newRecordKey()];
+    await space.put(collection, kept, { text: 'kept' });
+    await space.put(collection, removed, { text: 'removed' });
+    await space.list(collection);
+    pds.writes.length = 0;
+    pds.network.failing = status;
+    return { pds, copy, space, kept, removed };
+  }
+
+  test.each([500, 502, 503, 429])('HTTP %i: a delete waits on this device and goes out when the PDS works again', async (status) => {
+    const { pds, space, removed } = await failingSpace(status);
+
+    expect(await space.delete(collection, removed)).toBe('waiting');
+    expect(await space.pending()).toEqual([{ collection, rkey: removed }]);
+
+    pds.network.failing = undefined;
+    await space.sendWaiting();
+
+    expect(pds.writes).toEqual([`delete ${removed}`]);
+    expect(await space.pending()).toEqual([]);
+  });
+
+  test('a put waits too, and is not marked refused', async () => {
+    const { space } = await failingSpace(500);
+
+    expect(await space.put(collection, newRecordKey(), { text: 'new' })).toBe('waiting');
+    expect((await space.pending()).map((write) => write.refused)).toEqual([undefined]);
+  });
+
+  test('list gives the copy on this device with the waiting delete applied, marked stale', async () => {
+    const { space, removed } = await failingSpace(500);
+    await space.delete(collection, removed);
+
+    const listing = await space.list(collection);
+
+    expect(listing.stale).toBe(true);
+    expect(textsOf(listing.records)).toEqual(['kept']);
+  });
+
+  test('with no copy on this device, list fails with PdsUnavailableError', async () => {
+    const pds = fakePds();
+    await openSpace(pds.handler, owner, memoryLocalCopy()).put(collection, newRecordKey(), { text: 'one' });
+    pds.network.failing = 500;
+
+    await expect(openSpace(pds.handler, owner, memoryLocalCopy()).list(collection)).rejects.toThrow(PdsUnavailableError);
+  });
+});
+
 describe('record data', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -531,6 +592,11 @@ describe('spaceErrorMessage', () => {
       'This Atomes server is not set up correctly. Tell its owner.',
     ],
     ['the PDS refuses the call', new SpaceError('InvalidToken', 'Bad token scope'), 'Your PDS refused the request: Bad token scope'],
+    [
+      'the PDS fails for a while',
+      new PdsUnavailableError(500, 'Internal Server Error'),
+      'Your PDS has a problem (Internal Server Error). Try again later.',
+    ],
     ['the network is down', new TypeError('Failed to fetch'), 'Could not reach your PDS. Check your connection and try again.'],
     [
       'a token refresh cannot reach the server',

@@ -105,6 +105,41 @@ describe('Book page', () => {
     expect(bookPage(work, library({ copies: [copy('3m2a')] }), new Map())?.title).toBe('ISBN 9782723478991');
   });
 
+  test('a book typed by hand shows like a Catalog book: its details, its Reading Status, its Copies', () => {
+    const isbn = '9791032722077';
+    const typedWork = `isbn:${isbn}`;
+    const typed = library({
+      copies: [
+        {
+          rkey: '3m2a',
+          value: {
+            isbn,
+            works: [typedWork],
+            details: { title: 'Jujutsu Kaisen Modulo', authors: ['Gege Akutami', 'Yuji Iwasaki'], series: 'Jujutsu Kaisen Modulo', volume: '1' },
+            createdAt: '2026-11-05T10:00:00.000Z',
+          },
+        },
+      ],
+      readingStatuses: [
+        { rkey: typedWork, value: { work: typedWork, isbn, status: 'read', finishedAt: '2026-11-06T00:00:00.000Z', updatedAt: '2026-11-06T00:00:00.000Z' } },
+      ],
+    });
+
+    expect(bookPage(typedWork, typed, new Map())).toEqual({
+      work: typedWork,
+      isbn,
+      title: 'Jujutsu Kaisen Modulo',
+      volumeTitle: null,
+      authors: ['Gege Akutami', 'Yuji Iwasaki'],
+      series: 'Jujutsu Kaisen Modulo',
+      volume: '1',
+      cover: null,
+      status: 'read',
+      finishedAt: '2026-11-06T00:00:00.000Z',
+      copies: [{ rkey: '3m2a', isbn, edition: '', lentTo: undefined }],
+    });
+  });
+
   test('a Work with no Copy and no Reading Status is not in the Library', () => {
     expect(bookPage(work, library({ copies: [copy('3m2b', { works: ['wd:Q190192'] })] }), catalog)).toBeUndefined();
   });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { copyCollection, deleteCopy, listCopies, saveCopy, type Copy } from './copy';
+import { copyCollection, deleteCopy, listCopies, saveCopy, typedDetails, type Copy } from './copy';
 import { memorySpace } from './memory-space.fake';
 import { lexicons } from './records';
 
@@ -77,5 +77,34 @@ describe('Copy records', () => {
     await space.put(copyCollection, 'c', { $type: copyCollection, title: 'Dune' });
 
     expect((await listCopies(space)).records.map(({ rkey }) => rkey)).toEqual(['a']);
+  });
+});
+
+describe('Details typed by the reader', () => {
+  const typed = (change: Partial<Record<'title' | 'authors' | 'series' | 'volume', string>>) =>
+    typedDetails({ title: '', authors: '', series: '', volume: '', ...change });
+
+  test('trimmed, authors split at commas, empty fields left out', () => {
+    expect(typed({ title: '  Jujutsu Kaisen Modulo ', authors: 'Gege Akutami,  Yuji Iwasaki ,', volume: ' 1 ' })).toEqual({
+      details: { title: 'Jujutsu Kaisen Modulo', authors: ['Gege Akutami', 'Yuji Iwasaki'], volume: '1' },
+    });
+  });
+
+  test('the details make a Copy that matches its lexicon', async () => {
+    const { space, stored } = memorySpace();
+    const result = typed({ title: 'Ōoku', authors: 'Fumi Yoshinaga', series: 'Le pavillon des hommes', volume: '12.5' });
+    if (!('details' in result)) throw new Error(result.problem);
+
+    await saveCopy(space, { ...onePiece56, works: ['isbn:9782723478991'], details: result.details });
+
+    expect(() => lexicons.assertValidRecord(copyCollection, stored(copyCollection)[0].value)).not.toThrow();
+  });
+
+  test.each<[string, Parameters<typeof typed>[0], string]>([
+    ['no title', { title: '   ', authors: 'Gege Akutami' }, 'Type the title.'],
+    ['more than 20 authors', { title: 'Anthology', authors: Array.from({ length: 21 }, (_, i) => `A${i}`).join(',') }, 'At most 20 authors.'],
+    ['an author name over 64 characters', { title: 'Dune', authors: 'é'.repeat(65) }, 'An author name has at most 64 characters.'],
+  ])('%s: what to fix, and no details', (_, change, problem) => {
+    expect(typed(change)).toEqual({ problem });
   });
 });
