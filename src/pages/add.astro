@@ -143,13 +143,15 @@ const answers = [
 <script>
   import { openOwnSpace } from '../lib/auth/browser-client';
   import type { Edition } from '../lib/catalog/catalog';
-  import { coverUrl, lookupEdition } from '../lib/catalog/client';
+  import { coverUrl, lookupEdition, lookupVolumes } from '../lib/catalog/client';
   import { saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
   import { editionWork, isbnProblemText, readIsbn } from '../lib/library/ids';
   import { cameraProblem, cameraProblemText, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
   import { reportNetwork, reportWaiting } from '../lib/connection';
-  import { loadLibrary, savedMessage, sendWhenOnline, waitingCount } from '../lib/library/library';
+  import { saveFollow } from '../lib/library/follow';
+  import { loadLibrary, savedMessage, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
   import { bookPage, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
+  import { followOnRead, noOnboarding, type NoOnboarding } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses } from '../lib/library/reading-status';
   import { isNetworkFailure } from '../lib/network';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
@@ -179,7 +181,7 @@ const answers = [
     edition?: Edition;
   }
   let book: Book | undefined;
-  let library: Library = { copies: [], readingStatuses: [] };
+  let library: Library = { copies: [], readingStatuses: [], follows: [] };
   let sending = false;
 
   // A problem, in the hint line; no argument puts the hint back. Only a wrong
@@ -289,7 +291,7 @@ const answers = [
       reportWaiting(await waitingCount(space));
     } catch {
       // No copy on this device and no network: the status starts at "Not yet".
-      library = { copies: [], readingStatuses: [] };
+      library = { copies: [], readingStatuses: [], follows: [] };
     }
     if (book !== next) return;
     // Abandoned is not an answer here: no choice keeps it.
@@ -346,15 +348,27 @@ const answers = [
       states.push((await saveCopy(space, copy)).state);
       const change = chosen && statusChange(work, isbn, chosen, library, now);
       if (change) states.push(await saveReadingStatus(space, change));
-      const state = states.find((each) => each === 'refused') ?? states.find((each) => each === 'waiting') ?? 'sent';
+      const follow = chosen && followOnRead(current.edition, chosen, library, now);
+      if (follow) states.push(await saveFollow(space, follow));
+      const state = worstState(states);
       if (state !== 'refused') reportNetwork(state === 'sent');
       reportWaiting(await waitingCount(space));
+
+      // The first Volume of a Series: ask which other Volumes the reader has.
+      // The Copy is saved (or waits on this device) whatever happens next.
+      const why = state === 'refused' ? 'no-series' : await whyNoSeriesOnboarding(current, library);
+      if (why === undefined) {
+        location.assign(`/onboarding?isbn=${isbn}`);
+        return;
+      }
+      const seriesTitle = current.edition?.series?.title ?? '';
+      const note = why === 'no-series' ? '' : ` ${noOnboardingText[why](seriesTitle)}`;
 
       addForm.hidden = true;
       book = undefined;
       isbnInput.value = '';
       const link = { href: bookHref(work), label: 'Open its Book page' };
-      const close = toast(`${title} is in your Library. ${savedMessage[state]}`, {
+      const close = toast(`${title} is in your Library. ${savedMessage[state]}${note}`, {
         link,
         error: state === 'refused',
       });
@@ -378,6 +392,27 @@ const answers = [
     } finally {
       busy(addButton, false);
     }
+  }
+
+  // Why the reader is not asked about the other Volumes (glossary: Series
+  // Onboarding), in the toast after the save.
+  const noOnboardingText: Record<Exclude<NoOnboarding, 'no-series'>, (series: string) => string> = {
+    'in-library': (series) => `${series} was already in your Library, so no question about its other Volumes.`,
+    followed: (series) => `You already follow ${series}, so no question about its other Volumes.`,
+    dropped: (series) => `You stopped following ${series}, so no question about its other Volumes.`,
+  };
+
+  // Undefined: the Series is new in the Library, so the flow starts. `before`:
+  // the Library as it was before this Copy. Offline, or with no answer from
+  // the Catalog, there is no onboarding: the Copy is enough.
+  async function whyNoSeriesOnboarding(added: Book, before: Library): Promise<NoOnboarding | undefined> {
+    const series = added.edition?.series;
+    if (!added.edition || !series || added.edition.volume === null) return 'no-series';
+    // The first time, the Catalog asks BnF for the whole Edition Line: seconds.
+    const close = toast(`${added.edition.title} is saved. Looking for the other Volumes of ${series.title}…`);
+    const answer = await lookupVolumes(added.isbn).catch(() => undefined);
+    close();
+    return answer ? noOnboarding(added.edition, answer.volumes, before) : 'no-series';
   }
 
   const scanButton = document.querySelector<HTMLButtonElement>('[data-scan]')!;

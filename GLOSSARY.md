@@ -61,7 +61,7 @@ A Series, in a given Edition Line, that the app watches for New Volumes. A Serie
 _Avoid_: Subscription, watchlist
 
 **Dropped Series**:
-A Series the reader has deliberately stopped following. It is separate from abandoning a Volume: abandoning one suggests dropping the Series but doesn't do it.
+A Series the reader has deliberately stopped following. It is separate from abandoning a Volume: abandoning one suggests dropping the Series but doesn't do it. Saying no to new Volume alerts during Series Onboarding also drops the Series, so marking a Volume read later does not follow it.
 _Avoid_: Unfollowed, cancelled, abandoned series
 
 **New Volume**:

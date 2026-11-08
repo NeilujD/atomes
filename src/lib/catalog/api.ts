@@ -15,7 +15,7 @@ const invalidIsbn = () => json(400, { error: 'InvalidIsbn', message: 'Send an IS
 const unavailable = (isbn: string) =>
   json(503, { error: 'SourcesUnavailable', isbn, message: 'The book sources do not answer. Try again later.' });
 
-async function withEdition(catalog: Catalog, raw: string | undefined, answer: (edition: Edition) => Response) {
+async function withEdition(catalog: Catalog, raw: string | undefined, answer: (edition: Edition) => Response | Promise<Response>) {
   const isbn = parseIsbn(raw);
   if (!isIsbn13(isbn)) return invalidIsbn();
   const result = await catalog.lookup(isbn);
@@ -28,7 +28,7 @@ export const answerEdition = (catalog: Catalog, isbn: string | undefined) =>
   withEdition(catalog, isbn, (edition) => json(200, edition));
 
 export const answerVolumes = (catalog: Catalog, isbn: string | undefined) =>
-  withEdition(catalog, isbn, (edition) => json(200, { series: edition.series, volumes: catalog.volumes(edition) }));
+  withEdition(catalog, isbn, async (edition) => json(200, { series: edition.series, volumes: await catalog.volumes(edition) }));
 
 export async function answerCover(catalog: Catalog, raw: string | undefined) {
   const isbn = parseIsbn(raw);

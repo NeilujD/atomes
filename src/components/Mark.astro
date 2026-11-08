@@ -1,7 +1,7 @@
 ---
 // The Atomes mark: three books, an empty slot (dashed), and a cobalt book.
-// `animated` adds the book that fills the slot; the page animates the parts
-// through the classes (see the sign-in callback).
+// `animated` adds the book that fills the slot. The mark then tells the state
+// of the closest `data-state` around it (Flow screens, ui-direction).
 interface Props {
   size: number;
   animated?: boolean;
@@ -10,7 +10,7 @@ interface Props {
 const { size, animated = false } = Astro.props;
 ---
 
-<svg class="mark" viewBox="220 236 584 552" width={size} height={size} aria-hidden="true">
+<svg class:list={['mark', { animated }]} viewBox="220 236 584 552" width={size} height={size} aria-hidden="true">
   <rect class="spine spine-1" x="236" y="252" width="96" height="520" rx="14" fill="currentColor"></rect>
   <rect class="spine spine-2" x="388" y="252" width="96" height="520" rx="14" fill="currentColor"></rect>
   <rect
@@ -28,3 +28,90 @@ const { size, animated = false } = Astro.props;
   {animated && <rect class="arrival" x="540" y="252" width="96" height="520" rx="14" fill="currentColor" />}
   <rect class="spine spine-4" x="692" y="252" width="96" height="520" rx="14" fill="var(--accent)"></rect>
 </svg>
+
+<style>
+  /*
+   * Working: the books lift one after the other and the empty slot's dashes
+   * run. Done: a book lands in the slot. Failed: still, the slot stays empty.
+   */
+  .spine,
+  .arrival {
+    transform-box: fill-box;
+    transform-origin: bottom;
+  }
+
+  .arrival {
+    opacity: 0;
+  }
+
+  :global([data-state='working']) .animated .spine {
+    animation: lift 1.2s ease-in-out infinite;
+  }
+
+  :global([data-state='working']) .animated .spine-2 {
+    animation-delay: 0.12s;
+  }
+
+  :global([data-state='working']) .animated .spine-4 {
+    animation-delay: 0.36s;
+  }
+
+  :global([data-state='working']) .animated .slot {
+    animation: dashes 0.9s linear infinite;
+  }
+
+  :global([data-state='done']) .animated .slot {
+    opacity: 0;
+    transition: opacity 200ms ease-out;
+  }
+
+  :global([data-state='done']) .animated .arrival {
+    animation: land 520ms cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+  }
+
+  :global([data-state='failed']) .animated .slot {
+    opacity: 0.45;
+  }
+
+  @keyframes lift {
+    0%,
+    60%,
+    100% {
+      transform: translateY(0);
+    }
+    30% {
+      transform: translateY(-9%);
+    }
+  }
+
+  @keyframes dashes {
+    to {
+      stroke-dashoffset: -86;
+    }
+  }
+
+  @keyframes land {
+    from {
+      opacity: 0;
+      transform: translateY(-45%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Reduced motion: no movement; the book still appears in the slot. */
+  @media (prefers-reduced-motion: reduce) {
+    :global([data-state='working']) .animated .spine,
+    :global([data-state='working']) .animated .slot {
+      animation: none;
+    }
+
+    :global([data-state='done']) .animated .arrival {
+      animation: none;
+      opacity: 1;
+      transition: opacity 200ms;
+    }
+  }
+</style>

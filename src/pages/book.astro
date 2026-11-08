@@ -116,8 +116,10 @@ const choices = [
   import { deleteCopy, saveCopy, type Copy } from '../lib/library/copy';
   import { isEditionWork, isWorkId } from '../lib/library/ids';
   import { reportNetwork, reportWaiting } from '../lib/connection';
-  import { loadLibrary, savedMessage, sendWhenOnline, waitingCount } from '../lib/library/library';
+  import { saveFollow } from '../lib/library/follow';
+  import { loadLibrary, savedMessage, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
   import { bookPage, statusChange, type BookPage, type Library } from '../lib/library/model';
+  import { followOnRead } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses, type ReadingStatus } from '../lib/library/reading-status';
   import { isNetworkFailure } from '../lib/network';
   import { freshListing } from '../lib/space/fresh-listing';
@@ -138,7 +140,7 @@ const choices = [
   const work = new URLSearchParams(location.search).get('work') ?? '';
   // Catalog answers kept for this visit, so an offline reload of the records keeps the titles.
   const editions = new Map<string, Edition>();
-  let library: Library = { copies: [], readingStatuses: [] };
+  let library: Library = { copies: [], readingStatuses: [], follows: [] };
   let page: BookPage | undefined;
   let renderedCopies = '';
   let sending = false;
@@ -319,8 +321,15 @@ const choices = [
     radio.addEventListener('change', () => {
       const chosen = statuses.find((status) => status === radio.value);
       if (!page || !chosen) return;
-      const change = statusChange(work, page.isbn, chosen, library, new Date());
-      if (change) void save(() => saveReadingStatus(space, change));
+      const now = new Date();
+      const change = statusChange(work, page.isbn, chosen, library, now);
+      if (!change) return;
+      // Marking a Volume read follows its Series (glossary: Followed Series).
+      const follow = followOnRead(editions.get(page.isbn), chosen, library, now);
+      void save(async () => {
+        const state = await saveReadingStatus(space, change);
+        return follow ? worstState([state, await saveFollow(space, follow)]) : state;
+      });
     });
   }
 

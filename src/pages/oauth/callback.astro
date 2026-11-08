@@ -111,78 +111,6 @@ import AppShell from '../../layouts/AppShell.astro';
     }
   }
 
-  /*
-   * The mark tells the state. Working: the books lift one after the other and
-   * the empty slot's dashes run. Done: a book lands in the slot. Failed: still,
-   * the slot stays empty.
-   */
-  .card :global(.spine),
-  .card :global(.arrival) {
-    transform-box: fill-box;
-    transform-origin: bottom;
-  }
-
-  .card :global(.arrival) {
-    opacity: 0;
-  }
-
-  [data-state='working'] :global(.spine) {
-    animation: lift 1.2s ease-in-out infinite;
-  }
-
-  [data-state='working'] :global(.spine-2) {
-    animation-delay: 0.12s;
-  }
-
-  [data-state='working'] :global(.spine-4) {
-    animation-delay: 0.36s;
-  }
-
-  [data-state='working'] :global(.slot) {
-    animation: dashes 0.9s linear infinite;
-  }
-
-  [data-state='done'] :global(.slot) {
-    opacity: 0;
-    transition: opacity 200ms ease-out;
-  }
-
-  [data-state='done'] :global(.arrival) {
-    animation: land 520ms cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
-  }
-
-  [data-state='failed'] :global(.slot) {
-    opacity: 0.45;
-  }
-
-  @keyframes lift {
-    0%,
-    60%,
-    100% {
-      transform: translateY(0);
-    }
-    30% {
-      transform: translateY(-9%);
-    }
-  }
-
-  @keyframes dashes {
-    to {
-      stroke-dashoffset: -86;
-    }
-  }
-
-  @keyframes land {
-    from {
-      opacity: 0;
-      transform: translateY(-45%);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
   @keyframes rise {
     from {
       opacity: 0;
@@ -190,18 +118,9 @@ import AppShell from '../../layouts/AppShell.astro';
     }
   }
 
-  /* Reduced motion: no movement; the book still appears in the slot. */
   @media (prefers-reduced-motion: reduce) {
-    .card,
-    [data-state='working'] :global(.spine),
-    [data-state='working'] :global(.slot) {
+    .card {
       animation: none;
-    }
-
-    [data-state='done'] :global(.arrival) {
-      animation: none;
-      opacity: 1;
-      transition: opacity 200ms;
     }
   }
 </style>

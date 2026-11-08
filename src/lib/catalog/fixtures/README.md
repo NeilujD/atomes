@@ -17,4 +17,17 @@ bun scripts/record-catalog-answers.ts 9782723478991 9782344068922 9791042021030 
 | 9780000000002 | three different books | SUDOC, Inventaire and Open Library disagree: only the first source is used |
 | 9791099999993 | none | Valid check digit, unknown to every source |
 
+The whole Edition Line of Spy x Family (Kurokawa), for the Catalog `volumes` tests, recorded on 2026-11-06 with `--fill`:
+
+```sh
+bun scripts/record-catalog-answers.ts --fill 9791042021030
+```
+
+| File | Answer |
+|---|---|
+| `bnf-search-0185efcb4147-1.xml` | BnF search `bib.title all "Spy x family" and bib.publisher all "Kurokawa"`: 25 records. Volumes 1 to 16, a second printing of Volume 11, another BnF Series with the same title, records with no Volume |
+| `inventaire-batch-a9873a9f9bba.json` | Inventaire, 15 ISBNs in one request: 12 known (titles "Spy × Family, Tome 1"…), 3 unknown |
+
+Search and batch files are named by a hash of the query (`recorded.fake.ts`).
+
 Review the diff before committing: answers change when the sources fix their data.

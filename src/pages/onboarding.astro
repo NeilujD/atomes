@@ -1,0 +1,640 @@
+---
+// Series Onboarding (glossary): after Quick Add of the first Volume of a
+// Series, the reader says which Volumes they own and have read, and whether
+// to follow the Edition Line. `?isbn=<the Edition just added>`. A Flow screen
+// (ui-direction): no sidebar or tab bar. Rules: src/lib/library/onboarding.ts.
+import Icon from '../components/Icon.astro';
+import Mark from '../components/Mark.astro';
+import AppShell from '../layouts/AppShell.astro';
+
+// Each range: type the last Volume (a long Series has 100+), or −/+ for one
+// known Volume more or less, or the shortcut for the usual answer.
+const steppers = [
+  { name: 'owned', label: 'I own Volumes 1 to', shortcut: 'All' },
+  { name: 'read', label: 'I’ve read up to', shortcut: 'Same as owned' },
+];
+---
+
+<AppShell title="Series Onboarding" flow>
+  <section class="card" data-card data-state="working" aria-labelledby="onboarding-title">
+    <!-- While the Series loads, while it saves, and when it is saved. -->
+    <div class="progress" data-progress>
+      <div class="mark-box"><Mark size={56} animated /></div>
+      <p class="hint" role="status" data-progress-text>Looking up the Series…</p>
+      <a class="button" href="/" data-progress-link hidden>Go to Home</a>
+    </div>
+
+    <form class="onboarding" data-form hidden>
+      <div class="intro">
+        <span class="tag"><Icon name="layers" size={14} />New series</span>
+        <h1 class="title" id="onboarding-title" data-heading>Which Volumes do you have?</h1>
+        <p class="hint" data-intro></p>
+      </div>
+
+      <div class="ranges">
+        {
+          steppers.map((stepper) => (
+            <div class="stepper" data-stepper={stepper.name}>
+              <div class="stepper-text">
+                <label class="stepper-label" for={`${stepper.name}-value`}>
+                  {stepper.label}
+                </label>
+                <button class="shortcut" type="button" data-shortcut>
+                  {stepper.shortcut}
+                </button>
+              </div>
+              <button class="button step" type="button" aria-label="One less" data-by="-1">
+                <Icon name="minus" />
+              </button>
+              <input
+                class="field step-value"
+                id={`${stepper.name}-value`}
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                enterkeyhint="done"
+                data-value
+              />
+              <button class="button step" type="button" aria-label="One more" data-by="1">
+                <Icon name="plus" />
+              </button>
+            </div>
+          ))
+        }
+      </div>
+
+      <div class="volumes">
+        <div class="tiles" role="group" aria-label="Volumes: tap one to say you own it or not" data-tiles></div>
+        <ul class="legend" aria-hidden="true">
+          <li><span class="tile tile-sample read owned"></span>Read</li>
+          <li><span class="tile tile-sample owned"></span>Owned, not read</li>
+          <li><span class="tile tile-sample"></span>Missing</li>
+          <li><span class="tile tile-sample read"></span>Read, not owned</li>
+        </ul>
+        <p class="hint" data-known></p>
+      </div>
+
+      <label class="follow">
+        <Icon name="bell" size={20} />
+        <span class="follow-text">
+          <span class="follow-title">Tell me when a new Volume is out</span>
+          <span class="hint" data-edition-line></span>
+        </span>
+        <input class="switch" type="checkbox" role="switch" name="follow" checked />
+      </label>
+
+      <div class="actions">
+        <a class="button button-quiet" href="/" data-skip>Skip</a>
+        <button class="button button-primary" type="submit">
+          <Icon name="check" />
+          <span>Save series</span>
+        </button>
+      </div>
+    </form>
+  </section>
+</AppShell>
+
+<script>
+  import { openOwnSpace } from '../lib/auth/browser-client';
+  import { lookupVolumes } from '../lib/catalog/client';
+  import { reportNetwork, reportWaiting } from '../lib/connection';
+  import { saveCopy } from '../lib/library/copy';
+  import { saveFollow } from '../lib/library/follow';
+  import { loadLibrary, savedMessage, waitingCount, worstState } from '../lib/library/library';
+  import { editionLabel, type Library } from '../lib/library/model';
+  import { onboardingSave, seriesOnboarding, step, typedVolume, volumeTiles, type Choices, type Onboarding } from '../lib/library/onboarding';
+  import { saveReadingStatus } from '../lib/library/reading-status';
+  import { isNetworkFailure } from '../lib/network';
+  import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+  import { toast } from '../lib/toast';
+
+  const card = document.querySelector<HTMLElement>('[data-card]')!;
+  const progress = card.querySelector<HTMLElement>('[data-progress]')!;
+  const progressText = progress.querySelector<HTMLElement>('[data-progress-text]')!;
+  const progressLink = progress.querySelector<HTMLAnchorElement>('[data-progress-link]')!;
+  const form = card.querySelector<HTMLFormElement>('[data-form]')!;
+  const tileBox = form.querySelector<HTMLElement>('[data-tiles]')!;
+  const followSwitch = form.querySelector<HTMLInputElement>('input[name="follow"]')!;
+  const saveButton = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const skip = form.querySelector<HTMLAnchorElement>('[data-skip]')!;
+
+  const isbn = new URLSearchParams(location.search).get('isbn') ?? '';
+  const bookHref = (work: string) => `/book?work=${encodeURIComponent(work)}`;
+  // Long enough to read the result; the book lands in the slot meanwhile.
+  const doneMs = matchMedia('(prefers-reduced-motion: reduce)').matches ? 900 : 1400;
+
+  let space: Space;
+  let library: Library;
+  let onboarding: Onboarding;
+  let choices: Choices;
+
+  // The flow cannot go on: say why, with a way out.
+  function stop(text: string, link = { href: '/', label: 'Go to Home' }) {
+    card.dataset.state = 'failed';
+    form.hidden = true;
+    progress.hidden = false;
+    progressText.textContent = text;
+    progressLink.href = link.href;
+    progressLink.textContent = link.label;
+    progressLink.hidden = false;
+  }
+
+  const steppers = [...form.querySelectorAll<HTMLElement>('[data-stepper]')];
+  const valueOf = (stepper: HTMLElement) => (stepper.dataset.stepper === 'owned' ? choices.ownedUpTo : choices.readUpTo);
+
+  // A new value for one range. The owned range sets the Volumes again: taps
+  // fixed the old range, so they go.
+  function setRange(stepper: HTMLElement, value: number) {
+    choices =
+      stepper.dataset.stepper === 'owned' ? { ...choices, ownedUpTo: value, tapped: new Set() } : { ...choices, readUpTo: value };
+  }
+
+  function render() {
+    for (const stepper of steppers) {
+      const value = valueOf(stepper);
+      const field = stepper.querySelector<HTMLInputElement>('[data-value]')!;
+      // Not while the reader types in it: the caret would jump.
+      if (document.activeElement !== field) field.value = String(value);
+      const [less, more] = stepper.querySelectorAll<HTMLButtonElement>('[data-by]');
+      less.disabled = value <= onboarding.steps[0];
+      more.disabled = value >= onboarding.steps.at(-1)!;
+    }
+    tileBox.replaceChildren(
+      ...volumeTiles(onboarding, library, choices).map((tile) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'tile';
+        button.classList.toggle('owned', tile.owned);
+        button.classList.toggle('read', tile.read);
+        button.textContent = String(tile.volume);
+        button.dataset.isbn = tile.isbn;
+        const state = tile.read ? (tile.owned ? 'read' : 'read, not owned') : tile.owned ? 'owned, not read' : 'missing';
+        button.setAttribute('aria-label', `Volume ${tile.volume}, ${state}${tile.kept ? ', already in your Library' : ''}`);
+        button.setAttribute('aria-pressed', String(tile.owned));
+        // A Copy already saved stays: onboarding only adds.
+        if (tile.kept) button.setAttribute('aria-disabled', 'true');
+        return button;
+      }),
+    );
+  }
+
+  for (const stepper of steppers) {
+    for (const button of stepper.querySelectorAll<HTMLButtonElement>('[data-by]')) {
+      button.addEventListener('click', () => {
+        setRange(stepper, step(onboarding.steps, valueOf(stepper), button.dataset.by === '1' ? 1 : -1));
+        render();
+      });
+    }
+    stepper.querySelector('[data-shortcut]')!.addEventListener('click', () => {
+      setRange(stepper, stepper.dataset.stepper === 'owned' ? onboarding.steps.at(-1)! : choices.ownedUpTo);
+      render();
+    });
+    const field = stepper.querySelector<HTMLInputElement>('[data-value]')!;
+    // The tiles follow the typing; the field shows the kept value when left.
+    field.addEventListener('input', () => {
+      const value = typedVolume(onboarding.steps, field.value);
+      if (value === undefined) return;
+      setRange(stepper, value);
+      render();
+    });
+    field.addEventListener('change', () => render());
+    field.addEventListener('blur', () => render());
+    // Enter leaves the field; it must not save the whole form.
+    field.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      field.blur();
+    });
+  }
+
+  tileBox.addEventListener('click', (event) => {
+    const tile = (event.target as Element).closest<HTMLButtonElement>('button.tile');
+    if (!tile?.dataset.isbn || tile.getAttribute('aria-disabled') === 'true') return;
+    const tapped = new Set(choices.tapped);
+    if (!tapped.delete(tile.dataset.isbn)) tapped.add(tile.dataset.isbn);
+    choices = { ...choices, tapped };
+    render();
+    tileBox.querySelector<HTMLButtonElement>(`[data-isbn="${tile.dataset.isbn}"]`)?.focus();
+  });
+
+  followSwitch.addEventListener('change', () => {
+    choices = { ...choices, follow: followSwitch.checked };
+  });
+
+  async function save() {
+    const plan = onboardingSave(onboarding, library, choices, new Date());
+    const done = bookHref(onboarding.anchor.work.id);
+    saveButton.disabled = true;
+    saveButton.setAttribute('aria-busy', 'true');
+    try {
+      const states: WriteState[] = [];
+      for (const copy of plan.copies) states.push((await saveCopy(space, copy)).state);
+      for (const readingStatus of plan.readingStatuses) states.push(await saveReadingStatus(space, readingStatus));
+      if (plan.follow) states.push(await saveFollow(space, plan.follow));
+      const state = worstState(states);
+      if (state === 'refused') {
+        toast(savedMessage.refused, { error: true });
+        return;
+      }
+      reportNetwork(state === 'sent');
+      reportWaiting(await waitingCount(space));
+      const added = plan.copies.length;
+      card.dataset.state = 'done';
+      form.hidden = true;
+      progress.hidden = false;
+      progressText.textContent = [
+        added === 0 ? 'Saved.' : `${added} more ${added === 1 ? 'Volume is' : 'Volumes are'} in your Library.`,
+        states.length > 0 ? savedMessage[state] : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      setTimeout(() => location.replace(done), state === 'waiting' ? doneMs * 2 : doneMs);
+    } catch (error) {
+      toast(spaceErrorMessage(error), { error: true });
+    } finally {
+      saveButton.disabled = false;
+      saveButton.removeAttribute('aria-busy');
+    }
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void save();
+  });
+
+  async function start() {
+    const own = await openOwnSpace();
+    if (!own) return stop('Sign in to add books to your Library.', { href: '/settings', label: 'Go to Settings' });
+    space = own.space;
+    let answer: Awaited<ReturnType<typeof lookupVolumes>>;
+    try {
+      const [loaded, volumes] = await Promise.all([loadLibrary(space), lookupVolumes(isbn)]);
+      library = loaded.library;
+      answer = volumes;
+      reportNetwork(!loaded.stale);
+    } catch (error) {
+      if (isNetworkFailure(error)) reportNetwork(false);
+      return stop('Could not get the Volumes of this Series. Your book is saved; try again from Quick Add later.');
+    }
+    const anchor = answer?.volumes.find((each) => each.isbn === isbn);
+    if (!anchor?.series || anchor.volume === null) {
+      return stop('The Catalog knows no Series for this book.', anchor && { href: bookHref(anchor.work.id), label: 'Open its Book page' });
+    }
+    onboarding = seriesOnboarding(anchor, answer!.volumes, library);
+    choices = onboarding.start;
+
+    const series = onboarding.series.title;
+    document.title = `${series} · Atomes`;
+    form.querySelector('[data-heading]')!.textContent = `Which Volumes of ${series} do you have?`;
+    form.querySelector('[data-intro]')!.textContent =
+      `${series}, Volume ${anchor.volume} is in your Library. Set the range, then tap a Volume to fix a gap.`;
+    const line = editionLabel(anchor);
+    form.querySelector('[data-edition-line]')!.textContent = line ? `In this edition: ${line}` : 'In the edition you just added';
+    // The Catalog knows only the Volumes someone looked up: say which, so
+    // "1 to N" does not read as N Volumes.
+    const known = onboarding.volumes.map((each) => each.volume);
+    form.querySelector('[data-known]')!.textContent =
+      `The Catalog knows ${known.length} ${known.length === 1 ? 'Volume' : 'Volumes'} of this edition yet: ${known.join(', ')}. ` +
+      'Only these get a Copy. Add the others with Quick Add.';
+    const all = form.querySelector<HTMLButtonElement>('[data-stepper="owned"] [data-shortcut]')!;
+    all.textContent = `All (${onboarding.steps.at(-1)})`;
+    followSwitch.checked = choices.follow;
+    skip.href = bookHref(anchor.work.id);
+    render();
+    progress.hidden = true;
+    form.hidden = false;
+    card.dataset.state = 'ready';
+    form.querySelector<HTMLInputElement>('#owned-value')?.focus();
+  }
+
+  start().catch((error: unknown) => stop(spaceErrorMessage(error)));
+</script>
+
+<style>
+  .card {
+    width: min(100%, 560px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .progress {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    text-align: center;
+  }
+
+  .progress[hidden],
+  .onboarding[hidden] {
+    display: none;
+  }
+
+  .mark-box {
+    display: grid;
+    place-items: center;
+    width: 104px;
+    height: 104px;
+    border-radius: 28px;
+    background: var(--surface);
+    box-shadow: 0 0 0 1px var(--line);
+    color: var(--ink);
+  }
+
+  .onboarding {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .intro {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--soft);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .title {
+    font-size: 26px;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  .hint {
+    color: var(--secondary);
+    font-size: 14px;
+    text-wrap: pretty;
+  }
+
+  .ranges {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--surface);
+  }
+
+  .stepper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .stepper-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .stepper-label {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  /* A text-size link button: the usual answer in one tap. */
+  .shortcut {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .shortcut:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .step {
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+
+  /* 3 digits at 22 px; 16 px or more, so the phone does not zoom on focus. */
+  .step-value {
+    width: 64px;
+    min-height: 44px;
+    padding: 0 4px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .volumes {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* The Volume spine motif (HANDOFF): filled = read, outlined = owned not
+     read, dashed grey = missing. Read but not owned: filled, dashed edge. */
+  .tiles :global(.tile),
+  .tile-sample {
+    width: 44px;
+    height: 44px;
+    box-sizing: border-box;
+    border: 1.5px dashed var(--off);
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--secondary);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+
+  .tiles :global(.tile.owned),
+  .tile-sample.owned {
+    border: 1.5px solid var(--ink);
+    background: var(--soft);
+    color: var(--ink);
+  }
+
+  .tiles :global(.tile.read),
+  .tile-sample.read {
+    background: var(--ink);
+    color: var(--surface);
+  }
+
+  .tiles :global(.tile.read:not(.owned)),
+  .tile-sample.read:not(.owned) {
+    border: 1.5px dashed var(--surface);
+    box-shadow: 0 0 0 1.5px var(--ink);
+  }
+
+  .tiles :global(.tile[aria-disabled='true']) {
+    cursor: default;
+  }
+
+  .tiles :global(.tile:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
+  .legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend .tile-sample {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    cursor: default;
+  }
+
+  .follow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--surface);
+    cursor: pointer;
+  }
+
+  .follow-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .follow-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .follow .hint {
+    font-size: 13px;
+  }
+
+  /* A checkbox drawn as a switch: ink when on. */
+  .switch {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 44px;
+    height: 26px;
+    margin: 0;
+    border-radius: 13px;
+    background: var(--off);
+    cursor: pointer;
+    transition: background-color 150ms;
+  }
+
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--surface);
+    transition: translate 150ms;
+  }
+
+  .switch:checked {
+    background: var(--ink);
+  }
+
+  .switch:checked::after {
+    translate: 18px 0;
+  }
+
+  .switch:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* A long Series has 100+ tiles: Skip and Save stay in view at the bottom. */
+  .actions {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 0 -20px;
+    padding: 12px 20px max(12px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--ground);
+  }
+
+  .actions .button {
+    min-height: 44px;
+    padding: 0 16px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .switch,
+    .switch::after {
+      transition: none;
+    }
+  }
+
+  /* Desktop: the screen is a card on the ground colour. */
+  @media (min-width: 960px) {
+    .card {
+      padding: 40px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface);
+    }
+
+    .title {
+      font-size: 32px;
+    }
+
+    .mark-box {
+      background: var(--ground);
+    }
+
+    .actions {
+      margin: 0 -40px -40px;
+      padding: 16px 40px;
+      border-radius: 0 0 20px 20px;
+      background: var(--surface);
+    }
+  }
+</style>

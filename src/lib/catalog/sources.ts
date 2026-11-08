@@ -3,16 +3,19 @@
 // for shared Work and Series identifiers and the cover, Open Library for a
 // cover, Series or Volume still missing. Only ISBNs leave the server, and the
 // cover URLs these sources gave.
-import { isSeriesId } from '../library/ids';
+import { isIsbn13, isSeriesId } from '../library/ids';
 import type { Facts } from './facts';
 import { volumeNumber } from './facts';
-import { recordFor, unimarcFacts, unimarcRecords } from './unimarc';
+import { isbns, publishedYear, recordFor, unimarcFacts, unimarcRecords } from './unimarc';
 
 export type SourceFetch = (url: string) => Promise<Response>;
 
 export const sourceUrls = {
   bnf: (isbn: string) =>
     `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(`bib.isbn adj "${isbn}"`)}&recordSchema=unimarcxchange&maximumRecords=10`,
+  // The Editions BnF lists under a Series title and a publisher, 50 at a time.
+  bnfSearch: (title: string, publisher: string, start: number) =>
+    `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(`bib.title all "${title}" and bib.publisher all "${publisher}"`)}&recordSchema=unimarcxchange&maximumRecords=50&startRecord=${start}`,
   sudocPpns: (isbn: string) => `https://www.sudoc.fr/services/isbn2ppn/${isbn}&format=text/json`,
   sudocRecord: (ppn: string) => `https://www.sudoc.fr/${ppn}.xml`,
   inventaire: (uri: string) => `https://inventaire.io/api/entities?action=by-uris&uris=${encodeURIComponent(uri)}`,
@@ -47,6 +50,30 @@ export async function sudoc(fetch: SourceFetch, isbn: string): Promise<Facts | u
   return undefined;
 }
 
+export interface Listed {
+  isbn: string;
+  facts: Facts;
+  year: number | undefined;
+}
+
+// Every Edition BnF lists under this Series title and publisher (spike 0002:
+// BnF is the best source of Series and Volumes), at most 500. Only the title
+// and the publisher leave the server, never an ISBN a reader asked about.
+export async function bnfSearch(fetch: SourceFetch, title: string, publisher: string): Promise<Listed[]> {
+  const listed: Listed[] = [];
+  for (let start = 1; start <= 451; start += 50) {
+    const response = await read(fetch, sourceUrls.bnfSearch(title, publisher, start));
+    if (!response) break;
+    const xml = await response.text();
+    for (const record of unimarcRecords(xml)) {
+      const isbn = isbns(record).find(isIsbn13);
+      if (isbn) listed.push({ isbn, facts: unimarcFacts(record, 'BnF'), year: publishedYear(record) });
+    }
+    if (start + 50 > Number(/numberOfRecords>(\d+)/.exec(xml)?.[1] ?? 0)) break;
+  }
+  return listed;
+}
+
 type Entity = { uri?: string; labels?: Record<string, string>; claims?: Record<string, unknown[]>; image?: { url?: string } };
 
 async function entity(fetch: SourceFetch, uri: string): Promise<Entity | undefined> {
@@ -79,6 +106,31 @@ export async function inventaire(fetch: SourceFetch, isbn: string): Promise<Fact
     series: series && seriesId ? { id: seriesId, title: label(series) } : undefined,
     volume: volumeNumber(claim(work, 'wdt:P1545')),
   };
+}
+
+// What Inventaire says about many ISBNs, 50 per request: the Work and the
+// cover, as `inventaire()` gives them, without the Work and Series details.
+export async function inventaireEditions(fetch: SourceFetch, wanted: string[]): Promise<Map<string, Facts>> {
+  const found = new Map<string, Facts>();
+  for (let i = 0; i < wanted.length; i += 50) {
+    const uris = wanted.slice(i, i + 50).map((isbn) => `isbn:${isbn}`);
+    const response = await read(fetch, sourceUrls.inventaire(uris.join('|')));
+    if (!response) continue;
+    const body = (await response.json()) as { entities?: Record<string, Entity>; redirects?: Record<string, string> };
+    for (const uri of uris) {
+      const edition = body.entities?.[uri] ?? body.entities?.[body.redirects?.[uri] ?? ''];
+      if (!edition) continue;
+      const workId = claim(edition, 'wdt:P629');
+      const image = edition.image?.url ?? (claim(edition, 'invp:P2') && `/img/entities/${claim(edition, 'invp:P2')}`);
+      found.set(uri.slice('isbn:'.length), {
+        source: 'Inventaire',
+        title: claim(edition, 'wdt:P1476'),
+        cover: image ? new URL(image, 'https://inventaire.io').href : undefined,
+        work: workId && isSeriesId(workId) ? { id: workId } : undefined,
+      });
+    }
+  }
+  return found;
 }
 
 type OpenLibraryDoc = { title?: string; cover_i?: number; series_key?: string[]; series_name?: string[]; series_position?: string[] };
