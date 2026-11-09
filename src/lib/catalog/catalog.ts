@@ -39,9 +39,10 @@ export type CoverLookup = { found: Cover } | { notFound: true } | { unavailable:
 export interface Catalog {
   lookup(isbn: string): Promise<Lookup>;
   // The Volumes of the Edition Line of `anchor` (ADR 0010), by Volume number.
-  // Only `anchor` when it has no Series. Asks BnF for the whole Edition Line
-  // at most once a week; the Volumes known so far when that fails.
-  volumes(anchor: Edition): Promise<Edition[]>;
+  // Only `anchor` when it has no Series. With `fill`, asks BnF for the whole
+  // Edition Line at most once a week; the Volumes known so far without `fill`
+  // or when that fails.
+  volumes(anchor: Edition, options: { fill: boolean }): Promise<Edition[]>;
   // The cover of the Edition, fetched once from its source and kept.
   cover(isbn: string): Promise<CoverLookup>;
   close(): void;
@@ -53,8 +54,8 @@ const editionTtlMs = 30 * 24 * 3600 * 1000;
 const missTtlMs = 24 * 3600 * 1000;
 // New Volumes come out about once a month in a Series.
 const fillTtlMs = 7 * 24 * 3600 * 1000;
-// After a failed fill, the sources rest: /volumes needs no sign-in, so each
-// call must not start a new BnF search while a source is down.
+// After a failed fill, the sources rest: each /volumes call of a signed-in
+// reader must not start a new BnF search while a source is down.
 const fillRetryMs = 3600 * 1000;
 
 // Pictures only, never SVG: it can hold scripts.
@@ -334,13 +335,13 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   return {
     lookup,
     cover,
-    async volumes(edition) {
+    async volumes(edition, { fill }) {
       const anchor = db.prepare('select edition_line from edition where isbn = ?').get(edition.isbn) as
         | { edition_line: string | null }
         | undefined;
       const line = anchor?.edition_line;
       if (!line || !edition.series) return [edition];
-      await fillOnce({ ...edition, series: edition.series }, line);
+      if (fill) await fillOnce({ ...edition, series: edition.series }, line);
       const rows = db
         .prepare(`${selectEdition} where edition.edition_line = ? order by edition.volume is null, edition.volume, edition.isbn`)
         .all(line) as EditionRow[];

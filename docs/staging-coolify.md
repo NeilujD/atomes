@@ -65,7 +65,7 @@ The GitHub App gives Coolify read access to the repository and sets the push web
    | **Dockerfile Location** | `/Dockerfile` |
    | **Ports Exposes** | `4321` |
 
-4. Leave **Ports Mappings** empty. A port published on the host goes around the proxy and the firewall.
+4. Leave **Ports Mappings** empty. A port published on the host goes around the proxy and the firewall. It would also break the ISBN lookup limit per IP (ADR 0010, "Catalog access"): the server trusts only the last `X-Forwarded-For` entry, the one the proxy adds, so it must be behind exactly one proxy. Do not put a CDN or a second proxy in front of Coolify's.
 
 ## 7. Set the hostname with HTTPS
 

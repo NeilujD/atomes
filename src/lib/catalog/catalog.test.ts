@@ -43,6 +43,10 @@ afterEach(() => {
 
 const edition = async (response: Response) => (await response.json()) as Edition;
 
+// An Edition Line fill starts only for a signed-in reader (ADR 0010, Catalog access).
+const signedIn = { fill: true };
+const signedOut = { fill: false };
+
 describe('GET /api/catalog/editions/{isbn}', () => {
   test('a miss is fetched from the sources: Edition, Work, Series and Volume', async () => {
     const { catalog } = setup();
@@ -173,7 +177,7 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
   test('lists the known Volumes of the Edition Line of the anchor ISBN', async () => {
     const { catalog } = setup();
 
-    const response = await answerVolumes(catalog, onePiece56);
+    const response = await answerVolumes(catalog, onePiece56, signedIn);
     const body = (await response.json()) as { series: Edition['series']; volumes: Edition[] };
 
     expect(response.status).toBe(200);
@@ -184,7 +188,7 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
   test('an Edition with no Series is its own only Volume', async () => {
     const { catalog } = setup();
 
-    const body = (await (await answerVolumes(catalog, horde)).json()) as { series: Edition['series']; volumes: Edition[] };
+    const body = (await (await answerVolumes(catalog, horde, signedIn)).json()) as { series: Edition['series']; volumes: Edition[] };
 
     expect(body.series).toBeNull();
     expect(body.volumes.map((v) => v.isbn)).toEqual([horde]);
@@ -194,7 +198,7 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
     const { catalog } = setup();
     await answerEdition(catalog, onePiece56);
 
-    const body = (await (await answerVolumes(catalog, onePiece112)).json()) as { series: Edition['series']; volumes: Edition[] };
+    const body = (await (await answerVolumes(catalog, onePiece112, signedIn)).json()) as { series: Edition['series']; volumes: Edition[] };
 
     // 112 has no Series link in any source: its title finds the Series that 56 brought.
     expect(body.series).toEqual({ id: 'wd:Q673', title: 'One Piece' });
@@ -207,13 +211,31 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
   test('an unknown ISBN gives a not-found answer', async () => {
     const { catalog } = setup();
 
-    expect((await answerVolumes(catalog, unknown)).status).toBe(404);
+    expect((await answerVolumes(catalog, unknown, signedIn)).status).toBe(404);
   });
 });
 
 describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)', () => {
-  const volumesOf = async (catalog: Catalog, isbn: string) =>
-    ((await (await answerVolumes(catalog, isbn)).json()) as { volumes: Edition[] }).volumes;
+  const volumesOf = async (catalog: Catalog, isbn: string, access = signedIn) =>
+    ((await (await answerVolumes(catalog, isbn, access)).json()) as { volumes: Edition[] }).volumes;
+
+  test('with no session no fill starts: the answer gives what the Catalog already has', async () => {
+    const { catalog, calls } = setup();
+
+    const volumes = await volumesOf(catalog, spyFamily16, signedOut);
+
+    expect(volumes.map((v) => v.isbn)).toEqual([spyFamily16]);
+    expect(calls.filter((url) => url.includes('bib.title'))).toEqual([]);
+  });
+
+  test('with no session the Volumes a fill brought before are given', async () => {
+    const { catalog, calls } = setup();
+    await volumesOf(catalog, spyFamily16, signedIn);
+    const searches = calls.length;
+
+    expect(await volumesOf(catalog, spyFamily16, signedOut)).toHaveLength(16);
+    expect(calls).toHaveLength(searches);
+  });
 
   test('BnF lists the Edition Line: one Edition per Volume, 1 to 16, other books left out', async () => {
     const { catalog } = setup();
