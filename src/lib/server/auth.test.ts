@@ -172,4 +172,11 @@ describe('isSameOrigin', () => {
     const request = new Request('http://127.0.0.1:4321/oauth/sign-out', { method: 'POST', headers: { origin: 'http://127.0.0.1:4321' } });
     expect(isSameOrigin(request)).toBe(true);
   });
+
+  test('in local development, the Host header wins over a request URL on localhost', () => {
+    const headers = { host: '127.0.0.1:4321', origin: 'http://127.0.0.1:4321' };
+    expect(isSameOrigin(new Request('http://localhost:4321/oauth/sign-out', { method: 'POST', headers }))).toBe(true);
+    const other = { host: '127.0.0.1:4321', origin: 'http://localhost:4321' };
+    expect(isSameOrigin(new Request('http://localhost:4321/oauth/sign-out', { method: 'POST', headers: other }))).toBe(false);
+  });
 });
