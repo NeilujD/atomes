@@ -33,15 +33,18 @@ export async function waitingCount(space: Space): Promise<number> {
 }
 
 // Sends the waiting saves until none is left: when the browser is back online,
-// on Reconnect, and every 10 s. Calls `sent` once they are all on the PDS.
+// on Reconnect, and every 10 s. Calls `sent` once, when they are all on the PDS.
 export function sendWhenOnline(space: Space, sent: () => void, failed: (error: unknown) => void): void {
+  let told = false;
   const sending = freshListing(
     async () => {
       await space.sendWaiting();
       return { stale: (await waitingCount(space)) > 0 };
     },
     ({ stale }) => {
-      if (!stale) sent();
+      if (stale || told) return;
+      told = true;
+      sent();
     },
     failed,
   );
