@@ -45,16 +45,6 @@ export function sessionCookieHeader(value: string, maxAgeSeconds: number): strin
   return `${sessionCookie}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
 }
 
-// Every request that writes must come from the app's own pages (CSRF, ADR 0013),
-// on top of SameSite=Lax. With no PUBLIC_APP_ORIGIN (local development), the
-// origin the browser asked: the Host header, since the built server can put
-// `localhost` in the request URL for any host.
-export function isSameOrigin(request: Request, appOrigin?: string): boolean {
-  const url = new URL(request.url);
-  const own = appOrigin ?? `${url.protocol}//${request.headers.get('host') ?? url.host}`;
-  return request.headers.get('origin') === own;
-}
-
 function cookieOf(request: Request): string | undefined {
   for (const part of (request.headers.get('cookie') ?? '').split(';')) {
     const [name, ...value] = part.trim().split('=');
