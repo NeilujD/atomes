@@ -11,6 +11,7 @@
         "app.atomes.copy",
         "app.atomes.follow",
         "app.atomes.label",
+        "app.atomes.loan",
         "app.atomes.readingStatus",
         "app.atomes.toBuy"
       ]
