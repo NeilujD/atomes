@@ -183,7 +183,7 @@ const answers = [
     edition?: Edition;
   }
   let book: Book | undefined;
-  let library: Library = { copies: [], readingStatuses: [], follows: [] };
+  let library: Library = { copies: [], readingStatuses: [], follows: [], loans: [] };
   let sending = false;
 
   // A problem, in the hint line; no argument puts the hint back. Only a wrong
@@ -288,7 +288,7 @@ const answers = [
       reportWaiting(await waitingCount(space));
     } catch {
       // No copy on this device and no network: the status starts at "Not yet".
-      library = { copies: [], readingStatuses: [], follows: [] };
+      library = { copies: [], readingStatuses: [], follows: [], loans: [] };
     }
     if (book !== next) return;
     // Abandoned is not an answer here: no choice keeps it.

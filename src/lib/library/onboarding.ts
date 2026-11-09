@@ -6,7 +6,7 @@
 import type { Edition } from '../catalog/catalog';
 import type { Copy } from './copy';
 import type { Follow } from './follow';
-import { currentStatus, statusChange, type Library } from './model';
+import { currentStatus, isOwned, statusChange, type Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -90,7 +90,7 @@ export function seriesOnboarding(anchor: Edition, volumes: Edition[], library: L
     volumes: numbered,
     steps: [0, ...new Set(numbered.map((each) => each.volume))],
     start: {
-      ownedUpTo: highest((each) => hasCopy(each, library)),
+      ownedUpTo: highest((each) => isOwned(each, library)),
       readUpTo: highest((each) => isRead(each, library)),
       tapped: new Set(),
       follow: true,
@@ -116,7 +116,7 @@ export function typedVolume(steps: number[], typed: string): number | undefined 
 
 export function volumeTiles(onboarding: Onboarding, library: Library, choices: Choices): Tile[] {
   return onboarding.volumes.map((each) => {
-    const kept = hasCopy(each, library);
+    const kept = isOwned(each, library);
     const inRange = each.volume <= choices.ownedUpTo;
     return {
       isbn: each.isbn,
@@ -161,10 +161,6 @@ export function followOnRead(edition: Edition | undefined, chosen: Status, libra
 
 const copyOf = (edition: Edition, { value }: Saved<Copy>) => value.isbn === edition.isbn || value.works.includes(edition.work.id);
 const statusOf = (edition: Edition, { rkey, value }: Saved<ReadingStatus>) => rkey === edition.work.id || value.isbn === edition.isbn;
-
-function hasCopy(edition: Edition, library: Library): boolean {
-  return library.copies.some((copy) => copyOf(edition, copy));
-}
 
 function isRead(edition: Edition, library: Library): boolean {
   return currentStatus(edition.work.id, library) === 'read';
