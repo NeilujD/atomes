@@ -28,7 +28,7 @@ Real Library data starts on the instance (ADR 0012), so the instance that holds 
 
 Before the first real record:
 
-- A daily backup of `library.sqlite` and `catalog.sqlite` goes off the host. One restore from it is tested. The backup method (a snapshot with `VACUUM INTO` then upload, or Litestream) and where its credentials live are still to decide.
+- A backup of `library.sqlite` and `catalog.sqlite` goes off the host at least once a day. One restore from it is tested. Decided 2026-11-09 (CORE-52): every hour, a Coolify Scheduled Task runs a command from the image. The command makes a `VACUUM INTO` snapshot of each file, encrypts it with a key that stays in Coolify and the owner's password manager, and puts it in a Cloudflare R2 bucket. The credentials and the key live in Coolify. Up to one hour of changes can be lost. Litestream was rejected: it adds a second binary and a wrapper around the image's command for every self-hoster. Steps: `docs/backups.md`.
 - Production sign-in is limited to the DID allow-list (ADR 0013).
 - The confidential client key and the token encryption key (ADR 0013) live in Coolify, like the other settings. The repository and CI still hold no secret.
 
