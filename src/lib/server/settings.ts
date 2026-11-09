@@ -38,7 +38,8 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
   const problems: string[] = [];
 
   const appOrigin = env.PUBLIC_APP_ORIGIN?.trim() || undefined;
-  if (appOrigin !== undefined && !isHttpsOrigin(appOrigin)) {
+  const httpsOrigin = appOrigin !== undefined && isHttpsOrigin(appOrigin);
+  if (appOrigin !== undefined && !httpsOrigin) {
     problems.push(`PUBLIC_APP_ORIGIN must be an https origin, for example https://atomes.example.org. Found: ${appOrigin}`);
   }
 
@@ -61,7 +62,8 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
   }
 
   const oauthPrivateKey = env.OAUTH_PRIVATE_KEY?.trim() || undefined;
-  if (appOrigin !== undefined) {
+  // Asked only once the origin is right: one problem at a time for that pair.
+  if (httpsOrigin) {
     if (!oauthPrivateKey) {
       problems.push('OAUTH_PRIVATE_KEY is not set: an https instance needs its ES256 private key as a JWK (docs/staging-coolify.md).');
     } else if (!isPrivateEs256Jwk(oauthPrivateKey)) {
