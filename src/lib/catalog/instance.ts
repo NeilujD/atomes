@@ -3,11 +3,24 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { version } from '../../../package.json';
+import { readerOf } from '../server/auth';
+import { authDeps } from '../server/instance';
+import { type CatalogAccess, createIpLimit } from './access';
 import type { Catalog } from './catalog';
 import { createCatalog } from './catalog';
 import { politeFetch } from './sources';
 
 let instance: Catalog | undefined;
+let access: Promise<CatalogAccess> | undefined;
+
+// One request per second on average for each signed-out IP address.
+export function catalogAccess(): Promise<CatalogAccess> {
+  access ??= authDeps().then((deps) => ({
+    limit: createIpLimit({ max: 60, windowMs: 60_000 }),
+    signedIn: (request) => readerOf(request, deps) !== undefined,
+  }));
+  return access;
+}
 
 export function catalog(): Catalog {
   if (!instance) {
