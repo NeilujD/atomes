@@ -58,7 +58,7 @@ describe('readSettings', () => {
   });
 
   test('never puts a secret in its message', () => {
-    const secrets = { SESSION_ENCRYPTION_KEY: 'c2hvcnQtc2VjcmV0', OAUTH_PRIVATE_KEY: '{"d":"private-part-of-the-key"}' };
+    const secrets = { SESSION_ENCRYPTION_KEY: Buffer.from('short-secret').toString('base64'), OAUTH_PRIVATE_KEY: '{"d":"private-part-of-the-key"}' };
     const message = (() => {
       try {
         readSettings({ ALLOWED_DIDS: 'did:plc:owner', PUBLIC_APP_ORIGIN: 'https://atomes.example.org', ...secrets });
