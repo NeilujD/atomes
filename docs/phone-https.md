@@ -44,6 +44,8 @@ The owner runs these steps with their own Tailscale account. Nothing here goes i
    ```
 
    A plain `curl https://$H/...` from the same Mac fails with `SSL_ERROR_SYSCALL`: MagicDNS sends the Mac to its own tailnet IP, and that path does not answer. This does not affect the phone.
+
+   The `--resolve` command can also fail with `SSL_ERROR_SYSCALL` just after `tailscale funnel` starts, while Tailscale gets the certificate. Wait a minute and run it again. If it still fails, check that `dig` gives an IP: an empty `$IP` makes curl use MagicDNS again.
 5. On the phone, open `https://<machine>.<tailnet>.ts.net`, add the app to the home screen, open it from there and sign in with the test handle. Add a book, reload: the book is still there. Sign out.
 6. Stop: `Ctrl-C` in both terminals. Check that nothing stays public: `tailscale funnel status --json` prints `{}`.
 

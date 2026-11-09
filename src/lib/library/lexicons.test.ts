@@ -4,6 +4,7 @@ import { expect, test } from 'vitest';
 import { copyCollection } from './copy';
 import { followCollection } from './follow';
 import { labelCollection } from './label';
+import { loanCollection } from './loan';
 import { readingStatusCollection } from './reading-status';
 import { toBuyCollection } from './to-buy';
 
@@ -24,13 +25,13 @@ test('every lexicon file is a valid lexicon whose id matches its path', async ()
 
 // The Space lexicon (lexicons-space/) stays out: the stable parser refuses
 // `type: "space"` (spike 0003). The server accepts these types only.
+const libraryTypes = [copyCollection, followCollection, labelCollection, loanCollection, readingStatusCollection, toBuyCollection].sort();
+
 test('the loaded lexicons are exactly the Library record types', async () => {
   const docs = (await lexiconFiles()).map(({ doc }) => doc);
 
   expect(docs.every((doc) => doc.defs.main?.type === 'record')).toBe(true);
-  expect(docs.map((doc) => doc.id).sort()).toEqual(
-    [copyCollection, followCollection, labelCollection, readingStatusCollection, toBuyCollection].sort(),
-  );
+  expect(docs.map((doc) => doc.id).sort()).toEqual(libraryTypes);
 });
 
 test('the Space lexicon, kept for the move to Spaces, lists the same record types', async () => {
@@ -38,7 +39,12 @@ test('the Space lexicon, kept for the move to Spaces, lists the same record type
     defs: { main: { collections: string[] } };
   };
 
-  expect([...space.defs.main.collections].sort()).toEqual(
-    [copyCollection, followCollection, labelCollection, readingStatusCollection, toBuyCollection].sort(),
-  );
+  expect([...space.defs.main.collections].sort()).toEqual(libraryTypes);
+});
+
+// ADR 0010, amendment 2026-11-09: Loans replace Lent To, so who has a Copy has one source.
+test('a Copy no longer says who has it: Loans do', async () => {
+  const copy = (await lexiconFiles()).find(({ doc }) => doc.id === copyCollection)?.doc.defs.main;
+
+  expect(copy?.type === 'record' && Object.keys(copy.record.properties ?? {})).not.toContain('lentTo');
 });

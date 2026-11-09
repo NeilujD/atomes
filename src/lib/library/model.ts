@@ -5,6 +5,7 @@ import { coverUrl } from '../catalog/client';
 import { pageLanguage, type Language } from '../i18n/i18n';
 import type { Copy } from './copy';
 import type { Follow } from './follow';
+import type { Loan } from './loan';
 import { statuses, type ReadingStatus, type Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -12,6 +13,7 @@ export interface Library {
   copies: Saved<Copy>[];
   readingStatuses: Saved<ReadingStatus>[];
   follows: Saved<Follow>[];
+  loans: Saved<Loan>[];
 }
 
 // Catalog answers by ISBN. An ISBN missing here is unknown to the Catalog, or
@@ -39,7 +41,10 @@ export interface BookCopy {
   isbn: string;
   // Publisher, language and format, as far as the Catalog knows them.
   edition: string;
-  lentTo: string | undefined;
+  // Who has this Copy now; undefined when the reader has it.
+  loan: { rkey: string; borrower: string; lentAt: string } | undefined;
+  // Returned Loans, latest first.
+  pastLoans: { borrower: string; lentAt: string; returnedAt: string }[];
 }
 
 // Undefined when the Work is not in the Library: no Copy and no Reading Status.
@@ -69,13 +74,47 @@ export function bookPage(work: string, library: Library, editions: Editions): Bo
     cover: edition ? coverUrl(edition) : null,
     status: readingStatus?.status ?? 'unread',
     finishedAt: readingStatus?.finishedAt,
-    copies: copies.map(({ rkey, value }) => ({
-      rkey,
-      isbn: value.isbn,
-      edition: editionLabel(editions.get(value.isbn)),
-      lentTo: value.lentTo,
-    })),
+    copies: copies.map(({ rkey, value }) => {
+      const loans = loansOf(rkey, library);
+      const open = loans.find(({ value: loan }) => loan.returnedAt === undefined);
+      return {
+        rkey,
+        isbn: value.isbn,
+        edition: editionLabel(editions.get(value.isbn)),
+        loan: open && { rkey: open.rkey, borrower: open.value.borrower, lentAt: open.value.lentAt },
+        pastLoans: loans.flatMap(({ value: { borrower, lentAt, returnedAt } }) => (returnedAt ? [{ borrower, lentAt, returnedAt }] : [])),
+      };
+    }),
   };
+}
+
+// The Loans of one Copy, latest first: its history, and at most one open
+// Loan to show (two devices may each have opened one).
+export function loansOf(copy: string, library: Library): Saved<Loan>[] {
+  return library.loans
+    .filter(({ value }) => value.copy === copy)
+    .sort((a, b) => b.value.lentAt.localeCompare(a.value.lentAt) || b.rkey.localeCompare(a.rkey));
+}
+
+// The Loan to save when the reader lends a Copy: open, from now.
+export function lend(copy: string, borrower: string, now: Date): Loan {
+  return { copy, borrower: borrower.trim(), lentAt: now.toISOString(), createdAt: now.toISOString() };
+}
+
+// The Loans to save when a Copy comes back: each open one gets its return date.
+export function returnLoans(copy: string, library: Library, now: Date): Saved<Loan>[] {
+  return library.loans
+    .filter(({ value }) => value.copy === copy && value.returnedAt === undefined)
+    .map(({ rkey, value }) => ({ rkey, value: { ...value, returnedAt: now.toISOString() } }));
+}
+
+// The one rule for "the reader owns this Work" (ADR 0010, amendment
+// 2026-11-09), used by Owned-Unread, Missing Volumes, To Buy and Series
+// counts: a Copy contains the Work, or is this Edition (saved as `isbn:`
+// before the Catalog knew its Work). A lent Copy is still owned. When a Copy
+// gets an end date, a Copy with one stops counting here.
+export function isOwned(edition: Pick<Edition, 'isbn' | 'work'>, library: Library): boolean {
+  return library.copies.some(({ value }) => value.isbn === edition.isbn || value.works.includes(edition.work.id));
 }
 
 // The Reading Status to save when the reader picks `chosen` for a Work, or

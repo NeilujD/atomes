@@ -101,20 +101,36 @@ const choices = [
           <span>{t('book.remove')}</span>
         </button>
       </div>
-      <form class="lent" data-lent>
-        <label class="lent-field">
-          <span class="label">{t('book.lent-to')}</span>
+      <!-- An open Loan: who has the Copy, since when. -->
+      <div class="loan" data-loan hidden>
+        <p class="loan-text">
+          <Icon name="handshake" />
+          <span data-loan-text></span>
+        </p>
+        <button class="button" type="button" data-return>
+          <Icon name="check" />
+          <span>{t('book.mark-returned')}</span>
+        </button>
+      </div>
+      <form class="lend" data-lend>
+        <label class="lend-field">
+          <span class="label">{t('book.lend-to')}</span>
           <input
             class="field"
-            name="lentTo"
+            name="borrower"
             type="text"
+            required
             maxlength="64"
             autocomplete="off"
-            placeholder={t('book.lent-to-placeholder')}
+            placeholder={t('book.borrower-placeholder')}
           />
         </label>
-        <button class="button" type="submit">{t('book.save')}</button>
+        <button class="button" type="submit" data-lend-button>{t('book.lend')}</button>
       </form>
+      <details class="past-loans" data-past-loans hidden>
+        <summary class="hint" data-past-loans-title></summary>
+        <ul class="past-loan-list" data-past-loan-list></ul>
+      </details>
     </li>
   </template>
 </AppShell>
@@ -123,13 +139,14 @@ const choices = [
   import { openOwnSpace } from '../lib/auth/server-client';
   import type { Edition } from '../lib/catalog/catalog';
   import { lookupEditions } from '../lib/catalog/client';
-  import { deleteCopy, saveCopy, type Copy } from '../lib/library/copy';
+  import { deleteCopy } from '../lib/library/copy';
   import { isEditionWork, isWorkId } from '../lib/library/ids';
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { saveFollow } from '../lib/library/follow';
-  import { t } from '../lib/i18n/i18n';
+  import { pageLanguage, t } from '../lib/i18n/i18n';
   import { loadLibrary, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
-  import { bookPage, statusChange, type BookPage, type Library } from '../lib/library/model';
+  import { deleteLoan, saveLoan } from '../lib/library/loan';
+  import { bookPage, lend, loansOf, returnLoans, statusChange, type BookPage, type Library } from '../lib/library/model';
   import { followOnRead } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses, type ReadingStatus } from '../lib/library/reading-status';
   import { isNetworkFailure } from '../lib/network';
@@ -151,7 +168,7 @@ const choices = [
   const work = new URLSearchParams(location.search).get('work') ?? '';
   // Catalog answers kept for this visit, so an offline reload of the records keeps the titles.
   const editions = new Map<string, Edition>();
-  let library: Library = { copies: [], readingStatuses: [], follows: [] };
+  let library: Library = { copies: [], readingStatuses: [], follows: [], loans: [] };
   let page: BookPage | undefined;
   let renderedCopies = '';
   let sending = false;
@@ -240,7 +257,7 @@ const choices = [
     finishedAt.value = page.finishedAt?.slice(0, 10) ?? '';
 
     article.querySelector<HTMLElement>('[data-no-copies]')!.hidden = page.copies.length > 0;
-    // Rebuilt only when they change: a reload while offline must not clear a Lent To being typed.
+    // Rebuilt only when they change: a reload while offline must not clear a name being typed.
     const copies = JSON.stringify(page.copies);
     if (copies !== renderedCopies) {
       renderedCopies = copies;
@@ -253,17 +270,50 @@ const choices = [
     const row = copyTemplate.content.firstElementChild!.cloneNode(true) as HTMLLIElement;
     row.querySelector('[data-edition]')!.textContent = copy.edition || t('book.edition-unknown');
     row.querySelector('[data-isbn]')!.textContent = t('book.isbn', copy.isbn);
-    const input = row.querySelector<HTMLInputElement>('input[name="lentTo"]')!;
-    input.value = copy.lentTo ?? '';
-    const lent = row.querySelector<HTMLFormElement>('[data-lent]')!;
-    lent.addEventListener('submit', (event) => {
+    // Lent: who has it and Mark returned. Not lent: the Lend form.
+    const loan = row.querySelector<HTMLElement>('[data-loan]')!;
+    const lendForm = row.querySelector<HTMLFormElement>('[data-lend]')!;
+    loan.hidden = !copy.loan;
+    lendForm.hidden = !!copy.loan;
+    if (copy.loan) {
+      loan.querySelector('[data-loan-text]')!.textContent = t('book.lent', copy.loan.borrower, shortDate(copy.loan.lentAt));
+      const back = loan.querySelector<HTMLButtonElement>('[data-return]')!;
+      back.setAttribute('aria-label', t('book.mark-returned-copy', copy.isbn));
+      back.addEventListener('click', () => void save(() => markReturned(copy.rkey), back));
+    }
+    const input = lendForm.querySelector<HTMLInputElement>('input[name="borrower"]')!;
+    lendForm.querySelector('[data-lend-button]')!.setAttribute('aria-label', t('book.lend-copy', copy.isbn));
+    lendForm.addEventListener('submit', (event) => {
       event.preventDefault();
-      void save(() => lend(copy.rkey, input.value.trim()), lent.querySelector('button'));
+      if (!input.value.trim()) {
+        input.focus();
+        return;
+      }
+      void save(
+        async () => (await saveLoan(space, lend(copy.rkey, input.value, new Date()))).state,
+        lendForm.querySelector('button'),
+      );
     });
+
+    const past = row.querySelector<HTMLDetailsElement>('[data-past-loans]')!;
+    past.hidden = copy.pastLoans.length === 0;
+    past.querySelector('[data-past-loans-title]')!.textContent = t('book.past-loans', copy.pastLoans.length);
+    past.querySelector('[data-past-loan-list]')!.replaceChildren(
+      ...copy.pastLoans.map(({ borrower, lentAt, returnedAt }) => {
+        const item = document.createElement('li');
+        item.textContent = t('book.past-loan', borrower, shortDate(lentAt), shortDate(returnedAt));
+        return item;
+      }),
+    );
+
     const remove = row.querySelector<HTMLButtonElement>('[data-remove]')!;
     remove.setAttribute('aria-label', t('book.remove-copy', copy.isbn));
-    remove.addEventListener('click', () => void save((space) => deleteCopy(space, copy.rkey), remove));
+    remove.addEventListener('click', () => void save(() => removeCopy(copy.rkey), remove));
     return row;
+  }
+
+  function shortDate(iso: string): string {
+    return new Intl.DateTimeFormat(pageLanguage(), { dateStyle: 'medium' }).format(new Date(iso));
   }
 
   // Set by start(): the open Space and its listing.
@@ -315,13 +365,15 @@ const choices = [
     );
   }
 
-  async function lend(rkey: string, name: string) {
-    const saved = library.copies.find((copy) => copy.rkey === rkey);
-    if (!saved) return undefined;
-    const copy: Copy = { ...saved.value };
-    if (name) copy.lentTo = name;
-    else delete copy.lentTo;
-    return (await saveCopy(space, copy, rkey)).state;
+  async function markReturned(copy: string) {
+    const states = await Promise.all(returnLoans(copy, library, new Date()).map(async ({ rkey, value }) => (await saveLoan(space, value, rkey)).state));
+    return worstState(states);
+  }
+
+  // A removed Copy takes its Loans with it: they hold names of people who are not readers.
+  async function removeCopy(copy: string) {
+    const loans = await Promise.all(loansOf(copy, library).map(({ rkey }) => deleteLoan(space, rkey)));
+    return worstState([...loans, await deleteCopy(space, copy)]);
   }
 
   function readingStatus(): ReadingStatus | undefined {
@@ -590,22 +642,54 @@ const choices = [
     min-width: 0;
   }
 
-  .lent {
+  .loan,
+  .lend {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
   }
 
-  .lent-field {
+  .loan[hidden],
+  .lend[hidden],
+  .past-loans[hidden] {
+    display: none;
+  }
+
+  .loan-text {
+    flex: 1 1 200px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .lend-field {
     flex: 1 1 200px;
     display: flex;
     align-items: center;
     gap: 8px;
   }
 
-  .lent-field .field {
+  .lend-field .field {
     flex: 1;
+    min-width: 0;
+  }
+
+  .past-loans summary {
+    cursor: pointer;
+  }
+
+  .past-loan-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
   }
 
   /* Desktop: cover at the left, the rest beside it; the title is content (ui-direction: Detail). */
@@ -659,7 +743,7 @@ const choices = [
       border-top: 0;
     }
 
-    .lent-field {
+    .lend-field {
       flex: 0 1 320px;
     }
   }
