@@ -45,3 +45,8 @@ jobs:
           done
           docker logs atomes
           exit 1
+      - name: The backup command loads in the image and asks for its settings
+        run: |
+          if out=$(docker run --rm atomes:ci node dist/backup.mjs backup 2>&1); then exit 1; fi
+          echo "$out"
+          echo "$out" | grep -q 'missing settings: BACKUP_S3_ENDPOINT'

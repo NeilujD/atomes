@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "node --env-file-if-exists=.env.local node_modules/astro/bin/astro.mjs dev --host 127.0.0.1",
-    "build": "astro build",
+    "build": "astro build && bun build src/lib/backup/cli.ts --target=node --outfile=dist/backup.mjs",
     "preview": "astro preview",
     "phone": "node --env-file=.env.phone scripts/check-settings.ts && astro build && HOST=127.0.0.1 PORT=4321 node --env-file=.env.phone dist/server/entry.mjs",
     "check": "astro check",

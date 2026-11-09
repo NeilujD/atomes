@@ -156,7 +156,7 @@ Coolify builds on the push, not on the CI result. `protect-main` only merges a p
 ## Rules and pitfalls
 
 - No secret in the repository or in CI. The GitHub App key, the webhook secret, `SESSION_ENCRYPTION_KEY` and `OAUTH_PRIVATE_KEY` stay in Coolify, `APP_KEY` and copies of the two keys in your password manager.
-- The volume lives on this host only and is not a backup. Set up volume backups before a production instance.
+- The volume lives on this host only and is not a backup. Production backs up to R2 every hour: `docs/backups.md`.
 - A failed health check fails the deploy. With rolling updates off, the old container is already stopped, so staging stays down until a good deploy. Read the deployment log, fix on a branch, merge again.
 - Keep the phone on one origin from sign-in to callback: the DPoP key, PKCE verifier and state are stored per origin. A staging sign-in does not carry over to a Funnel hostname.
 - If the certificate does not come, check DNS first (`dig +short staging.<domain> A`), then that `80` and `443` reach the host ([Let's Encrypt not working](https://coolify.io/docs/troubleshoot/dns-and-domains/lets-encrypt-not-working)).
