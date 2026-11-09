@@ -35,29 +35,29 @@ export const fr: typeof en = {
   'status.abandoned': 'Abandonné',
 
   // What became of a save (src/lib/library/library.ts)
-  'saved.sent': 'Enregistré sur votre PDS.',
-  'saved.waiting': 'En attente : enregistré sur cet appareil. Il part sur votre PDS dès que votre PDS est joignable.',
-  'saved.refused': 'Votre PDS a refusé cette modification : elle n’est pas enregistrée.',
+  'saved.sent': 'Enregistré dans votre bibliothèque.',
+  'saved.waiting': 'En attente : enregistré sur cet appareil. Il part dans votre bibliothèque dès que le serveur Atomes est joignable.',
+  'saved.refused': 'Le serveur Atomes a refusé cette modification : elle n’est pas enregistrée.',
 
   // Errors (src/lib/space/space.ts, src/lib/auth/session.ts)
   'error.server-unreachable': 'Impossible de joindre ce serveur Atomes. Vérifiez votre connexion et réessayez.',
-  'error.pds-unreachable': 'Impossible de joindre votre PDS. Vérifiez votre connexion et réessayez.',
-  'error.server-not-set-up': 'Ce serveur Atomes est mal configuré. Prévenez son propriétaire.',
+  'error.server-problem': (detail) => `Le serveur Atomes a un problème (${detail}). Réessayez plus tard.`,
   'error.pds-refused-request': (detail) => `Votre PDS a refusé la requête : ${detail}`,
   'error.pds-problem': (detail) => `Votre PDS a un problème (${detail}). Réessayez plus tard.`,
-  'error.space-failed': 'Un problème est survenu avec votre espace privé. Réessayez.',
+  'error.space-failed': 'Un problème est survenu avec votre bibliothèque. Réessayez.',
 
   // Sign-in (src/lib/auth/session.ts)
   'auth.type-handle': 'Saisissez votre identifiant, par exemple alice.bsky.social.',
   'auth.signed-out-data-left':
     'Déconnecté, mais certaines de vos données n’ont pas pu être effacées de cet appareil. Effacez les données de ce site dans le navigateur.',
-  'auth.signed-out-pds-unreached': 'Déconnecté sur cet appareil. Votre PDS n’a pas pu être joint pour y fermer la session.',
+  'auth.signed-out-server-unreached':
+    'Déconnecté sur cet appareil. Le serveur Atomes n’a pas pu être joint pour y fermer la session.',
   'auth.cancelled': 'La connexion a été annulée.',
-  'auth.pds-refused': (detail) => `Votre PDS a refusé la connexion : ${detail}`,
+  'auth.not-allowed': 'Ce compte ne peut pas se connecter à ce serveur Atomes. Demandez à son propriétaire de l’ajouter.',
+  'error.server-refused-request': (detail) => `Le serveur Atomes a refusé la requête : ${detail}`,
   'auth.session-ended': 'Votre session est terminée. Reconnectez-vous.',
-  'auth.server-not-set-up':
-    'Ce serveur Atomes n’est pas configuré pour la connexion. Son propriétaire doit régler PUBLIC_APP_ORIGIN sur son origine https.',
   'auth.no-account': 'Aucun compte trouvé pour cet identifiant. Vérifiez l’orthographe.',
+  'auth.pds-unreachable': 'Impossible de joindre votre PDS. Réessayez plus tard.',
   'auth.failed': 'La connexion a échoué. Réessayez.',
 
   // ISBN and camera problems (src/lib/library/ids.ts, src/lib/scan/barcode.ts)
@@ -106,15 +106,6 @@ export const fr: typeof en = {
   'language.fr': 'Français',
   'language.en': 'English',
 
-  // Sign-in callback
-  'callback.title': 'Connexion',
-  'callback.finishing': 'Fin de la connexion',
-  'callback.opening': 'Ouverture de votre espace privé sur votre PDS.',
-  'callback.back': 'Retour aux réglages',
-  'callback.signed-in': 'Connecté',
-  'callback.welcome': (handle) => `Bienvenue, @${handle}. Votre bibliothèque est privée, sur votre PDS.`,
-  'callback.failed': 'Connexion impossible',
-
   // Quick Add
   'add.title': 'Ajouter à votre bibliothèque',
   'add.scan': 'Scanner le code-barres',
@@ -132,7 +123,7 @@ export const fr: typeof en = {
   'add.field-volume': 'Tome',
   'add.read-question': 'L’avez-vous lu ?',
   'add.private': 'Privé',
-  'add.private-hint': 'Personne d’autre que vous ne voit ce livre. Il est enregistré dans votre propre espace, sur votre PDS.',
+  'add.private-hint': 'Personne d’autre que vous ne voit ce livre. Il est privé, enregistré sur ce serveur Atomes.',
   'add.submit': 'Ajouter à la bibliothèque',
   'add.sources-down': 'Les sources de livres ne répondent pas. Réessayez plus tard.',
   'add.lookup-unreachable': 'Impossible de joindre Atomes pour rechercher le livre. Vérifiez votre connexion et réessayez.',

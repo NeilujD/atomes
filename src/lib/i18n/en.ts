@@ -35,29 +35,29 @@ export const en = {
   'status.abandoned': 'Abandoned',
 
   // What became of a save (src/lib/library/library.ts)
-  'saved.sent': 'Saved to your PDS.',
-  'saved.waiting': 'Waiting: saved on this device. It goes to your PDS as soon as your PDS can be reached.',
-  'saved.refused': 'Your PDS refused this change, so it is not saved.',
+  'saved.sent': 'Saved to your Library.',
+  'saved.waiting': 'Waiting: saved on this device. It goes to your Library as soon as the Atomes server can be reached.',
+  'saved.refused': 'The Atomes server refused this change, so it is not saved.',
 
   // Errors (src/lib/space/space.ts, src/lib/auth/session.ts)
   'error.server-unreachable': 'Could not reach this Atomes server. Check your connection and try again.',
-  'error.pds-unreachable': 'Could not reach your PDS. Check your connection and try again.',
-  'error.server-not-set-up': 'This Atomes server is not set up correctly. Tell its owner.',
+  'error.server-refused-request': (detail: string) => `The Atomes server refused the request: ${detail}`,
+  'error.server-problem': (detail: string) => `The Atomes server has a problem (${detail}). Try again later.`,
   'error.pds-refused-request': (detail: string) => `Your PDS refused the request: ${detail}`,
   'error.pds-problem': (detail: string) => `Your PDS has a problem (${detail}). Try again later.`,
-  'error.space-failed': 'Something went wrong with your private Space. Try again.',
+  'error.space-failed': 'Something went wrong with your Library. Try again.',
 
   // Sign-in (src/lib/auth/session.ts)
   'auth.type-handle': 'Type your handle, for example alice.bsky.social.',
   'auth.signed-out-data-left':
     'Signed out, but some of your data could not be removed from this device. Clear this site’s data in the browser.',
-  'auth.signed-out-pds-unreached': 'Signed out on this device. Your PDS could not be reached to end the session there.',
+  'auth.signed-out-server-unreached':
+    'Signed out on this device. The Atomes server could not be reached to end the session there.',
   'auth.cancelled': 'Sign-in was cancelled.',
-  'auth.pds-refused': (detail: string) => `Your PDS refused the sign-in: ${detail}`,
+  'auth.not-allowed': 'This account may not sign in to this Atomes server. Ask its owner to add it.',
   'auth.session-ended': 'Your session has ended. Sign in again.',
-  'auth.server-not-set-up':
-    'This Atomes server is not set up for sign-in. Its owner must set PUBLIC_APP_ORIGIN to its https origin.',
   'auth.no-account': 'No account found for this handle. Check the spelling.',
+  'auth.pds-unreachable': 'Could not reach your PDS. Try again later.',
   'auth.failed': 'Sign-in failed. Try again.',
 
   // ISBN and camera problems (src/lib/library/ids.ts, src/lib/scan/barcode.ts)
@@ -106,15 +106,6 @@ export const en = {
   'language.fr': 'Français',
   'language.en': 'English',
 
-  // Sign-in callback
-  'callback.title': 'Signing in',
-  'callback.finishing': 'Finishing sign-in',
-  'callback.opening': 'Opening your private Space on your PDS.',
-  'callback.back': 'Back to Settings',
-  'callback.signed-in': 'Signed in',
-  'callback.welcome': (handle: string) => `Welcome, @${handle}. Your Library is private, on your PDS.`,
-  'callback.failed': 'Could not sign in',
-
   // Quick Add
   'add.title': 'Add to your Library',
   'add.scan': 'Scan the barcode',
@@ -132,7 +123,7 @@ export const en = {
   'add.field-volume': 'Volume',
   'add.read-question': 'Have you read it?',
   'add.private': 'Private',
-  'add.private-hint': 'Only you can see this book. It is saved in your own Space, on your PDS.',
+  'add.private-hint': 'Only you can see this book. It is Private, saved on this Atomes server.',
   'add.submit': 'Add to Library',
   'add.sources-down': 'The book sources do not answer. Try again later.',
   'add.lookup-unreachable': 'Could not reach Atomes to look up the book. Check your connection and try again.',

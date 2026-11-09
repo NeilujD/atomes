@@ -3,8 +3,9 @@ dist/
 # generated types
 .astro/
 
-# local Catalog SQLite file (DATA_DIR in development)
+# local SQLite files (DATA_DIR in development and in phone tests)
 data/
+data-phone/
 
 # dependencies
 node_modules/

@@ -8,10 +8,10 @@
     "node": ">=22.23.4"
   },
   "scripts": {
-    "dev": "astro dev --host 127.0.0.1",
+    "dev": "node --env-file-if-exists=.env.local node_modules/astro/bin/astro.mjs dev --host 127.0.0.1",
     "build": "astro build && bun build src/lib/backup/cli.ts --target=node --outfile=dist/backup.mjs",
     "preview": "astro preview",
-    "phone": "bun --env-file=.env.local scripts/check-app-origin.ts && astro build &&HOST=127.0.0.1 PORT=4321 node --env-file=.env.local dist/server/entry.mjs",
+    "phone": "node --env-file=.env.phone scripts/check-settings.ts && astro build && HOST=127.0.0.1 PORT=4321 node --env-file=.env.phone dist/server/entry.mjs",
     "check": "astro check",
     "test": "vitest run",
     "lint": "eslint .",
@@ -19,8 +19,8 @@
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",
-    "@atproto/lexicon": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto/oauth-client-browser": "0.0.0-spaces-alpha-20261029171913",
+    "@atproto/lexicon": "^0.7.19",
+    "@atproto/oauth-client-node": "^0.5.16",
     "@fontsource-variable/schibsted-grotesk": "^5.3.0",
     "@lucide/astro": "^1.68.0",
     "astro": "^7.4.5",
@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
-    "@atproto/syntax": "0.0.0-spaces-alpha-20261029171913",
+    "@atproto/syntax": "^0.7.7",
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.5",
     "eslint": "^10.14.0",
@@ -38,19 +38,5 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^5.1.0"
-  },
-  "overrides": {
-    "@atproto-labs/did-resolver": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto-labs/handle-resolver": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto-labs/identity-resolver": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto/common-web": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto/did": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto/lex-data": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto/lex-json": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto/lexicon": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto/oauth-client": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto/oauth-types": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto/syntax": "0.0.0-spaces-alpha-20261029171913",
-    "@atproto/xrpc": "0.0.0-spaces-alpha-20261029171913"
   }
 }
