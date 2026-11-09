@@ -13,12 +13,12 @@ describe('Copy records', () => {
   test('a saved Copy matches its lexicon and reads back with its key', async () => {
     const { space, stored } = memorySpace();
 
-    const { rkey } = await saveCopy(space, { ...onePiece56, lentTo: 'Sam', acquiredAt: '2026-10-01T00:00:00.000Z' });
+    const { rkey } = await saveCopy(space, { ...onePiece56, acquiredAt: '2026-10-01T00:00:00.000Z' });
 
     const [record] = stored(copyCollection);
     expect(() => lexicons.assertValidRecord(copyCollection, record.value)).not.toThrow();
     expect((await listCopies(space)).records).toEqual([
-      { rkey, value: { $type: copyCollection, ...onePiece56, lentTo: 'Sam', acquiredAt: '2026-10-01T00:00:00.000Z' } },
+      { rkey, value: { $type: copyCollection, ...onePiece56, acquiredAt: '2026-10-01T00:00:00.000Z' } },
     ]);
   });
 

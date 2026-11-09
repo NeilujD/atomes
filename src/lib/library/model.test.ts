@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
 import type { Copy } from './copy';
-import { bookPage, statusChange, type Library } from './model';
+import type { Loan } from './loan';
+import { bookPage, isOwned, lend, returnLoans, statusChange, type Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -27,7 +28,7 @@ const copy = (rkey: string, change: Partial<Copy> = {}): Saved<Copy> => ({
   value: { isbn: onePiece56.isbn, works: [work], createdAt: '2026-11-05T10:00:00.000Z', ...change },
 });
 
-const library = (change: Partial<Library> = {}): Library => ({ copies: [], readingStatuses: [], follows: [], ...change });
+const library = (change: Partial<Library> = {}): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], ...change });
 const catalog = new Map([[onePiece56.isbn, onePiece56]]);
 
 describe('Book page', () => {
@@ -44,7 +45,7 @@ describe('Book page', () => {
       cover: '/api/catalog/editions/9782723478991/cover',
       status: 'unread',
       finishedAt: undefined,
-      copies: [{ rkey: '3m2a', isbn: onePiece56.isbn, edition: 'Glénat · French · 18 x 12 cm', lentTo: undefined }],
+      copies: [{ rkey: '3m2a', isbn: onePiece56.isbn, edition: 'Glénat · French · 18 x 12 cm', loan: undefined, pastLoans: [] }],
     });
   });
 
@@ -71,15 +72,16 @@ describe('Book page', () => {
       work,
       library({
         copies: [
-          copy('3m2c', { createdAt: '2026-11-06T10:00:00.000Z', lentTo: 'Camille' }),
+          copy('3m2c', { createdAt: '2026-11-06T10:00:00.000Z' }),
           copy('3m2a'),
           copy('3m2b', { works: ['wd:Q190192'], isbn: '9782266320542' }),
         ],
+        loans: [loan('l1', '3m2c', 'Camille', '2026-11-07T10:00:00.000Z')],
       }),
       catalog,
     );
 
-    expect(page?.copies.map(({ rkey, lentTo }) => [rkey, lentTo])).toEqual([
+    expect(page?.copies.map(({ rkey, loan }) => [rkey, loan?.borrower])).toEqual([
       ['3m2a', undefined],
       ['3m2c', 'Camille'],
     ]);
@@ -136,7 +138,7 @@ describe('Book page', () => {
       cover: null,
       status: 'read',
       finishedAt: '2026-11-06T00:00:00.000Z',
-      copies: [{ rkey: '3m2a', isbn, edition: '', lentTo: undefined }],
+      copies: [{ rkey: '3m2a', isbn, edition: '', loan: undefined, pastLoans: [] }],
     });
   });
 
@@ -144,6 +146,91 @@ describe('Book page', () => {
     expect(bookPage(work, library({ copies: [copy('3m2b', { works: ['wd:Q190192'] })] }), catalog)).toBeUndefined();
   });
 });
+
+describe('Loans', () => {
+  const now = new Date('2026-11-12T09:00:00.000Z');
+  const copies = (page: ReturnType<typeof bookPage>) => page?.copies.map(({ rkey, loan, pastLoans }) => ({ rkey, loan, pastLoans }));
+
+  test('an open Loan shows the Copy as lent, to whom and since when', () => {
+    const lent = library({ copies: [copy('3m2a')], loans: [loan('l1', '3m2a', 'Camille', '2026-11-03T10:00:00.000Z')] });
+
+    expect(copies(bookPage(work, lent, catalog))).toEqual([
+      { rkey: '3m2a', loan: { rkey: 'l1', borrower: 'Camille', lentAt: '2026-11-03T10:00:00.000Z' }, pastLoans: [] },
+    ]);
+  });
+
+  test('returned Loans stay as the Copy history, latest first; the Copy is back', () => {
+    const back = library({
+      copies: [copy('3m2a')],
+      loans: [
+        loan('l1', '3m2a', 'Camille', '2026-09-01T10:00:00.000Z', '2026-09-20T10:00:00.000Z'),
+        loan('l2', '3m2a', 'Sam', '2026-10-01T10:00:00.000Z', '2026-10-15T10:00:00.000Z'),
+      ],
+    });
+
+    expect(copies(bookPage(work, back, catalog))).toEqual([
+      {
+        rkey: '3m2a',
+        loan: undefined,
+        pastLoans: [
+          { borrower: 'Sam', lentAt: '2026-10-01T10:00:00.000Z', returnedAt: '2026-10-15T10:00:00.000Z' },
+          { borrower: 'Camille', lentAt: '2026-09-01T10:00:00.000Z', returnedAt: '2026-09-20T10:00:00.000Z' },
+        ],
+      },
+    ]);
+  });
+
+  test('Loans of another Copy are not shown on this one', () => {
+    const other = library({ copies: [copy('3m2a')], loans: [loan('l1', '3m2z', 'Camille', '2026-11-03T10:00:00.000Z')] });
+
+    expect(copies(bookPage(work, other, catalog))).toEqual([{ rkey: '3m2a', loan: undefined, pastLoans: [] }]);
+  });
+
+  test('lending a Copy opens a Loan from now, with the name trimmed', () => {
+    expect(lend('3m2a', '  Camille ', now)).toEqual({
+      copy: '3m2a',
+      borrower: 'Camille',
+      lentAt: '2026-11-12T09:00:00.000Z',
+      createdAt: '2026-11-12T09:00:00.000Z',
+    });
+  });
+
+  test('marking a Copy returned closes its open Loans (two devices may each have opened one), not the past ones', () => {
+    const past = loan('l1', '3m2a', 'Sam', '2026-10-01T10:00:00.000Z', '2026-10-15T10:00:00.000Z');
+    const open = [loan('l2', '3m2a', 'Camille', '2026-11-03T10:00:00.000Z'), loan('l3', '3m2a', 'Camille', '2026-11-03T10:05:00.000Z')];
+    const lent = library({ copies: [copy('3m2a')], loans: [past, ...open, loan('l4', '3m2z', 'Lou', '2026-11-01T10:00:00.000Z')] });
+
+    expect(returnLoans('3m2a', lent, now)).toEqual(open.map(({ rkey, value }) => ({ rkey, value: { ...value, returnedAt: '2026-11-12T09:00:00.000Z' } })));
+  });
+});
+
+describe('Is owned', () => {
+  test('a Work is owned when the reader has a Copy that contains it', () => {
+    expect(isOwned(onePiece56, library({ copies: [copy('3m2a')] }))).toBe(true);
+    expect(isOwned(onePiece56, library({ copies: [copy('3m2a', { works: ['wd:Q1', work], isbn: '9782344068922' })] }))).toBe(true);
+  });
+
+  test('a lent Copy is still owned', () => {
+    const lent = library({ copies: [copy('3m2a')], loans: [loan('l1', '3m2a', 'Camille', '2026-11-03T10:00:00.000Z')] });
+
+    expect(isOwned(onePiece56, lent)).toBe(true);
+  });
+
+  test('a Copy of this Edition saved before the Catalog knew its Work makes the Work owned', () => {
+    const typed = copy('3m2a', { works: [`isbn:${onePiece56.isbn}`] });
+
+    expect(isOwned(onePiece56, library({ copies: [typed] }))).toBe(true);
+  });
+
+  test('read with no Copy (borrowed), or a Copy of another Work, is not owned', () => {
+    expect(isOwned(onePiece56, library({ readingStatuses: [status('read')] }))).toBe(false);
+    expect(isOwned(onePiece56, library({ copies: [copy('3m2b', { works: ['wd:Q190192'], isbn: '9782266320542' })] }))).toBe(false);
+  });
+});
+
+function loan(rkey: string, copyKey: string, borrower: string, lentAt: string, returnedAt?: string): Saved<Loan> {
+  return { rkey, value: { copy: copyKey, borrower, lentAt, ...(returnedAt ? { returnedAt } : {}), createdAt: lentAt } };
+}
 
 describe('Reading Status change', () => {
   const now = new Date('2026-11-07T08:00:00.000Z');

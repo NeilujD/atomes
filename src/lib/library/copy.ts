@@ -18,7 +18,6 @@ export interface Copy {
   isbn: string;
   // Works this Copy contains; several for an omnibus.
   works: string[];
-  lentTo?: string;
   acquiredAt?: string;
   details?: BookDetails;
   createdAt: string;
