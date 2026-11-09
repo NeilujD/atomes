@@ -15,6 +15,7 @@ import {
   UnavailableError,
   type FetchHandler,
   type Space,
+  type StaleWrite,
 } from './space';
 import type { FakeStoreServer } from './store-server.fake';
 
@@ -236,7 +237,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
       expect(await store.delete(collection, keys[0])).toBe('waiting');
 
       expect(textsOf((await store.list(collection)).records)).toEqual(['two']);
-      expect(await store.pending()).toEqual([{ collection, rkey: keys[0] }]);
+      expect(await store.pending()).toEqual([expect.objectContaining({ collection, rkey: keys[0] })]);
       remote.network.online = true;
       await store.sendWaiting();
       expect(remote.writes).toEqual([`delete ${keys[0]}`]);
@@ -409,7 +410,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
       const { remote, store, removed } = await failingStore(status);
 
       expect(await store.delete(collection, removed)).toBe('waiting');
-      expect(await store.pending()).toEqual([{ collection, rkey: removed }]);
+      expect(await store.pending()).toEqual([expect.objectContaining({ collection, rkey: removed })]);
 
       remote.network.failing = undefined;
       await store.sendWaiting();
@@ -478,8 +479,103 @@ describe('the instance store', () => {
     await store.delete(collection, rkey);
 
     expect(instance.calls.length).toBeGreaterThan(0);
-    expect(instance.calls.every((call) => call.startsWith('/api/library/'))).toBe(true);
+    expect(instance.calls.every((call) => call.startsWith('/api/library'))).toBe(true);
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  // Two devices on one instance: each has its own local copy (ADR 0012).
+  describe('two devices stay in step', () => {
+    function twoDevices() {
+      const instance = fakeInstance(owner);
+      const stale: StaleWrite[] = [];
+      const laptop = openInstanceStore(instance.handler, owner, memoryLocalCopy());
+      const phoneCopy = memoryLocalCopy();
+      const phone = openInstanceStore(instance.handler, owner, phoneCopy, (write) => stale.push(write));
+      return { instance, laptop, phone, phoneCopy, stale };
+    }
+
+    test('a record added on one device shows on the other, which then asks only for the changes', async () => {
+      const { instance, laptop, phone } = twoDevices();
+      await laptop.put(collection, newRecordKey(), { text: 'first book' });
+      await phone.list(collection);
+
+      await laptop.put(collection, newRecordKey(), { text: 'new book' });
+
+      expect(textsOf((await phone.list(collection)).records)).toEqual(['new book', 'first book']);
+      expect(instance.calls.filter((call) => call.includes('?since=')).at(-1)).not.toBe('/api/library?since=0');
+    });
+
+    test('a delete on one device removes the record from the other device copy', async () => {
+      const { instance, laptop, phone, phoneCopy } = twoDevices();
+      const [kept, gone] = [newRecordKey(), newRecordKey()];
+      await laptop.put(collection, kept, { text: 'kept' });
+      await laptop.put(collection, gone, { text: 'gone' });
+      expect(textsOf((await phone.list(collection)).records)).toEqual(['gone', 'kept']);
+
+      await laptop.delete(collection, gone);
+
+      expect(textsOf((await phone.list(collection)).records)).toEqual(['kept']);
+      instance.network.online = false;
+      expect(await openInstanceStore(instance.handler, owner, phoneCopy).list(collection)).toEqual({
+        records: [{ rkey: kept, value: { $type: collection, text: 'kept' } }],
+        stale: true,
+      });
+    });
+
+    test('when the instance lists everything (old tombstones purged), the device drops what it has', async () => {
+      const { instance, laptop, phoneCopy } = twoDevices();
+      const [kept, gone] = [newRecordKey(), newRecordKey()];
+      await laptop.put(collection, kept, { text: 'kept' });
+      await laptop.put(collection, gone, { text: 'gone' });
+      const phone = openInstanceStore(instance.handler, owner, phoneCopy);
+      await phone.list(collection);
+      await laptop.delete(collection, gone);
+      // The tombstone is gone: the instance answers with every record.
+      const purged: FetchHandler = (pathname, init) => instance.handler(pathname.replace(/\?since=\d+$/, '?since=0'), init);
+
+      expect(textsOf((await openInstanceStore(purged, owner, phoneCopy).list(collection)).records)).toEqual(['kept']);
+    });
+
+    test('a write made on an old copy is refused: the instance record wins, the device is told, and the queue goes on', async () => {
+      const { instance, laptop, phone, stale } = twoDevices();
+      const [book, other] = [newRecordKey(), newRecordKey()];
+      await laptop.put(collection, book, { text: 'first' });
+      await phone.list(collection);
+      // The phone edits offline, while the laptop edits the same record.
+      instance.network.online = false;
+      await phone.put(collection, book, { text: 'phone edit' });
+      await phone.put(collection, other, { text: 'other' });
+      instance.network.online = true;
+      await laptop.put(collection, book, { text: 'laptop edit' });
+
+      await phone.sendWaiting();
+
+      expect(stale).toEqual([{ collection, rkey: book, value: { $type: collection, text: 'phone edit' } }]);
+      expect(await phone.pending()).toEqual([]);
+      expect(instance.writes.at(-1)).toBe(`put ${other}`);
+      expect(textsOf((await phone.list(collection)).records)).toEqual(['other', 'laptop edit']);
+      // The phone now writes on the laptop's version.
+      expect(await phone.put(collection, book, { text: 'phone again' })).toBe('sent');
+    });
+
+    test('a stale delete names the record the device last saw, and a stale write made online says refused', async () => {
+      const { laptop, phone, stale } = twoDevices();
+      const [deleted, edited] = [newRecordKey(), newRecordKey()];
+      await laptop.put(collection, deleted, { text: 'to delete' });
+      await laptop.put(collection, edited, { text: 'to edit' });
+      await phone.list(collection);
+      await laptop.put(collection, deleted, { text: 'laptop edit' });
+      await laptop.put(collection, edited, { text: 'laptop edit' });
+
+      expect(await phone.delete(collection, deleted)).toBe('refused');
+      expect(await phone.put(collection, edited, { text: 'phone edit' })).toBe('refused');
+
+      expect(stale).toEqual([
+        { collection, rkey: deleted, value: { $type: collection, text: 'to delete' } },
+        { collection, rkey: edited, value: { $type: collection, text: 'phone edit' } },
+      ]);
+      expect(await phone.pending()).toEqual([]);
+    });
   });
 });
 

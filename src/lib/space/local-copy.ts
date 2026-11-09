@@ -1,8 +1,8 @@
-// The records the app last read from the reader's private Space, and the
-// writes not sent to the PDS yet, kept on this device so they still show and
-// still go out with no network (ADR 0002). Only space.ts reads and writes it;
-// signing out clears it, unsent writes too. Never sent to the Atomes server.
-import type { PendingWrite, SpaceRecord } from './space';
+// The Library records the app last read from its store, the writes not sent
+// yet and the last sync, kept on this device so they still show and still go
+// out with no network (ADR 0002). Only queued-store.ts reads and writes it;
+// signing out clears it, unsent writes too.
+import type { PendingWrite, SpaceRecord, SyncState } from './queued-store';
 
 export interface LocalCopy {
   // Undefined when nothing was kept for this key.
@@ -11,6 +11,9 @@ export interface LocalCopy {
   // The writes not sent yet, oldest first. Empty when there are none.
   readQueue(key: string): Promise<PendingWrite[]>;
   writeQueue(key: string, writes: PendingWrite[]): Promise<void>;
+  // The last sync with a store that has revs; undefined before the first one.
+  readSync(key: string): Promise<SyncState | undefined>;
+  writeSync(key: string, state: SyncState): Promise<void>;
   clear(): Promise<void>;
 }
 
@@ -52,6 +55,10 @@ export function indexedDbLocalCopy(): LocalCopy {
       (await run('readonly', (store) => store.get(key) as IDBRequest<PendingWrite[] | undefined>)) ?? [],
     writeQueue: async (key, writes) => {
       await run('readwrite', (store) => store.put(writes, key));
+    },
+    readSync: (key) => run('readonly', (store) => store.get(key) as IDBRequest<SyncState | undefined>),
+    writeSync: async (key, state) => {
+      await run('readwrite', (store) => store.put(state, key));
     },
     clear: async () => {
       await run('readwrite', (store) => store.clear());

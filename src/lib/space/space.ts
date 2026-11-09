@@ -20,6 +20,7 @@ export {
   type PendingWrite,
   type Space,
   type SpaceRecord,
+  type StaleWrite,
   type WriteState,
 } from './queued-store';
 
