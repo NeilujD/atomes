@@ -1,6 +1,6 @@
 // Runs before every route.
 import { defineMiddleware } from 'astro:middleware';
-import { isSameOrigin } from './lib/server/auth';
+import { guard } from './lib/server/security';
 import { settings } from './lib/server/settings';
 
 export const onRequest = defineMiddleware((context, next) => {
@@ -15,9 +15,6 @@ export const onRequest = defineMiddleware((context, next) => {
     return context.redirect(moved.href, 307);
   }
 
-  // CSRF (ADR 0013): every request that writes comes from the app's own pages.
-  if (request.method !== 'GET' && request.method !== 'HEAD' && !isSameOrigin(request, settings().appOrigin)) {
-    return Response.json({ error: 'Forbidden', message: 'Cross-origin request refused' }, { status: 403 });
-  }
-  return next();
+  // Writes from other sites are refused; every answer gets the security headers.
+  return guard(request, next, settings().appOrigin);
 });

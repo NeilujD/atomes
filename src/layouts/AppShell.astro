@@ -2,6 +2,7 @@
 // The app frame. Desktop: sidebar and view header form an inverted L around one
 // content panel. Phone: large title on top, tab bar under the thumb.
 // Behaviour rules: docs/design/ui-direction.md.
+import { createHash } from 'node:crypto';
 import '@fontsource-variable/schibsted-grotesk';
 import '../styles/theme.css';
 import ConnectionStatus from '../components/ConnectionStatus.astro';
@@ -29,6 +30,9 @@ const { title, current, detail = false, flow = false } = Astro.props;
 // <html lang> tells the page scripts which language to use (src/lib/i18n).
 const language = requestLanguage(Astro.request);
 const t = translator(language);
+// Astro hashes its own scripts, not `is:inline` ones: the CSP (ADR 0013) must
+// allow the boot script by its hash. No CSP in `astro dev`, so no `Astro.csp`.
+Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(bootScript).digest('base64')}`);
 
 const sidebarItems: { key: Section; href: string; label: string; icon: IconName }[] = [
   { key: 'home', href: '/', label: t('nav.home'), icon: 'house' },
