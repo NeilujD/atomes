@@ -104,3 +104,100 @@ describe('the Library API', () => {
     expect(answers.filter((answer) => String(answer).includes(work))).toHaveLength(1);
   });
 });
+
+// Two devices stay in step: changes since a rev, tombstones, stale writes (ADR 0012).
+describe('sync', () => {
+  const changes = async (did: string, since: number) => (await call(did, 'GET', `?since=${since}`)).json() as Promise<Changes>;
+  const revOf = async (response: Promise<Response>) => ((await (await response).json()) as { rev: number }).rev;
+
+  interface Changes {
+    rev: number;
+    all: boolean;
+    records: { collection: string; rkey: string; value: unknown; rev: number }[];
+    deleted: { collection: string; rkey: string }[];
+  }
+
+  test('lists the records changed since a rev, with the new rev', async () => {
+    const a = await revOf(call(owner, 'PUT', `${collection}/a`, status('reading')));
+    const b = await revOf(call(owner, 'PUT', `${collection}/b`, status('read')));
+    await call(other, 'PUT', `${collection}/c`, status('read'));
+
+    expect(await changes(owner, 0)).toEqual({
+      rev: b,
+      all: true,
+      records: [
+        { collection, rkey: 'a', value: status('reading'), rev: a },
+        { collection, rkey: 'b', value: status('read'), rev: b },
+      ],
+      deleted: [],
+    });
+    expect(await changes(owner, a)).toEqual({
+      rev: b,
+      all: false,
+      records: [{ collection, rkey: 'b', value: status('read'), rev: b }],
+      deleted: [],
+    });
+    expect(await changes(owner, b)).toEqual({ rev: b, all: false, records: [], deleted: [] });
+  });
+
+  test('a delete leaves a tombstone that the next changes list', async () => {
+    const a = await revOf(call(owner, 'PUT', `${collection}/a`, status('read')));
+
+    const deleted = await revOf(call(owner, 'DELETE', `${collection}/a`));
+
+    expect(deleted).toBeGreaterThan(a);
+    expect(await changes(owner, a)).toEqual({ rev: deleted, all: false, records: [], deleted: [{ collection, rkey: 'a' }] });
+    // A device with nothing yet does not need the tombstones.
+    expect(await changes(owner, 0)).toEqual({ rev: deleted, all: true, records: [], deleted: [] });
+  });
+
+  test('a write based on an old rev is refused (409), and changes nothing', async () => {
+    const seen = await revOf(call(owner, 'PUT', `${collection}/a`, status('reading')));
+    // Another device changes the record.
+    const newer = await revOf(call(owner, 'PUT', `${collection}/a?rev=${seen}`, status('read')));
+
+    const put = await call(owner, 'PUT', `${collection}/a?rev=${seen}`, status('abandoned'));
+    const deleted = await call(owner, 'DELETE', `${collection}/a?rev=${seen}`);
+
+    expect(put.status).toBe(409);
+    expect(await put.json()).toMatchObject({ error: 'StaleRecord' });
+    expect(deleted.status).toBe(409);
+    expect(await (await call(owner, 'GET', `${collection}/a`)).json()).toEqual({ rkey: 'a', value: status('read') });
+    expect((await changes(owner, 0)).rev).toBe(newer);
+  });
+
+  test('a write based on a deleted record is refused too', async () => {
+    const seen = await revOf(call(owner, 'PUT', `${collection}/a`, status('reading')));
+    await call(owner, 'DELETE', `${collection}/a`);
+
+    expect((await call(owner, 'PUT', `${collection}/a?rev=${seen}`, status('read'))).status).toBe(409);
+    expect((await call(owner, 'GET', `${collection}/a`)).status).toBe(404);
+  });
+
+  test('a bad base rev is refused (400)', async () => {
+    const response = await call(owner, 'PUT', `${collection}/a?rev=old`, status('read'));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: 'InvalidRequest' });
+  });
+
+  test('after the tombstones are purged, a device with an older rev lists everything', async () => {
+    let now = new Date('2026-11-01T00:00:00Z');
+    store.close();
+    store = createLibraryStore(':memory:', () => now);
+    await call(owner, 'PUT', `${collection}/a`, status('read'));
+    const seen = await revOf(call(owner, 'PUT', `${collection}/b`, status('read')));
+    await call(owner, 'DELETE', `${collection}/a`);
+    // 31 days later: the next delete purges the old tombstone.
+    now = new Date('2026-12-02T00:00:00Z');
+    await call(owner, 'PUT', `${collection}/c`, status('read'));
+    const last = await revOf(call(owner, 'DELETE', `${collection}/c`));
+
+    const answer = await changes(owner, seen);
+
+    expect(answer).toMatchObject({ rev: last, all: true, deleted: [] });
+    expect(answer.records.map(({ rkey }) => rkey)).toEqual(['b']);
+    // A device that already saw the purged tombstone still gets only changes.
+    expect(await changes(owner, last)).toMatchObject({ all: false, records: [], deleted: [] });
+  });
+});
