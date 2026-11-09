@@ -23,12 +23,6 @@
             "description": "Catalog identifiers of the Works this Copy contains; several for an omnibus. 'isbn:<isbn13>' when the Catalog does not know the Work.",
             "items": { "type": "string", "maxLength": 128 }
           },
-          "lentTo": {
-            "type": "string",
-            "maxLength": 640,
-            "maxGraphemes": 64,
-            "description": "Who has this Copy now. Absent when the reader has it."
-          },
           "acquiredAt": {
             "type": "string",
             "format": "datetime",

@@ -11,6 +11,7 @@ The Library is stored as five record types, published as lexicons in `lexicons/a
 | `app.atomes.follow` | Series | Series identifier | Series, anchor ISBN, optional `fromVolume`, status (following, dropped) |
 | `app.atomes.toBuy` | Edition added by hand | ISBN-13 | ISBN |
 | `app.atomes.label` | Label | TID | Name, the Works that carry it |
+| `app.atomes.loan` | Loan (added by the 2026-11-09 amendment) | TID | Copy record key, borrower, lent date, return date once back |
 
 Each record type also has a `createdAt` or `updatedAt` datetime.
 

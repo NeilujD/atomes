@@ -4,6 +4,7 @@ import { expect, test } from 'vitest';
 import { copyCollection } from './copy';
 import { followCollection } from './follow';
 import { labelCollection } from './label';
+import { loanCollection } from './loan';
 import { readingStatusCollection } from './reading-status';
 import { toBuyCollection } from './to-buy';
 
@@ -27,8 +28,14 @@ test('the Library Space lists exactly the Library record types', async () => {
   const space = docs.find((doc) => doc.id === 'app.atomes.library')?.defs.main;
   const recordTypes = docs.filter((doc) => doc.defs.main?.type === 'record').map((doc) => doc.id);
 
-  expect(space?.type === 'space' && [...space.collections].sort()).toEqual(
-    [copyCollection, followCollection, labelCollection, readingStatusCollection, toBuyCollection].sort(),
-  );
-  expect(recordTypes.sort()).toEqual([copyCollection, followCollection, labelCollection, readingStatusCollection, toBuyCollection].sort());
+  const libraryTypes = [copyCollection, followCollection, labelCollection, loanCollection, readingStatusCollection, toBuyCollection].sort();
+  expect(space?.type === 'space' && [...space.collections].sort()).toEqual(libraryTypes);
+  expect(recordTypes.sort()).toEqual(libraryTypes);
+});
+
+// ADR 0010, amendment 2026-11-09: Loans replace Lent To, so who has a Copy has one source.
+test('a Copy no longer says who has it: Loans do', async () => {
+  const copy = (await lexiconFiles()).find(({ doc }) => doc.id === copyCollection)?.doc.defs.main;
+
+  expect(copy?.type === 'record' && Object.keys(copy.record.properties ?? {})).not.toContain('lentTo');
 });

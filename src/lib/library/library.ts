@@ -4,15 +4,21 @@ import { freshListing } from '../space/fresh-listing';
 import type { Space, WriteState } from '../space/space';
 import { listCopies } from './copy';
 import { listFollows } from './follow';
+import { listLoans } from './loan';
 import type { Library } from './model';
 import { listReadingStatuses } from './reading-status';
 
 // stale: the PDS could not be reached; this is the copy on this device.
 export async function loadLibrary(space: Space): Promise<{ library: Library; stale: boolean }> {
-  const [copies, readingStatuses, follows] = await Promise.all([listCopies(space), listReadingStatuses(space), listFollows(space)]);
+  const [copies, readingStatuses, follows, loans] = await Promise.all([
+    listCopies(space),
+    listReadingStatuses(space),
+    listFollows(space),
+    listLoans(space),
+  ]);
   return {
-    library: { copies: copies.records, readingStatuses: readingStatuses.records, follows: follows.records },
-    stale: copies.stale || readingStatuses.stale || follows.stale,
+    library: { copies: copies.records, readingStatuses: readingStatuses.records, follows: follows.records, loans: loans.records },
+    stale: copies.stale || readingStatuses.stale || follows.stale || loans.stale,
   };
 }
 

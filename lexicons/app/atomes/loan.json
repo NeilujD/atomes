@@ -1,0 +1,36 @@
+{
+  "lexicon": 1,
+  "id": "app.atomes.loan",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The lending of a Copy to someone, from the day it leaves until it comes back. A Loan with no return date is open: the Copy is lent. Returned Loans stay as the Copy's history. Never Shared.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["copy", "borrower", "lentAt", "createdAt"],
+        "properties": {
+          "copy": {
+            "type": "string",
+            "format": "tid",
+            "description": "Record key of the app.atomes.copy that is lent."
+          },
+          "borrower": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 640,
+            "maxGraphemes": 64,
+            "description": "Who has the Copy, as the reader typed it."
+          },
+          "lentAt": { "type": "string", "format": "datetime", "description": "When the Copy left." },
+          "returnedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the Copy came back. Absent while the Loan is open."
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}
