@@ -104,10 +104,10 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
 
 <script>
   import { applyAppearance, parseAppearance, readAppearance, saveAppearance } from '../lib/appearance';
-  import { createAuthClient } from '../lib/auth/browser-client';
+  import { createAuthClient } from '../lib/auth/server-client';
   import { deviceData } from '../lib/auth/device-data';
   import { parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
-  import { errorMessage, loadSession, signIn, signOut, type AuthClient, type AuthState } from '../lib/auth/session';
+  import { loadSession, signIn, signInResultMessage, signOut, type AuthState } from '../lib/auth/session';
   import { indexedDbLocalCopy } from '../lib/space/local-copy';
 
   const auth = document.querySelector<HTMLElement>('[data-auth]')!;
@@ -133,26 +133,33 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
     for (const control of auth.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')) control.disabled = on;
   }
 
-  createAuthClient().then(
-    async (client: AuthClient) => {
-      render(await loadSession(client));
-      form.addEventListener('submit', (event) => {
-        event.preventDefault();
-        busy(true);
-        void signIn(client, handleInput.value)
-          .then(render)
-          .finally(() => busy(false));
-      });
-      signOutButton.addEventListener('click', () => {
-        if (state.status !== 'signed-in') return;
-        busy(true);
-        void signOut(client, state.account, deviceData(indexedDbLocalCopy()))
-          .then(render)
-          .finally(() => busy(false));
-      });
-    },
-    (cause: unknown) => render({ status: 'signed-out', message: errorMessage(cause) }),
-  );
+  const client = createAuthClient();
+
+  // The server sends the reader back here after a sign-in, with `?auth=<result>`.
+  // Read once, then dropped from the address, so a reload does not show it again.
+  const url = new URL(location.href);
+  const result = url.searchParams.get('auth');
+  url.searchParams.delete('auth');
+  history.replaceState(history.state, '', url);
+
+  void loadSession(client).then((loaded) => {
+    const message = signInResultMessage(result);
+    render(loaded.status === 'signed-out' && !loaded.message && message ? { ...loaded, message } : loaded);
+  });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    busy(true);
+    void signIn(client, handleInput.value)
+      .then(render)
+      .finally(() => busy(false));
+  });
+  signOutButton.addEventListener('click', () => {
+    if (state.status !== 'signed-in') return;
+    busy(true);
+    void signOut(client, state.account, deviceData(indexedDbLocalCopy()))
+      .then(render)
+      .finally(() => busy(false));
+  });
 
 
   const radios = document.querySelectorAll<HTMLInputElement>('[data-appearance-picker] input[name="appearance"]');

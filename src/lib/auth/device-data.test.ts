@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { memoryLocalCopy } from '../space/local-copy.fake';
 import { catalogCacheName, deviceData, oauthCacheName } from './device-data';
 
-const copyKey = 'at://did:plc:reader/space/app.atomes.library/self/app.atomes.copy';
+const copyKey = 'atomes-instance:did:plc:reader/app.atomes.copy';
 
 // The CacheStorage calls deviceData uses, in memory.
 function memoryCaches(names: string[]) {
@@ -15,7 +15,7 @@ function memoryCaches(names: string[]) {
 }
 
 describe('data this device keeps for the reader', () => {
-  test('clearing it removes the local copy of the Space, the Catalog answers looked up and the PDS metadata', async () => {
+  test('clearing it removes the local copy of the Library, the Catalog answers looked up and the old PDS metadata', async () => {
     const localCopy = memoryLocalCopy();
     await localCopy.write(copyKey, [{ rkey: 'a', value: { isbn: '9782723478991' } }]);
     const { kept, caches } = memoryCaches([catalogCacheName, 'atomes-shell-abc', oauthCacheName]);
@@ -39,6 +39,7 @@ describe('data this device keeps for the reader', () => {
     const worker = readFileSync(new URL('../../../public/sw.js', import.meta.url), 'utf8');
 
     expect(worker).toContain(`const CATALOG_CACHE = '${catalogCacheName}';`);
-    expect(worker).toContain(`const OAUTH_CACHE = '${oauthCacheName}';`);
+    // The OAuth cache of older versions is only cleared now.
+    expect(worker).not.toContain(oauthCacheName);
   });
 });

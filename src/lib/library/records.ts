@@ -1,6 +1,6 @@
-// Writes and reads Library records in the reader's Space, checked against the
-// lexicons in `lexicons/` (ADR 0010). The PDS stores Space records without
-// validating them, so this is the only check before a record is saved.
+// Writes and reads Library records, checked against the lexicons in
+// `lexicons/` (ADR 0010). The instance runs the same check on every write
+// (src/lib/server/library-api.ts, ADR 0012).
 import { Lexicons, parseLexiconDoc } from '@atproto/lexicon';
 import type { Space, WriteState } from '../space/space';
 

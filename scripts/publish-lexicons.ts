@@ -1,6 +1,7 @@
 // Publishes every lexicon in `lexicons/` as a `com.atproto.lexicon.schema`
-// record in the repo that `_lexicon.atomes.app` (DNS TXT) points to, so a PDS
-// can resolve `app.atomes.*` (needed for the Space OAuth scope).
+// record in the repo that `_lexicon.atomes.app` (DNS TXT) points to, so other
+// apps can resolve `app.atomes.*`. The sign-in scope needs none (ADR 0013).
+// The Space lexicon (`lexicons-space/`) is not published until the move to Spaces.
 // Run it again after every lexicon change; changes must stay backward compatible.
 //
 // Usage: LEXICON_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx bun scripts/publish-lexicons.ts
@@ -34,7 +35,7 @@ const { accessJwt } = (await xrpc('com.atproto.server.createSession', { identifi
 
 for (const file of files) {
   const lexicon = JSON.parse(await readFile(join(lexiconDir, file), 'utf8')) as { id: string };
-  // lexicons/app/atomes/library.json must hold app.atomes.library.
+  // lexicons/app/atomes/copy.json must hold app.atomes.copy.
   const expectedId = file.replace(/\.json$/, '').split(/[\\/]/).join('.');
   if (lexicon.id !== expectedId) throw new Error(`${file}: id is ${lexicon.id}, expected ${expectedId}`);
 
