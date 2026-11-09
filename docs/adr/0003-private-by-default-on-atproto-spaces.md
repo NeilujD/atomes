@@ -14,3 +14,7 @@ The Library is Private by default; the reader chooses what to share, by category
 - Everything public, like most atproto book apps: rejected, because the reader must be able to keep their reading private.
 - Encrypting records before writing them publicly: rejected. Counts and timestamps still leak, other apps can't read them, and sharing keys across devices is hard.
 - Device-only storage: rejected, because the Library must sync across the reader's devices.
+
+## Amendment 2026-11-09: Spaces deferred
+
+Private records go to a Space only after Spaces is generally released (trigger in ADR 0012). Until then they are stored by the Atomes instance. Private by default, sharing by category and Shared records as public PDS records are unchanged. The alpha work (`src/lib/space/`, spikes 0001 and 0002) stays as the reference for the move.

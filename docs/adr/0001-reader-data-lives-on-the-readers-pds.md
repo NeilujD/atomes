@@ -8,3 +8,7 @@ The reader's Library (Copies, Reading Statuses, Followed and Dropped Series, To 
 
 - AT Protocol records are public by default, and the Library is Private by default, so most of it lives in non-public storage (see ADR 0003).
 - The app has no user table and no sign-up: the reader signs in with an AT Protocol identity.
+
+## Amendment 2026-11-09: Private records on the instance until Spaces
+
+Until atproto Spaces is generally released, Private records are stored by the Atomes instance, and only Shared records live on the reader's PDS (ADR 0012). The goal of this ADR is unchanged: records keep the same lexicons and keys, the reader can export them, and they move to the reader's Space when the trigger in ADR 0012 is met. Until then, the instance does hold Private reader data.
