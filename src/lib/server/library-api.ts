@@ -62,9 +62,11 @@ export async function handleLibraryRequest(
       }
       try {
         rules.assertValid(collection, record);
-      } catch {
+      } catch (error) {
         // The device checks the same lexicons before it sends, so this is rare.
-        return fail(400, 'InvalidRecord', `The record does not match the ${collection} lexicon`);
+        // The lexicon's reason names the field and the rule, never the value.
+        const reason = error instanceof Error ? `: ${error.message}` : '';
+        return fail(400, 'InvalidRecord', `The record does not match the ${collection} lexicon${reason}`);
       }
       return reply(200, { rev: store.put(did, collection, rkey, record) });
     }

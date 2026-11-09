@@ -37,6 +37,7 @@ export const fr: typeof en = {
   // What became of a save (src/lib/library/library.ts)
   'saved.sent': 'Enregistré dans votre bibliothèque.',
   'saved.waiting': 'En attente : enregistré sur cet appareil. Il part dans votre bibliothèque dès que le serveur Atomes est joignable.',
+  'saved.refused-reason': (reason) => `Motif : ${reason}`,
   'saved.refused': 'Le serveur Atomes a refusé cette modification : elle n’est pas enregistrée.',
 
   // Errors (src/lib/space/space.ts, src/lib/auth/session.ts)
