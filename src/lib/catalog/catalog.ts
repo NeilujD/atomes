@@ -127,6 +127,8 @@ const selectEdition = `select edition.*, series.title as series_title from editi
 export function createCatalog(options: { file: string; fetch: SourceFetch; host: string; now?: () => Date }): Catalog {
   const now = options.now ?? (() => new Date());
   const db = new DatabaseSync(options.file);
+  // WAL: the hourly backup reads a snapshot while the server keeps writing (docs/backups.md).
+  db.exec('pragma journal_mode = wal');
   db.exec(schema);
 
   const editionRow = (isbn: string) => db.prepare(`${selectEdition} where edition.isbn = ?`).get(isbn) as EditionRow | undefined;
