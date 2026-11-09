@@ -33,17 +33,19 @@ All five settings are **Runtime only** variables of the **production** app in Co
 3. **Create the API token.** On the **R2 object storage** page, next to **API Tokens**, select **Manage**, then **Create Account API token** ([authentication](https://developers.cloudflare.com/r2/api/tokens/)). Choose the **Object Read & Write** permission and scope it to this bucket only. Copy the **Access Key ID** and the **Secret Access Key**: the dashboard shows the secret only once.
 4. **Make the encryption key.** On your Mac, run `openssl rand -base64 32` and save the output in your password manager.
 5. **Add the settings.** In the production app in Coolify, open **Environment Variables** and add the five settings from the table above, runtime only ([environment variables](https://coolify.io/docs/applications/configuration/environment-variables)). Then select **Restart**.
-6. **Add the task.** In the production app, open **Scheduled Tasks** and add one:
+6. **Add the task.** In the production app, open **Scheduled Tasks**, select **+ Add** and fill in **New Scheduled Task** ([create a task](https://github.com/coollabsio/coolify-docs/blob/main/content/docs/core/automation/scheduled-tasks/create-a-task.mdx)):
 
    | Field | Value |
    | --- | --- |
-   | Name | `backup` |
+   | Name | `Back up the Library and the Catalog` |
    | Command | `node dist/backup.mjs backup` |
-   | Frequency | `0 * * * *` (every hour, at minute 0) |
+   | Frequency | `0 * * * *` (every hour, at minute 0, in the server's timezone) |
+   | Timeout | `300` (the default) |
+   | Container | empty (the app has one container) |
 
-   *Not checked against the current Coolify docs: open the app's **Scheduled Tasks** page and use the labels it shows.*
-7. **Run it once.** Start the task by hand, or open the app's **Terminal** and run `node dist/backup.mjs backup`. It prints `backup <stamp>: library.sqlite, catalog.sqlite`. In R2, the bucket has a `<stamp>/` folder with two objects.
-8. **Get a message when a run fails.** If a run fails, the command exits with code 1 and prints `backup failed: <reason>`. In Coolify, turn on the notification for failed scheduled tasks under **Notifications**.
+   Select **Add task**. Coolify runs the command with `sh -c` inside the running app container.
+7. **Run it once.** Open the task and select **Execute now**. Under **Recent executions**, the status changes to **Success** and the output shows `backup <stamp>: library.sqlite, catalog.sqlite`. In R2, the bucket has a `<stamp>/` folder with two objects.
+8. **Get a message when a run fails.** If a run fails, the command exits with code 1 and prints `backup failed: <reason>`. In Coolify, open **Notifications**, select a channel, and under **Notification events > Scheduled tasks** choose **Scheduled Task Failure** ([notification events](https://github.com/coollabsio/coolify-docs/blob/main/content/docs/core/notifications/events.mdx)).
 
 Staging holds test data only and needs no backup. If you want one anyway, use a second bucket and a second token: the two instances must never write to the same bucket.
 
