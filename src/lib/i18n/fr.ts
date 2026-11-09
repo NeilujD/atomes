@@ -39,6 +39,7 @@ export const fr: typeof en = {
   'saved.stale': (book) =>
     `${book} a d’abord été modifié sur un autre appareil. Cette modification est gardée, celle faite ici n’est pas enregistrée.`,
   'saved.waiting': 'En attente : enregistré sur cet appareil. Il part dans votre bibliothèque dès que le serveur Atomes est joignable.',
+  'saved.refused-reason': (reason) => `Motif : ${reason}`,
   'saved.refused': 'Le serveur Atomes a refusé cette modification : elle n’est pas enregistrée.',
 
   // Errors (src/lib/space/space.ts, src/lib/auth/session.ts)

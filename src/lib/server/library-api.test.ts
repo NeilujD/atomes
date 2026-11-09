@@ -70,6 +70,35 @@ describe('the Library API', () => {
     expect(await (await call(owner, 'GET', `${collection}/a`)).json()).toEqual({ rkey: 'a', value: status('read') });
   });
 
+  const createdAt = '2026-11-09T10:00:00.000Z';
+  test.each([
+    ['app.atomes.copy', { isbn: '9782723478991', works: ['wd:Q673'], details: { title: 'One Piece', volume: '1' }, createdAt }],
+    ['app.atomes.follow', { series: 'wd:Q673', anchorIsbn: '9782723478991', status: 'following', updatedAt: createdAt }],
+    ['app.atomes.label', { name: 'Manga', works: ['wd:Q673'], createdAt }],
+    ['app.atomes.loan', { copy: '3m6n2vlwqkc2a', borrower: 'Sam', lentAt: createdAt, createdAt }],
+    ['app.atomes.readingStatus', { work: 'wd:Q673', isbn: '9782723478991', status: 'read', finishedAt: createdAt, updatedAt: createdAt }],
+    ['app.atomes.toBuy', { isbn: '9791043306471', createdAt }],
+  ])('accepts a valid %s record and stores it as sent', async (type, fields) => {
+    const record = { $type: type, ...fields };
+
+    expect((await call(owner, 'PUT', `${type}/a`, record)).status).toBe(200);
+    expect(store.get(owner, type, 'a')).toEqual(record);
+  });
+
+  test.each([
+    [{ $type: collection, work, isbn: '9782723478991', updatedAt: '2026-11-09T10:00:00.000Z' }, 'Record must have the property "status"'],
+    [{ ...status('read'), status: 42 }, 'Record/status must be a string'],
+    [{ ...status('read'), updatedAt: 'yesterday' }, 'Record/updatedAt must be an valid atproto datetime'],
+  ])('gives the lexicon reason when a record does not match: %j', async (record, reason) => {
+    const response = await call(owner, 'PUT', `${collection}/a`, record);
+
+    expect(response.status).toBe(400);
+    const { error, message } = (await response.json()) as { error: string; message: string };
+    expect(error).toBe('InvalidRecord');
+    expect(message).toContain(reason);
+    expect(store.list(owner, collection)).toEqual([]);
+  });
+
   test.each([
     ['an unknown collection', 'PUT', 'app.bsky.feed.post/a', { $type: 'app.bsky.feed.post', text: 'x' }, 'InvalidCollection'],
     ['a record of another type', 'PUT', `${collection}/a`, { ...status('read'), $type: 'app.atomes.copy' }, 'InvalidRecord'],
