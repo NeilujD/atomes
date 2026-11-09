@@ -9,6 +9,7 @@ import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import type { IconName } from '../components/icons';
 import { bootScript } from '../lib/appearance';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
 
 type Section = 'home' | 'library' | 'new' | 'to-buy' | 'check' | 'settings';
 
@@ -25,26 +26,29 @@ interface Props {
 }
 
 const { title, current, detail = false, flow = false } = Astro.props;
+// <html lang> tells the page scripts which language to use (src/lib/i18n).
+const language = requestLanguage(Astro.request);
+const t = translator(language);
 
 const sidebarItems: { key: Section; href: string; label: string; icon: IconName }[] = [
-  { key: 'home', href: '/', label: 'Home', icon: 'house' },
-  { key: 'library', href: '/library', label: 'Library', icon: 'library' },
-  { key: 'new', href: '/new', label: 'New & upcoming', icon: 'bell' },
-  { key: 'to-buy', href: '/to-buy', label: 'To Buy', icon: 'shopping-bag' },
+  { key: 'home', href: '/', label: t('nav.home'), icon: 'house' },
+  { key: 'library', href: '/library', label: t('nav.library'), icon: 'library' },
+  { key: 'new', href: '/new', label: t('nav.new'), icon: 'bell' },
+  { key: 'to-buy', href: '/to-buy', label: t('nav.to-buy'), icon: 'shopping-bag' },
 ];
 
 const tabItems: { key: Section; href: string; label: string; icon: IconName }[] = [
-  { key: 'home', href: '/', label: 'Home', icon: 'house' },
-  { key: 'library', href: '/library', label: 'Library', icon: 'library' },
-  { key: 'check', href: '/check', label: 'Check', icon: 'scan-barcode' },
-  { key: 'to-buy', href: '/to-buy', label: 'To Buy', icon: 'shopping-bag' },
-  { key: 'settings', href: '/settings', label: 'You', icon: 'user' },
+  { key: 'home', href: '/', label: t('nav.home'), icon: 'house' },
+  { key: 'library', href: '/library', label: t('nav.library'), icon: 'library' },
+  { key: 'check', href: '/check', label: t('nav.check'), icon: 'scan-barcode' },
+  { key: 'to-buy', href: '/to-buy', label: t('nav.to-buy'), icon: 'shopping-bag' },
+  { key: 'settings', href: '/settings', label: t('nav.you'), icon: 'user' },
 ];
 
 const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
 ---
 
-<html lang="en">
+<html lang={language}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -67,20 +71,20 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
           </main>
         ) : (
           <>
-          <nav class="sidebar" aria-label="Main">
+          <nav class="sidebar" aria-label={t('nav.main')}>
             <div class="sidebar-top">
-              <a class="brand" href="/" aria-label="Atomes, Home">
+              <a class="brand" href="/" aria-label={t('nav.brand')}>
                 <Mark size={18} />
                 <span>Atomes</span>
               </a>
-              <a class="icon-button" href="/library" aria-label="Search the Library">
+              <a class="icon-button" href="/library" aria-label={t('nav.search')}>
                 <Icon name="search" />
               </a>
             </div>
 
             <a class="check-button" href="/check" aria-current={ariaCurrent('check')}>
               <Icon name="scan-barcode" />
-              <span>Check a book</span>
+              <span>{t('nav.check-book')}</span>
             </a>
 
             <ul class="nav-list">
@@ -100,11 +104,11 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
               <ConnectionStatus place="sidebar" />
               <a class="nav-item" href="/settings" aria-current={ariaCurrent('settings')}>
                 <Icon name="settings" />
-                <span>Settings</span>
+                <span>{t('nav.settings')}</span>
               </a>
               <p class="privacy">
                 <Icon name="lock" size={14} />
-                <span>Private by default</span>
+                <span>{t('nav.private')}</span>
               </p>
             </div>
           </nav>
@@ -121,7 +125,7 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
 
           <div class="bottom">
             <ConnectionStatus place="bar" />
-            <nav class="tabbar" aria-label="Main">
+            <nav class="tabbar" aria-label={t('nav.main')}>
               {
                 tabItems.map((item) => (
                   <a
@@ -147,7 +151,7 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
       <template data-toast-template>
         <div class="toast" data-toast>
           <p class="toast-text" data-toast-text></p>
-          <button class="toast-close" type="button" aria-label="Close" data-toast-close>
+          <button class="toast-close" type="button" aria-label={t('common.close')} data-toast-close>
             <Icon name="x" />
           </button>
         </div>

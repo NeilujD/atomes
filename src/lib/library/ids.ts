@@ -33,14 +33,6 @@ export function readIsbn(text: string): { isbn: string } | { problem: IsbnProble
   return isIsbn13(value) ? { isbn: value } : { problem: 'check-digit' };
 }
 
-// What to tell the reader, next to the field or over the camera view.
-export const isbnProblemText: Record<IsbnProblem, string> = {
-  'not-isbn': 'This is not a book’s ISBN. It has 13 digits and starts with 978 or 979.',
-  'check-digit': 'One digit is wrong: the last digit does not match the others.',
-  'sheet-music': 'This is sheet music (ISMN), not a book.',
-  magazine: 'This is a magazine (ISSN), not a book.',
-};
-
 // Schemes a Catalog may choose for a Series or a Work, in order of preference.
 const sharedSchemes = [
   /^wd:Q[1-9]\d*$/, // Wikidata

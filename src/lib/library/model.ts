@@ -2,6 +2,7 @@
 // shows out. Pure: no Space, no network, so every rule here is tested alone.
 import type { Edition } from '../catalog/catalog';
 import { coverUrl } from '../catalog/client';
+import { pageLanguage, type Language } from '../i18n/i18n';
 import type { Copy } from './copy';
 import type { Follow } from './follow';
 import { statuses, type ReadingStatus, type Status } from './reading-status';
@@ -97,19 +98,13 @@ function currentReadingStatus(work: string, library: Library): ReadingStatus | u
   return value && statuses.includes(value.status) ? value : undefined;
 }
 
-// UNIMARC 101 $a and Open Library give ISO 639-2/B codes.
-const languages: Record<string, string> = {
-  fre: 'French',
-  eng: 'English',
-  jpn: 'Japanese',
-  ger: 'German',
-  spa: 'Spanish',
-  ita: 'Italian',
-  kor: 'Korean',
-};
+// UNIMARC 101 $a and Open Library give ISO 639-2/B codes; Intl names BCP 47 ones.
+const bcp47: Record<string, string> = { fre: 'fr', eng: 'en', jpn: 'ja', ger: 'de', spa: 'es', ita: 'it', kor: 'ko' };
 
-export function editionLabel(edition: Edition | undefined): string {
+// The book's language is named in the UI language: "French", "français".
+export function editionLabel(edition: Edition | undefined, uiLanguage: Language = pageLanguage()): string {
   if (!edition) return '';
-  const language = edition.language && (languages[edition.language] ?? edition.language);
+  const code = edition.language && bcp47[edition.language];
+  const language = code ? new Intl.DisplayNames(uiLanguage, { type: 'language' }).of(code) : edition.language;
   return [edition.publisher, language, edition.format].filter(Boolean).join(' · ');
 }

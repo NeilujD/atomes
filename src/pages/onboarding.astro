@@ -6,28 +6,31 @@
 import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import AppShell from '../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
 
 // Each range: type the last Volume (a long Series has 100+), or −/+ for one
 // known Volume more or less, or the shortcut for the usual answer.
 const steppers = [
-  { name: 'owned', label: 'I own Volumes 1 to', shortcut: 'All' },
-  { name: 'read', label: 'I’ve read up to', shortcut: 'Same as owned' },
+  { name: 'owned', label: t('onboarding.own-up-to'), shortcut: t('onboarding.all') },
+  { name: 'read', label: t('onboarding.read-up-to'), shortcut: t('onboarding.same-as-owned') },
 ];
 ---
 
-<AppShell title="Series Onboarding" flow>
+<AppShell title={t('onboarding.title')} flow>
   <section class="card" data-card data-state="working" aria-labelledby="onboarding-title">
     <!-- While the Series loads, while it saves, and when it is saved. -->
     <div class="progress" data-progress>
       <div class="mark-box"><Mark size={56} animated /></div>
-      <p class="hint" role="status" data-progress-text>Looking up the Series…</p>
-      <a class="button" href="/" data-progress-link hidden>Go to Home</a>
+      <p class="hint" role="status" data-progress-text>{t('onboarding.looking-up')}</p>
+      <a class="button" href="/" data-progress-link hidden>{t('link.home')}</a>
     </div>
 
     <form class="onboarding" data-form hidden>
       <div class="intro">
-        <span class="tag"><Icon name="layers" size={14} />New series</span>
-        <h1 class="title" id="onboarding-title" data-heading>Which Volumes do you have?</h1>
+        <span class="tag"><Icon name="layers" size={14} />{t('onboarding.new-series')}</span>
+        <h1 class="title" id="onboarding-title" data-heading>{t('onboarding.heading')}</h1>
         <p class="hint" data-intro></p>
       </div>
 
@@ -43,7 +46,7 @@ const steppers = [
                   {stepper.shortcut}
                 </button>
               </div>
-              <button class="button step" type="button" aria-label="One less" data-by="-1">
+              <button class="button step" type="button" aria-label={t('onboarding.one-less')} data-by="-1">
                 <Icon name="minus" />
               </button>
               <input
@@ -55,7 +58,7 @@ const steppers = [
                 enterkeyhint="done"
                 data-value
               />
-              <button class="button step" type="button" aria-label="One more" data-by="1">
+              <button class="button step" type="button" aria-label={t('onboarding.one-more')} data-by="1">
                 <Icon name="plus" />
               </button>
             </div>
@@ -64,12 +67,12 @@ const steppers = [
       </div>
 
       <div class="volumes">
-        <div class="tiles" role="group" aria-label="Volumes: tap one to say you own it or not" data-tiles></div>
+        <div class="tiles" role="group" aria-label={t('onboarding.tiles')} data-tiles></div>
         <ul class="legend" aria-hidden="true">
-          <li><span class="tile tile-sample read owned"></span>Read</li>
-          <li><span class="tile tile-sample owned"></span>Owned, not read</li>
-          <li><span class="tile tile-sample"></span>Missing</li>
-          <li><span class="tile tile-sample read"></span>Read, not owned</li>
+          <li><span class="tile tile-sample read owned"></span>{t('onboarding.legend-read')}</li>
+          <li><span class="tile tile-sample owned"></span>{t('onboarding.legend-owned')}</li>
+          <li><span class="tile tile-sample"></span>{t('onboarding.legend-missing')}</li>
+          <li><span class="tile tile-sample read"></span>{t('onboarding.legend-read-not-owned')}</li>
         </ul>
         <p class="hint" data-known></p>
       </div>
@@ -77,17 +80,17 @@ const steppers = [
       <label class="follow">
         <Icon name="bell" size={20} />
         <span class="follow-text">
-          <span class="follow-title">Tell me when a new Volume is out</span>
+          <span class="follow-title">{t('onboarding.follow')}</span>
           <span class="hint" data-edition-line></span>
         </span>
         <input class="switch" type="checkbox" role="switch" name="follow" checked />
       </label>
 
       <div class="actions">
-        <a class="button button-quiet" href="/" data-skip>Skip</a>
+        <a class="button button-quiet" href="/" data-skip>{t('onboarding.skip')}</a>
         <button class="button button-primary" type="submit">
           <Icon name="check" />
-          <span>Save series</span>
+          <span>{t('onboarding.save')}</span>
         </button>
       </div>
     </form>
@@ -100,7 +103,8 @@ const steppers = [
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { saveCopy } from '../lib/library/copy';
   import { saveFollow } from '../lib/library/follow';
-  import { loadLibrary, savedMessage, waitingCount, worstState } from '../lib/library/library';
+  import { t } from '../lib/i18n/i18n';
+  import { loadLibrary, waitingCount, worstState } from '../lib/library/library';
   import { editionLabel, type Library } from '../lib/library/model';
   import { onboardingSave, seriesOnboarding, step, typedVolume, volumeTiles, type Choices, type Onboarding } from '../lib/library/onboarding';
   import { saveReadingStatus } from '../lib/library/reading-status';
@@ -129,7 +133,7 @@ const steppers = [
   let choices: Choices;
 
   // The flow cannot go on: say why, with a way out.
-  function stop(text: string, link = { href: '/', label: 'Go to Home' }) {
+  function stop(text: string, link = { href: '/', label: t('link.home') }) {
     card.dataset.state = 'failed';
     form.hidden = true;
     progress.hidden = false;
@@ -168,8 +172,8 @@ const steppers = [
         button.classList.toggle('read', tile.read);
         button.textContent = String(tile.volume);
         button.dataset.isbn = tile.isbn;
-        const state = tile.read ? (tile.owned ? 'read' : 'read, not owned') : tile.owned ? 'owned, not read' : 'missing';
-        button.setAttribute('aria-label', `Volume ${tile.volume}, ${state}${tile.kept ? ', already in your Library' : ''}`);
+        const state = tile.read ? (tile.owned ? 'read' : 'read-not-owned') : tile.owned ? 'owned' : 'missing';
+        button.setAttribute('aria-label', t('onboarding.tile', tile.volume, state, tile.kept));
         button.setAttribute('aria-pressed', String(tile.owned));
         // A Copy already saved stays: onboarding only adds.
         if (tile.kept) button.setAttribute('aria-disabled', 'true');
@@ -233,7 +237,7 @@ const steppers = [
       if (plan.follow) states.push(await saveFollow(space, plan.follow));
       const state = worstState(states);
       if (state === 'refused') {
-        toast(savedMessage.refused, { error: true });
+        toast(t('saved.refused'), { error: true });
         return;
       }
       reportNetwork(state === 'sent');
@@ -243,8 +247,8 @@ const steppers = [
       form.hidden = true;
       progress.hidden = false;
       progressText.textContent = [
-        added === 0 ? 'Saved.' : `${added} more ${added === 1 ? 'Volume is' : 'Volumes are'} in your Library.`,
-        states.length > 0 ? savedMessage[state] : '',
+        added === 0 ? t('onboarding.saved') : t('onboarding.added', added),
+        states.length > 0 ? t(`saved.${state}`) : '',
       ]
         .filter(Boolean)
         .join(' ');
@@ -264,7 +268,7 @@ const steppers = [
 
   async function start() {
     const own = await openOwnSpace();
-    if (!own) return stop('Sign in to add books to your Library.', { href: '/settings', label: 'Go to Settings' });
+    if (!own) return stop(t('add.sign-in'), { href: '/settings', label: t('link.settings') });
     space = own.space;
     let answer: Awaited<ReturnType<typeof lookupVolumes>>;
     try {
@@ -274,30 +278,31 @@ const steppers = [
       reportNetwork(!loaded.stale);
     } catch (error) {
       if (isNetworkFailure(error)) reportNetwork(false);
-      return stop('Could not get the Volumes of this Series. Your book is saved; try again from Quick Add later.');
+      return stop(t('onboarding.volumes-failed'));
     }
     const anchor = answer?.volumes.find((each) => each.isbn === isbn);
     if (!anchor?.series || anchor.volume === null) {
-      return stop('The Catalog knows no Series for this book.', anchor && { href: bookHref(anchor.work.id), label: 'Open its Book page' });
+      return stop(t('onboarding.no-series'), anchor && { href: bookHref(anchor.work.id), label: t('link.book-page') });
     }
     onboarding = seriesOnboarding(anchor, answer!.volumes, library);
     choices = onboarding.start;
 
     const series = onboarding.series.title;
     document.title = `${series} · Atomes`;
-    form.querySelector('[data-heading]')!.textContent = `Which Volumes of ${series} do you have?`;
-    form.querySelector('[data-intro]')!.textContent =
-      `${series}, Volume ${anchor.volume} is in your Library. Set the range, then tap a Volume to fix a gap.`;
+    form.querySelector('[data-heading]')!.textContent = t('onboarding.heading-series', series);
+    form.querySelector('[data-intro]')!.textContent = t('onboarding.intro', series, anchor.volume);
     const line = editionLabel(anchor);
-    form.querySelector('[data-edition-line]')!.textContent = line ? `In this edition: ${line}` : 'In the edition you just added';
+    form.querySelector('[data-edition-line]')!.textContent = line
+      ? t('onboarding.in-edition', line)
+      : t('onboarding.in-added-edition');
     // The Catalog knows only the Volumes someone looked up: say which, so
     // "1 to N" does not read as N Volumes.
-    const known = onboarding.volumes.map((each) => each.volume);
-    form.querySelector('[data-known]')!.textContent =
-      `The Catalog knows ${known.length} ${known.length === 1 ? 'Volume' : 'Volumes'} of this edition yet: ${known.join(', ')}. ` +
-      'Only these get a Copy. Add the others with Quick Add.';
+    form.querySelector('[data-known]')!.textContent = t(
+      'onboarding.known',
+      onboarding.volumes.map((each) => each.volume),
+    );
     const all = form.querySelector<HTMLButtonElement>('[data-stepper="owned"] [data-shortcut]')!;
-    all.textContent = `All (${onboarding.steps.at(-1)})`;
+    all.textContent = t('onboarding.all-count', onboarding.steps.at(-1)!);
     followSwitch.checked = choices.follow;
     skip.href = bookHref(anchor.work.id);
     render();

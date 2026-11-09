@@ -1,22 +1,22 @@
 ---
 import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
 
 // Home before sign-in and storage exist: every section shows its empty state.
 const sections = [
-  {
-    title: 'New & upcoming',
-    empty: 'Nothing new yet. Mark a Volume read and its Series is followed: new and announced Volumes appear here.',
-  },
-  { title: 'Reading now', empty: 'No book in progress.' },
-  { title: 'Owned, not read yet', empty: 'Books you own and have not read appear here.' },
+  { title: t('home.new'), empty: t('home.new-empty') },
+  { title: t('home.reading'), empty: t('home.reading-empty') },
+  { title: t('home.owned-unread'), empty: t('home.owned-unread-empty') },
 ];
 ---
 
-<AppShell title="Home" current="home">
+<AppShell title={t('home.title')} current="home">
   <a slot="actions" class="button" href="/add">
     <Icon name="keyboard" />
-    <span>Type an ISBN</span>
+    <span>{t('home.type-isbn')}</span>
   </a>
   <div class="home">
     {

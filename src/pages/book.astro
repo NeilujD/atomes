@@ -3,16 +3,19 @@
 // Catalog (src/lib/library/model.ts). `?work=<Catalog identifier>`.
 import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
 
 const choices = [
-  { value: 'unread', label: 'Not yet' },
-  { value: 'reading', label: 'Reading' },
-  { value: 'read', label: 'Read' },
-  { value: 'abandoned', label: 'Abandoned' },
+  { value: 'unread', label: t('status.unread') },
+  { value: 'reading', label: t('status.reading') },
+  { value: 'read', label: t('status.read') },
+  { value: 'abandoned', label: t('status.abandoned') },
 ];
 ---
 
-<AppShell title="Book" current="library" detail>
+<AppShell title={t('book.title')} current="library" detail>
   <div class="book-page" data-page aria-busy="true">
     <!-- Only when there is no book to show (not signed in, not in the Library); results of a change are toasts. -->
     <p class="message" data-message role="status" hidden></p>
@@ -22,14 +25,14 @@ const choices = [
       <div class="not-found-cover" aria-hidden="true">
         <Icon name="book-plus" size={24} />
       </div>
-      <h2 class="not-found-title" id="not-found-title" data-not-found-title>Not in your Library</h2>
-      <p class="not-found-text" data-not-found-text>You have no Copy of this book and no Reading Status for it.</p>
+      <h2 class="not-found-title" id="not-found-title" data-not-found-title>{t('book.not-in-library')}</h2>
+      <p class="not-found-text" data-not-found-text>{t('book.not-in-library-text')}</p>
       <div class="not-found-actions">
         <a class="button button-primary" href="/add" data-not-found-add>
           <Icon name="plus" />
-          <span data-not-found-add-label>Add a book</span>
+          <span data-not-found-add-label>{t('book.add-a-book')}</span>
         </a>
-        <a class="button button-quiet" href="/">Go to Home</a>
+        <a class="button button-quiet" href="/">{t('link.home')}</a>
       </div>
     </section>
 
@@ -55,7 +58,7 @@ const choices = [
         </div>
 
         <section class="group" aria-labelledby="status-title">
-          <h2 class="group-title" id="status-title">Reading Status</h2>
+          <h2 class="group-title" id="status-title">{t('book.reading-status')}</h2>
           <div class="segmented" role="radiogroup" aria-labelledby="status-title" data-status>
             {
               choices.map((choice) => (
@@ -67,19 +70,19 @@ const choices = [
             }
           </div>
           <div class="finished" data-finished hidden>
-            <label class="label" for="finished-at">Finished on</label>
+            <label class="label" for="finished-at">{t('book.finished-on')}</label>
             <input class="field" id="finished-at" type="date" data-finished-at />
-            <span class="hint">Optional</span>
+            <span class="hint">{t('book.optional')}</span>
           </div>
         </section>
 
         <section class="group" aria-labelledby="copies-title">
-          <h2 class="group-title" id="copies-title">Your Copies</h2>
-          <p class="hint" data-no-copies hidden>You have no Copy of this book.</p>
+          <h2 class="group-title" id="copies-title">{t('book.copies')}</h2>
+          <p class="hint" data-no-copies hidden>{t('book.no-copies')}</p>
           <ul class="copies" data-copies></ul>
           <a class="button" href="/add" data-add-copy>
             <Icon name="plus" />
-            <span>Add another Copy</span>
+            <span>{t('book.add-copy')}</span>
           </a>
         </section>
       </div>
@@ -95,15 +98,22 @@ const choices = [
         </div>
         <button class="button button-quiet" type="button" data-remove>
           <Icon name="trash" />
-          <span>Remove</span>
+          <span>{t('book.remove')}</span>
         </button>
       </div>
       <form class="lent" data-lent>
         <label class="lent-field">
-          <span class="label">Lent To</span>
-          <input class="field" name="lentTo" type="text" maxlength="64" autocomplete="off" placeholder="Nobody: you have it" />
+          <span class="label">{t('book.lent-to')}</span>
+          <input
+            class="field"
+            name="lentTo"
+            type="text"
+            maxlength="64"
+            autocomplete="off"
+            placeholder={t('book.lent-to-placeholder')}
+          />
         </label>
-        <button class="button" type="submit">Save</button>
+        <button class="button" type="submit">{t('book.save')}</button>
       </form>
     </li>
   </template>
@@ -117,7 +127,8 @@ const choices = [
   import { isEditionWork, isWorkId } from '../lib/library/ids';
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { saveFollow } from '../lib/library/follow';
-  import { loadLibrary, savedMessage, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
+  import { t } from '../lib/i18n/i18n';
+  import { loadLibrary, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
   import { bookPage, statusChange, type BookPage, type Library } from '../lib/library/model';
   import { followOnRead } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses, type ReadingStatus } from '../lib/library/reading-status';
@@ -167,7 +178,7 @@ const choices = [
 
   // No book to show for this link. With a known ISBN (a book just removed,
   // or a book the Catalog did not know), Quick Add opens on that ISBN.
-  function showNotFound(isbn: string | undefined, why = { title: 'Not in your Library', text: 'You have no Copy of this book and no Reading Status for it.' }) {
+  function showNotFound(isbn: string | undefined, why = { title: t('book.not-in-library'), text: t('book.not-in-library-text') }) {
     loaded();
     article.hidden = true;
     message.hidden = true;
@@ -177,7 +188,7 @@ const choices = [
     notFound.querySelector('[data-not-found-text]')!.textContent = why.text;
     const add = notFound.querySelector<HTMLAnchorElement>('[data-not-found-add]')!;
     add.href = isbn ? `/add?isbn=${isbn}` : '/add';
-    notFound.querySelector('[data-not-found-add-label]')!.textContent = isbn ? 'Add this book' : 'Add a book';
+    notFound.querySelector('[data-not-found-add-label]')!.textContent = t(isbn ? 'book.add-this-book' : 'book.add-a-book');
   }
 
   // No network: the connection status says it, and the listing tries again.
@@ -219,7 +230,7 @@ const choices = [
     article.querySelector('[data-authors]')!.textContent = page.authors.join(', ');
     article.querySelector('[data-series]')!.textContent = [
       page.series && page.series !== page.title ? page.series : '',
-      page.volume ? `Volume ${page.volume}` : '',
+      page.volume ? t('book.volume', page.volume) : '',
     ]
       .filter(Boolean)
       .join(' · ');
@@ -240,8 +251,8 @@ const choices = [
 
   function copyRow(copy: BookPage['copies'][number]): HTMLLIElement {
     const row = copyTemplate.content.firstElementChild!.cloneNode(true) as HTMLLIElement;
-    row.querySelector('[data-edition]')!.textContent = copy.edition || 'Edition not known yet';
-    row.querySelector('[data-isbn]')!.textContent = `ISBN ${copy.isbn}`;
+    row.querySelector('[data-edition]')!.textContent = copy.edition || t('book.edition-unknown');
+    row.querySelector('[data-isbn]')!.textContent = t('book.isbn', copy.isbn);
     const input = row.querySelector<HTMLInputElement>('input[name="lentTo"]')!;
     input.value = copy.lentTo ?? '';
     const lent = row.querySelector<HTMLFormElement>('[data-lent]')!;
@@ -250,7 +261,7 @@ const choices = [
       void save(() => lend(copy.rkey, input.value.trim()), lent.querySelector('button'));
     });
     const remove = row.querySelector<HTMLButtonElement>('[data-remove]')!;
-    remove.setAttribute('aria-label', `Remove the Copy with ISBN ${copy.isbn}`);
+    remove.setAttribute('aria-label', t('book.remove-copy', copy.isbn));
     remove.addEventListener('click', () => void save((space) => deleteCopy(space, copy.rkey), remove));
     return row;
   }
@@ -271,7 +282,7 @@ const choices = [
       const state = await change(space);
       if (state) {
         closeWaiting();
-        const close = toast(savedMessage[state], { error: state === 'refused' });
+        const close = toast(t(`saved.${state}`), { error: state === 'refused' });
         if (state === 'waiting') {
           closeWaiting = close;
           sendLater();
@@ -298,7 +309,7 @@ const choices = [
         reportNetwork(true);
         reportWaiting(0);
         closeWaiting();
-        toast(savedMessage.sent);
+        toast(t('saved.sent'));
       },
       (error) => toast(spaceErrorMessage(error), { error: true }),
     );
@@ -343,9 +354,9 @@ const choices = [
   });
 
   async function start() {
-    if (!isWorkId(work)) return showNotFound(undefined, { title: 'Book not found', text: 'This link does not point to a book.' });
+    if (!isWorkId(work)) return showNotFound(undefined, { title: t('book.not-found'), text: t('book.bad-link') });
     const own = await openOwnSpace();
-    if (!own) return say('Sign in to see your Library.', { href: '/settings', label: 'Go to Settings' });
+    if (!own) return say(t('book.sign-in'), { href: '/settings', label: t('link.settings') });
     space = own.space;
     listing = freshListing(
       async () => {

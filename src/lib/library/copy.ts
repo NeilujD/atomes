@@ -1,4 +1,5 @@
 // `app.atomes.copy`: a physical book the reader owns (ADR 0010). Never Shared.
+import { t } from '../i18n/i18n';
 import { newRecordKey, type Space, type WriteState } from '../space/space';
 import { isIsbn13, isWorkId } from './ids';
 import { listRecords, putRecord } from './records';
@@ -31,13 +32,13 @@ export type TypedFields = Record<'title' | 'authors' | 'series' | 'volume', stri
 // is one field, so its count and each name are checked here.
 export function typedDetails(fields: TypedFields): { details: BookDetails } | { problem: string } {
   const title = fields.title.trim();
-  if (!title) return { problem: 'Type the title.' };
+  if (!title) return { problem: t('details.no-title') };
   const authors = fields.authors
     .split(',')
     .map((author) => author.trim())
     .filter(Boolean);
-  if (authors.length > 20) return { problem: 'At most 20 authors.' };
-  if (authors.some((author) => graphemes(author) > 64)) return { problem: 'An author name has at most 64 characters.' };
+  if (authors.length > 20) return { problem: t('details.too-many-authors') };
+  if (authors.some((author) => graphemes(author) > 64)) return { problem: t('details.author-too-long') };
   const details: BookDetails = { title };
   if (authors.length > 0) details.authors = authors;
   const series = fields.series.trim();

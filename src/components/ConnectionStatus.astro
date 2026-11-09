@@ -2,6 +2,7 @@
 // "Offline", the saves that wait on this device, and Reconnect (src/lib/connection.ts).
 // Shown only while offline. AppShell puts one in the sidebar (desktop) and one
 // above the tab bar (phone); the other one is not displayed, so it is not read out.
+import { requestLanguage, translator } from '../lib/i18n/i18n';
 import Icon from './Icon.astro';
 
 interface Props {
@@ -9,18 +10,19 @@ interface Props {
 }
 
 const { place } = Astro.props;
+const t = translator(requestLanguage(Astro.request));
 ---
 
 <div class:list={['connection', place]} data-connection role="status">
   <div class="body" data-connection-body hidden>
     <p class="state">
       <Icon name="wifi-off" />
-      <span>Offline</span>
+      <span>{t('connection.offline')}</span>
     </p>
     <p class="waiting" data-connection-waiting></p>
     <button class="button reconnect" type="button" data-reconnect>
       <Icon name="refresh-cw" />
-      <span>Reconnect</span>
+      <span>{t('connection.reconnect')}</span>
     </button>
   </div>
 </div>

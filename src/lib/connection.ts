@@ -3,6 +3,7 @@
 //
 // The browser's online flag can say "online" with no network that works, so the
 // pages also report what they saw: a network failure, or an answer from the PDS.
+import { t } from './i18n/i18n';
 import { reconnectEvent } from './network';
 
 let browserOnline = navigator.onLine;
@@ -24,8 +25,7 @@ function render() {
   const offline = !browserOnline || failed;
   for (const status of document.querySelectorAll<HTMLElement>('[data-connection]')) {
     status.querySelector<HTMLElement>('[data-connection-body]')!.hidden = !offline;
-    status.querySelector('[data-connection-waiting]')!.textContent =
-      waiting === 0 ? '' : `${waiting} ${waiting === 1 ? 'save' : 'saves'} waiting`;
+    status.querySelector('[data-connection-waiting]')!.textContent = waiting === 0 ? '' : t('connection.waiting', waiting);
   }
 }
 

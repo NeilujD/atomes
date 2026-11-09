@@ -10,6 +10,14 @@ The UI was English with its text written in the code. The first readers are Fren
 - Domain words stay English in code, tickets and `GLOSSARY.md`. The glossary gives the French UI word for each term, so a term reads the same on every screen.
 - The existing strings move to the dictionary in one pull request, before the islands of ADR 0014 are built.
 
+## How it is built (CORE-54)
+
+- `src/lib/i18n/en.ts` and `fr.ts` hold the text; `fr` has the type of `en`. A text with values is a function, so each language orders and inflects them.
+- The server renders each page, so the server chooses the language: the Settings choice (cookie `atomes-language`), else the first language the browser sends (`Accept-Language`, the same as `navigator.language`), else English. It writes the language on `<html lang>`.
+- Astro frontmatter uses `translator(requestLanguage(Astro.request))`. Page scripts and the modules they use import `t`, which reads `<html lang>` (English when there is no page, as in Node tests).
+- A change in Settings reloads the page. Offline, the service worker serves the last copy of a page, in the language it had then.
+- The JSON error messages of `/api/catalog` stay English: they are for programs, not screens. The development page `/dev/series-reset` stays English.
+
 ## Considered Options
 
 - English only, translation later: rejected, because text written into every new screen makes the later move expensive, and the first readers are French.

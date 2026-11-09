@@ -1,5 +1,5 @@
 // What the Library screens share: read the records the model needs, say what
-// became of a save, and send the waiting saves when the PDS can be reached again.
+// became of a save (the `saved.*` texts of src/lib/i18n), and send the waiting saves when the PDS can be reached again.
 import { freshListing } from '../space/fresh-listing';
 import type { Space, WriteState } from '../space/space';
 import { listCopies } from './copy';
@@ -15,12 +15,6 @@ export async function loadLibrary(space: Space): Promise<{ library: Library; sta
     stale: copies.stale || readingStatuses.stale || follows.stale,
   };
 }
-
-export const savedMessage: Record<WriteState, string> = {
-  sent: 'Saved to your PDS.',
-  waiting: 'Waiting: saved on this device. It goes to your PDS as soon as your PDS can be reached.',
-  refused: 'Your PDS refused this change, so it is not saved.',
-};
 
 // What to tell about several saves at once: refused wins, then waiting.
 export function worstState(states: WriteState[]): WriteState {
