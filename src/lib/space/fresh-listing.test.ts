@@ -76,7 +76,18 @@ describe('freshListing', () => {
     expect(shown).toEqual([stale, fresh]);
   });
 
-  test('a fresh listing is not read again', async () => {
+  test('Reconnect also reads a fresh listing again: another device may have changed the Library meanwhile', async () => {
+    const load = reads(() => Promise.resolve(fresh));
+    const { listing, events } = setup(load);
+
+    await listing.refresh();
+    events.dispatchEvent(new Event(reconnectEvent));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  test('a fresh listing is not read again on the online event alone', async () => {
     const load = reads(() => Promise.resolve(fresh));
     const { listing, events } = setup(load);
 

@@ -1,7 +1,10 @@
 // The real AuthClient: the Atomes server signs the reader in (ADR 0013). The
 // device keeps only the account it saw last (DID and handle, no token), so the
 // session still opens offline (ADR 0002).
+import { lookupEdition } from '../catalog/client';
+import { staleNotice } from '../library/stale';
 import { isNetworkFailure } from '../network';
+import { toast } from '../toast';
 import { indexedDbLocalCopy } from '../space/local-copy';
 import { instanceFetch, openInstanceStore } from '../space/instance-store';
 import type { Space } from '../space/space';
@@ -74,8 +77,13 @@ export function createAuthClient(): AuthClient {
 }
 
 // The signed-in reader and their Library store on this instance. Undefined when signed out.
+// A change refused because another device changed the record first gets a
+// toast that names the book (ADR 0012).
 export async function openOwnSpace(): Promise<{ account: Account; space: Space } | undefined> {
   const account = await createAuthClient().init();
   if (!account) return undefined;
-  return { account, space: openInstanceStore(instanceFetch, account.did, indexedDbLocalCopy()) };
+  const space = openInstanceStore(instanceFetch, account.did, indexedDbLocalCopy(), (write) => {
+    void staleNotice(write, { space, lookup: lookupEdition }).then((text) => toast(text, { error: true }));
+  });
+  return { account, space };
 }

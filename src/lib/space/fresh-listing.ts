@@ -2,7 +2,7 @@
 // network or a failing PDS and no copy), reads it again until the PDS answers: at once when the
 // browser says it is back online, and every `retryMs`. The `online` event can
 // come before the network works, or not come at all, so one read on it is not
-// enough. Reconnect (src/lib/connection.ts) also reads it again at once.
+// enough. Reconnect (src/lib/connection.ts) reads it again at once, fresh or not.
 import { reconnectEvent } from '../network';
 import { isTemporaryFailure } from './space';
 
@@ -29,11 +29,13 @@ export function freshListing<T extends { stale: boolean }>(
     if (waiting) retry = setTimeout(() => void refresh(), retryMs);
   }
 
-  const again = () => {
+  events.addEventListener('online', () => {
     if (waiting) void refresh();
-  };
-  events.addEventListener('online', again);
-  events.addEventListener(reconnectEvent, again);
+  });
+  // The network works again (src/lib/connection.ts checks it after `online`):
+  // read again even a fresh listing, as another device may have changed the
+  // Library meanwhile (ADR 0012).
+  events.addEventListener(reconnectEvent, () => void refresh());
 
   return { refresh };
 }
