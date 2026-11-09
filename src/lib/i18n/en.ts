@@ -40,6 +40,7 @@ export const en = {
     `${book} was changed on another device first. That change is kept, and the change made here is not saved.`,
   'saved.waiting':'Waiting: saved on this device. It goes to your Library as soon as the Atomes server can be reached.',
   'saved.refused': 'The Atomes server refused this change, so it is not saved.',
+  'saved.refused-reason': (reason: string) => `Reason: ${reason}`,
 
   // Errors (src/lib/space/space.ts, src/lib/auth/session.ts)
   'error.server-unreachable': 'Could not reach this Atomes server. Check your connection and try again.',

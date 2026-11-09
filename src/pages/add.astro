@@ -151,7 +151,7 @@ const answers = [
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { t } from '../lib/i18n/i18n';
   import { saveFollow } from '../lib/library/follow';
-  import { loadLibrary, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
+  import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
   import { bookPage, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
   import { followOnRead, noOnboarding, type NoOnboarding } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses } from '../lib/library/reading-status';
@@ -363,7 +363,7 @@ const answers = [
       book = undefined;
       isbnInput.value = '';
       const link = { href: bookHref(work), label: t('link.book-page') };
-      const close = toast([t('add.added', title), t(`saved.${state}`), note].filter(Boolean).join(' '), {
+      const close = toast([t('add.added', title), await savedText(space, state), note].filter(Boolean).join(' '), {
         link,
         error: state === 'refused',
       });
