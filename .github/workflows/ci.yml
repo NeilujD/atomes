@@ -30,9 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker build -t atomes:ci .
+      - name: The image stops at start when a required setting is missing
+        run: |
+          if docker run --rm atomes:ci; then echo "The image started with no settings"; exit 1; fi
+      # Throwaway settings, made for this run only: no secret in the repo or in CI.
       - name: Run the image and wait for its health check
         run: |
-          docker run -d --name atomes -v atomes-data:/data atomes:ci
+          docker run -d --name atomes -v atomes-data:/data \
+            -e ALLOWED_DIDS=did:plc:ci -e SESSION_ENCRYPTION_KEY="$(openssl rand -base64 32)" atomes:ci
           for _ in $(seq 30); do
             status=$(docker inspect -f '{{.State.Health.Status}}' atomes)
             [ "$status" = healthy ] && exit 0
@@ -40,3 +45,8 @@ jobs:
           done
           docker logs atomes
           exit 1
+      - name: The backup command loads in the image and asks for its settings
+        run: |
+          if out=$(docker run --rm atomes:ci node dist/backup.mjs backup 2>&1); then exit 1; fi
+          echo "$out"
+          echo "$out" | grep -q 'missing settings: BACKUP_S3_ENDPOINT'

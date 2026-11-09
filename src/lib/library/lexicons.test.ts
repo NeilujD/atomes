@@ -23,14 +23,23 @@ test('every lexicon file is a valid lexicon whose id matches its path', async ()
   }
 });
 
-test('the Library Space lists exactly the Library record types', async () => {
-  const docs = (await lexiconFiles()).map(({ doc }) => doc);
-  const space = docs.find((doc) => doc.id === 'app.atomes.library')?.defs.main;
-  const recordTypes = docs.filter((doc) => doc.defs.main?.type === 'record').map((doc) => doc.id);
+// The Space lexicon (lexicons-space/) stays out: the stable parser refuses
+// `type: "space"` (spike 0003). The server accepts these types only.
+const libraryTypes = [copyCollection, followCollection, labelCollection, loanCollection, readingStatusCollection, toBuyCollection].sort();
 
-  const libraryTypes = [copyCollection, followCollection, labelCollection, loanCollection, readingStatusCollection, toBuyCollection].sort();
-  expect(space?.type === 'space' && [...space.collections].sort()).toEqual(libraryTypes);
-  expect(recordTypes.sort()).toEqual(libraryTypes);
+test('the loaded lexicons are exactly the Library record types', async () => {
+  const docs = (await lexiconFiles()).map(({ doc }) => doc);
+
+  expect(docs.every((doc) => doc.defs.main?.type === 'record')).toBe(true);
+  expect(docs.map((doc) => doc.id).sort()).toEqual(libraryTypes);
+});
+
+test('the Space lexicon, kept for the move to Spaces, lists the same record types', async () => {
+  const space = JSON.parse(await readFile(new URL('../../../lexicons-space/app/atomes/library.json', import.meta.url), 'utf8')) as {
+    defs: { main: { collections: string[] } };
+  };
+
+  expect([...space.defs.main.collections].sort()).toEqual(libraryTypes);
 });
 
 // ADR 0010, amendment 2026-11-09: Loans replace Lent To, so who has a Copy has one source.

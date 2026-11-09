@@ -77,17 +77,34 @@ In the app, **Domains > Add domain** ([domains](https://coolify.io/docs/core/net
 
 With **https**, the proxy gets and renews a Let's Encrypt certificate. It needs the DNS record of step 2 and ports `80` and `443` open.
 
-## 8. Set `PUBLIC_APP_ORIGIN`
+## 8. Set the settings
 
-In the app, **Environment Variables** ([environment variables](https://coolify.io/docs/applications/configuration/environment-variables)), add one variable:
+The server signs readers in as an OAuth confidential client and keeps their Private records (ADR 0012, ADR 0013). It does not start when a required setting is missing or wrong: the deployment log names each one.
 
-| Name | Value | Build time | Runtime |
-| --- | --- | --- | --- |
-| `PUBLIC_APP_ORIGIN` | `https://staging.<domain>` | **Not available during build** | **Available in the container** |
+1. On your Mac, make the two secrets of this instance. Run each command once and keep the output in your password manager; never put it in the repository:
 
-- The value is the origin only: `https://`, the hostname, no path, no final `/`. Without `https://`, sign-in shows "This Atomes server is not set up for sign-in".
+   ```sh
+   # SESSION_ENCRYPTION_KEY: encrypts the OAuth tokens and DPoP keys in /data/auth.sqlite
+   openssl rand -base64 32
+   # OAUTH_PRIVATE_KEY: the confidential client's ES256 private key, as one line of JSON
+   node -e "const c=require('node:crypto');const {privateKey}=c.generateKeyPairSync('ec',{namedCurve:'P-256'});console.log(JSON.stringify({...privateKey.export({format:'jwk'}),kid:c.randomUUID(),alg:'ES256'}))"
+   ```
+
+2. Find the DID of each account that may sign in: `curl -s 'https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=<handle>'`.
+3. In the app, **Environment Variables** ([environment variables](https://coolify.io/docs/applications/configuration/environment-variables)), add these variables. For each one: **Not available during build**, **Available in the container**. If the start stops with "OAUTH_PRIVATE_KEY must be an ES256 private JWK", the JSON was changed on the way in: paste it again as one line.
+
+| Name | Value |
+| --- | --- |
+| `PUBLIC_APP_ORIGIN` | `https://staging.<domain>` |
+| `ALLOWED_DIDS` | The DIDs that may sign in, separated by commas: `did:plc:…,did:plc:…` |
+| `SESSION_ENCRYPTION_KEY` | The `openssl` output |
+| `OAUTH_PRIVATE_KEY` | The `node` output (one line, starts with `{"kty":"EC"`) |
+
+- `PUBLIC_APP_ORIGIN` is the origin only: `https://`, the hostname, no path, no final `/`.
+- A DID that is not on `ALLOWED_DIDS` sees "This account may not sign in to this Atomes server" and the instance keeps nothing for it.
+- A new `SESSION_ENCRYPTION_KEY` signs every reader out: the stored sessions can no longer be read. A new `OAUTH_PRIVATE_KEY` makes the PDS refuse the old sessions at their next refresh. Change them only after a leak.
 - Do not set `DATA_DIR`, `PORT` or `HOST`: the image defaults (`/data`, `4321`, `0.0.0.0`) are the right values.
-- After a change of this value only, **Restart** is enough. The PDS can keep the old client metadata for about 30 minutes.
+- After a change of settings only, **Restart** is enough. The PDS can keep the old client metadata for about 30 minutes.
 
 ## 9. Keep the data folder on a volume
 
@@ -120,10 +137,11 @@ Coolify builds on the push, not on the CI result. `protect-main` only merges a p
 
    ```sh
    curl -s -o /dev/null -w '%{http_code}\n' https://staging.<domain>/health   # 200
-   curl -s https://staging.<domain>/oauth/client-metadata.json                # client_id on staging.<domain>
+   curl -s https://staging.<domain>/oauth/client-metadata.json                # client_id on staging.<domain>, private_key_jwt
+   curl -s https://staging.<domain>/oauth/jwks.json                           # one public key: no "d" member
    ```
 
-2. **Phone sign-in.** On the phone, open `https://staging.<domain>`, add the app to the home screen, open it from there and sign in with the test handle. Sign-in asks for the Space scope, so the `app.atomes.*` lexicons must be published (`scripts/publish-lexicons.ts`).
+2. **Phone sign-in.** On the phone, open `https://staging.<domain>`, add the app to the home screen, open it from there and sign in with a handle on `ALLOWED_DIDS`. Add a book, reload: the book is still there.
 3. **Merge deploys with no manual step.** Merge a pull request to `main`. In the app's **Deployments**, a new deployment starts for the merge commit, with no click. When it ends, `/health` answers `200` again.
 4. **Data survives a redeploy.**
    1. Look up a book so the Catalog saves it: `curl -s https://staging.<domain>/api/catalog/editions/9782723478991`.
@@ -137,8 +155,8 @@ Coolify builds on the push, not on the CI result. `protect-main` only merges a p
 
 ## Rules and pitfalls
 
-- No secret in the repository or in CI. The GitHub App key and webhook secret stay in Coolify, `APP_KEY` in your password manager.
-- The volume lives on this host only and is not a backup. Set up volume backups before a production instance.
+- No secret in the repository or in CI. The GitHub App key, the webhook secret, `SESSION_ENCRYPTION_KEY` and `OAUTH_PRIVATE_KEY` stay in Coolify, `APP_KEY` and copies of the two keys in your password manager.
+- The volume lives on this host only and is not a backup. Production backs up to R2 every hour: `docs/backups.md`.
 - A failed health check fails the deploy. With rolling updates off, the old container is already stopped, so staging stays down until a good deploy. Read the deployment log, fix on a branch, merge again.
 - Keep the phone on one origin from sign-in to callback: the DPoP key, PKCE verifier and state are stored per origin. A staging sign-in does not carry over to a Funnel hostname.
 - If the certificate does not come, check DNS first (`dig +short staging.<domain> A`), then that `80` and `443` reach the host ([Let's Encrypt not working](https://coolify.io/docs/troubleshoot/dns-and-domains/lets-encrypt-not-working)).

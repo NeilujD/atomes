@@ -27,6 +27,8 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/scripts/check-settings.ts ./scripts/
+COPY --from=build /app/src/lib/server/settings.ts ./src/lib/server/
 COPY package.json ./
 RUN mkdir -p /data && chown node:node /data
 VOLUME /data
@@ -35,4 +37,5 @@ EXPOSE 4321
 # wget comes with Alpine (BusyBox); shell form so PORT is read at run time.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -q -O /dev/null "http://127.0.0.1:${PORT}/health" || exit 1
-CMD ["node", "dist/server/entry.mjs"]
+# A missing or wrong setting stops the start with a message (scripts/check-settings.ts).
+CMD ["sh", "-c", "node scripts/check-settings.ts && exec node dist/server/entry.mjs"]

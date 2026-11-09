@@ -29,7 +29,7 @@ if (!import.meta.env.DEV) return new Response(null, { status: 404 });
 </AppShell>
 
 <script>
-  import { openOwnSpace } from '../../lib/auth/browser-client';
+  import { openOwnSpace } from '../../lib/auth/server-client';
   import { lookupVolumes } from '../../lib/catalog/client';
   import { copyCollection } from '../../lib/library/copy';
   import { followCollection } from '../../lib/library/follow';

@@ -20,29 +20,13 @@ const SHELL = [
   '/icons/atomes-icon-512.png',
 ];
 
-// The OAuth metadata that the offline session restore (`init(false)`) reads,
-// network first like pages. Without it, an offline reload shows "Could not open
-// your session." and the library removes the session pointer on this device:
-// - `/oauth/client-metadata.json`: the app fetches it on an HTTPS origin,
-//   before the restore (src/lib/auth/client-metadata.ts). Not in SHELL: an instance without
-//   PUBLIC_APP_ORIGIN answers 404, and `cache.addAll` then fails the install.
-// - `/.well-known/oauth-authorization-server` on the authorization server: the
-//   restore reads it on every host. The library keeps its copy 60 s only.
-// Its own cache, with no version: a new worker must not delete it.
-const OAUTH_CACHE = 'atomes-oauth';
-
 // Catalog answers and covers (`/api/catalog/...`), network first: offline, a
 // Book page still shows a book looked up before. Book data only, never Library
-// data (ADR 0001), but it tells which books were looked up: sign-out deletes
-// this cache and OAUTH_CACHE (src/lib/auth/device-data.ts). Its own cache, so a
-// new worker keeps it.
+// data, but it tells which books were looked up: sign-out deletes this cache
+// (src/lib/auth/device-data.ts). Its own cache, so a new worker keeps it.
+// Nothing else under /api/ or /oauth/ is cached: the Library and the session
+// stay on the device only in the local copy (src/lib/space/local-copy.ts).
 const CATALOG_CACHE = 'atomes-catalog';
-
-function isOAuthMetadata(url) {
-  return url.origin === self.location.origin
-    ? url.pathname === '/oauth/client-metadata.json'
-    : url.pathname === '/.well-known/oauth-authorization-server';
-}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -69,9 +53,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
 
-  if (isOAuthMetadata(url)) {
-    event.respondWith(networkFirst(event, OAUTH_CACHE));
-  } else if (url.origin !== self.location.origin) {
+  if (url.origin !== self.location.origin) {
     return;
   } else if (request.mode === 'navigate') {
     // Kept by path, never with its query (`/book?work=…`, `/add?isbn=…`): the

@@ -1,24 +1,18 @@
-// OAuth client settings, shared by the browser client and the metadata endpoint
-// (ADR 0009). Plain data: no OAuth library import, so the server can use it.
+// OAuth client settings of the server (ADR 0013). Plain data: no OAuth library
+// import, so the metadata endpoint and the tests use it as is.
 
-// The Space scope lets the app create the private Space and read and write the
-// collections that `lexicons/app/atomes/library.json` lists. The PDS resolves
-// that lexicon at sign-in: unpublished, it answers `invalid_scope`
-// (run `scripts/publish-lexicons.ts` after every lexicon change).
-export const oauthScope = 'atproto space:app.atomes.library?skey=self&manage=create';
+// Create, update and delete on the Shared record collections only: no Space
+// scope, no blob scope, no published lexicon needed (spike 0003, section 3).
+export const oauthScope =
+  'atproto repo?collection=app.atomes.readingStatus&collection=app.atomes.label&collection=app.atomes.follow';
 export const callbackPath = '/oauth/callback';
 export const metadataPath = '/oauth/client-metadata.json';
+export const jwksPath = '/oauth/jwks.json';
 
-// The loopback client (local development) only accepts an app served on a
-// loopback IP, never on `localhost` (docs/spikes/0001-oauth-and-spaces-alpha.md).
-export function isLoopbackHost(hostname: string): boolean {
-  return hostname === '127.0.0.1' || hostname === '[::1]';
-}
-
-// Metadata of a public web client, served at `metadataPath` and given as is to
-// the browser client, so the two cannot drift. Built from PUBLIC_APP_ORIGIN,
-// never from the request Host header.
-export function webClientMetadata(appOrigin: string) {
+// Metadata of the confidential client, served at `metadataPath`. Built from
+// PUBLIC_APP_ORIGIN, never from the request Host header. The PDS checks the
+// client's signed assertions with the public key at `jwksPath`.
+export function confidentialClientMetadata(appOrigin: string) {
   const url = new URL(appOrigin);
   if (url.protocol !== 'https:') throw new Error(`PUBLIC_APP_ORIGIN must use https: ${appOrigin}`);
   const origin = url.origin;
@@ -31,7 +25,9 @@ export function webClientMetadata(appOrigin: string) {
     scope: oauthScope,
     grant_types: ['authorization_code', 'refresh_token'],
     response_types: ['code'],
-    token_endpoint_auth_method: 'none',
+    token_endpoint_auth_method: 'private_key_jwt',
+    token_endpoint_auth_signing_alg: 'ES256',
+    jwks_uri: `${origin}${jwksPath}`,
     dpop_bound_access_tokens: true,
   } as const;
 }

@@ -1,187 +1,160 @@
-import {
-  OAuthCallbackError,
-  OAuthResolverError,
-  OAuthResponseError,
-  TokenRefreshError,
-} from '@atproto/oauth-client-browser';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { memoryLocalCopy } from '../space/local-copy.fake';
-import { ClientMetadataError } from './client-metadata';
-import { errorMessage, loadSession, signIn, signOut, type AuthClient } from './session';
+import { serverAuthClient } from './server-client';
+import { errorMessage, loadSession, signIn, signInResultMessage, signOut, type AuthClient } from './session';
 
 const reader = { did: 'did:plc:reader', handle: 'reader.test' };
-const accessToken = 'access-token-never-leaves-the-client';
-const refreshToken = 'refresh-token-never-leaves-the-client';
 
-// What the real client keeps on the device (IndexedDB): it survives a reload.
-interface Device {
-  stored?: { did: string; handle: string; accessToken: string; refreshToken: string };
-  // Set when the PDS sends the window back to the callback page.
-  callback?: 'approved' | 'denied';
-  redirectedTo?: string;
+// The Atomes server as the device sees it: one browser session, behind a cookie
+// the device cannot read. `online = false` stands for the network off.
+function fakeServer() {
+  const server = { signedIn: false, online: true, signOutCalls: 0, submitted: [] as string[] };
+  const fetch = (input: string, init?: RequestInit) => {
+    if (!server.online) return Promise.reject(new TypeError('Failed to fetch'));
+    if (input === '/api/session') {
+      return Promise.resolve(server.signedIn ? Response.json(reader) : Response.json({ error: 'SignedOut' }, { status: 401 }));
+    }
+    if (input === '/oauth/sign-out' && init?.method === 'POST') {
+      server.signOutCalls++;
+      server.signedIn = false;
+      return Promise.resolve(Response.json({ pdsReached: true }));
+    }
+    return Promise.resolve(new Response(null, { status: 404 }));
+  };
+  return { server, fetch };
 }
 
-// A new client on the same device stands for a page load.
-function fakeClient(device: Device): AuthClient {
+// What the device keeps between page loads (localStorage).
+function memoryStorage() {
+  const items = new Map<string, string>();
   return {
-    init() {
-      const outcome = device.callback;
-      device.callback = undefined;
-      if (outcome === 'denied') {
-        return Promise.reject(new OAuthCallbackError(new URLSearchParams({ error: 'access_denied' })));
-      }
-      if (outcome === 'approved') device.stored = { ...reader, accessToken, refreshToken };
-      return Promise.resolve(device.stored && { did: device.stored.did, handle: device.stored.handle });
-    },
-    signIn(handle) {
-      if (handle !== reader.handle) return Promise.reject(new OAuthResolverError(`Failed to resolve identity: ${handle}`));
-      device.redirectedTo = `https://pds.test/oauth/authorize?login_hint=${handle}`;
-      return Promise.resolve();
-    },
-    signOut(did) {
-      if (device.stored?.did === did) device.stored = undefined;
-      return Promise.resolve();
-    },
+    items,
+    getItem: (key: string) => items.get(key) ?? null,
+    setItem: (key: string, value: string) => void items.set(key, value),
+    removeItem: (key: string) => void items.delete(key),
   };
 }
 
+// A new client on the same device stands for a page load.
+function setup() {
+  const { server, fetch } = fakeServer();
+  const storage = memoryStorage();
+  const client = (): AuthClient => serverAuthClient({ fetch, storage, submitSignIn: (handle) => server.submitted.push(handle) });
+  return { server, storage, client };
+}
+
 describe('session', () => {
-  test('signed out, signed in, restored after a reload, signed out', async () => {
-    const device: Device = {};
+  test('signed out, sign-in sent to the server, signed in after the callback, signed out', async () => {
+    const { server, client } = setup();
 
-    expect(await loadSession(fakeClient(device))).toEqual({ status: 'signed-out' });
+    expect(await loadSession(client())).toEqual({ status: 'signed-out' });
 
-    await signIn(fakeClient(device), ' @reader.test ');
-    expect(device.redirectedTo).toContain('login_hint=reader.test');
+    void signIn(client(), ' @reader.test ');
+    expect(server.submitted).toEqual(['reader.test']);
 
-    device.callback = 'approved';
-    expect(await loadSession(fakeClient(device))).toEqual({ status: 'signed-in', account: reader });
+    server.signedIn = true;
+    expect(await loadSession(client())).toEqual({ status: 'signed-in', account: reader });
 
-    expect(await loadSession(fakeClient(device))).toEqual({ status: 'signed-in', account: reader });
-
-    expect(await signOut(fakeClient(device), reader, memoryLocalCopy())).toEqual({ status: 'signed-out' });
-    expect(device.stored).toBeUndefined();
-    expect(await loadSession(fakeClient(device))).toEqual({ status: 'signed-out' });
+    expect(await signOut(client(), reader, memoryLocalCopy())).toEqual({ status: 'signed-out' });
+    expect(server.signOutCalls).toBe(1);
+    expect(await loadSession(client())).toEqual({ status: 'signed-out' });
   });
 
-  test('a cancelled sign-in leaves the reader signed out with a clear message', async () => {
-    const device: Device = { callback: 'denied' };
+  test('the session still opens offline from the device', async () => {
+    const { server, client } = setup();
+    server.signedIn = true;
+    await loadSession(client());
 
-    expect(await loadSession(fakeClient(device))).toEqual({ status: 'signed-out', message: 'Sign-in was cancelled.' });
-    expect(device.stored).toBeUndefined();
+    server.online = false;
+
+    expect(await loadSession(client())).toEqual({ status: 'signed-in', account: reader });
   });
 
-  test('an unknown handle gives a clear message and no redirect', async () => {
-    const device: Device = {};
+  test('offline on a device that was never signed in: signed out, and told why', async () => {
+    const { server, client } = setup();
+    server.online = false;
 
-    expect(await signIn(fakeClient(device), 'nobody.test')).toEqual({
+    expect(await loadSession(client())).toEqual({
       status: 'signed-out',
-      message: 'No account found for this handle. Check the spelling.',
+      message: 'Could not reach this Atomes server. Check your connection and try again.',
     });
-    expect(device.redirectedTo).toBeUndefined();
+  });
+
+  test('after sign-out, the device no longer opens the session offline', async () => {
+    const { server, storage, client } = setup();
+    server.signedIn = true;
+    await loadSession(client());
+
+    await signOut(client(), reader, memoryLocalCopy());
+    server.online = false;
+
+    expect(storage.items.size).toBe(0);
+    expect((await loadSession(client())).status).toBe('signed-out');
+  });
+
+  test('a session ended on the server is forgotten on the device', async () => {
+    const { server, storage, client } = setup();
+    server.signedIn = true;
+    await loadSession(client());
+
+    server.signedIn = false;
+
+    expect(await loadSession(client())).toEqual({ status: 'signed-out' });
+    expect(storage.items.size).toBe(0);
   });
 
   test('an empty handle asks for one', async () => {
-    expect(await signIn(fakeClient({}), '  ')).toEqual({
-      status: 'signed-out',
-      message: 'Type your handle, for example alice.bsky.social.',
-    });
+    const { server, client } = setup();
+
+    expect(await signIn(client(), '  ')).toEqual({ status: 'signed-out', message: 'Type your handle, for example alice.bsky.social.' });
+    expect(server.submitted).toEqual([]);
   });
 
-  test('sign-out tells the reader when the PDS could not be reached', async () => {
-    const client = { ...fakeClient({}), signOut: () => Promise.reject(new TypeError('Failed to fetch')) };
-
-    expect(await signOut(client, reader, memoryLocalCopy())).toEqual({
-      status: 'signed-out',
-      message: 'Signed out on this device. Your PDS could not be reached to end the session there.',
-    });
-  });
-
-  test.each<[string, AuthClient]>([
-    ['the PDS ends the session', fakeClient({})],
-    ['the PDS cannot be reached', { ...fakeClient({}), signOut: () => Promise.reject(new TypeError('Failed to fetch')) }],
-  ])('sign-out clears the local copy of the Space when %s', async (_, client) => {
+  test('sign-out tells the reader when the server could not be reached, and clears the device anyway', async () => {
+    const { server, client } = setup();
     const copy = memoryLocalCopy();
-    await copy.write('at://did:plc:reader/space/app.atomes.library/self/app.atomes.copy', [
-      { rkey: 'a', value: { text: 'private' } },
-    ]);
+    await copy.write('atomes-instance:did:plc:reader/app.atomes.copy', [{ rkey: 'a', value: { text: 'private' } }]);
+    server.online = false;
 
-    await signOut(client, reader, copy);
-
-    expect(await copy.read('at://did:plc:reader/space/app.atomes.library/self/app.atomes.copy')).toBeUndefined();
+    expect(await signOut(client(), reader, copy)).toEqual({
+      status: 'signed-out',
+      message: 'Signed out on this device. The Atomes server could not be reached to end the session there.',
+    });
+    expect(await copy.read('atomes-instance:did:plc:reader/app.atomes.copy')).toBeUndefined();
   });
 
   test('when the data on this device cannot be cleared, the session still ends and the reader is told', async () => {
-    const device: Device = { stored: { ...reader, accessToken, refreshToken } };
+    const { server, client } = setup();
+    server.signedIn = true;
     const broken = { clear: () => Promise.reject(new Error('IndexedDB is blocked')) };
 
-    expect(await signOut(fakeClient(device), reader, broken)).toEqual({
+    expect(await signOut(client(), reader, broken)).toEqual({
       status: 'signed-out',
       message: 'Signed out, but some of your data could not be removed from this device. Clear this site’s data in the browser.',
     });
-    expect(device.stored).toBeUndefined();
+    expect(server.signedIn).toBe(false);
   });
 });
 
-describe('tokens', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  test('are never logged, never sent to the Atomes server and never in the state the page shows', async () => {
-    const logs = (['log', 'info', 'warn', 'error', 'debug'] as const).map((level) =>
-      vi.spyOn(console, level).mockImplementation(() => {}),
-    );
-    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
-    const device: Device = {};
-    const states = [];
-
-    states.push(await loadSession(fakeClient(device)));
-    states.push(await signIn(fakeClient(device), 'reader.test'));
-    device.callback = 'approved';
-    states.push(await loadSession(fakeClient(device)));
-    states.push(await loadSession(fakeClient(device)));
-    states.push(await signOut(fakeClient(device), reader, memoryLocalCopy()));
-    device.callback = 'denied';
-    states.push(await loadSession(fakeClient(device)));
-
-    const seen = JSON.stringify([states, ...logs.map((log) => log.mock.calls), fetch.mock.calls]);
-    expect(seen).not.toContain(accessToken);
-    expect(seen).not.toContain(refreshToken);
-    expect(logs.every((log) => log.mock.calls.length === 0)).toBe(true);
-    expect(fetch).not.toHaveBeenCalled();
+describe('signInResultMessage', () => {
+  test.each([
+    ['not-allowed', 'This account may not sign in to this Atomes server. Ask its owner to add it.'],
+    ['cancelled', 'Sign-in was cancelled.'],
+    ['no-account', 'No account found for this handle. Check the spelling.'],
+    ['unreachable', 'Could not reach your PDS. Try again later.'],
+    ['failed', 'Sign-in failed. Try again.'],
+    ['signed-in', undefined],
+    ['anything', undefined],
+    [null, undefined],
+  ])('%s', (result, message) => {
+    expect(signInResultMessage(result)).toBe(message);
   });
 });
 
 describe('errorMessage', () => {
-  const response = (status: number) => new Response(null, { status });
-
   test.each([
-    ['the reader denies access on the PDS page', new OAuthCallbackError(new URLSearchParams({ error: 'access_denied' })), 'Sign-in was cancelled.'],
-    ['the reader comes back with the Back button', new Error('User navigated back'), 'Sign-in was cancelled.'],
-    [
-      'the PDS refuses the scope',
-      new OAuthResponseError(response(400), { error: 'invalid_scope', error_description: 'Unknown space type' }),
-      'Your PDS refused the sign-in: Unknown space type',
-    ],
-    ['the handle does not resolve', new OAuthResolverError('Failed to resolve identity: x.test'), 'No account found for this handle. Check the spelling.'],
-    [
-      'the network is down',
-      new OAuthResolverError('Failed to resolve identity: x.test', { cause: new TypeError('Failed to fetch') }),
-      'Could not reach your PDS. Check your connection and try again.',
-    ],
-    [
-      'this Atomes server is not set up for sign-in',
-      new ClientMetadataError(true, 'HTTP 500'),
-      'This Atomes server is not set up for sign-in. Its owner must set PUBLIC_APP_ORIGIN to its https origin.',
-    ],
-    [
-      'this Atomes server cannot be reached',
-      new ClientMetadataError(false, 'Unreachable', { cause: new TypeError('Failed to fetch') }),
-      'Could not reach this Atomes server. Check your connection and try again.',
-    ],
-    ['the session expired',new TokenRefreshError('did:plc:reader', 'expired'), 'Your session has ended. Sign in again.'],
-    ['anything else', new Error('boom'), 'Sign-in failed. Try again.'],
+    ['the server cannot be reached', new TypeError('Failed to fetch'), 'Could not reach this Atomes server. Check your connection and try again.'],
+    ['anything else', new Error('HTTP 500 for /api/session'), 'Sign-in failed. Try again.'],
   ])('%s', (_, error, message) => {
     expect(errorMessage(error)).toBe(message);
   });

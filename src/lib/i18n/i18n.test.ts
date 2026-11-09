@@ -22,7 +22,7 @@ describe('dictionaries', () => {
 
   test('page scripts read English when there is no page (tests in Node)', () => {
     expect(pageLanguage()).toBe('en');
-    expect(t('saved.sent')).toBe('Saved to your PDS.');
+    expect(t('saved.sent')).toBe('Saved to your Library.');
   });
 });
 
