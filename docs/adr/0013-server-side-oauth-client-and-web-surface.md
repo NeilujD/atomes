@@ -15,8 +15,10 @@ ADR 0009 kept tokens out of the server because the server held no Library data. 
 - **PDS outages**: Private writes no longer need the reader's PDS; only Shared writes wait for it.
 - **CORS**: a PDS that refuses browser calls can now be used, because only the server calls it.
 - **Handles** are resolved by the server, not through Bluesky, so Bluesky does not learn who signs in (as in ADR 0009).
-- **Scopes**: without Spaces, the token needs write access only to the Shared record collections on the reader's PDS. Check the atproto permission scopes before building.
-- **To verify before building**: the session length a confidential client gets (expected to be longer than the 2 weeks of a public client) and how `@atproto/oauth-client-node` works with the loopback client in local development (`http://127.0.0.1`, see `CLAUDE.md`).
+- **Scopes**: `atproto repo?collection=app.atomes.readingStatus&collection=app.atomes.label&collection=app.atomes.follow`. It allows create, update and delete on the Shared record collections only, with no Space scope and no `blob:` scope. It needs no published lexicon. A session keeps the scopes of its sign-in, so a new Shared collection means each reader signs in again (spike `docs/spikes/0003-confidential-oauth-client.md`, section 3).
+- **Session length** (verified 2026-11-09, spike 0003, section 1): the reference authorization server gives a confidential client a session of up to 2 years, with a refresh token that expires after 3 months without a refresh. A public client gets 2 weeks for both. The server must handle `invalid_grant` at any time, because the client cannot read these values.
+- **Local development** (verified 2026-11-09, spike 0003, section 2): on `http://127.0.0.1:4321` the server is a loopback public client (no key, 2-week sessions). The confidential client needs a public `https://` origin, so it runs on the Funnel, staging and production. One `NodeOAuthClient` selects its metadata from `PUBLIC_APP_ORIGIN`, as the official statusphere example does.
+- **Packages** (spike 0003, section 4): stable `@atproto/oauth-client-node` 0.5.16, `@atproto/lexicon` 0.7.19 and `@atproto/syntax` 0.7.7, with no `overrides`. The Space lexicon `lexicons/app/atomes/library.json` must leave the loaded lexicons, because the stable parser refuses `type: "space"`.
 
 ## Considered Options
 
