@@ -6,7 +6,7 @@ The Library is stored as five record types, published as lexicons in `lexicons/a
 
 | Record type | One record per | Record key | Holds |
 |---|---|---|---|
-| `app.atomes.copy` | Copy (two Copies of one Edition are two records) | TID | Edition ISBN, the Works it contains, Lent To, acquired date, book details typed by the reader when the Catalog does not know the ISBN |
+| `app.atomes.copy` | Copy (two Copies of one Edition are two records) | TID | Edition ISBN, the Works it contains, Lent To (replaced by `app.atomes.loan`, see the 2026-11-09 amendment), acquired date, book details typed by the reader when the Catalog does not know the ISBN |
 | `app.atomes.readingStatus` | Work | Work identifier | Work, ISBN of the Edition read, status (unread, reading, read, abandoned), optional finish date |
 | `app.atomes.follow` | Series | Series identifier | Series, anchor ISBN, optional `fromVolume`, status (following, dropped) |
 | `app.atomes.toBuy` | Edition added by hand | ISBN-13 | ISBN |
@@ -71,3 +71,15 @@ Series Onboarding (CORE-31) needs every Volume of an Edition Line, but a Catalog
 - Like a lookup, nothing is stored when a source fails, so a listed Volume gets the Work identifier a lookup would give it. `/volumes` needs no sign-in, so calls at the same time for one Edition Line share one fill, and after a failed fill the sources are not asked again for an hour.
 - Only a Series title and a publisher leave the server, never an ISBN a reader asked about, and they say nothing about who asked (ADR 0001).
 - Rejected: a full lookup (four sources) per Volume, about 4 minutes for One Piece at one request per second per host; Inventaire's Series to Works links, 37 Works for One Piece.
+
+## Amendment 2026-11-09: Loans, the end of a Copy, storage and Catalog access
+
+**Loans replace Lent To.** `copy.lentTo` keeps only the current borrower, so each loan erases the last one. A sixth record type, `app.atomes.loan`, keyed by TID, holds one Loan: the Copy's record key, who has it (at most 64 graphemes), the date it was lent and, once it is back, the date it was returned. A Loan with no return date is open. `lentTo` is removed from `app.atomes.copy`. This breaks "add optional fields only" once, on purpose: no real record exists yet (real records start with ADR 0012), and no other app reads the lexicon. After the first real record the rule applies again. Loans hold names of people who are not readers, so the export and delete of ADR 0012 include them.
+
+- Rejected: keep `lentTo` and add Loans, which would give two sources of truth for who has a Copy.
+
+**The end of a Copy (later).** When the reader no longer has a Copy (sold, given, lost, never returned), the Copy is kept with an optional end date and reason, added as optional fields when a screen needs them. The Reading Status of its Works is unchanged, so the reader still sees what they read. From then on a Work is owned when it has a Copy with no end date. This one rule decides Owned-Unread, Missing Volumes, Shelf Check and Series counts, so it lives in one function.
+
+**Storage.** Until Spaces is released these records are stored by the instance (ADR 0012), which also validates them against the lexicons. The device check above stays.
+
+**Catalog access.** ISBN lookups stay open to anyone, with a limit per IP address. An Edition Line fill starts only for a signed-in reader (ADR 0013); for anyone else `/volumes` answers with what the Catalog already has. A fill is the costly call (up to 500 BnF records), and a stranger who triggers many of them gets the instance banned by the sources, not themselves.

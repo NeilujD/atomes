@@ -1,6 +1,6 @@
 # Test on a phone over HTTPS
 
-A phone cannot use the loopback client of local development: `127.0.0.1` is the phone itself. It needs the app on a public HTTPS origin, so it can install the app, run the service worker and sign in with the published client metadata (ADR 0009). We use Tailscale Funnel on port 443, which gives a stable `<machine>.<tailnet>.ts.net` hostname (`docs/spikes/0001-oauth-and-spaces-alpha.md`, section 3).
+A phone cannot use the loopback client of local development: `127.0.0.1` is the phone itself. It needs the app on a public HTTPS origin, so it can install the app, run the service worker and sign in with the published client metadata (ADR 0009, superseded by ADR 0013: the server-side client also needs a public HTTPS origin). We use Tailscale Funnel on port 443, which gives a stable `<machine>.<tailnet>.ts.net` hostname (`docs/spikes/0001-oauth-and-spaces-alpha.md`, section 3).
 
 The owner runs these steps with their own Tailscale account. Nothing here goes into the repo: the hostname stays in `.env.local`, which Git ignores.
 
@@ -34,7 +34,7 @@ The owner runs these steps with their own Tailscale account. Nothing here goes i
 
 ## Rules and pitfalls
 
-- The Funnel URL is public while it runs. The server holds no Library data (ADR 0001), but stop the funnel after the test.
+- The Funnel URL is public while it runs, and since ADR 0012 the server stores the Library records of whoever signs in. Use test data only, and stop the funnel after the test.
 - Keep the phone on one origin from sign-in to callback: the DPoP key, PKCE verifier and state are stored per origin.
 - After a change to the scope or the metadata, the PDS can keep the old values for about 30 minutes (spike, risk 6). Wait before you debug a failed sign-in.
 - Sign-in asks for the Space scope, so the `app.atomes.*` lexicons must be published (`scripts/publish-lexicons.ts`).

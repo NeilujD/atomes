@@ -1,6 +1,6 @@
 # The browser signs in as an OAuth public client and calls the PDS directly
 
-Status: accepted
+Status: superseded by ADR 0013 (2026-11-09), because the instance now stores Private records (ADR 0012)
 
 The reader signs in from the browser with `@atproto/oauth-client-browser`, as an AT Protocol OAuth public client. The browser holds the session and DPoP key in IndexedDB and reads and writes the reader's PDS and Space directly. The Atomes server serves pages, the client metadata and the Catalog, but never holds OAuth tokens and never relays Library data (ADR 0001). The spec allows this, the reference PDS accepts browser calls, and the alpha Space packages contain no Node-only code (see `docs/spikes/0001-oauth-and-spaces-alpha.md`).
 

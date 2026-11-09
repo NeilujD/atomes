@@ -11,7 +11,7 @@ Turn this folder into the Atomes repository and complete **Phase 0** (repo found
 | What | Where |
 | --- | --- |
 | Domain glossary (use these words in code, UI and tickets) | `GLOSSARY.md` |
-| Architecture decisions | `docs/adr/0001` to `0008` |
+| Architecture decisions | `docs/adr/` (0001 to 0015; 0012 to 0015 change parts of 0001, 0003, 0007, 0009, 0010 and 0011) |
 | Architecture diagrams (6 figures: deployment, visibility, data model, New Volume alert, Quick Add, Shelf Check) | `docs/architecture.html` (open in a browser) |
 | Build guide: AT Protocol primer, roadmap with phases and gates, hosting, costs, risks | Claude Doc "Atomes — step-by-step build guide": https://claude.ai/artifact/CejTumXCG6FXS1JWaYhr2G |
 | Screen designs: 13 screens, desktop and mobile, light and dark, clickable | Design canvas: https://claude.ai/artifact/PqRAzaTcVkYY8p6EfeKJpB |
@@ -51,7 +51,7 @@ Licences, runtime and storage, and the absence of an AppView in v1 are now ADRs 
 ## Never
 
 - Never put the owner's real Library on the alpha PDS.
-- Never send Library data to the Atomes server; it only knows books (ADR 0001).
+- Never send Library data to the Catalog, to a book source or to logs. Since 2026-11-09 the instance stores Private records in its Library store (ADR 0012), but the Catalog still knows only books.
 - Never commit secrets; the owner keeps passwords and keys.
 - Never merge to main or deploy without the owner's review.
 
