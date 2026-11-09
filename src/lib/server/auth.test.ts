@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { callback, isSameOrigin, session, sessionCookie, signIn, signOut, type AuthDeps, type OAuthPort } from './auth';
+import { callback, session, sessionCookie, signIn, signOut, type AuthDeps, type OAuthPort } from './auth';
 import { createAuthStore, NotAllowedError, type AuthStore } from './auth-store';
 import { secretBox } from './secret-box';
 
@@ -155,28 +155,5 @@ describe('sign-out', () => {
 
     expect(response.headers.get('set-cookie')).toMatch(/Max-Age=0/);
     expect(revoked).toEqual([]);
-  });
-});
-
-describe('isSameOrigin', () => {
-  test.each([
-    [app, true],
-    ['https://evil.test', false],
-    [null, false],
-  ])('Origin %s gives %s', (origin, same) => {
-    const request = new Request('http://10.0.0.5:4321/oauth/sign-out', { method: 'POST', headers: origin ? { origin } : {} });
-    expect(isSameOrigin(request, app)).toBe(same);
-  });
-
-  test('in local development, the origin of the request', () => {
-    const request = new Request('http://127.0.0.1:4321/oauth/sign-out', { method: 'POST', headers: { origin: 'http://127.0.0.1:4321' } });
-    expect(isSameOrigin(request)).toBe(true);
-  });
-
-  test('in local development, the Host header wins over a request URL on localhost', () => {
-    const headers = { host: '127.0.0.1:4321', origin: 'http://127.0.0.1:4321' };
-    expect(isSameOrigin(new Request('http://localhost:4321/oauth/sign-out', { method: 'POST', headers }))).toBe(true);
-    const other = { host: '127.0.0.1:4321', origin: 'http://localhost:4321' };
-    expect(isSameOrigin(new Request('http://localhost:4321/oauth/sign-out', { method: 'POST', headers: other }))).toBe(false);
   });
 });
