@@ -10,6 +10,7 @@ import {
   TokenRefreshError,
   TokenRevokedError,
 } from '@atproto/oauth-client-browser';
+import { t } from '../i18n/i18n';
 import { isNetworkFailure } from '../network';
 import type { LocalCopy } from '../space/local-copy';
 import { ClientMetadataError } from './client-metadata';
@@ -42,7 +43,7 @@ export async function loadSession(client: AuthClient): Promise<AuthState> {
 // Resolves only when the sign-in does not leave the page.
 export async function signIn(client: AuthClient, input: string): Promise<AuthState> {
   const handle = input.trim().replace(/^@/, '');
-  if (!handle) return { status: 'signed-out', message: 'Type your handle, for example alice.bsky.social.' };
+  if (!handle) return { status: 'signed-out', message: t('auth.type-handle') };
   try {
     await client.signIn(handle);
     return { status: 'signed-out' };
@@ -69,42 +70,30 @@ export async function signOut(
     () => false,
   );
   // Data left on the device matters more than a session left on the PDS.
-  if (!cleared) {
-    return {
-      status: 'signed-out',
-      message: 'Signed out, but some of your data could not be removed from this device. Clear this site’s data in the browser.',
-    };
-  }
-  if (!revoked) {
-    return {
-      status: 'signed-out',
-      message: 'Signed out on this device. Your PDS could not be reached to end the session there.',
-    };
-  }
+  if (!cleared) return { status: 'signed-out', message: t('auth.signed-out-data-left') };
+  if (!revoked) return { status: 'signed-out', message: t('auth.signed-out-pds-unreached') };
   return { status: 'signed-out' };
 }
 
 export function errorMessage(error: unknown): string {
   if (error instanceof OAuthCallbackError) {
-    if (error.params.get('error') === 'access_denied') return 'Sign-in was cancelled.';
-    return `Your PDS refused the sign-in: ${error.message}`;
+    if (error.params.get('error') === 'access_denied') return t('auth.cancelled');
+    return t('auth.pds-refused', error.message);
   }
   // The reader came back from the PDS page with the Back button.
-  if (error instanceof Error && error.message === 'User navigated back') return 'Sign-in was cancelled.';
+  if (error instanceof Error && error.message === 'User navigated back') return t('auth.cancelled');
   if (error instanceof OAuthResponseError) {
-    return `Your PDS refused the sign-in: ${error.errorDescription ?? error.error ?? `HTTP ${error.status}`}`;
+    return t('auth.pds-refused', error.errorDescription ?? error.error ?? `HTTP ${error.status}`);
   }
   if (error instanceof TokenRefreshError || error instanceof TokenRevokedError || error instanceof TokenInvalidError) {
-    return 'Your session has ended. Sign in again.';
+    return t('auth.session-ended');
   }
   if (error instanceof ClientMetadataError) {
-    return error.reachable
-      ? 'This Atomes server is not set up for sign-in. Its owner must set PUBLIC_APP_ORIGIN to its https origin.'
-      : 'Could not reach this Atomes server. Check your connection and try again.';
+    return t(error.reachable ? 'auth.server-not-set-up' : 'error.server-unreachable');
   }
-  if (isNetworkFailure(error)) return 'Could not reach your PDS. Check your connection and try again.';
+  if (isNetworkFailure(error)) return t('error.pds-unreachable');
   if (error instanceof OAuthResolverError || error instanceof HandleResolverError) {
-    return 'No account found for this handle. Check the spelling.';
+    return t('auth.no-account');
   }
-  return 'Sign-in failed. Try again.';
+  return t('auth.failed');
 }

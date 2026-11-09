@@ -3,25 +3,36 @@ import Icon from '../components/Icon.astro';
 import type { IconName } from '../components/icons';
 import AppShell from '../layouts/AppShell.astro';
 import type { Appearance } from '../lib/appearance';
+import { languageCookie, parseLanguage, requestLanguage, translator, type Language } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
 
 const options: { value: Appearance; label: string; icon: IconName }[] = [
-  { value: 'system', label: 'System', icon: 'monitor' },
-  { value: 'light', label: 'Light', icon: 'sun' },
-  { value: 'dark', label: 'Dark', icon: 'moon' },
+  { value: 'system', label: t('appearance.system'), icon: 'monitor' },
+  { value: 'light', label: t('appearance.light'), icon: 'sun' },
+  { value: 'dark', label: t('appearance.dark'), icon: 'moon' },
 ];
+
+// '' follows the browser's language. Each language is named in itself.
+const languageOptions: { value: Language | ''; label: string }[] = [
+  { value: '', label: t('language.browser') },
+  { value: 'fr', label: t('language.fr') },
+  { value: 'en', label: t('language.en') },
+];
+const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?? '';
 ---
 
-<AppShell title="Settings" current="settings">
+<AppShell title={t('settings.title')} current="settings">
   <div class="settings">
     <section class="group" data-auth>
-      <h2 class="group-title">Account</h2>
+      <h2 class="group-title">{t('settings.account')}</h2>
       <div class="row">
         <div>
-          <p class="row-label">AT Protocol account</p>
-          <p class="row-hint" data-auth-status aria-live="polite">Checking…</p>
+          <p class="row-label">{t('settings.atproto-account')}</p>
+          <p class="row-hint" data-auth-status aria-live="polite">{t('settings.checking')}</p>
         </div>
         <form class="sign-in" data-sign-in hidden>
-          <label class="visually-hidden" for="handle">Your handle</label>
+          <label class="visually-hidden" for="handle">{t('settings.handle')}</label>
           <input
             class="field"
             id="handle"
@@ -33,19 +44,19 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
             spellcheck="false"
             placeholder="alice.bsky.social"
           />
-          <button class="button" type="submit">Sign in</button>
+          <button class="button" type="submit">{t('settings.sign-in')}</button>
         </form>
-        <button class="button" type="button" data-sign-out hidden>Sign out</button>
+        <button class="button" type="button" data-sign-out hidden>{t('settings.sign-out')}</button>
       </div>
       <p class="row-error" data-auth-error role="alert" hidden></p>
     </section>
 
     <section class="group">
-      <h2 class="group-title">Display</h2>
+      <h2 class="group-title">{t('settings.display')}</h2>
       <div class="row">
         <div>
-          <p class="row-label" id="appearance-label">Appearance</p>
-          <p class="row-hint" id="appearance-hint">Kept on this device.</p>
+          <p class="row-label" id="appearance-label">{t('settings.appearance')}</p>
+          <p class="row-hint" id="appearance-hint">{t('settings.on-this-device')}</p>
         </div>
         <div
           class="segmented"
@@ -65,6 +76,28 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
           }
         </div>
       </div>
+      <div class="row">
+        <div>
+          <p class="row-label" id="language-label">{t('settings.language')}</p>
+          <p class="row-hint" id="language-hint">{t('settings.on-this-device')}</p>
+        </div>
+        <div
+          class="segmented"
+          role="radiogroup"
+          aria-labelledby="language-label"
+          aria-describedby="language-hint"
+          data-language-picker
+        >
+          {
+            languageOptions.map((option) => (
+              <label class="segment">
+                <input type="radio" name="language" value={option.value} checked={option.value === chosenLanguage} />
+                <span lang={option.value || undefined}>{option.label}</span>
+              </label>
+            ))
+          }
+        </div>
+      </div>
     </section>
   </div>
 </AppShell>
@@ -73,6 +106,7 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
   import { applyAppearance, parseAppearance, readAppearance, saveAppearance } from '../lib/appearance';
   import { createAuthClient } from '../lib/auth/browser-client';
   import { deviceData } from '../lib/auth/device-data';
+  import { parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
   import { errorMessage, loadSession, signIn, signOut, type AuthClient, type AuthState } from '../lib/auth/session';
   import { indexedDbLocalCopy } from '../lib/space/local-copy';
 
@@ -88,9 +122,7 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
   function render(next: AuthState) {
     state = next;
     const signedIn = next.status === 'signed-in';
-    status.textContent = signedIn
-      ? `Signed in as @${next.account.handle}`
-      : 'Sign in on your PDS page. Atomes never sees your password.';
+    status.textContent = signedIn ? t('settings.signed-in-as', next.account.handle) : t('settings.sign-in-hint');
     form.hidden = signedIn;
     signOutButton.hidden = !signedIn;
     error.textContent = signedIn ? '' : (next.message ?? '');
@@ -131,6 +163,14 @@ const options: { value: Appearance; label: string; icon: IconName }[] = [
       const appearance = parseAppearance(radio.value);
       saveAppearance(appearance);
       applyAppearance(document, appearance, matchMedia('(prefers-color-scheme: dark)').matches);
+    });
+  }
+
+  // The server renders each page in the language: reload to show this one in it.
+  for (const radio of document.querySelectorAll<HTMLInputElement>('[data-language-picker] input[name="language"]')) {
+    radio.addEventListener('change', () => {
+      saveLanguage(parseLanguage(radio.value));
+      location.reload();
     });
   }
 </script>

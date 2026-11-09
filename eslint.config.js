@@ -27,6 +27,11 @@ export default defineConfig(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
+    // French UI text puts no-break spaces before ":", "?" and ";", also in template strings.
+    files: ["src/lib/i18n/*.ts"],
+    rules: { "no-irregular-whitespace": ["error", { skipTemplates: true }] },
+  },
+  {
     // Served as is, outside the Vite build: a plain service worker script.
     files: ["public/sw.js"],
     languageOptions: {

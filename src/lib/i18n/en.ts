@@ -1,0 +1,210 @@
+// The English UI text. Its shape is the type of every language (i18n.ts): a
+// key missing from another language, or one it adds, is a type error.
+// A text with values is a function, so each language orders and inflects them.
+
+type TileState = 'read' | 'owned' | 'missing' | 'read-not-owned';
+
+export const en = {
+  // Frame (AppShell, ConnectionStatus, toasts)
+  'nav.main': 'Main',
+  'nav.brand': 'Atomes, Home',
+  'nav.search': 'Search the Library',
+  'nav.check-book': 'Check a book',
+  'nav.home': 'Home',
+  'nav.library': 'Library',
+  'nav.new': 'New & upcoming',
+  'nav.to-buy': 'To Buy',
+  'nav.check': 'Check',
+  'nav.settings': 'Settings',
+  'nav.you': 'You',
+  'nav.private': 'Private by default',
+  'common.close': 'Close',
+  'connection.offline': 'Offline',
+  'connection.reconnect': 'Reconnect',
+  'connection.waiting': (count: number) => `${count} ${count === 1 ? 'save' : 'saves'} waiting`,
+
+  // Shared words and links
+  'link.home': 'Go to Home',
+  'link.settings': 'Go to Settings',
+  'link.book-page': 'Open its Book page',
+  'book.isbn': (isbn: string) => `ISBN ${isbn}`,
+  'book.volume': (volume: number | string) => `Volume ${volume}`,
+  'status.unread': 'Not yet',
+  'status.reading': 'Reading',
+  'status.read': 'Read',
+  'status.abandoned': 'Abandoned',
+
+  // What became of a save (src/lib/library/library.ts)
+  'saved.sent': 'Saved to your PDS.',
+  'saved.waiting': 'Waiting: saved on this device. It goes to your PDS as soon as your PDS can be reached.',
+  'saved.refused': 'Your PDS refused this change, so it is not saved.',
+
+  // Errors (src/lib/space/space.ts, src/lib/auth/session.ts)
+  'error.server-unreachable': 'Could not reach this Atomes server. Check your connection and try again.',
+  'error.pds-unreachable': 'Could not reach your PDS. Check your connection and try again.',
+  'error.server-not-set-up': 'This Atomes server is not set up correctly. Tell its owner.',
+  'error.pds-refused-request': (detail: string) => `Your PDS refused the request: ${detail}`,
+  'error.pds-problem': (detail: string) => `Your PDS has a problem (${detail}). Try again later.`,
+  'error.space-failed': 'Something went wrong with your private Space. Try again.',
+
+  // Sign-in (src/lib/auth/session.ts)
+  'auth.type-handle': 'Type your handle, for example alice.bsky.social.',
+  'auth.signed-out-data-left':
+    'Signed out, but some of your data could not be removed from this device. Clear this site’s data in the browser.',
+  'auth.signed-out-pds-unreached': 'Signed out on this device. Your PDS could not be reached to end the session there.',
+  'auth.cancelled': 'Sign-in was cancelled.',
+  'auth.pds-refused': (detail: string) => `Your PDS refused the sign-in: ${detail}`,
+  'auth.session-ended': 'Your session has ended. Sign in again.',
+  'auth.server-not-set-up':
+    'This Atomes server is not set up for sign-in. Its owner must set PUBLIC_APP_ORIGIN to its https origin.',
+  'auth.no-account': 'No account found for this handle. Check the spelling.',
+  'auth.failed': 'Sign-in failed. Try again.',
+
+  // ISBN and camera problems (src/lib/library/ids.ts, src/lib/scan/barcode.ts)
+  'isbn.not-isbn': 'This is not a book’s ISBN. It has 13 digits and starts with 978 or 979.',
+  'isbn.check-digit': 'One digit is wrong: the last digit does not match the others.',
+  'isbn.sheet-music': 'This is sheet music (ISMN), not a book.',
+  'isbn.magazine': 'This is a magazine (ISSN), not a book.',
+  'camera.refused': 'Atomes may not use the camera. Type the ISBN, or allow the camera in your browser settings.',
+  'camera.no-camera': 'No camera found. Type the ISBN.',
+  'camera.failed': 'The camera did not start. Type the ISBN.',
+
+  // Typed book details (src/lib/library/copy.ts)
+  'details.no-title': 'Type the title.',
+  'details.too-many-authors': 'At most 20 authors.',
+  'details.author-too-long': 'An author name has at most 64 characters.',
+
+  // Home
+  'home.title': 'Home',
+  'home.type-isbn': 'Type an ISBN',
+  'home.new': 'New & upcoming',
+  'home.new-empty': 'Nothing new yet. Mark a Volume read and its Series is followed: new and announced Volumes appear here.',
+  'home.reading': 'Reading now',
+  'home.reading-empty': 'No book in progress.',
+  'home.owned-unread': 'Owned, not read yet',
+  'home.owned-unread-empty': 'Books you own and have not read appear here.',
+
+  // Settings
+  'settings.title': 'Settings',
+  'settings.account': 'Account',
+  'settings.atproto-account': 'AT Protocol account',
+  'settings.checking': 'Checking…',
+  'settings.handle': 'Your handle',
+  'settings.sign-in': 'Sign in',
+  'settings.sign-out': 'Sign out',
+  'settings.signed-in-as': (handle: string) => `Signed in as @${handle}`,
+  'settings.sign-in-hint': 'Sign in on your PDS page. Atomes never sees your password.',
+  'settings.display': 'Display',
+  'settings.appearance': 'Appearance',
+  'settings.language': 'Language',
+  'settings.on-this-device': 'Kept on this device.',
+  'appearance.system': 'System',
+  'appearance.light': 'Light',
+  'appearance.dark': 'Dark',
+  'language.browser': 'Browser',
+  // Each language by its own name, the same in every dictionary.
+  'language.fr': 'Français',
+  'language.en': 'English',
+
+  // Sign-in callback
+  'callback.title': 'Signing in',
+  'callback.finishing': 'Finishing sign-in',
+  'callback.opening': 'Opening your private Space on your PDS.',
+  'callback.back': 'Back to Settings',
+  'callback.signed-in': 'Signed in',
+  'callback.welcome': (handle: string) => `Welcome, @${handle}. Your Library is private, on your PDS.`,
+  'callback.failed': 'Could not sign in',
+
+  // Quick Add
+  'add.title': 'Add to your Library',
+  'add.scan': 'Scan the barcode',
+  'add.camera-starting': 'Starting the camera…',
+  'add.type-isbn': 'Type the ISBN',
+  'add.isbn': 'ISBN',
+  'add.look-up': 'Look up',
+  'add.isbn-hint': 'The 13 digits under the barcode, on the back cover.',
+  'add.book': 'Book',
+  'add.type-book': 'Type the book',
+  'add.field-title': 'Title',
+  'add.field-authors': 'Authors',
+  'add.authors-hint': 'Separate several authors with commas.',
+  'add.field-series': 'Series',
+  'add.field-volume': 'Volume',
+  'add.read-question': 'Have you read it?',
+  'add.private': 'Private',
+  'add.private-hint': 'Only you can see this book. It is saved in your own Space, on your PDS.',
+  'add.submit': 'Add to Library',
+  'add.sources-down': 'The book sources do not answer. Try again later.',
+  'add.lookup-unreachable': 'Could not reach Atomes to look up the book. Check your connection and try again.',
+  'add.lookup-failed': 'Could not look up this ISBN. Try again.',
+  'add.unknown-isbn': (isbn: string) => `ISBN ${isbn}. No book source knows it yet: type what is on the cover.`,
+  'add.already-have': 'You already have this book. Adding it again adds another Copy.',
+  'add.sign-in': 'Sign in to add books to your Library.',
+  'add.added': (title: string) => `${title} is in your Library.`,
+  'add.looking-for-volumes': (title: string, series: string) =>
+    `${title} is saved. Looking for the other Volumes of ${series}…`,
+  'add.no-onboarding.in-library': (series: string) =>
+    `${series} was already in your Library, so no question about its other Volumes.`,
+  'add.no-onboarding.followed': (series: string) => `You already follow ${series}, so no question about its other Volumes.`,
+  'add.no-onboarding.dropped': (series: string) =>
+    `You stopped following ${series}, so no question about its other Volumes.`,
+  'scan.looking': 'Point at the barcode on the back cover.',
+  'scan.stuck': 'Nothing read yet. Hold the book 20 to 40 cm away, in good light, the barcode inside the frame.',
+  'scan.no-barcodes': 'Could not read barcodes on this device. Type the ISBN.',
+
+  // Book page
+  'book.title': 'Book',
+  'book.not-in-library': 'Not in your Library',
+  'book.not-in-library-text': 'You have no Copy of this book and no Reading Status for it.',
+  'book.not-found': 'Book not found',
+  'book.bad-link': 'This link does not point to a book.',
+  'book.add-a-book': 'Add a book',
+  'book.add-this-book': 'Add this book',
+  'book.reading-status': 'Reading Status',
+  'book.finished-on': 'Finished on',
+  'book.optional': 'Optional',
+  'book.copies': 'Your Copies',
+  'book.no-copies': 'You have no Copy of this book.',
+  'book.add-copy': 'Add another Copy',
+  'book.remove': 'Remove',
+  'book.remove-copy': (isbn: string) => `Remove the Copy with ISBN ${isbn}`,
+  'book.lent-to': 'Lent To',
+  'book.lent-to-placeholder': 'Nobody: you have it',
+  'book.save': 'Save',
+  'book.edition-unknown': 'Edition not known yet',
+  'book.sign-in': 'Sign in to see your Library.',
+
+  // Series Onboarding
+  'onboarding.title': 'Series Onboarding',
+  'onboarding.looking-up': 'Looking up the Series…',
+  'onboarding.new-series': 'New series',
+  'onboarding.heading': 'Which Volumes do you have?',
+  'onboarding.heading-series': (series: string) => `Which Volumes of ${series} do you have?`,
+  'onboarding.intro': (series: string, volume: number | string) =>
+    `${series}, Volume ${volume} is in your Library. Set the range, then tap a Volume to fix a gap.`,
+  'onboarding.own-up-to': 'I own Volumes 1 to',
+  'onboarding.all': 'All',
+  'onboarding.all-count': (last: number) => `All (${last})`,
+  'onboarding.read-up-to': 'I’ve read up to',
+  'onboarding.same-as-owned': 'Same as owned',
+  'onboarding.one-less': 'One less',
+  'onboarding.one-more': 'One more',
+  'onboarding.tiles': 'Volumes: tap one to say you own it or not',
+  'onboarding.tile': (volume: number, state: TileState, kept: boolean) =>
+    `Volume ${volume}, ${{ read: 'read', owned: 'owned, not read', missing: 'missing', 'read-not-owned': 'read, not owned' }[state]}${kept ? ', already in your Library' : ''}`,
+  'onboarding.legend-read': 'Read',
+  'onboarding.legend-owned': 'Owned, not read',
+  'onboarding.legend-missing': 'Missing',
+  'onboarding.legend-read-not-owned': 'Read, not owned',
+  'onboarding.known': (volumes: number[]) =>
+    `The Catalog knows ${volumes.length} ${volumes.length === 1 ? 'Volume' : 'Volumes'} of this edition yet: ${volumes.join(', ')}. Only these get a Copy. Add the others with Quick Add.`,
+  'onboarding.follow': 'Tell me when a new Volume is out',
+  'onboarding.in-edition': (line: string) => `In this edition: ${line}`,
+  'onboarding.in-added-edition': 'In the edition you just added',
+  'onboarding.skip': 'Skip',
+  'onboarding.save': 'Save series',
+  'onboarding.saved': 'Saved.',
+  'onboarding.added': (count: number) => `${count} more ${count === 1 ? 'Volume is' : 'Volumes are'} in your Library.`,
+  'onboarding.volumes-failed': 'Could not get the Volumes of this Series. Your book is saved; try again from Quick Add later.',
+  'onboarding.no-series': 'The Catalog knows no Series for this book.',
+};

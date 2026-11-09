@@ -5,43 +5,46 @@
 // server only gets the ISBN to look up (ADR 0001).
 import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
 
 const answers = [
-  { value: 'unread', label: 'Not yet' },
-  { value: 'reading', label: 'Reading' },
-  { value: 'read', label: 'Read' },
+  { value: 'unread', label: t('status.unread') },
+  { value: 'reading', label: t('status.reading') },
+  { value: 'read', label: t('status.read') },
 ];
 ---
 
-<AppShell title="Add to your Library">
+<AppShell title={t('add.title')}>
   <div class="quick-add">
     <!-- Shown only where the browser can open a camera (HTTPS or loopback). -->
     <button class="button button-primary scan" type="button" data-scan hidden>
       <Icon name="scan-barcode" />
-      <span>Scan the barcode</span>
+      <span>{t('add.scan')}</span>
     </button>
 
     <!-- data-state: starting | looking | wrong | found (set by the script, styled below). -->
-    <dialog class="camera" data-camera data-state="starting" aria-label="Scan the barcode">
+    <dialog class="camera" data-camera data-state="starting" aria-label={t('add.scan')}>
       <video class="camera-video" data-video muted playsinline></video>
       <div class="viewfinder" aria-hidden="true">
         <span class="scan-line"></span>
         <span class="found-mark"><Icon name="check" size={32} /></span>
       </div>
-      <button class="camera-close" type="button" aria-label="Close" data-camera-close>
+      <button class="camera-close" type="button" aria-label={t('common.close')} data-camera-close>
         <Icon name="x" size={22} />
       </button>
       <div class="camera-bottom">
-        <p class="camera-text" data-camera-text aria-live="polite">Starting the camera…</p>
+        <p class="camera-text" data-camera-text aria-live="polite">{t('add.camera-starting')}</p>
         <button class="camera-type" type="button" data-camera-close>
           <Icon name="keyboard" />
-          <span>Type the ISBN</span>
+          <span>{t('add.type-isbn')}</span>
         </button>
       </div>
     </dialog>
 
     <form class="isbn-form" data-isbn-form>
-      <label class="label" for="isbn">ISBN</label>
+      <label class="label" for="isbn">{t('add.isbn')}</label>
       <div class="isbn-row">
         <input
           class="field"
@@ -54,12 +57,10 @@ const answers = [
           placeholder="978 2 7234 7899 1"
           aria-describedby="isbn-hint"
         />
-        <button class="button" type="submit">Look up</button>
+        <button class="button" type="submit">{t('add.look-up')}</button>
       </div>
       <!-- The hint line also says what is wrong with the ISBN: the page does not move. -->
-      <p class="hint" id="isbn-hint" data-hint aria-live="polite">
-        The 13 digits under the barcode, on the back cover.
-      </p>
+      <p class="hint" id="isbn-hint" data-hint aria-live="polite">{t('add.isbn-hint')}</p>
     </form>
 
     <div class="book" data-skeleton hidden aria-hidden="true">
@@ -75,7 +76,7 @@ const answers = [
       <div class="book" data-preview>
         <div class="cover" data-cover></div>
         <div class="book-text">
-          <h2 class="book-title" data-title>Book</h2>
+          <h2 class="book-title" data-title>{t('add.book')}</h2>
           <p class="book-line" data-authors></p>
           <p class="book-line" data-series></p>
           <p class="book-meta" data-edition></p>
@@ -86,24 +87,24 @@ const answers = [
            required) while a Catalog book is shown. maxlength keeps each field
            inside the Copy lexicon (bookDetails). -->
       <fieldset class="details" data-details hidden disabled>
-        <legend class="details-title">Type the book</legend>
+        <legend class="details-title">{t('add.type-book')}</legend>
         <p class="hint" data-details-isbn></p>
         <label class="details-field">
-          <span class="label">Title</span>
+          <span class="label">{t('add.field-title')}</span>
           <input class="field" name="title" type="text" maxlength="300" autocomplete="off" required />
         </label>
         <label class="details-field">
-          <span class="label">Authors</span>
+          <span class="label">{t('add.field-authors')}</span>
           <input class="field" name="authors" type="text" maxlength="1300" autocomplete="off" aria-describedby="authors-hint" />
-          <span class="hint" id="authors-hint">Separate several authors with commas.</span>
+          <span class="hint" id="authors-hint">{t('add.authors-hint')}</span>
         </label>
         <div class="details-row">
           <label class="details-field">
-            <span class="label">Series</span>
+            <span class="label">{t('add.field-series')}</span>
             <input class="field" name="series" type="text" maxlength="300" autocomplete="off" />
           </label>
           <label class="details-field volume">
-            <span class="label">Volume</span>
+            <span class="label">{t('add.field-volume')}</span>
             <input class="field" name="volume" type="text" maxlength="16" autocomplete="off" />
           </label>
         </div>
@@ -111,7 +112,7 @@ const answers = [
       </fieldset>
 
       <fieldset class="question">
-        <legend class="label">Have you read it?</legend>
+        <legend class="label">{t('add.read-question')}</legend>
         <div class="segmented">
           {
             answers.map((answer) => (
@@ -127,14 +128,14 @@ const answers = [
       <div class="private">
         <Icon name="lock" size={18} />
         <div>
-          <p class="private-title">Private</p>
-          <p class="hint">Only you can see this book. It is saved in your own Space, on your PDS.</p>
+          <p class="private-title">{t('add.private')}</p>
+          <p class="hint">{t('add.private-hint')}</p>
         </div>
       </div>
 
       <button class="button button-primary add" type="submit">
         <Icon name="book-plus" />
-        <span>Add to Library</span>
+        <span>{t('add.submit')}</span>
       </button>
     </form>
   </div>
@@ -145,11 +146,12 @@ const answers = [
   import type { Edition } from '../lib/catalog/catalog';
   import { coverUrl, lookupEdition, lookupVolumes } from '../lib/catalog/client';
   import { saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
-  import { editionWork, isbnProblemText, readIsbn } from '../lib/library/ids';
-  import { cameraProblem, cameraProblemText, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
+  import { editionWork, readIsbn } from '../lib/library/ids';
+  import { cameraProblem, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
   import { reportNetwork, reportWaiting } from '../lib/connection';
+  import { t } from '../lib/i18n/i18n';
   import { saveFollow } from '../lib/library/follow';
-  import { loadLibrary, savedMessage, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
+  import { loadLibrary, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
   import { bookPage, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
   import { followOnRead, noOnboarding, type NoOnboarding } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses } from '../lib/library/reading-status';
@@ -204,7 +206,7 @@ const answers = [
     const read = readIsbn(isbnInput.value);
     addForm.hidden = true;
     book = undefined;
-    if ('problem' in read) return problem(isbnProblemText[read.problem]);
+    if ('problem' in read) return problem(t(`isbn.${read.problem}`));
     const { isbn } = read;
     problem();
     busy(lookUpButton, true);
@@ -213,16 +215,12 @@ const answers = [
     let found: Edition | undefined;
     try {
       const answer = await lookupEdition(isbn);
-      if ('unavailable' in answer) return problem('The book sources do not answer. Try again later.');
+      if ('unavailable' in answer) return problem(t('add.sources-down'));
       if ('found' in answer) found = answer.found;
       reportNetwork(true);
     } catch (error) {
       if (isNetworkFailure(error)) reportNetwork(false);
-      return problem(
-        isNetworkFailure(error)
-          ? 'Could not reach Atomes to look up the book. Check your connection and try again.'
-          : 'Could not look up this ISBN. Try again.',
-      );
+      return problem(t(isNetworkFailure(error) ? 'add.lookup-unreachable' : 'add.lookup-failed'));
     } finally {
       busy(lookUpButton, false);
       skeleton.hidden = true;
@@ -244,20 +242,19 @@ const answers = [
     addForm.querySelector('[data-authors]')!.textContent = found.authors.join(', ');
     addForm.querySelector('[data-series]')!.textContent = [
       found.series && found.series.title !== found.title ? found.series.title : '',
-      found.volume !== null ? `Volume ${found.volume}` : '',
+      found.volume !== null ? t('book.volume', found.volume) : '',
       found.volumeTitle ?? '',
     ]
       .filter(Boolean)
       .join(' · ');
-    addForm.querySelector('[data-edition]')!.textContent = [editionLabel(found), `ISBN ${found.isbn}`]
+    addForm.querySelector('[data-edition]')!.textContent = [editionLabel(found), t('book.isbn', found.isbn)]
       .filter(Boolean)
       .join(' · ');
     await ready({ isbn: found.isbn, work: found.work.id, edition: found });
   }
 
   async function showUnknown(isbn: string) {
-    details.querySelector('[data-details-isbn]')!.textContent =
-      `ISBN ${isbn}. No book source knows it yet: type what is on the cover.`;
+    details.querySelector('[data-details-isbn]')!.textContent = t('add.unknown-isbn', isbn);
     fillDetails({ title: '' });
     await ready({ isbn, work: editionWork(isbn) });
   }
@@ -301,9 +298,7 @@ const answers = [
     const before = library.copies.find(({ value }) => value.isbn === next.isbn && value.details)?.value.details;
     if (typing && before && !detail('title').value) fillDetails(before);
     if (bookPage(next.work, library, new Map())) {
-      toast('You already have this book. Adding it again adds another Copy.', {
-        link: { href: bookHref(next.work), label: 'Open its Book page' },
-      });
+      toast(t('add.already-have'), { link: { href: bookHref(next.work), label: t('link.book-page') } });
     }
   }
 
@@ -311,7 +306,7 @@ const answers = [
     try {
       const opened = await own;
       if (opened) return opened.space;
-      toast('Sign in to add books to your Library.', { link: { href: '/settings', label: 'Go to Settings' } });
+      toast(t('add.sign-in'), { link: { href: '/settings', label: t('link.settings') } });
     } catch (error) {
       toast(spaceErrorMessage(error), { error: true });
     }
@@ -334,7 +329,7 @@ const answers = [
       return;
     }
     const typedBook = typed?.details;
-    const title = current.edition?.title ?? typedBook?.title ?? `ISBN ${current.isbn}`;
+    const title = current.edition?.title ?? typedBook?.title ?? t('book.isbn', current.isbn);
     const checked = [...radios].find((radio) => radio.checked)?.value;
     const chosen = statuses.find((status) => status === checked);
     const space = await openSpaceOrSay();
@@ -362,13 +357,13 @@ const answers = [
         return;
       }
       const seriesTitle = current.edition?.series?.title ?? '';
-      const note = why === 'no-series' ? '' : ` ${noOnboardingText[why](seriesTitle)}`;
+      const note = why === 'no-series' ? '' : t(`add.no-onboarding.${why}`, seriesTitle);
 
       addForm.hidden = true;
       book = undefined;
       isbnInput.value = '';
-      const link = { href: bookHref(work), label: 'Open its Book page' };
-      const close = toast(`${title} is in your Library. ${savedMessage[state]}${note}`, {
+      const link = { href: bookHref(work), label: t('link.book-page') };
+      const close = toast([t('add.added', title), t(`saved.${state}`), note].filter(Boolean).join(' '), {
         link,
         error: state === 'refused',
       });
@@ -381,7 +376,7 @@ const answers = [
             reportNetwork(true);
             reportWaiting(0);
             close();
-            toast(`${title} is in your Library. ${savedMessage.sent}`, { link });
+            toast(`${t('add.added', title)} ${t('saved.sent')}`, { link });
           },
           (error) => toast(spaceErrorMessage(error), { error: true }),
         );
@@ -394,14 +389,6 @@ const answers = [
     }
   }
 
-  // Why the reader is not asked about the other Volumes (glossary: Series
-  // Onboarding), in the toast after the save.
-  const noOnboardingText: Record<Exclude<NoOnboarding, 'no-series'>, (series: string) => string> = {
-    'in-library': (series) => `${series} was already in your Library, so no question about its other Volumes.`,
-    followed: (series) => `You already follow ${series}, so no question about its other Volumes.`,
-    dropped: (series) => `You stopped following ${series}, so no question about its other Volumes.`,
-  };
-
   // Undefined: the Series is new in the Library, so the flow starts. `before`:
   // the Library as it was before this Copy. Offline, or with no answer from
   // the Catalog, there is no onboarding: the Copy is enough.
@@ -409,7 +396,7 @@ const answers = [
     const series = added.edition?.series;
     if (!added.edition || !series || added.edition.volume === null) return 'no-series';
     // The first time, the Catalog asks BnF for the whole Edition Line: seconds.
-    const close = toast(`${added.edition.title} is saved. Looking for the other Volumes of ${series.title}…`);
+    const close = toast(t('add.looking-for-volumes', added.edition.title, series.title));
     const answer = await lookupVolumes(added.isbn).catch(() => undefined);
     close();
     return answer ? noOnboarding(added.edition, answer.volumes, before) : 'no-series';
@@ -424,10 +411,10 @@ const answers = [
   let later: ReturnType<typeof setTimeout> | undefined;
 
   type ScanState = 'starting' | 'looking' | 'wrong' | 'found';
-  const lookingText = 'Point at the barcode on the back cover.';
+  const lookingText = t('scan.looking');
   // A detector returns only barcodes it could decode, so "nothing yet" is all
   // the reader knows. After a while, say what usually helps.
-  const stuckText = 'Nothing read yet. Hold the book 20 to 40 cm away, in good light, the barcode inside the frame.';
+  const stuckText = t('scan.stuck');
 
   // What the camera view shows: the frame (styled by data-state) and one line.
   // `then` runs after `delay` unless the view shows something else first.
@@ -444,7 +431,7 @@ const answers = [
   // and looks the book up. Any failure goes back to typing, with the reason.
   async function scan() {
     problem();
-    showScan('starting', 'Starting the camera…');
+    showScan('starting', t('add.camera-starting'));
     scanning = new AbortController();
     const { signal } = scanning;
     camera.showModal();
@@ -453,7 +440,7 @@ const answers = [
       stream = await openCamera();
     } catch (error) {
       camera.close();
-      return typeInstead(cameraProblemText[cameraProblem(error)]);
+      return typeInstead(t(`camera.${cameraProblem(error)}`));
     }
     const stop = () => stream.getTracks().forEach((track) => track.stop());
     if (signal.aborted) return stop(); // closed while the permission prompt was open
@@ -468,7 +455,7 @@ const answers = [
     } catch {
       if (signal.aborted) return;
       camera.close();
-      typeInstead('Could not read barcodes on this device. Type the ISBN.');
+      typeInstead(t('scan.no-barcodes'));
     }
   }
 
@@ -476,7 +463,7 @@ const answers = [
     const read = readIsbn(text);
     if ('isbn' in read) {
       // Show the read before the view goes away: the reader sees it worked.
-      showScan('found', `ISBN ${read.isbn}`);
+      showScan('found', t('book.isbn', read.isbn));
       navigator.vibrate?.(40);
       const { signal } = scanning;
       setTimeout(() => {
@@ -490,7 +477,7 @@ const answers = [
     // A wrong check digit is a misread: keep reading without a word. While the
     // wrong barcode stays in view the state stays (no new shake); 2.5 s after
     // it leaves, back to looking.
-    if (read.problem !== 'check-digit') showScan('wrong', isbnProblemText[read.problem], looking, 2500);
+    if (read.problem !== 'check-digit') showScan('wrong', t(`isbn.${read.problem}`), looking, 2500);
     return false;
   }
 

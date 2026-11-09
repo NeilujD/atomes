@@ -6,6 +6,7 @@
 // Behind it, a local copy on the device keeps the last records read, for offline
 // reads, and the writes not sent yet, for offline writes (ADR 0002).
 import { ClientMetadataError } from '../auth/client-metadata';
+import { t } from '../i18n/i18n';
 import { isNetworkFailure } from '../network';
 import type { LocalCopy } from './local-copy';
 
@@ -300,12 +301,10 @@ export function newRecordKey(): string {
 export function spaceErrorMessage(error: unknown): string {
   // First: an unreachable Atomes server is also a network failure, but not the PDS's.
   if (error instanceof ClientMetadataError) {
-    return error.reachable
-      ? 'This Atomes server is not set up correctly. Tell its owner.'
-      : 'Could not reach this Atomes server. Check your connection and try again.';
+    return t(error.reachable ? 'error.server-not-set-up' : 'error.server-unreachable');
   }
-  if (error instanceof SpaceError) return `Your PDS refused the request: ${error.message}`;
-  if (error instanceof PdsUnavailableError) return `Your PDS has a problem (${error.message}). Try again later.`;
-  if (isNetworkFailure(error)) return 'Could not reach your PDS. Check your connection and try again.';
-  return 'Something went wrong with your private Space. Try again.';
+  if (error instanceof SpaceError) return t('error.pds-refused-request', error.message);
+  if (error instanceof PdsUnavailableError) return t('error.pds-problem', error.message);
+  if (isNetworkFailure(error)) return t('error.pds-unreachable');
+  return t('error.space-failed');
 }

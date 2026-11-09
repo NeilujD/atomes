@@ -37,3 +37,5 @@ Write every pull request body with the `mattpocock-skills:pr` skill: sections Su
 ### UI
 
 Frame, colour roles, density and behaviour rules: `docs/design/ui-direction.md`. Read it before building any screen; use `AppShell` and the tokens in `src/styles/theme.css`, never raw hex.
+
+Every UI string comes from `t(key)` (`src/lib/i18n`, ADR 0015): add each new text to `en.ts` and `fr.ts`, with the French word of `GLOSSARY.md` for each term. Sort text with `compareText(language)`, never a bare `.sort()`.

@@ -70,12 +70,6 @@ export function cameraProblem(error: unknown): CameraProblem {
   return 'failed';
 }
 
-export const cameraProblemText: Record<CameraProblem, string> = {
-  refused: 'Atomes may not use the camera. Type the ISBN, or allow the camera in your browser settings.',
-  'no-camera': 'No camera found. Type the ISBN.',
-  failed: 'The camera did not start. Type the ISBN.',
-};
-
 // Reads what the video shows, a few times a second, until `onBarcode` returns
 // true or `signal` aborts.
 export async function watchBarcodes(

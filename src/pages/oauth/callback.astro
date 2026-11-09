@@ -4,24 +4,28 @@
 // A Flow screen (ui-direction): no sidebar or tab bar, one thing at a time.
 import Mark from '../../components/Mark.astro';
 import AppShell from '../../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
 ---
 
-<AppShell title="Signing in" flow>
+<AppShell title={t('callback.title')} flow>
   <section class="card" data-callback data-state="working" aria-labelledby="callback-title">
     <div class="mark-box">
       <Mark size={72} animated />
     </div>
     <div class="text" role="status">
-      <h1 class="title" id="callback-title" data-callback-title>Finishing sign-in</h1>
-      <p class="hint" data-callback-text>Opening your private Space on your PDS.</p>
+      <h1 class="title" id="callback-title" data-callback-title>{t('callback.finishing')}</h1>
+      <p class="hint" data-callback-text>{t('callback.opening')}</p>
     </div>
-    <a class="button button-primary back" href="/settings" data-callback-back hidden>Back to Settings</a>
+    <a class="button button-primary back" href="/settings" data-callback-back hidden>{t('callback.back')}</a>
   </section>
 </AppShell>
 
 <script>
   import { createAuthClient } from '../../lib/auth/browser-client';
   import { errorMessage, loadSession, type AuthState } from '../../lib/auth/session';
+  import { t } from '../../lib/i18n/i18n';
 
   const card = document.querySelector<HTMLElement>('[data-callback]')!;
   const title = card.querySelector<HTMLElement>('[data-callback-title]')!;
@@ -36,14 +40,14 @@ import AppShell from '../../layouts/AppShell.astro';
     .then((state) => {
       if (state.status === 'signed-in') {
         card.dataset.state = 'done';
-        title.textContent = 'Signed in';
-        text.textContent = `Welcome, @${state.account.handle}. Your Library is private, on your PDS.`;
+        title.textContent = t('callback.signed-in');
+        text.textContent = t('callback.welcome', state.account.handle);
         setTimeout(() => location.replace('/settings'), doneMs);
       } else if (!state.message) {
         location.replace('/settings');
       } else {
         card.dataset.state = 'failed';
-        title.textContent = 'Could not sign in';
+        title.textContent = t('callback.failed');
         text.textContent = state.message;
         back.hidden = false;
         back.focus();
