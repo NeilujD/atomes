@@ -4,7 +4,7 @@ Staging is the project's instance that runs without the owner's laptop (ADR 0011
 
 The owner runs these steps with their own accounts. Nothing here goes into the repository or into CI: the GitHub App key, the webhook secret and the settings stay in Coolify.
 
-Checked against the Coolify docs for v4.6.0 (2026-11-02), source [coollabsio/coolify-docs](https://github.com/coollabsio/coolify-docs). Coolify changes labels between versions: if a label below is not in your dashboard, look it up on the linked page.
+Checked against the Coolify docs for v4.6.0 (2026-11-02), source [coollabsio/coolify-docs](https://github.com/coollabsio/coolify-docs), and the [v4.7.0 to v4.7.4 release notes](https://github.com/coollabsio/coolify/releases) (2026-11-10). Coolify changes labels between versions: if a label below is not in your dashboard, look it up on the linked page.
 
 In this page, `<domain>` is a domain the owner controls, the dashboard is on `coolify.<domain>` and the app is on `staging.<domain>`. Use other names if you want: only `PUBLIC_APP_ORIGIN` must match the app hostname.
 
@@ -23,6 +23,9 @@ At the DNS provider of `<domain>`, add two `A` records to the host's public IPv4
 | --- | --- | --- |
 | `A` | `coolify` | host IPv4 |
 | `A` | `staging` | host IPv4 |
+| `A` | `*.staging` | host IPv4 (preview deployments, step 11) |
+
+On Cloudflare, set each record to **DNS only** (grey cloud). A proxied record puts a second proxy in front of Coolify's (see step 6), and the Let's Encrypt HTTP challenge then goes to Cloudflare.
 
 Add `AAAA` records only if the host accepts IPv6: a broken IPv6 path makes certificate requests fail. Check from your Mac: `dig +short staging.<domain> A` prints the host IPv4.
 
@@ -49,7 +52,7 @@ Add `AAAA` records only if the host accepts IPv6: a broken IPv6 path makes certi
 The GitHub App gives Coolify read access to the repository and sets the push webhook and its secret for you ([GitHub App](https://coolify.io/docs/applications/sources/github/app)).
 
 1. **Sources > New source > GitHub App**. Give it a name. Leave **Organization** empty (the repository is on a personal account). Select **Continue**.
-2. Under **Webhook endpoint**, choose **Use an instance endpoint** (`https://coolify.<domain>`), then **Register with GitHub**.
+2. Under **Webhook endpoint**, choose **Use an instance endpoint** (`https://coolify.<domain>`). Set **Preview deployment access** to **Read and update pull requests**, then **Register with GitHub**. For an app made without it: on GitHub, give the app **Pull requests: Read and write** and subscribe it to the **Pull request** event ([preview deployments](https://coolify.io/docs/applications/sources/github/preview-deploy)).
 3. On GitHub, select **Create GitHub App**.
 4. Back in Coolify, select **Install repositories**, choose **Only select repositories**, pick `NeilujD/atomes` and select **Install**.
 
@@ -126,7 +129,9 @@ There is no health check to set: Coolify uses the image's `HEALTHCHECK` (`GET /h
 ## 11. Deploy from `main`
 
 1. In the app, check **Advanced > Deployment > Auto deploy** is **Deploy on push (webhooks)** ([auto deploy](https://coolify.io/docs/applications/sources/github/auto-deploy)). It is the default for an app made from a GitHub App.
-2. Leave **Preview Deployments** and **Allow Public PR Deployments** off: a pull request from anyone would run its code on the host ([preview deployments](https://coolify.io/docs/applications/sources/github/preview-deploy)).
+2. Turn on **Preview Deployments**: each pull request gets its own container on `https://<pr number>.staging.<domain>` (the default template `{{pr_id}}.{{domain}}`, covered by the `*.staging` record of step 2). Leave **Allow Public PR Deployments** off: with it on, a pull request from anyone would run its code on the host ([preview deployments](https://coolify.io/docs/applications/sources/github/preview-deploy)). Never turn previews on in the production app.
+
+   A preview has no settings of its own, so since v4.7.4 it gets the staging runtime variables. It starts and `/health` answers, but sign-in fails there: `PUBLIC_APP_ORIGIN` names staging, not the preview hostname. Use a preview to check that a branch builds, starts and shows its pages; check sign-in on staging after the merge.
 3. Select **Deploy** once for the first build. From then on, each merge to `main` deploys.
 
 Coolify builds on the push, not on the CI result. `protect-main` only merges a pull request whose CI `check` job is green, so what Coolify builds has passed CI.
@@ -143,7 +148,8 @@ Coolify builds on the push, not on the CI result. `protect-main` only merges a p
 
 2. **Phone sign-in.** On the phone, open `https://staging.<domain>`, add the app to the home screen, open it from there and sign in with a handle on `ALLOWED_DIDS`. Add a book, reload: the book is still there.
 3. **Merge deploys with no manual step.** Merge a pull request to `main`. In the app's **Deployments**, a new deployment starts for the merge commit, with no click. When it ends, `/health` answers `200` again.
-4. **Data survives a redeploy.**
+4. **A pull request gets a preview.** Open a pull request from a branch of this repository. In the app's **Preview Deployments**, a deployment starts for it, and `curl -s -o /dev/null -w '%{http_code}\n' https://<pr number>.staging.<domain>/health` prints `200`. On the host, `docker volume ls` shows a separate volume for the preview: it must not use the staging volume. Closing the pull request removes the preview.
+5. **Data survives a redeploy.**
    1. Look up a book so the Catalog saves it: `curl -s https://staging.<domain>/api/catalog/editions/9782723478991`.
    2. In the app's **Terminal**, count the saved Editions:
 
