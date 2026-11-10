@@ -67,7 +67,7 @@ describe('To Buy screen', () => {
 
     fireEvent.click(within(row('Missing Volumes', 'Volume 2')).getByRole('button', { name: 'I bought it' }));
 
-    expect(await screen.findByText('No Missing Volume in the Series you follow.')).toBeTruthy();
+    expect(await screen.findByText(/^No Missing Volume\./)).toBeTruthy();
     expect(stored(copyCollection).map(({ value }) => (value as { isbn: string }).isbn)).toContain(isbns[1]);
   });
 
