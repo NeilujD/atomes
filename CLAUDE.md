@@ -22,6 +22,8 @@ CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on eve
 
 Issues live in Linear, team `CORE`, project `atomes`, one milestone per gate. See `docs/agents/issue-tracker.md`.
 
+Before any work on a ticket, fetch it with its relations (Linear MCP `get_issue` with `includeRelations`). If a "blocked by" ticket is not Done or Canceled, do not start: tell the user and ask whether to work on the blocker first. The context Jean loads for a ticket does not list its relations. The SessionStart hook (`scripts/check-blockers.ts`) also checks the ticket of the branch, and needs `LINEAR_API_KEY` or `LINEAR_API_KEY_FILE` in `.env.local`.
+
 ### Triage labels
 
 Default five triage roles, used as Linear labels with the same names. See `docs/agents/triage-labels.md`.
