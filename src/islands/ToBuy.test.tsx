@@ -98,6 +98,61 @@ describe('To Buy screen', () => {
     expect(stored(toBuyCollection).map(({ rkey }) => rkey)).toEqual([dune]);
   });
 
+  test('Missing Volumes come in one group per Series, with its count', async () => {
+    await screenWithLibrary();
+
+    expect(await screen.findByRole('heading', { name: 'Blacksad · 1 Volume' })).toBeTruthy();
+  });
+
+  test('a long Series shows 10 Volumes, then the next ones on demand', async () => {
+    // Volumes 1 to 15, valid ISBN-13s; the reader owns 1 and 15, so 2 to 14 are missing.
+    const isbnOf = (n: number) => {
+      const first12 = `979109998${String(n).padStart(3, '0')}`;
+      const sum = [...first12].reduce((total, digit, i) => total + Number(digit) * (i % 2 === 0 ? 1 : 3), 0);
+      return `${first12}${(10 - (sum % 10)) % 10}`;
+    };
+    const long = Array.from({ length: 15 }, (_, i) => ({ ...volume(1), isbn: isbnOf(i + 1), volume: i + 1, work: { id: `wd:Q30000${i + 1}`, title: '' } }));
+    const { space } = memorySpace();
+    await saveFollow(space, { series: series.id, anchorIsbn: long[0].isbn, status: 'following', updatedAt: '2026-11-06T11:00:00.000Z' });
+    for (const each of [long[0], long[14]]) await saveCopy(space, { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-06T11:00:00.000Z' });
+    render(<ToBuy sources={{ open: () => Promise.resolve(space), volumes: () => Promise.resolve(long), editions: () => Promise.resolve(new Map()) }} />);
+
+    await screen.findByRole('heading', { name: 'Blacksad · 13 Volumes' });
+    expect(group('Missing Volumes').getAllByRole('listitem')).toHaveLength(10);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show 3 more (3 left)' }));
+
+    expect(group('Missing Volumes').getAllByRole('listitem')).toHaveLength(13);
+    expect(screen.queryByRole('button', { name: /^Show/ })).toBeNull();
+  });
+
+  test('a cover pulses until its image has loaded, and keeps the placeholder if it fails', async () => {
+    const { space } = memorySpace();
+    await saveToBuy(space, { isbn: isbns[0], createdAt: '2026-11-07T10:00:00.000Z' });
+    await saveToBuy(space, { isbn: isbns[1], createdAt: '2026-11-06T10:00:00.000Z' });
+    const withCover = (n: number) => ({ ...volume(n), cover: 'https://inventaire.io/img/x' });
+    render(
+      <ToBuy
+        sources={{
+          open: () => Promise.resolve(space),
+          volumes: () => Promise.resolve(undefined),
+          editions: () => Promise.resolve(new Map([[isbns[0], withCover(1)], [isbns[1], withCover(2)]])),
+        }}
+      />,
+    );
+    await screen.findByText('Volume 1');
+    const [first, second] = document.querySelectorAll<HTMLImageElement>('.to-buy-cover img');
+    expect(first.closest('[data-loading]')).toBeTruthy();
+    expect(first.loading).toBe('lazy');
+
+    fireEvent.load(first);
+    fireEvent.error(second);
+
+    await waitFor(() => expect(first.hasAttribute('data-loaded')).toBe(true));
+    expect(first.closest('[data-loading]')).toBeNull();
+    expect(document.querySelectorAll('.to-buy-cover img')).toHaveLength(1);
+  });
+
   test('signed out: says to sign in', async () => {
     render(<ToBuy sources={{ open: () => Promise.resolve(undefined), volumes: () => Promise.resolve(undefined), editions: () => Promise.resolve(new Map()) }} />);
 

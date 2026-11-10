@@ -100,6 +100,47 @@ const t = translator(requestLanguage(Astro.request));
     width: 100%;
     height: 100%;
     object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+  }
+
+  /* While its image loads, a cover pulses like a skeleton; then the image fades in. */
+  .to-buy-cover[data-loading] {
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  .to-buy-cover img[data-loaded] {
+    opacity: 1;
+  }
+
+  .to-buy-series {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .to-buy-series + .to-buy-series {
+    margin-top: 12px;
+  }
+
+  .to-buy-series-title {
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .to-buy-more {
+    align-self: flex-start;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .to-buy-cover[data-loading] {
+      animation: none;
+    }
+
+    .to-buy-cover img {
+      transition: none;
+    }
   }
 
   .to-buy-text {

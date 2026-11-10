@@ -218,6 +218,8 @@ export const en = {
   'tobuy.listed': 'This book is already on your To Buy list.',
   'tobuy.missing': 'Missing Volumes',
   'tobuy.missing-empty': 'No Missing Volume. A Missing Volume is one you skipped in a Series you follow: earlier than the latest Volume you own.',
+  'tobuy.series': (series: string, count: number) => `${series} · ${count} ${count === 1 ? 'Volume' : 'Volumes'}`,
+  'tobuy.show-more': (count: number, left: number) => `Show ${count} more (${left} left)`,
   'tobuy.by-hand': 'Added by hand',
   'tobuy.by-hand-empty': 'Nothing added by hand yet.',
   'tobuy.bought': 'I bought it',

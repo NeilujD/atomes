@@ -43,6 +43,8 @@ export interface ToBuyItem {
   // The Work the Copy contains when the reader buys it.
   work: string;
   title: string;
+  // The Catalog identifier and title of the Series, when the Edition has one.
+  seriesId: string | null;
   series: string | null;
   volume: number | null;
   // A path on the Atomes server.
@@ -74,6 +76,25 @@ export function toBuyList(library: Library, lines: EditionLines, editions: Editi
     .sort((a, b) => b.value.createdAt.localeCompare(a.value.createdAt))
     .map(({ value }) => item(value.isbn, editions.get(value.isbn), true, language));
   return { missing, byHand };
+}
+
+export interface SeriesGroup {
+  // The Series identifier, or null for the books of no Series.
+  id: string | null;
+  title: string | null;
+  items: ToBuyItem[];
+}
+
+// One group per Series, in the order of the items (toBuyList sorts the
+// Missing Volumes by Series title, then Volume).
+export function bySeries(items: ToBuyItem[]): SeriesGroup[] {
+  const groups = new Map<string | null, SeriesGroup>();
+  for (const each of items) {
+    const group = groups.get(each.seriesId) ?? { id: each.seriesId, title: each.series, items: [] };
+    group.items.push(each);
+    groups.set(each.seriesId, group);
+  }
+  return [...groups.values()];
 }
 
 // The Missing Volumes (glossary) of one Edition Line: numbered Volumes before
@@ -120,6 +141,7 @@ function item(isbn: string, edition: Edition | undefined, byHand: boolean, langu
     isbn,
     work: edition?.work.id ?? editionWork(isbn),
     title: edition?.title ?? `ISBN ${isbn}`,
+    seriesId: edition?.series?.id ?? null,
     series: edition?.series?.title ?? null,
     volume: edition?.volume ?? null,
     cover: edition ? coverUrl(edition) : null,

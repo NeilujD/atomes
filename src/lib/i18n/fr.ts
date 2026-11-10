@@ -218,6 +218,8 @@ export const fr: typeof en = {
   'tobuy.listed': 'Ce livre est déjà dans votre liste À acheter.',
   'tobuy.missing': 'Tomes manquants',
   'tobuy.missing-empty': 'Aucun tome manquant. Un tome manquant est un tome sauté dans une série que vous suivez : il vient avant le dernier tome que vous possédez.',
+  'tobuy.series': (series, count) => `${series} · ${count} ${count > 1 ? 'tomes' : 'tome'}`,
+  'tobuy.show-more': (count, left) => `Afficher ${count} de plus (il en reste ${left})`,
   'tobuy.by-hand': 'Ajoutés à la main',
   'tobuy.by-hand-empty': 'Rien d’ajouté à la main pour l’instant.',
   'tobuy.bought': 'Je l’ai acheté',

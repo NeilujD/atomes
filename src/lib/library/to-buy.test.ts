@@ -6,7 +6,7 @@ import { loadLibrary } from './library';
 import { memorySpace } from './memory-space.fake';
 import type { Library } from './model';
 import { lexicons, type Saved } from './records';
-import { bought, deleteToBuy, handAdd, listToBuy, missingVolumes, saveToBuy, toBuyCollection, toBuyList, type ToBuy } from './to-buy';
+import { bought, bySeries, deleteToBuy, handAdd, listToBuy, missingVolumes, saveToBuy, toBuyCollection, toBuyList, type ToBuy } from './to-buy';
 
 describe('To Buy records', () => {
   test('an Edition added by hand matches its lexicon and is on the list once', async () => {
@@ -79,6 +79,7 @@ describe('Missing Volumes on To Buy', () => {
       isbn: isbns[1],
       work: 'wd:Q2000002',
       title: 'Blacksad',
+      seriesId: 'wd:Q1000001',
       series: 'Blacksad',
       volume: 2,
       cover: null,
@@ -141,6 +142,17 @@ describe('Missing Volumes on To Buy', () => {
     const items = toBuyList(each, new Map([...lines, [astra.id, astraLine]]), new Map(), 'fr').missing;
 
     expect(items.map(({ series, volume: n }) => `${series} ${n}`)).toEqual(['Ástra 1', 'Ástra 2', 'Blacksad 2', 'Blacksad 3']);
+    // The screen shows one group per Series, in that order.
+    expect(bySeries(items).map(({ title, items: volumes }) => `${title}: ${volumes.map(({ volume: n }) => n).join(',')}`)).toEqual([
+      'Ástra: 1,2',
+      'Blacksad: 2,3',
+    ]);
+  });
+
+  test('books of no Series form one group of their own', () => {
+    const items = toBuyList(library({ toBuy: [toBuy('9782266320481')] }), lines, new Map(), 'en').byHand;
+
+    expect(bySeries(items)).toEqual([{ id: null, title: null, items }]);
   });
 });
 

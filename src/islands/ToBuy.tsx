@@ -1,6 +1,7 @@
 // The To Buy screen (glossary: To Buy), a Preact island (ADR 0014): the
 // Missing Volumes of the Followed Series and the Editions added by hand. The
 // rules are in src/lib/library/to-buy.ts; this file only renders and saves.
+import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import type { Edition } from '../lib/catalog/catalog';
@@ -10,7 +11,7 @@ import { pageLanguage, t } from '../lib/i18n/i18n';
 import { saveCopy } from '../lib/library/copy';
 import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
 import type { Library } from '../lib/library/model';
-import { bought, deleteToBuy, handAdd, saveToBuy, toBuyList, type ToBuyItem } from '../lib/library/to-buy';
+import { bought, bySeries, deleteToBuy, handAdd, saveToBuy, toBuyList, type ToBuyItem } from '../lib/library/to-buy';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
@@ -214,15 +215,67 @@ export function ToBuy({ sources }: { sources: Sources }) {
         <h2 class="to-buy-group-title" id="to-buy-missing">
           {t('tobuy.missing')}
         </h2>
-        {list.missing.length === 0 ? <p class="to-buy-empty">{t('tobuy.missing-empty')}</p> : <ul class="to-buy-list">{list.missing.map(row)}</ul>}
+        {list.missing.length === 0 ? (
+          <p class="to-buy-empty">{t('tobuy.missing-empty')}</p>
+        ) : (
+          bySeries(list.missing).map((group, index) => (
+            <section key={group.id} class="to-buy-series" aria-labelledby={`to-buy-series-${index}`}>
+              <h3 class="to-buy-series-title" id={`to-buy-series-${index}`}>
+                {t('tobuy.series', group.title ?? '', group.items.length)}
+              </h3>
+              <Paged items={group.items} row={row} />
+            </section>
+          ))
+        )}
       </section>
 
       <section class="to-buy-group" aria-labelledby="to-buy-by-hand">
         <h2 class="to-buy-group-title" id="to-buy-by-hand">
           {t('tobuy.by-hand')}
         </h2>
-        {list.byHand.length === 0 ? <p class="to-buy-empty">{t('tobuy.by-hand-empty')}</p> : <ul class="to-buy-list">{list.byHand.map(row)}</ul>}
+        {list.byHand.length === 0 ? <p class="to-buy-empty">{t('tobuy.by-hand-empty')}</p> : <Paged items={list.byHand} row={row} />}
       </section>
+    </div>
+  );
+}
+
+const pageSize = 10;
+
+// The first books of a list, and a button for the next ones: a Series the
+// reader is far behind on must not fill the screen.
+function Paged({ items, row }: { items: ToBuyItem[]; row: (item: ToBuyItem) => JSX.Element }) {
+  const [shown, setShown] = useState(pageSize);
+  const left = items.length - shown;
+  return (
+    <>
+      <ul class="to-buy-list">{items.slice(0, shown).map(row)}</ul>
+      {left > 0 && (
+        <button class="button button-quiet to-buy-more" type="button" onClick={() => setShown(shown + pageSize)}>
+          {t('tobuy.show-more', Math.min(pageSize, left), left)}
+        </button>
+      )}
+    </>
+  );
+}
+
+// A cover pulses until its image is there, then fades in, so a list of covers
+// does not flash in one by one. A cover that fails to load keeps the placeholder.
+function Cover({ src }: { src: string | null }) {
+  const [state, setState] = useState<'loading' | 'loaded' | 'failed'>('loading');
+  const shown = src !== null && state !== 'failed';
+  return (
+    <div class="to-buy-cover" data-loading={shown && state === 'loading' ? '' : undefined}>
+      {shown && (
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          data-loaded={state === 'loaded' ? '' : undefined}
+          onLoad={() => setState('loaded')}
+          onError={() => setState('failed')}
+        />
+      )}
     </div>
   );
 }
@@ -235,7 +288,7 @@ function Row({ item, saving, onBuy, onRemove }: { item: ToBuyItem; saving: strin
   const busy = saving === item.isbn ? 'true' : undefined;
   return (
     <li class="to-buy-item">
-      <div class="to-buy-cover">{item.cover && <img src={item.cover} alt="" />}</div>
+      <Cover src={item.cover} />
       {/* The buttons say which book they act on through this text. */}
       <div class="to-buy-text" id={id}>
         <p class="to-buy-title">{item.title}</p>
