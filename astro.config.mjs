@@ -4,6 +4,7 @@ import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { URL } from 'node:url';
 import { defineConfig } from 'astro/config';
 import node from '@astrojs/node';
+import preact from '@astrojs/preact';
 
 /**
  * Writes the built assets and a version into the service worker (public/sw.js),
@@ -33,7 +34,8 @@ export default defineConfig({
   adapter: node({
     mode: 'standalone',
   }),
-  integrations: [precacheAppShell()],
+  // Preact islands for interactive data screens (ADR 0014).
+  integrations: [preact(), precacheAppShell()],
   // Content-Security-Policy of the pages (ADR 0013), with a hash for each inline
   // script and style. Astro sends it as a response header on pages rendered on
   // demand, and not in `astro dev`. The middleware (src/lib/server/security.ts)

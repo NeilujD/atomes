@@ -1,5 +1,10 @@
 {
   "extends": "astro/tsconfigs/strict",
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  "exclude": ["dist"],
+  "compilerOptions": {
+    // Preact islands (ADR 0014): https://docs.astro.build/en/guides/integrations-guide/preact/
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact"
+  }
 }

@@ -207,4 +207,20 @@ export const en = {
   'onboarding.added': (count: number) => `${count} more ${count === 1 ? 'Volume is' : 'Volumes are'} in your Library.`,
   'onboarding.volumes-failed': 'Could not get the Volumes of this Series. Your book is saved; try again from Quick Add later.',
   'onboarding.no-series': 'The Catalog knows no Series for this book.',
+
+  // To Buy (src/islands/ToBuy.tsx)
+  'tobuy.title': 'To Buy',
+  'tobuy.private': 'Only you see this list. To Buy is never Shared.',
+  'tobuy.add-label': 'Add a book by its ISBN',
+  'tobuy.add': 'Add',
+  'tobuy.add-hint': 'The 13 digits under the barcode, on the back cover.',
+  'tobuy.owned': 'You already have this book.',
+  'tobuy.listed': 'This book is already on your To Buy list.',
+  'tobuy.missing': 'Missing Volumes',
+  'tobuy.missing-empty': 'No Missing Volume in the Series you follow.',
+  'tobuy.by-hand': 'Added by hand',
+  'tobuy.by-hand-empty': 'Nothing added by hand yet.',
+  'tobuy.bought': 'I bought it',
+  'tobuy.remove': 'Remove',
+  'tobuy.sign-in': 'Sign in to see what to buy.',
 };

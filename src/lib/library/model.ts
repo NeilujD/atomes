@@ -8,12 +8,15 @@ import type { Follow } from './follow';
 import type { Loan } from './loan';
 import { statuses, type ReadingStatus, type Status } from './reading-status';
 import type { Saved } from './records';
+import type { ToBuy } from './to-buy';
 
 export interface Library {
   copies: Saved<Copy>[];
   readingStatuses: Saved<ReadingStatus>[];
   follows: Saved<Follow>[];
   loans: Saved<Loan>[];
+  // The Editions added to To Buy by hand; the rest of To Buy is computed (to-buy.ts).
+  toBuy: Saved<ToBuy>[];
 }
 
 // Catalog answers by ISBN. An ISBN missing here is unknown to the Catalog, or

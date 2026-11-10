@@ -207,4 +207,20 @@ export const fr: typeof en = {
   'onboarding.volumes-failed':
     'Impossible d’obtenir les tomes de cette série. Votre livre est enregistré ; réessayez plus tard depuis l’ajout rapide.',
   'onboarding.no-series': 'Le catalogue ne connaît aucune série pour ce livre.',
+
+  // À acheter (src/islands/ToBuy.tsx)
+  'tobuy.title': 'À acheter',
+  'tobuy.private': 'Vous seul voyez cette liste. La liste À acheter n’est jamais partagée.',
+  'tobuy.add-label': 'Ajouter un livre par son ISBN',
+  'tobuy.add': 'Ajouter',
+  'tobuy.add-hint': 'Les 13 chiffres sous le code-barres, au dos du livre.',
+  'tobuy.owned': 'Vous avez déjà ce livre.',
+  'tobuy.listed': 'Ce livre est déjà dans votre liste À acheter.',
+  'tobuy.missing': 'Tomes manquants',
+  'tobuy.missing-empty': 'Aucun tome manquant dans les séries que vous suivez.',
+  'tobuy.by-hand': 'Ajoutés à la main',
+  'tobuy.by-hand-empty': 'Rien d’ajouté à la main pour l’instant.',
+  'tobuy.bought': 'Je l’ai acheté',
+  'tobuy.remove': 'Retirer',
+  'tobuy.sign-in': 'Connectez-vous pour voir ce qu’il vous reste à acheter.',
 };

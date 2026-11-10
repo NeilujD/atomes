@@ -42,7 +42,7 @@ const followOf = (status: Follow['status']): Saved<Follow> => ({
   rkey: series.id,
   value: { series: series.id, anchorIsbn: isbns[0], status, updatedAt: '2026-11-06T11:00:00.000Z' },
 });
-const library = (change: Partial<Library> = {}): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], ...change });
+const library = (change: Partial<Library> = {}): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [], ...change });
 
 describe('When Series Onboarding starts', () => {
   test('the first Volume of a Series enters the Library: the flow starts', () => {
