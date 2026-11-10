@@ -168,7 +168,7 @@ const choices = [
   const work = new URLSearchParams(location.search).get('work') ?? '';
   // Catalog answers kept for this visit, so an offline reload of the records keeps the titles.
   const editions = new Map<string, Edition>();
-  let library: Library = { copies: [], readingStatuses: [], follows: [], loans: [] };
+  let library: Library = { copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] };
   let page: BookPage | undefined;
   let renderedCopies = '';
   let sending = false;

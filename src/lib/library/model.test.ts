@@ -28,7 +28,7 @@ const copy = (rkey: string, change: Partial<Copy> = {}): Saved<Copy> => ({
   value: { isbn: onePiece56.isbn, works: [work], createdAt: '2026-11-05T10:00:00.000Z', ...change },
 });
 
-const library = (change: Partial<Library> = {}): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], ...change });
+const library = (change: Partial<Library> = {}): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [], ...change });
 const catalog = new Map([[onePiece56.isbn, onePiece56]]);
 
 describe('Book page', () => {

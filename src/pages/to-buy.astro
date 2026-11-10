@@ -1,0 +1,204 @@
+---
+// To Buy: the Missing Volumes of the Followed Series and the Editions added by
+// hand (src/islands/ToBuy.tsx). Rendered on the device: it reads the Library.
+import AppShell from '../layouts/AppShell.astro';
+import ToBuy, { ToBuySkeleton } from '../islands/ToBuy';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
+---
+
+<AppShell title={t('tobuy.title')} current="to-buy">
+  <ToBuy client:only="preact">
+    <ToBuySkeleton slot="fallback" />
+  </ToBuy>
+</AppShell>
+
+<style is:global>
+  /* Global: the island renders on the device, outside this page's scoped styles. */
+  .to-buy {
+    max-width: 880px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .to-buy-message {
+    font-size: 14px;
+  }
+
+  .to-buy-hint,
+  .to-buy-empty {
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
+  .to-buy-hint[data-error] {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .to-buy-add {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .to-buy-label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .to-buy-add-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .to-buy-add-row .field {
+    flex: 1;
+    max-width: 280px;
+  }
+
+  .to-buy-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .to-buy-group-title {
+    font-size: 18px;
+  }
+
+  .to-buy-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .to-buy-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .to-buy-cover {
+    flex: none;
+    width: 40px;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border-radius: var(--radius-cover);
+    background: var(--soft);
+    box-shadow: 0 0 0 1px var(--cover-edge);
+  }
+
+  .to-buy-cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+  }
+
+  /* While its image loads, a cover pulses like a skeleton; then the image fades in. */
+  .to-buy-cover[data-loading] {
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  .to-buy-cover img[data-loaded] {
+    opacity: 1;
+  }
+
+  .to-buy-series {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .to-buy-series + .to-buy-series {
+    margin-top: 12px;
+  }
+
+  .to-buy-series-title {
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .to-buy-more {
+    align-self: flex-start;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .to-buy-cover[data-loading] {
+      animation: none;
+    }
+
+    .to-buy-cover img {
+      transition: none;
+    }
+  }
+
+  .to-buy-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .to-buy-title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .to-buy-line {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .to-buy-actions {
+    flex: none;
+    display: flex;
+    gap: 4px;
+  }
+
+  .to-buy-skeleton-title {
+    width: 50%;
+    height: 14px;
+  }
+
+  .to-buy-skeleton-line {
+    width: 30%;
+    height: 12px;
+  }
+
+  /* Phone: the actions go under the text, so long titles keep their room. */
+  @media (max-width: 959px) {
+    .to-buy-item {
+      flex-wrap: wrap;
+    }
+
+    .to-buy-actions {
+      width: 100%;
+      padding-left: 52px;
+    }
+  }
+
+  /* Desktop: groups read as list groups on a hairline (ui-direction). */
+  @media (min-width: 960px) {
+    .to-buy-group-title {
+      display: flex;
+      align-items: center;
+      min-height: var(--row);
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+  }
+</style>

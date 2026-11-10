@@ -8,18 +8,26 @@ import { listFollows } from './follow';
 import { listLoans } from './loan';
 import type { Library } from './model';
 import { listReadingStatuses } from './reading-status';
+import { listToBuy } from './to-buy';
 
 // stale: the PDS could not be reached; this is the copy on this device.
 export async function loadLibrary(space: Space): Promise<{ library: Library; stale: boolean }> {
-  const [copies, readingStatuses, follows, loans] = await Promise.all([
+  const [copies, readingStatuses, follows, loans, toBuy] = await Promise.all([
     listCopies(space),
     listReadingStatuses(space),
     listFollows(space),
     listLoans(space),
+    listToBuy(space),
   ]);
   return {
-    library: { copies: copies.records, readingStatuses: readingStatuses.records, follows: follows.records, loans: loans.records },
-    stale: copies.stale || readingStatuses.stale || follows.stale || loans.stale,
+    library: {
+      copies: copies.records,
+      readingStatuses: readingStatuses.records,
+      follows: follows.records,
+      loans: loans.records,
+      toBuy: toBuy.records,
+    },
+    stale: copies.stale || readingStatuses.stale || follows.stale || loans.stale || toBuy.stale,
   };
 }
 

@@ -19,22 +19,26 @@
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",
+    "@astrojs/preact": "^6.1.2",
     "@atproto/lexicon": "^0.7.19",
     "@atproto/oauth-client-node": "^0.5.16",
     "@fontsource-variable/schibsted-grotesk": "^5.3.0",
     "@lucide/astro": "^1.68.0",
     "astro": "^7.4.5",
     "barcode-detector": "3.2.3",
+    "preact": "^11.2.0",
     "zxing-wasm": "3.1.6"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
     "@atproto/syntax": "^0.7.7",
     "@eslint/js": "^10.0.1",
+    "@testing-library/preact": "^3.2.6",
     "@types/node": "^22.20.5",
     "eslint": "^10.14.0",
     "eslint-plugin-astro": "^3.2.1",
     "eslint-plugin-jsx-a11y-x": "^0.2.0",
+    "happy-dom": "^21.0.4",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^5.1.0"
