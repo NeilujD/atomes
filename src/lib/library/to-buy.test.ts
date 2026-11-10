@@ -6,7 +6,8 @@ import { loadLibrary } from './library';
 import { memorySpace } from './memory-space.fake';
 import type { Library } from './model';
 import { lexicons, type Saved } from './records';
-import { bought, bySeries, deleteToBuy, handAdd, listToBuy, missingVolumes, saveToBuy, toBuyCollection, toBuyList, type ToBuy } from './to-buy';
+import { missingVolumes } from './series';
+import { bought, bySeries, deleteToBuy, handAdd, listToBuy, saveToBuy, toBuyCollection, toBuyList, type ToBuy } from './to-buy';
 
 describe('To Buy records', () => {
   test('an Edition added by hand matches its lexicon and is on the list once', async () => {
@@ -50,7 +51,8 @@ const volume = (n: number, change: Partial<Edition> = {}): Edition => ({
   ...change,
 });
 const line = [1, 2, 3, 4, 5].map((n) => volume(n));
-const lines = new Map([[blacksad.id, line]]);
+// By anchor ISBN, as the island asks `/volumes`.
+const lines = new Map([[isbns[0], line]]);
 const now = new Date('2026-11-10T12:00:00.000Z');
 
 const copyOf = (isbn: string, works: string[], rkey = `copy-${isbn}`): Saved<Copy> => ({
@@ -58,9 +60,9 @@ const copyOf = (isbn: string, works: string[], rkey = `copy-${isbn}`): Saved<Cop
   value: { isbn, works, createdAt: '2026-11-06T11:00:00.000Z' },
 });
 const owns = (...numbers: number[]) => numbers.map((n) => copyOf(isbns[n - 1], [volume(n).work.id]));
-const follow = (status: Follow['status'], series = blacksad.id): Saved<Follow> => ({
+const follow = (status: Follow['status'], series = blacksad.id, anchorIsbn = isbns[0], fromVolume?: string): Saved<Follow> => ({
   rkey: series,
-  value: { series, anchorIsbn: isbns[0], status, updatedAt: '2026-11-06T11:00:00.000Z' },
+  value: { series, anchorIsbn, ...(fromVolume === undefined ? {} : { fromVolume }), status, updatedAt: '2026-11-06T11:00:00.000Z' },
 });
 const toBuy = (isbn: string, createdAt = '2026-11-07T10:00:00.000Z'): Saved<ToBuy> => ({ rkey: isbn, value: { isbn, createdAt } });
 const library = (change: Partial<Library> = {}): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [], ...change });
@@ -113,6 +115,20 @@ describe('Missing Volumes on To Buy', () => {
     expect(toBuyList(each, new Map(), new Map(), 'en').missing).toEqual([]);
   });
 
+  test('after a switch "from Volume 4 in line B": line A before 4, line B from 4 on', () => {
+    const lineB = [1, 2, 3, 4, 5].map((n) => volume(n, { isbn: `978150670000${n}`, publisher: 'Dark Horse', work: { id: `wd:Q400000${n}`, title: '' } }));
+    const each = library({
+      follows: [follow('following', blacksad.id, lineB[3].isbn, '4')],
+      copies: [...owns(1), copyOf(lineB[4].isbn, [lineB[4].work.id])],
+    });
+    // The Catalog's Editions of the Copies tell which line the reader collected before 4.
+    const editions = new Map([[isbns[0], volume(1)]]);
+
+    const items = toBuyList(each, new Map([[isbns[0], line], [lineB[3].isbn, lineB]]), editions, 'en').missing;
+
+    expect(items.map(({ isbn }) => isbn)).toEqual([isbns[1], isbns[2], lineB[3].isbn]);
+  });
+
   test('a Volume is owned with any printing of it, or with a Copy of its Work in another Edition', () => {
     const reprint = volume(2, { isbn: '9791099999061' });
     const otherLine = copyOf('9782505000000', [volume(3).work.id]);
@@ -135,11 +151,11 @@ describe('Missing Volumes on To Buy', () => {
       volume(n, { isbn: ['9782505000017', '9782505000024', '9782505000031'][n - 1], series: astra, title: 'Ástra', work: { id: `wd:Q300000${n}`, title: '' } }),
     );
     const each = library({
-      follows: [follow('following'), follow('following', astra.id)],
+      follows: [follow('following'), follow('following', astra.id, astraLine[0].isbn)],
       copies: [...owns(1, 4), copyOf(astraLine[2].isbn, [astraLine[2].work.id])],
     });
 
-    const items = toBuyList(each, new Map([...lines, [astra.id, astraLine]]), new Map(), 'fr').missing;
+    const items = toBuyList(each, new Map([...lines, [astraLine[0].isbn, astraLine]]), new Map(), 'fr').missing;
 
     expect(items.map(({ series, volume: n }) => `${series} ${n}`)).toEqual(['Ástra 1', 'Ástra 2', 'Blacksad 2', 'Blacksad 3']);
     // The screen shows one group per Series, in that order.

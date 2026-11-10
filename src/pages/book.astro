@@ -149,6 +149,7 @@ const choices = [
   import { bookPage, lend, loansOf, returnLoans, statusChange, type BookPage, type Library } from '../lib/library/model';
   import { followOnRead } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses, type ReadingStatus } from '../lib/library/reading-status';
+  import { seriesHref, suggestsDrop } from '../lib/library/series';
   import { isNetworkFailure } from '../lib/network';
   import { freshListing } from '../lib/space/fresh-listing';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
@@ -245,12 +246,19 @@ const choices = [
     article.querySelector('[data-title]')!.textContent = page.title;
     article.querySelector('[data-volume-title]')!.textContent = page.volumeTitle ?? '';
     article.querySelector('[data-authors]')!.textContent = page.authors.join(', ');
-    article.querySelector('[data-series]')!.textContent = [
-      page.series && page.series !== page.title ? page.series : '',
-      page.volume ? t('book.volume', page.volume) : '',
-    ]
-      .filter(Boolean)
-      .join(' · ');
+    // The Series name opens the Series page, when the Catalog knows the Series.
+    const seriesLine = article.querySelector<HTMLElement>('[data-series]')!;
+    const volume = page.volume ? t('book.volume', page.volume) : '';
+    const seriesName = page.series && page.series !== page.title ? page.series : '';
+    const seriesPage = editions.get(page.isbn)?.series ? seriesHref(page.isbn) : undefined;
+    seriesLine.replaceChildren(
+      ...[
+        seriesPage ? Object.assign(document.createElement('a'), { href: seriesPage, textContent: page.series ?? '' }) : seriesName,
+        volume,
+      ]
+        .filter(Boolean)
+        .flatMap((part, index) => (index === 0 ? [part] : [' · ', part])),
+    );
 
     for (const radio of statusRadios) radio.checked = radio.value === page.status;
     finished.hidden = page.status !== 'read';
@@ -388,10 +396,16 @@ const choices = [
       const change = statusChange(work, page.isbn, chosen, library, now);
       if (!change) return;
       // Marking a Volume read follows its Series (glossary: Followed Series).
-      const follow = followOnRead(editions.get(page.isbn), chosen, library, now);
+      const edition = editions.get(page.isbn);
+      const follow = followOnRead(edition, chosen, library, now);
+      // Abandoning a Volume of a Followed Series suggests dropping the Series; the Series page does it.
+      const suggest = suggestsDrop(edition, chosen, library) && edition?.series;
+      const isbn = page.isbn;
       void save(async () => {
         const state = await saveReadingStatus(space, change);
         return follow ? worstState([state, await saveFollow(space, follow)]) : state;
+      }).then(() => {
+        if (suggest) toast(t('series.drop-suggest', suggest.title), { link: { href: seriesHref(isbn), label: t('series.open') } });
       });
     });
   }
