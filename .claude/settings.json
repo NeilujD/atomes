@@ -4,5 +4,18 @@
       "Bash(bun run check)",
       "Bash(bun run lint)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && bun scripts/check-blockers.ts",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
   }
 }

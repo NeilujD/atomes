@@ -16,7 +16,7 @@ Issues and specs for this repo live in Linear, team `CORE`.
 - The spec of the current phase is the project content (description body).
 - Implementation tickets are issues in that project, each in one milestone, one issue per ticket, never one combined issue.
 - Triage state is a Linear label (see `triage-labels.md`).
-- Blocking uses Linear "blocked by" relations.
+- Blocking uses Linear "blocked by" relations. A ticket is unblocked when every blocker is Done (or Canceled). Never start a blocked ticket: fetch the ticket with its relations first, and if a blocker is open, stop and ask the user. At session start, `scripts/check-blockers.ts` (a hook in `.claude/settings.json`) prints a STOP notice when the branch's ticket is blocked.
 - Comments and conversation history are Linear issue comments.
 - Branch names include the Linear issue key (e.g. `CORE-12`).
 
