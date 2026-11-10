@@ -40,12 +40,23 @@ Add `AAAA` records only if the host accepts IPv6: a broken IPv6 path makes certi
 
 3. **Immediately** open `http://<host IPv4>:8000` and create the admin account. Until you do, anyone who opens that page first becomes the admin, with root access to the host.
 4. Copy `/data/coolify/source/.env` from the host into your password manager. It holds `APP_KEY`, which a restore of Coolify needs. Never put it in the repository.
+5. Add 4 GB of swap. Coolify builds the image on this host (ADR 0011): with no swap, a build that fills the RAM can freeze the host, and the apps and the dashboard stop answering. Check first: if `swapon --show` already lists a swap, or `df -h /` shows less than 6 GB free, skip this step.
 
-## 4. Put the dashboard on HTTPS
+   ```sh
+   fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+   echo '/swapfile none swap sw 0 0' >> /etc/fstab
+   echo 'vm.swappiness=10' > /etc/sysctl.d/99-swap.conf && sysctl --system >/dev/null
+   ```
+
+   `swapon --show` now lists `/swapfile` with size `4G`. With `vm.swappiness=10`, Linux uses the swap only when the RAM is nearly full: a big build is slower, but the host keeps answering.
+
+## 4. Set up the dashboard
 
 1. In Coolify, open **Settings > General**, set **URL** to `https://coolify.<domain>` and select **Save changes** ([instance settings](https://coolify.io/docs/core/instance-management/instance-settings)). Turn on **Redirect HTTP to HTTPS**.
 2. Open `https://coolify.<domain>` and sign in there from now on.
 3. In the provider firewall, close `8000`, `6001` and `6002`. Keep `22`, `80` and `443`: GitHub webhooks and certificates use `80` and `443`.
+4. Open **Servers > localhost > Configuration > Advanced**, set **Concurrent Builds** to `1` and save ([manage a server](https://coolify.io/docs/core/infrastructure/servers/manage-server)). The default is `2`: a preview build and a staging build would then run at the same time on this host. With `1`, the second one waits in the queue.
+5. Open **Servers > localhost > Sentinel**, turn on **Sentinel**, then **Metrics** ([metrics](https://coolify.io/docs/core/observability/monitoring/metrics)). The server's **Metrics** tab then shows CPU and RAM per server and per container, for 7 days by default. Look at it after a build to see how much RAM a build takes.
 
 ## 5. Connect the GitHub App
 
@@ -165,4 +176,5 @@ Coolify builds on the push, not on the CI result. `protect-main` only merges a p
 - The volume lives on this host only and is not a backup. Production backs up to R2 every hour: `docs/backups.md`.
 - A failed health check fails the deploy. With rolling updates off, the old container is already stopped, so staging stays down until a good deploy. Read the deployment log, fix on a branch, merge again.
 - Keep the phone on one origin from sign-in to callback: the DPoP key, PKCE verifier and state are stored per origin. A staging sign-in does not carry over to a Funnel hostname.
+- If the host stops answering during a build (ports open, but HTTPS requests wait), the RAM is full. Connect with SSH, or with the provider's web console if SSH waits too. Run `free -h` and `docker stats --no-stream`, and stop the build container if it takes the RAM. Then check that the swap and **Concurrent Builds** of steps 3 and 4 are in place, and look at the peak in **Metrics**.
 - If the certificate does not come, check DNS first (`dig +short staging.<domain> A`), then that `80` and `443` reach the host ([Let's Encrypt not working](https://coolify.io/docs/troubleshoot/dns-and-domains/lets-encrypt-not-working)).
