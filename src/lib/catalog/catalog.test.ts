@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { isSeriesId } from '../library/ids';
-import { answerCover, answerEdition, answerVolumes } from './api';
-import type { Catalog, Edition } from './catalog';
+import { answerChoose, answerCover, answerEdition, answerSearch, answerVolumes } from './api';
+import type { Catalog, Edition, SearchFound } from './catalog';
 import { createCatalog } from './catalog';
 import { recordedFetch } from './recorded.fake';
 import { isCoverUrl, type SourceFetch } from './sources';
@@ -14,6 +14,9 @@ const onePiece112 = '9782344068922'; // 2026: no 461 in any source, 19 cm (56 is
 const spyFamily16 = '9791042021030'; // 2026: BnF has no Series link yet, SUDOC has
 const horde = '9782072927515'; // La Horde du Contrevent, Folio SF (owner's shelf)
 const unknown = '9791099999993'; // valid check digit, no source knows it
+// Owner's shelf (CORE-40): Kaamelott 10, Casterman. No source knows its ISBN; BnF has 1 to 9.
+const kaamelott10 = '9782203255647';
+const kaamelott9 = '9782203085053';
 
 const dirs: string[] = [];
 const open: Catalog[] = [];
@@ -316,6 +319,169 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
     expect(await volumesOf(reopen(recordedFetch(['inventaire.io']).fetch), spyFamily16)).toHaveLength(1);
     expect(await volumesOf(reopen(recordedFetch(['catalogue.bnf.fr']).fetch), spyFamily16)).toHaveLength(1);
     expect(await volumesOf(reopen(), spyFamily16)).toHaveLength(16);
+  });
+});
+
+describe('An ISBN no source knows: find the Series or Work by title (CORE-40)', () => {
+  const reader = { signedIn: true };
+  const search = (catalog: Catalog, query: string, access = reader) =>
+    answerSearch(catalog, new URL(`http://atomes.test/api/catalog/search?${query}`), access);
+  const found = async (response: Response) => (await response.json()) as SearchFound;
+
+  test('a typed title and publisher give the Edition Line BnF knows, with its Volumes', async () => {
+    const { catalog, calls } = setup();
+
+    const response = await search(catalog, 'title=Kaamelott&publisher=Casterman');
+
+    expect(response.status).toBe(200);
+    const { lines } = await found(response);
+    expect(lines).toEqual([
+      { anchor: kaamelott9, series: 'Kaamelott', publisher: 'Casterman', language: 'fre', volumes: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
+    ]);
+    // One BnF page; the ISBN the reader scanned never leaves the server.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('bib.title');
+  });
+
+  test('books with no Volume come as Works: other Editions of the same book', async () => {
+    const { catalog } = setup();
+
+    const { lines, works } = await found(await search(catalog, 'title=R%C3%A9glez-lui%20son%20compte&publisher=Fleuve'));
+
+    expect(lines).toEqual([]);
+    expect(works).toEqual([
+      { anchor: '9782265017412', title: 'Réglez-lui son compte !', authors: ['San-Antonio'], publisher: 'Éditions Fleuve noir', year: 1981 },
+      { anchor: '9782265144026', title: 'Réglez-lui son compte !', authors: ['San-Antonio'], publisher: 'Fleuve noir', year: 2019 },
+    ]);
+  });
+
+  test('signed out, or with no title, nothing is asked', async () => {
+    const { catalog, calls } = setup();
+
+    expect((await search(catalog, 'title=Kaamelott', { signedIn: false })).status).toBe(401);
+    expect((await search(catalog, 'title=%20&publisher=Casterman')).status).toBe(400);
+    expect((await search(catalog, `title=${'a'.repeat(301)}`)).status).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  const choose = (catalog: Catalog, isbn: string, body: unknown, access = reader) => answerChoose(catalog, isbn, body, access);
+  const kaamelott10Choice = { anchor: kaamelott9, volume: 10, title: 'Kaamelott 10', authors: [] };
+
+  test('the reader picks the Series Kaamelott (Casterman) and Volume 10: the Catalog keeps it as the reader gave it', async () => {
+    const { catalog, reopen } = setup();
+    expect((await answerEdition(catalog, kaamelott10)).status).toBe(404);
+
+    const response = await choose(catalog, kaamelott10, kaamelott10Choice);
+
+    expect(response.status).toBe(200);
+    const anchor = await edition(await answerEdition(catalog, kaamelott9));
+    const chosen = {
+      isbn: kaamelott10,
+      title: 'Kaamelott 10',
+      volumeTitle: null,
+      authors: anchor.authors,
+      publisher: 'Casterman',
+      language: 'fre',
+      format: null,
+      cover: null,
+      work: { id: `isbn:${kaamelott10}`, title: 'Kaamelott 10' },
+      series: anchor.series,
+      volume: 10,
+      sources: ['reader'],
+    };
+    expect(await edition(response)).toMatchObject(chosen);
+    // Kept, also after a restart, with no source call.
+    const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
+    expect(await edition(await answerEdition(reopen(offline.fetch), kaamelott10))).toMatchObject(chosen);
+    expect(offline.calls).toEqual([]);
+  });
+
+  test('the chosen Volume joins the Edition Line: Kaamelott 1 to 10', async () => {
+    const { catalog } = setup();
+    await choose(catalog, kaamelott10, kaamelott10Choice);
+
+    const body = (await (await answerVolumes(catalog, kaamelott9, signedIn)).json()) as { volumes: Edition[] };
+
+    expect(body.volumes.map((v) => v.volume)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(body.volumes.at(-1)?.sources).toEqual(['reader']);
+  });
+
+  test('an ISBN a source knows cannot be chosen', async () => {
+    const { catalog } = setup();
+
+    const response = await choose(catalog, kaamelott9, { ...kaamelott10Choice, volume: 9 });
+
+    expect(response.status).toBe(409);
+    expect((await edition(await answerEdition(catalog, kaamelott9))).sources).not.toContain('reader');
+  });
+
+  test('a later choice replaces the earlier one', async () => {
+    const { catalog } = setup();
+    await choose(catalog, kaamelott10, { ...kaamelott10Choice, volume: 11 });
+
+    await choose(catalog, kaamelott10, kaamelott10Choice);
+
+    expect((await edition(await answerEdition(catalog, kaamelott10))).volume).toBe(10);
+  });
+
+  test('a Work is taken from another Edition only when the sources share it', async () => {
+    const { catalog } = setup();
+    const hordeEdition = await edition(await answerEdition(catalog, horde));
+
+    const shared = await choose(catalog, unknown, { anchor: horde, volume: null, title: 'La Horde du Contrevent', authors: [] });
+    // BnF and SUDOC give "Réglez-lui son compte !" 2019 no shared Work: the reader types the book.
+    const notShared = await choose(catalog, kaamelott10, { anchor: '9782265144026', volume: null, title: 'Réglez-lui son compte !', authors: [] });
+
+    expect(shared.status).toBe(200);
+    expect(await edition(shared)).toMatchObject({ work: hordeEdition.work, series: null, volume: null, sources: ['reader'] });
+    expect(notShared.status).toBe(422);
+    expect(await notShared.json()).toMatchObject({ reason: 'no-shared-work' });
+    expect((await answerEdition(catalog, kaamelott10)).status).toBe(404);
+  });
+
+  test('a wrong choice is refused and stores nothing', async () => {
+    const { catalog } = setup();
+
+    expect((await choose(catalog, kaamelott10, kaamelott10Choice, { signedIn: false })).status).toBe(401);
+    expect((await choose(catalog, kaamelott10, { ...kaamelott10Choice, title: '' })).status).toBe(400);
+    expect((await choose(catalog, kaamelott10, { ...kaamelott10Choice, volume: -1 })).status).toBe(400);
+    expect((await choose(catalog, kaamelott10, { ...kaamelott10Choice, anchor: unknown })).status).toBe(422);
+    // La Horde has no Series: no Volume of it.
+    expect((await choose(catalog, kaamelott10, { ...kaamelott10Choice, anchor: horde })).status).toBe(422);
+    expect((await answerEdition(catalog, kaamelott10)).status).toBe(404);
+  });
+
+  test('the sources are asked again a day later; when one knows the ISBN, its Edition replaces the choice whole', async () => {
+    let clock = new Date('2026-11-11T10:00:00.000Z');
+    const sources = recordedFetch();
+    // Open Library learns the ISBN: here it answers what it recorded for La Horde.
+    let learnt = false;
+    const fetch: SourceFetch = (url) =>
+      sources.fetch(learnt && url.includes(`isbn=${kaamelott10}`) ? url.replace(kaamelott10, horde) : url);
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => clock });
+    open.push(catalog);
+    await choose(catalog, kaamelott10, kaamelott10Choice);
+    const asked = sources.calls.length;
+
+    clock = new Date('2026-11-11T20:00:00.000Z');
+    expect((await edition(await answerEdition(catalog, kaamelott10))).sources).toEqual(['reader']);
+    expect(sources.calls).toHaveLength(asked);
+
+    clock = new Date('2026-11-12T10:00:01.000Z');
+    expect((await edition(await answerEdition(catalog, kaamelott10))).volume).toBe(10);
+    expect(sources.calls.length).toBeGreaterThan(asked);
+
+    learnt = true;
+    clock = new Date('2026-11-13T10:00:02.000Z');
+    const replaced = await edition(await answerEdition(catalog, kaamelott10));
+    expect(replaced).toMatchObject({ sources: ['Open Library'], series: null, volume: null, work: { id: `isbn:${kaamelott10}` } });
+    expect(replaced.title).not.toBe('Kaamelott 10');
+  });
+
+  test('when BnF is down, the answer says so', async () => {
+    const { catalog } = setup(['catalogue.bnf.fr']);
+
+    expect((await search(catalog, 'title=Kaamelott&publisher=Casterman')).status).toBe(503);
   });
 });
 

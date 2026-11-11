@@ -13,9 +13,9 @@ export type SourceFetch = (url: string) => Promise<Response>;
 export const sourceUrls = {
   bnf: (isbn: string) =>
     `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(`bib.isbn adj "${isbn}"`)}&recordSchema=unimarcxchange&maximumRecords=10`,
-  // The Editions BnF lists under a Series title and a publisher, 50 at a time.
-  bnfSearch: (title: string, publisher: string, start: number) =>
-    `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(`bib.title all "${title}" and bib.publisher all "${publisher}"`)}&recordSchema=unimarcxchange&maximumRecords=50&startRecord=${start}`,
+  // The Editions BnF lists under a title and a publisher, 50 at a time.
+  bnfSearch: (title: string, publisher: string | undefined, start: number) =>
+    `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(bnfTitleQuery(title, publisher))}&recordSchema=unimarcxchange&maximumRecords=50&startRecord=${start}`,
   sudocPpns: (isbn: string) => `https://www.sudoc.fr/services/isbn2ppn/${isbn}&format=text/json`,
   sudocRecord: (ppn: string) => `https://www.sudoc.fr/${ppn}.xml`,
   inventaire: (uri: string) => `https://inventaire.io/api/entities?action=by-uris&uris=${encodeURIComponent(uri)}`,
@@ -56,12 +56,19 @@ export interface Listed {
   year: number | undefined;
 }
 
-// Every Edition BnF lists under this Series title and publisher (spike 0002:
-// BnF is the best source of Series and Volumes), at most 500. Only the title
+// A title, or a publisher, with a double quote would end the CQL string early.
+function bnfTitleQuery(title: string, publisher: string | undefined): string {
+  const clean = (text: string) => text.replace(/["\\]/g, ' ').trim();
+  const byTitle = `bib.title all "${clean(title)}"`;
+  return publisher ? `${byTitle} and bib.publisher all "${clean(publisher)}"` : byTitle;
+}
+
+// Every Edition BnF lists under this title (and publisher), at most `max`
+// (spike 0002: BnF is the best source of Series and Volumes). Only the title
 // and the publisher leave the server, never an ISBN a reader asked about.
-export async function bnfSearch(fetch: SourceFetch, title: string, publisher: string): Promise<Listed[]> {
+export async function bnfSearch(fetch: SourceFetch, title: string, publisher: string | undefined, max = 500): Promise<Listed[]> {
   const listed: Listed[] = [];
-  for (let start = 1; start <= 451; start += 50) {
+  for (let start = 1; start <= max - 49; start += 50) {
     const response = await read(fetch, sourceUrls.bnfSearch(title, publisher, start));
     if (!response) break;
     const xml = await response.text();
