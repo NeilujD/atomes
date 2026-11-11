@@ -26,11 +26,54 @@ export interface Edition {
   series: Series | null;
   volume: number | null;
   // Licence Ouverte (BnF, SUDOC) asks to show the source and its date.
-  sources: SourceName[];
+  // `reader`: no source knows the ISBN, a reader picked its Series (CORE-40).
+  sources: EditionSource[];
   fetchedAt: string;
 }
 
+export type EditionSource = SourceName | 'reader';
+
 export type Lookup = { found: Edition } | { notFound: true } | { unavailable: true };
+
+// What BnF lists under a typed title (CORE-40): Edition Lines to pick a Volume
+// in, and books with no Volume. `anchor` is an ISBN BnF knows in each.
+export interface LineFound {
+  anchor: string;
+  series: string;
+  publisher: string | null;
+  language: string | null;
+  volumes: number[];
+}
+
+export interface WorkFound {
+  anchor: string;
+  title: string;
+  authors: string[];
+  publisher: string | null;
+  year: number | null;
+}
+
+export interface SearchFound {
+  lines: LineFound[];
+  works: WorkFound[];
+}
+
+// What a reader picks for an ISBN no source knows: Volume `volume` of the
+// Edition Line of `anchor`, or, with no Volume, the Work of `anchor`.
+export interface Choice {
+  anchor: string;
+  volume: number | null;
+  title: string;
+  authors: string[];
+}
+
+export type Chosen =
+  | { found: Edition }
+  // A source knows the ISBN: its Edition stays.
+  | { known: Edition }
+  // `anchor` is unknown, has no Series for a Volume, or has no shared Work.
+  | { badAnchor: 'unknown' | 'no-series' | 'no-shared-work' }
+  | { unavailable: true };
 
 export interface Cover {
   type: string;
@@ -46,6 +89,13 @@ export interface Catalog {
   // Edition Line at most once a week; the Volumes known so far without `fill`
   // or when that fails.
   volumes(anchor: Edition, options: { fill: boolean }): Promise<Edition[]>;
+  // The Edition Lines and books BnF lists under a title (and publisher): one
+  // page of 50 records. Only the typed words leave the server.
+  search(title: string, publisher?: string): Promise<SearchFound | { unavailable: true }>;
+  // Keeps the reader's choice for an ISBN no source knows. Every reader of the
+  // instance gets it; a later choice replaces it, and so does a source that
+  // learns the ISBN, whole (no merge).
+  choose(isbn: string, choice: Choice): Promise<Chosen>;
   // The cover of the Edition, fetched once from its source and kept.
   cover(isbn: string): Promise<CoverLookup>;
   // The Series of an identifier, its main one or a same_as one (ADR 0010);
@@ -57,6 +107,9 @@ export interface Catalog {
   link(a: string, b: string): Series | undefined;
   close(): void;
 }
+
+// The most candidates of each kind a search gives.
+const maxFound = 10;
 
 // Sources add Series links to recent records months later (spike 0002): fetch
 // an Edition again after a month, and an unknown ISBN again after a day.
@@ -265,20 +318,23 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     db.prepare('delete from miss where isbn = ?').run(edition.isbn);
   }
 
+  // A reader's choice (CORE-40) stands for an ISBN the sources still miss: they
+  // are asked about it as about an unknown ISBN, once a day.
   async function lookup(isbn: string): Promise<Lookup> {
     const row = editionRow(isbn);
-    if (row && age(row.fetched_at) < editionTtlMs) return { found: toEdition(row) };
+    const chosen = row && isReader(toEdition(row));
+    if (row && !chosen && age(row.fetched_at) < editionTtlMs) return { found: toEdition(row) };
     const miss = db.prepare('select checked_at from miss where isbn = ?').get(isbn) as { checked_at: string } | undefined;
-    if (!row && miss && age(miss.checked_at) < missTtlMs) return { notFound: true };
+    if ((!row || chosen) && miss && age(miss.checked_at) < missTtlMs) return row ? { found: toEdition(row) } : { notFound: true };
 
     const { facts, failed } = await fetchFacts(options.fetch, isbn);
     if (failed && row) return { found: toEdition(row) };
     const edition = merge(isbn, facts);
     if (!edition) {
-      if (row) return { found: toEdition(row) };
       if (failed) return { unavailable: true };
+      if (row && !chosen) return { found: toEdition(row) };
       db.prepare('insert or replace into miss (isbn, checked_at) values (?, ?)').run(isbn, now().toISOString());
-      return { notFound: true };
+      return row ? { found: toEdition(row) } : { notFound: true };
     }
     // An answer missing a source is not stored: the next lookup asks again.
     if (!failed) store(edition);
@@ -385,9 +441,84 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     return { found };
   }
 
+  async function search(title: string, publisher?: string): Promise<SearchFound | { unavailable: true }> {
+    let listed: Listed[];
+    try {
+      listed = await bnfSearch(options.fetch, title, publisher, 50);
+    } catch (error) {
+      console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
+      return { unavailable: true };
+    }
+    const lines = new Map<string, { line: LineFound; best: Listed }>();
+    const works: WorkFound[] = [];
+    for (const each of listed) {
+      const { facts, isbn, year } = each;
+      const series = facts.series?.title;
+      if (series && facts.volume !== undefined) {
+        const id = [series, facts.publisher ?? '', facts.language ?? ''].map(key).join('|');
+        const kept = lines.get(id);
+        if (!kept) {
+          lines.set(id, {
+            line: { anchor: isbn, series, publisher: facts.publisher ?? null, language: facts.language ?? null, volumes: [facts.volume] },
+            best: each,
+          });
+          continue;
+        }
+        if (!kept.line.volumes.includes(facts.volume)) kept.line.volumes.push(facts.volume);
+        // The anchor is the last Volume, its latest printing.
+        const [v, w] = [facts.volume, kept.best.facts.volume!];
+        if (v > w || (v === w && (year ?? 0) > (kept.best.year ?? 0))) {
+          kept.best = each;
+          kept.line.anchor = isbn;
+        }
+      } else if (facts.title) {
+        works.push({ anchor: isbn, title: facts.title, authors: facts.authors ?? [], publisher: facts.publisher ?? null, year: year ?? null });
+      }
+    }
+    return {
+      lines: [...lines.values()].slice(0, maxFound).map(({ line }) => ({ ...line, volumes: line.volumes.sort((a, b) => a - b) })),
+      works: works.slice(0, maxFound),
+    };
+  }
+
+  async function choose(isbn: string, choice: Choice): Promise<Chosen> {
+    const known = await lookup(isbn);
+    if ('unavailable' in known) return known;
+    if ('found' in known && !isReader(known.found)) return { known: known.found };
+    const anchored = await lookup(choice.anchor);
+    if ('unavailable' in anchored) return anchored;
+    if (!('found' in anchored)) return { badAnchor: 'unknown' };
+    const anchor = anchored.found;
+    if (choice.volume !== null && !anchor.series) return { badAnchor: 'no-series' };
+    // A Work from another Edition only when sources share it (ADR 0010): an
+    // `isbn:` Work is that other Edition's own.
+    if (choice.volume === null && anchor.work.id === editionWork(anchor.isbn)) return { badAnchor: 'no-shared-work' };
+    const edition: Edition = {
+      isbn,
+      title: choice.title,
+      volumeTitle: null,
+      authors: choice.authors.length ? choice.authors : anchor.authors,
+      publisher: anchor.publisher,
+      language: anchor.language,
+      format: null,
+      cover: null,
+      work: choice.volume === null ? anchor.work : { id: editionWork(isbn), title: choice.title },
+      series: choice.volume === null ? null : anchor.series,
+      volume: choice.volume,
+      sources: ['reader'],
+      fetchedAt: now().toISOString(),
+    };
+    store(edition);
+    // The sources are asked again a day later (lookup).
+    db.prepare('insert or replace into miss (isbn, checked_at) values (?, ?)').run(isbn, edition.fetchedAt);
+    return { found: edition };
+  }
+
   return {
     lookup,
     cover,
+    search,
+    choose,
     link,
     series: (id) => {
       const row = byIdentifier(id);
@@ -433,10 +564,12 @@ function toEdition(row: EditionRow): Edition {
         ? { id: row.series_id, title: row.series_title, sameAs: JSON.parse(row.same_as ?? '[]') as string[] }
         : null,
     volume: row.volume,
-    sources: JSON.parse(row.sources) as SourceName[],
+    sources: JSON.parse(row.sources) as EditionSource[],
     fetchedAt: row.fetched_at,
   };
 }
+
+const isReader = (edition: Pick<Edition, 'sources'>) => edition.sources.includes('reader');
 
 // Two titles name the same book when every word of the shorter one is in the
 // longer one: "One Piece" and "One Piece 56", "Spy x family" and "Spy x Family - Tome 16".

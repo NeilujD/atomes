@@ -28,6 +28,23 @@ bun scripts/record-catalog-answers.ts --fill 9791042021030
 | `bnf-search-0185efcb4147-1.xml` | BnF search `bib.title all "Spy x family" and bib.publisher all "Kurokawa"`: 25 records. Volumes 1 to 16, a second printing of Volume 11, another BnF Series with the same title, records with no Volume |
 | `inventaire-batch-a9873a9f9bba.json` | Inventaire, 15 ISBNs in one request: 12 known (titles "Spy × Family, Tome 1"…), 3 unknown |
 
+Kaamelott (Casterman), for the Catalog `search` and `choose` tests (CORE-40), recorded on 2026-11-11:
+
+```sh
+bun scripts/record-catalog-answers.ts --search "Kaamelott" "Casterman"
+bun scripts/record-catalog-answers.ts --fill 9782203085053
+bun scripts/record-catalog-answers.ts 9782203255647 9782265144026
+bun scripts/record-catalog-answers.ts --search "Réglez-lui son compte" "Fleuve"
+```
+
+| ISBN or file | Answer |
+|---|---|
+| 9782203255647 | Kaamelott 10, Casterman (owner's shelf): unknown to all four sources (BnF 0 records, SUDOC 404) |
+| 9782203085053 | Kaamelott 9, Casterman: the anchor of the Edition Line; the `--fill` Inventaire batch gives the Works of 1 to 8 |
+| `bnf-search-b2edb89b86f9-1.xml` | BnF search `bib.title all "Kaamelott" and bib.publisher all "Casterman"`: 13 records, Volumes 1 to 9, two printings of 1, 2 and 3, one record with no Volume |
+| `bnf-search-cb50c926699d-1.xml` | BnF search `bib.title all "Réglez-lui son compte" and bib.publisher all "Fleuve"`: two Editions (1981, 2019), no Series |
+| 9782265144026 | Réglez-lui son compte !, Fleuve noir, 2019: no shared Work in any source |
+
 Search and batch files are named by a hash of the query (`recorded.fake.ts`).
 
 Recorded on 2026-11-11 for the `same_as` tests (CORE-42):

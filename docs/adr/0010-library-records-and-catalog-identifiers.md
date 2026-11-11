@@ -95,3 +95,13 @@ A Series used to keep the first identifier it got. When One Piece 112 (no Series
 - **No Series endpoint.** The Catalog resolves an identifier internally (`series(id)`), and each Edition answer carries `sameAs`.
 - **Storage.** A Series is an internal number. `series_link` holds every identifier of a Series, `series_title` every title key; Editions and the Edition Line key point at the number, so a link changes no Edition. The Catalog file holds minted identifiers that reader records use, so it is not a cache: its schema changes through numbered steps in `src/lib/catalog/migrations.ts` (`pragma user_version`), and a step is never edited once it has run.
 - Rejected: keep the first identifier forever. It needs no reader change, but new records would keep identifiers that only one instance knows, and another Catalog could not resolve them.
+
+## Amendment 2026-11-11: a reader picks the Series of an ISBN no source knows
+
+A shelf check of 10 real ISBNs (PR #15) found 4 that no source knows, though BnF knows other books of the same Series or Work (Kaamelott 1 to 9, Casterman, but not 10). For such an ISBN, a signed-in reader can now search BnF by the title they typed and an optional publisher (`GET /api/catalog/search`, one page of 50 records), and pick an Edition Line and a Volume, or a book (`PUT /api/catalog/editions/{isbn}`).
+
+- The Catalog keeps the pick as an Edition with the source `reader`: the Series, publisher and language of the picked Edition Line, the reader's Volume and title, the Work `isbn:<isbn>`, no cover. It never mixes reader data with source data. The pick joins the Edition Line (Kaamelott 1 to 10). It stores no DID or other reader data.
+- A picked book gives its Work only when the sources share it (`wd:`, `inv:`, `ol:`); an `isbn:` Work belongs to the other Edition, so the reader types the book instead.
+- The pick serves every reader of the instance. A later pick replaces it. The sources are asked about the ISBN again once a day, as for an unknown ISBN; when one knows it, its Edition replaces the pick whole.
+- Only a signed-in reader may search or pick: both cost source calls, and a pick writes data every reader sees.
+- What leaves the server: the title and publisher the reader typed, never the ISBN. They say nothing about who asked (ADR 0001).
