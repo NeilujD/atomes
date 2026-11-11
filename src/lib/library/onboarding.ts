@@ -6,6 +6,7 @@
 import type { Edition } from '../catalog/catalog';
 import type { Copy } from './copy';
 import type { Follow } from './follow';
+import { isSeries } from './ids';
 import { currentStatus, isOwned, statusChange, type Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
@@ -55,18 +56,18 @@ export type NoOnboarding = 'no-series' | 'in-library' | 'followed' | 'dropped';
 
 export function noOnboarding(added: Edition, volumes: Edition[], before: Library): NoOnboarding | undefined {
   if (!added.series || added.volume === null) return 'no-series';
-  const found = seriesRecords(added.series.id, [added, ...volumes], before);
+  const found = seriesRecords(added.series, [added, ...volumes], before);
   if (found.follow) return found.follow.value.status === 'dropped' ? 'dropped' : 'followed';
   return found.copies.length > 0 || found.readingStatuses.length > 0 ? 'in-library' : undefined;
 }
 
 // The records of one Series in the Library: Copies and Reading Statuses of its
-// Volumes (by Work or by ISBN), and its follow.
-export function seriesRecords(seriesId: string, volumes: Edition[], library: Library) {
+// Volumes (by Work or by ISBN), and its follow, under any identifier of the Series.
+export function seriesRecords(series: NonNullable<Edition['series']>, volumes: Edition[], library: Library) {
   return {
     copies: library.copies.filter((copy) => volumes.some((each) => copyOf(each, copy))),
     readingStatuses: library.readingStatuses.filter((status) => volumes.some((each) => statusOf(each, status))),
-    follow: library.follows.find(({ rkey }) => rkey === seriesId),
+    follow: library.follows.find(({ rkey }) => isSeries(series, rkey)),
   };
 }
 
@@ -146,11 +147,12 @@ export function onboardingSave(onboarding: Onboarding, library: Library, choices
   const readingStatuses = isbnsOf(({ read }) => read).flatMap((isbn) => statusChange(edition(isbn).work.id, isbn, 'read', library, now) ?? []);
 
   const status = choices.follow ? 'following' : 'dropped';
-  const current = library.follows.find(({ rkey }) => rkey === onboarding.series.id)?.value;
+  // A follow saved under an older identifier of the Series keeps its record key (ADR 0010).
+  const current = library.follows.find(({ rkey }) => isSeries(onboarding.series, rkey));
   const follow: Follow | undefined =
-    current?.status === status
+    current?.value.status === status
       ? undefined
-      : { series: onboarding.series.id, anchorIsbn: onboarding.anchor.isbn, status, updatedAt: now.toISOString() };
+      : { series: current?.rkey ?? onboarding.series.id, anchorIsbn: onboarding.anchor.isbn, status, updatedAt: now.toISOString() };
   return { copies, readingStatuses, ...(follow && { follow }) };
 }
 
@@ -160,7 +162,7 @@ export function onboardingSave(onboarding: Onboarding, library: Library, choices
 export function followOnRead(edition: Edition | undefined, chosen: Status, library: Library, now: Date): Follow | undefined {
   const series = edition?.series;
   if (!edition || !series || chosen !== 'read') return undefined;
-  if (library.follows.some(({ rkey }) => rkey === series.id)) return undefined;
+  if (library.follows.some(({ rkey }) => isSeries(series, rkey))) return undefined;
   return { series: series.id, anchorIsbn: edition.isbn, status: 'following', updatedAt: now.toISOString() };
 }
 

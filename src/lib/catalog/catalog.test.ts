@@ -1,13 +1,13 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { isSeriesId } from '../library/ids';
-import { answerCover, answerEdition, answerVolumes } from './api';
-import type { Catalog, Edition } from './catalog';
+import { answerChoose, answerCover, answerEdition, answerSearch, answerVolumes } from './api';
+import type { Catalog, Edition, SearchFound } from './catalog';
 import { createCatalog } from './catalog';
-import { recordedFetch } from './recorded.fake';
+import { fixtureDir, recordedFetch } from './recorded.fake';
 import { isCoverUrl, type SourceFetch } from './sources';
 
 const onePiece56 = '9782723478991';
@@ -17,6 +17,11 @@ const horde = '9782072927515'; // La Horde du Contrevent, Folio SF (owner's shel
 const dragonBallSuper1to2 = '9782344025437'; // omnibus "Tomes 1-2", 461 $v "1-2"
 const spyFamily1to3 = '9782380714487'; // omnibus "Tomes 1 à 3" in its own BnF Series record
 const unknown = '9791099999993'; // valid check digit, no source knows it
+// Owner's shelf (CORE-40): Kaamelott 10, Casterman. No source knows its ISBN; BnF has 1 to 9.
+const kaamelott10 = '9782203255647';
+const kaamelott9 = '9782203085053';
+const asterixWhiteIris = '9781408730218'; // Sphere, 2023: SUDOC's Series is "Aterix", a typo
+const asterixEmpire = '9782864976165'; // L'Empire du Milieu, album of the film: Inventaire's Series is wd:Q42490
 
 const dirs: string[] = [];
 const open: Catalog[] = [];
@@ -112,7 +117,7 @@ describe('GET /api/catalog/editions/{isbn}', () => {
     const { catalog, reopen, file } = setup();
     await answerEdition(catalog, dragonBallSuper1to2);
     const old = new DatabaseSync(file);
-    old.exec('alter table edition drop column volumes');
+    old.exec('alter table edition drop column volumes; pragma user_version = 2');
     old.close();
 
     const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
@@ -222,7 +227,7 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
     const body = (await response.json()) as { series: Edition['series']; volumes: Edition[] };
 
     expect(response.status).toBe(200);
-    expect(body.series).toEqual({ id: 'wd:Q673', title: 'One Piece' });
+    expect(body.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [] });
     expect(body.volumes.map((v) => [v.isbn, v.volume])).toEqual([[onePiece56, 56]]);
   });
 
@@ -242,7 +247,7 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
     const body = (await (await answerVolumes(catalog, onePiece112, signedIn)).json()) as { series: Edition['series']; volumes: Edition[] };
 
     // 112 has no Series link in any source: its title finds the Series that 56 brought.
-    expect(body.series).toEqual({ id: 'wd:Q673', title: 'One Piece' });
+    expect(body.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [] });
     expect(body.volumes.map((v) => [v.isbn, v.volume])).toEqual([
       [onePiece56, 56],
       [onePiece112, 112],
@@ -384,6 +389,169 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
   });
 });
 
+describe('An ISBN no source knows: find the Series or Work by title (CORE-40)', () => {
+  const reader = { signedIn: true };
+  const search = (catalog: Catalog, query: string, access = reader) =>
+    answerSearch(catalog, new URL(`http://atomes.test/api/catalog/search?${query}`), access);
+  const found = async (response: Response) => (await response.json()) as SearchFound;
+
+  test('a typed title and publisher give the Edition Line BnF knows, with its Volumes', async () => {
+    const { catalog, calls } = setup();
+
+    const response = await search(catalog, 'title=Kaamelott&publisher=Casterman');
+
+    expect(response.status).toBe(200);
+    const { lines } = await found(response);
+    expect(lines).toEqual([
+      { anchor: kaamelott9, series: 'Kaamelott', publisher: 'Casterman', language: 'fre', volumes: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
+    ]);
+    // One BnF page; the ISBN the reader scanned never leaves the server.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('bib.title');
+  });
+
+  test('books with no Volume come as Works: other Editions of the same book', async () => {
+    const { catalog } = setup();
+
+    const { lines, works } = await found(await search(catalog, 'title=R%C3%A9glez-lui%20son%20compte&publisher=Fleuve'));
+
+    expect(lines).toEqual([]);
+    expect(works).toEqual([
+      { anchor: '9782265017412', title: 'Réglez-lui son compte !', authors: ['San-Antonio'], publisher: 'Éditions Fleuve noir', year: 1981 },
+      { anchor: '9782265144026', title: 'Réglez-lui son compte !', authors: ['San-Antonio'], publisher: 'Fleuve noir', year: 2019 },
+    ]);
+  });
+
+  test('signed out, or with no title, nothing is asked', async () => {
+    const { catalog, calls } = setup();
+
+    expect((await search(catalog, 'title=Kaamelott', { signedIn: false })).status).toBe(401);
+    expect((await search(catalog, 'title=%20&publisher=Casterman')).status).toBe(400);
+    expect((await search(catalog, `title=${'a'.repeat(301)}`)).status).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  const choose = (catalog: Catalog, isbn: string, body: unknown, access = reader) => answerChoose(catalog, isbn, body, access);
+  const kaamelott10Choice = { anchor: kaamelott9, volume: 10, title: 'Kaamelott 10', authors: [] };
+
+  test('the reader picks the Series Kaamelott (Casterman) and Volume 10: the Catalog keeps it as the reader gave it', async () => {
+    const { catalog, reopen } = setup();
+    expect((await answerEdition(catalog, kaamelott10)).status).toBe(404);
+
+    const response = await choose(catalog, kaamelott10, kaamelott10Choice);
+
+    expect(response.status).toBe(200);
+    const anchor = await edition(await answerEdition(catalog, kaamelott9));
+    const chosen = {
+      isbn: kaamelott10,
+      title: 'Kaamelott 10',
+      volumeTitle: null,
+      authors: anchor.authors,
+      publisher: 'Casterman',
+      language: 'fre',
+      format: null,
+      cover: null,
+      work: { id: `isbn:${kaamelott10}`, title: 'Kaamelott 10' },
+      series: anchor.series,
+      volume: 10,
+      sources: ['reader'],
+    };
+    expect(await edition(response)).toMatchObject(chosen);
+    // Kept, also after a restart, with no source call.
+    const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
+    expect(await edition(await answerEdition(reopen(offline.fetch), kaamelott10))).toMatchObject(chosen);
+    expect(offline.calls).toEqual([]);
+  });
+
+  test('the chosen Volume joins the Edition Line: Kaamelott 1 to 10', async () => {
+    const { catalog } = setup();
+    await choose(catalog, kaamelott10, kaamelott10Choice);
+
+    const body = (await (await answerVolumes(catalog, kaamelott9, signedIn)).json()) as { volumes: Edition[] };
+
+    expect(body.volumes.map((v) => v.volume)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(body.volumes.at(-1)?.sources).toEqual(['reader']);
+  });
+
+  test('an ISBN a source knows cannot be chosen', async () => {
+    const { catalog } = setup();
+
+    const response = await choose(catalog, kaamelott9, { ...kaamelott10Choice, volume: 9 });
+
+    expect(response.status).toBe(409);
+    expect((await edition(await answerEdition(catalog, kaamelott9))).sources).not.toContain('reader');
+  });
+
+  test('a later choice replaces the earlier one', async () => {
+    const { catalog } = setup();
+    await choose(catalog, kaamelott10, { ...kaamelott10Choice, volume: 11 });
+
+    await choose(catalog, kaamelott10, kaamelott10Choice);
+
+    expect((await edition(await answerEdition(catalog, kaamelott10))).volume).toBe(10);
+  });
+
+  test('a Work is taken from another Edition only when the sources share it', async () => {
+    const { catalog } = setup();
+    const hordeEdition = await edition(await answerEdition(catalog, horde));
+
+    const shared = await choose(catalog, unknown, { anchor: horde, volume: null, title: 'La Horde du Contrevent', authors: [] });
+    // BnF and SUDOC give "Réglez-lui son compte !" 2019 no shared Work: the reader types the book.
+    const notShared = await choose(catalog, kaamelott10, { anchor: '9782265144026', volume: null, title: 'Réglez-lui son compte !', authors: [] });
+
+    expect(shared.status).toBe(200);
+    expect(await edition(shared)).toMatchObject({ work: hordeEdition.work, series: null, volume: null, sources: ['reader'] });
+    expect(notShared.status).toBe(422);
+    expect(await notShared.json()).toMatchObject({ reason: 'no-shared-work' });
+    expect((await answerEdition(catalog, kaamelott10)).status).toBe(404);
+  });
+
+  test('a wrong choice is refused and stores nothing', async () => {
+    const { catalog } = setup();
+
+    expect((await choose(catalog, kaamelott10, kaamelott10Choice, { signedIn: false })).status).toBe(401);
+    expect((await choose(catalog, kaamelott10, { ...kaamelott10Choice, title: '' })).status).toBe(400);
+    expect((await choose(catalog, kaamelott10, { ...kaamelott10Choice, volume: -1 })).status).toBe(400);
+    expect((await choose(catalog, kaamelott10, { ...kaamelott10Choice, anchor: unknown })).status).toBe(422);
+    // La Horde has no Series: no Volume of it.
+    expect((await choose(catalog, kaamelott10, { ...kaamelott10Choice, anchor: horde })).status).toBe(422);
+    expect((await answerEdition(catalog, kaamelott10)).status).toBe(404);
+  });
+
+  test('the sources are asked again a day later; when one knows the ISBN, its Edition replaces the choice whole', async () => {
+    let clock = new Date('2026-11-11T10:00:00.000Z');
+    const sources = recordedFetch();
+    // Open Library learns the ISBN: here it answers what it recorded for La Horde.
+    let learnt = false;
+    const fetch: SourceFetch = (url) =>
+      sources.fetch(learnt && url.includes(`isbn=${kaamelott10}`) ? url.replace(kaamelott10, horde) : url);
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => clock });
+    open.push(catalog);
+    await choose(catalog, kaamelott10, kaamelott10Choice);
+    const asked = sources.calls.length;
+
+    clock = new Date('2026-11-11T20:00:00.000Z');
+    expect((await edition(await answerEdition(catalog, kaamelott10))).sources).toEqual(['reader']);
+    expect(sources.calls).toHaveLength(asked);
+
+    clock = new Date('2026-11-12T10:00:01.000Z');
+    expect((await edition(await answerEdition(catalog, kaamelott10))).volume).toBe(10);
+    expect(sources.calls.length).toBeGreaterThan(asked);
+
+    learnt = true;
+    clock = new Date('2026-11-13T10:00:02.000Z');
+    const replaced = await edition(await answerEdition(catalog, kaamelott10));
+    expect(replaced).toMatchObject({ sources: ['Open Library'], series: null, volume: null, work: { id: `isbn:${kaamelott10}` } });
+    expect(replaced.title).not.toBe('Kaamelott 10');
+  });
+
+  test('when BnF is down, the answer says so', async () => {
+    const { catalog } = setup(['catalogue.bnf.fr']);
+
+    expect((await search(catalog, 'title=Kaamelott&publisher=Casterman')).status).toBe(503);
+  });
+});
+
 describe('GET /api/catalog/editions/{isbn}/cover', () => {
   const onePieceCover = 'https://inventaire.io/img/entities/65883d822ab1b56d8f46aeb26c35d1feb9098a9b';
   const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
@@ -459,5 +627,195 @@ describe('GET /api/catalog/editions/{isbn}/cover', () => {
     ['https://example.com/cover.jpg', false],
   ])('only covers from the known cover hosts are fetched: %s', (url, allowed) => {
     expect(isCoverUrl(url)).toBe(allowed);
+  });
+});
+
+describe('One Series across sources and identifiers (same_as, ADR 0010)', () => {
+  const volumesOf = async (catalog: Catalog, isbn: string) =>
+    ((await (await answerVolumes(catalog, isbn, signedOut)).json()) as { series: Edition['series']; volumes: Edition[] });
+
+  test('a shared identifier that comes after a minted one is linked: both give one Series and its Volumes', async () => {
+    const { catalog } = setup();
+    // One Piece 112 has no Series link in any source: the Catalog mints an identifier.
+    const minted = (await edition(await answerEdition(catalog, onePiece112))).series!.id;
+    expect(minted).toMatch(/^atomes:catalog\.test:/);
+
+    // One Piece 56 brings Wikidata's identifier and joins the Series by title.
+    const found = await edition(await answerEdition(catalog, onePiece56));
+
+    expect(found.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [minted] });
+    expect(catalog.series('wd:Q673')).toEqual(found.series);
+    expect(catalog.series(minted)).toEqual(found.series);
+    for (const isbn of [onePiece56, onePiece112]) {
+      const body = await volumesOf(catalog, isbn);
+      expect(body.series).toEqual(found.series);
+      expect(body.volumes.map((v) => [v.isbn, v.volume, v.series?.id])).toEqual([
+        [onePiece56, 56, 'wd:Q673'],
+        [onePiece112, 112, 'wd:Q673'],
+      ]);
+    }
+  });
+
+  test('the link and the BnF Series record stay after a restart', async () => {
+    const { catalog, reopen } = setup();
+    const minted = (await edition(await answerEdition(catalog, onePiece112))).series!.id;
+    await answerEdition(catalog, onePiece56);
+
+    const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
+    const again = reopen(offline.fetch);
+
+    expect(again.series(minted)).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [minted] });
+    expect((await edition(await answerEdition(again, onePiece112))).series?.id).toBe('wd:Q673');
+    expect(offline.calls).toEqual([]);
+  });
+
+  test('a Series with another shared identifier stays another Series, even with the same title and BnF record', async () => {
+    let clock = new Date('2026-11-11T10:00:00.000Z');
+    const sources = recordedFetch();
+    // The recorded answers, edited: Wikidata first names the Series of One
+    // Piece 56 wd:Q99999, then fixes it to wd:Q673.
+    let fixed = false;
+    const fetch: SourceFetch = async (url) => {
+      if (fixed) return sources.fetch(url);
+      const answer = await sources.fetch(url.replace('wd%3AQ99999', 'wd%3AQ673'));
+      return new Response((await answer.text()).replaceAll('wd:Q673', 'wd:Q99999'), { status: answer.status });
+    };
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => clock });
+    open.push(catalog);
+    expect((await edition(await answerEdition(catalog, onePiece56))).series?.id).toBe('wd:Q99999');
+
+    fixed = true;
+    clock = new Date('2026-12-12T10:00:00.000Z'); // after a month the Edition is fetched again
+    const found = await edition(await answerEdition(catalog, onePiece56));
+
+    expect(found.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [] });
+    expect(catalog.series('wd:Q99999')).toEqual({ id: 'wd:Q99999', title: 'One Piece', sameAs: [] });
+  });
+
+  test('a shared identifier that names two Series of this Catalog makes them one', async () => {
+    const sources = recordedFetch();
+    // The recorded answers, edited: at first BnF is down and Inventaire labels
+    // wd:Q673 "Wan Pīsu", so it does not join the Series minted for 112.
+    let edited = true;
+    const fetch: SourceFetch = async (url) => {
+      if (!edited) return sources.fetch(url);
+      if (url.includes('catalogue.bnf.fr')) return new Response('down', { status: 503 });
+      const answer = await sources.fetch(url);
+      return new Response((await answer.text()).replaceAll('"One Piece"', '"Wan Pīsu"'), { status: answer.status });
+    };
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => new Date('2026-11-11T10:00:00.000Z') });
+    open.push(catalog);
+    edited = false;
+    const minted = (await edition(await answerEdition(catalog, onePiece112))).series!.id;
+    edited = true;
+    expect((await edition(await answerEdition(catalog, onePiece56))).series).toMatchObject({ id: 'wd:Q673', title: 'Wan Pīsu' });
+    expect(catalog.series(minted)?.id).toBe(minted);
+
+    edited = false;
+    const found = await edition(await answerEdition(catalog, onePiece56));
+
+    expect(found.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [minted] });
+    expect(catalog.series(minted)).toEqual(found.series);
+    const body = (await (await answerVolumes(catalog, onePiece112, signedOut)).json()) as { volumes: Edition[] };
+    expect(body.volumes.map((v) => [v.isbn, v.series?.id])).toEqual([
+      [onePiece56, 'wd:Q673'],
+      [onePiece112, 'wd:Q673'],
+    ]);
+  });
+
+  test('two Series linked by hand are one: best identifier, its title, every Volume; the old title still joins', async () => {
+    let clock = new Date('2026-11-11T10:00:00.000Z');
+    const catalog = createCatalog({ file: ':memory:', fetch: recordedFetch().fetch, host: 'catalog.test', now: () => clock });
+    open.push(catalog);
+    // SUDOC's Series of Asterix and the White Iris is "Aterix", with no shared identifier.
+    const aterix = (await edition(await answerEdition(catalog, asterixWhiteIris))).series!;
+    expect(aterix).toMatchObject({ id: expect.stringMatching(/^atomes:catalog\.test:/) as string, title: 'Aterix' });
+    // Inventaire gives Astérix (wd:Q42490) for the album of the film L'Empire du Milieu.
+    expect((await edition(await answerEdition(catalog, asterixEmpire))).series?.id).toBe('wd:Q42490');
+
+    const linked = catalog.link(aterix.id, 'wd:Q42490');
+
+    expect(linked).toEqual({ id: 'wd:Q42490', title: 'Astérix', sameAs: [aterix.id] });
+    expect(catalog.series(aterix.id)).toEqual(linked);
+    const body = (await (await answerVolumes(catalog, asterixWhiteIris, signedOut)).json()) as { series: Edition['series']; volumes: Edition[] };
+    expect(body.series).toEqual(linked);
+    expect(body.volumes.map((v) => [v.isbn, v.volume])).toEqual([[asterixWhiteIris, 40]]);
+    // A month later SUDOC still says "Aterix": it finds the linked Series.
+    clock = new Date('2026-12-12T10:00:00.000Z');
+    expect((await edition(await answerEdition(catalog, asterixWhiteIris))).series).toEqual(linked);
+  });
+
+  test('linking an identifier the Catalog does not know links nothing', async () => {
+    const { catalog } = setup();
+    const minted = (await edition(await answerEdition(catalog, spyFamily16))).series!.id;
+
+    expect(catalog.link(minted, 'wd:Q1')).toBeUndefined();
+    expect(catalog.series(minted)?.sameAs).toEqual([]);
+  });
+
+  test('an identifier the Catalog does not know resolves to nothing', () => {
+    const { catalog } = setup();
+
+    expect(catalog.series('wd:Q1')).toBeUndefined();
+  });
+});
+
+describe('A Catalog file from before same_as (migration)', () => {
+  // fixtures/catalog-v0.sqlite: made on 2026-11-11 by the Catalog of main
+  // (a3f8d6c) from the recorded answers: One Piece 112, then 56, then the
+  // Spy x Family Edition Line. One Piece got a minted identifier, and 56's
+  // wd:Q673 was lost (CORE-42).
+  const onePieceMinted = 'atomes:catalog.test:01M750SM80AX373XJ01DSVNDXC';
+  const spyFamilyMinted = 'atomes:catalog.test:01M750SM804ES35F6C61WNPNEJ';
+  const offline = () => recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
+
+  function openV0(fetch: SourceFetch, now: Date) {
+    const dir = mkdtempSync(join(tmpdir(), 'atomes-catalog-'));
+    dirs.push(dir);
+    const file = join(dir, 'catalog.sqlite');
+    copyFileSync(new URL('catalog-v0.sqlite', fixtureDir), file);
+    const catalog = createCatalog({ file, fetch, host: 'catalog.test', now: () => now });
+    open.push(catalog);
+    return catalog;
+  }
+
+  test('keeps the minted identifiers that reader records hold, and the Edition Lines', async () => {
+    const sources = offline();
+    const catalog = openV0(sources.fetch, new Date('2026-11-11T12:00:00.000Z'));
+
+    expect(catalog.series(onePieceMinted)).toEqual({ id: onePieceMinted, title: 'One Piece', sameAs: [] });
+    const onePiece = (await (await answerVolumes(catalog, onePiece112, signedOut)).json()) as { volumes: Edition[] };
+    expect(onePiece.volumes.map((v) => [v.isbn, v.series?.id])).toEqual([
+      [onePiece56, onePieceMinted],
+      [onePiece112, onePieceMinted],
+    ]);
+    // The Spy x Family line was filled: it is not asked for again. The
+    // anchors are asked again for their Volumes (CORE-41), and kept offline.
+    const spyFamily = (await (await answerVolumes(catalog, spyFamily16, signedIn)).json()) as { volumes: Edition[] };
+    expect(spyFamily.volumes).toHaveLength(16);
+    expect(new Set(spyFamily.volumes.map((v) => v.series?.id))).toEqual(new Set([spyFamilyMinted]));
+    expect(sources.calls.filter((url) => !url.includes('isbn'))).toEqual([]);
+  });
+
+  test('links the lost shared identifier when the Edition is fetched again', async () => {
+    const catalog = openV0(recordedFetch().fetch, new Date('2026-12-12T12:00:00.000Z'));
+
+    const found = await edition(await answerEdition(catalog, onePiece56));
+
+    expect(found.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [onePieceMinted] });
+    expect(catalog.series(onePieceMinted)).toEqual(found.series);
+  });
+
+  test('a migrated file opens again with no change', async () => {
+    const catalog = openV0(offline().fetch, new Date('2026-11-11T12:00:00.000Z'));
+    catalog.close();
+    open.splice(open.indexOf(catalog), 1);
+    const file = join(dirs.at(-1)!, 'catalog.sqlite');
+
+    const again = createCatalog({ file, fetch: offline().fetch, host: 'catalog.test', now: () => new Date('2026-11-11T12:00:00.000Z') });
+    open.push(again);
+
+    expect(again.series(onePieceMinted)?.id).toBe(onePieceMinted);
+    expect((await edition(await answerEdition(again, onePiece112))).series?.id).toBe(onePieceMinted);
   });
 });

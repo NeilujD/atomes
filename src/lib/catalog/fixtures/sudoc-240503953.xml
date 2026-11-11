@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record>
+  <leader>     cam0 22        450 </leader>
+  <controlfield tag="001">240503953</controlfield>
+  <controlfield tag="003">https://www.sudoc.fr/240503953</controlfield>
+  <controlfield tag="004">20191029</controlfield>
+  <controlfield tag="005">20231130193516.000</controlfield>
+  <controlfield tag="006">4994</controlfield>
+  <controlfield tag="007">1999</controlfield>
+  <controlfield tag="008">Aax3</controlfield>
+  <datafield tag="010" ind1="#" ind2="#">
+    <subfield code="a">978-2-265-14402-6</subfield>
+    <subfield code="b">br</subfield>
+    <subfield code="d">17,90 EUR</subfield>
+  </datafield>
+  <datafield tag="020" ind1="#" ind2="#">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">01965948</subfield>
+  </datafield>
+  <datafield tag="021" ind1="#" ind2="#">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">DLE-20190822-51738</subfield>
+  </datafield>
+  <datafield tag="033" ind1="#" ind2="#">
+    <subfield code="a">http://catalogue.bnf.fr/ark:/12148/cb45789347p</subfield>
+    <subfield code="2">BNF</subfield>
+    <subfield code="d">20191029</subfield>
+  </datafield>
+  <datafield tag="035" ind1="#" ind2="#">
+    <subfield code="a">FRBNF457893470000005</subfield>
+    <subfield code="z">FRBNF45789347</subfield>
+    <subfield code="d">20191029</subfield>
+  </datafield>
+  <datafield tag="073" ind1="#" ind2="0">
+    <subfield code="a">9782265144026</subfield>
+  </datafield>
+  <datafield tag="100" ind1="#" ind2="#">
+    <subfield code="a">20191029d2019    m  y0frey50      ba</subfield>
+  </datafield>
+  <datafield tag="101" ind1="0" ind2="#">
+    <subfield code="a">fre</subfield>
+    <subfield code="2">639-2</subfield>
+  </datafield>
+  <datafield tag="102" ind1="#" ind2="#">
+    <subfield code="a">FR</subfield>
+  </datafield>
+  <datafield tag="104" ind1="#" ind2="#">
+    <subfield code="a">m</subfield>
+    <subfield code="b">y</subfield>
+    <subfield code="c">y</subfield>
+    <subfield code="d">ba</subfield>
+    <subfield code="e">0</subfield>
+    <subfield code="f">fre</subfield>
+  </datafield>
+  <datafield tag="105" ind1="#" ind2="#">
+    <subfield code="a">||||z   00|y|</subfield>
+  </datafield>
+  <datafield tag="106" ind1="#" ind2="#">
+    <subfield code="a">r</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="c">txt</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="1">
+    <subfield code="6">z01</subfield>
+    <subfield code="a">i#</subfield>
+    <subfield code="b">xxxe##</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="c">n</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="1">
+    <subfield code="6">z01</subfield>
+    <subfield code="a">n</subfield>
+  </datafield>
+  <datafield tag="200" ind1="1" ind2="#">
+    <subfield code="a">Réglez-lui son compte !</subfield>
+    <subfield code="a">suivies de la nouvelle Bien chaud, bien parisien</subfield>
+    <subfield code="e">kill him</subfield>
+    <subfield code="e">première série des révélations de San-Antonio</subfield>
+    <subfield code="f">adaptées et post-synchronisées par Frédéric Dard</subfield>
+    <subfield code="f">préface à la présente édition de Thierry Gautier,...</subfield>
+  </datafield>
+  <datafield tag="214" ind1="#" ind2="3">
+    <subfield code="a">61-Lonrai</subfield>
+    <subfield code="c">Normandie roto impr.</subfield>
+  </datafield>
+  <datafield tag="214" ind1="#" ind2="0">
+    <subfield code="a">Paris</subfield>
+    <subfield code="c">Fleuve noir</subfield>
+    <subfield code="d">DL 2019</subfield>
+  </datafield>
+  <datafield tag="215" ind1="#" ind2="#">
+    <subfield code="a">1 vol. (334 p.)</subfield>
+    <subfield code="d">22 cm</subfield>
+  </datafield>
+  <datafield tag="330" ind1="#" ind2="#">
+    <subfield code="a">La toute première aventure de San-Antonio ! Inclus la nouvelle Bien chaud, bien parisien... jamais rééditée depuis l&apos;édition de 1952 ! Illustration de couverture réalisée par Joann Sfar Préface de Thierry Gautier, rédacteur en chef du Monde de San-Antonio &quot; Si un jour votre grand-mère vous demande le nom du type le plus malin de la Terre, dites-lui sans hésiter une paire de minutes que le gars en question s&apos;appelle San-Antonio.&quot; C&apos;est, en 1949, la phrase inaugurale du premier San-Antonio, deux histoires réunies sous le titre Réglez-lui son compte ! dans lesquelles, derrière l&apos;intrigue simple, on lit déjà la truculence de la langue, l&apos;humour, l&apos;esprit bagarreur, faussement nonchalant, et avant toute chose : l&apos;exigence novatrice. Car Frédéric Dard a fait des mots un terrain de jeu en perpétuel mouvement, et il ne détestait rien de plus qu&apos;imaginer une langue qu&apos;on se serait appliqué à couvrir de bandelettes, momifiée, étouffée sous les conventions et... l&apos;ennui. Exit l&apos;ennui avec le grand Frédéric Dard. A toutes les époques et pour les siècles des siècles: tout le monde dit &quot; I love you &quot; à San-A !</subfield>
+    <subfield code="2">éditeur</subfield>
+  </datafield>
+  <datafield tag="686" ind1="#" ind2="#">
+    <subfield code="a">803</subfield>
+    <subfield code="2">Cadre de classement de la Bibliographie nationale française</subfield>
+  </datafield>
+  <datafield tag="686" ind1="#" ind2="#">
+    <subfield code="a">803</subfield>
+    <subfield code="2">Cadre de classement de la Bibliographie nationale française</subfield>
+  </datafield>
+  <datafield tag="686" ind1="#" ind2="#">
+    <subfield code="a">803</subfield>
+    <subfield code="2">Cadre de classement de la Bibliographie nationale française</subfield>
+  </datafield>
+  <datafield tag="686" ind1="#" ind2="#">
+    <subfield code="a">803</subfield>
+    <subfield code="2">Cadre de classement de la Bibliographie nationale française</subfield>
+  </datafield>
+  <datafield tag="686" ind1="#" ind2="#">
+    <subfield code="a">803</subfield>
+    <subfield code="2">Cadre de classement de la Bibliographie nationale française</subfield>
+  </datafield>
+  <datafield tag="700" ind1="#" ind2="1">
+    <subfield code="3">027121364</subfield>
+    <subfield code="a">San-Antonio</subfield>
+    <subfield code="f">1921-2000</subfield>
+    <subfield code="4">070</subfield>
+  </datafield>
+  <datafield tag="702" ind1="#" ind2="1">
+    <subfield code="3">064810712</subfield>
+    <subfield code="a">Gautier</subfield>
+    <subfield code="b">Thierry</subfield>
+    <subfield code="f">1957-....</subfield>
+    <subfield code="c">informaticien</subfield>
+    <subfield code="4">080</subfield>
+  </datafield>
+  <datafield tag="801" ind1="#" ind2="3">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">Abes</subfield>
+    <subfield code="c">20231130</subfield>
+    <subfield code="g">AFNOR</subfield>
+  </datafield>
+  <datafield tag="801" ind1="#" ind2="0">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">FR-751131015</subfield>
+    <subfield code="c">20190822</subfield>
+    <subfield code="g">AFNOR</subfield>
+    <subfield code="2">intermrc</subfield>
+  </datafield>
+</record>

@@ -62,3 +62,15 @@ function romanNumber(roman: string): number {
     return value < (values[roman[i + 1]] ?? 0) ? total - value : total + value;
   }, 0);
 }
+
+// Compares titles, publishers and formats: "Glénat" = "glenat", "One Piece" = "One piece",
+// "Spy × Family" = "Spy x family".
+export function key(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/×/g, 'x')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}

@@ -30,7 +30,7 @@ describe('To Buy records', () => {
   });
 });
 
-const blacksad = { id: 'wd:Q1000001', title: 'Blacksad' };
+const blacksad = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
 const isbns = ['9791099999016', '9791099999023', '9791099999030', '9791099999047', '9791099999054'];
 
 // Volumes 1 to 5 of one Edition Line, as the Catalog answers `/volumes`.
@@ -148,7 +148,7 @@ describe('Missing Volumes on To Buy', () => {
   });
 
   test('Series in alphabetical order of their title, Volumes in number order', () => {
-    const astra = { id: 'wd:Q1000002', title: 'Ástra' };
+    const astra = { id: 'wd:Q1000002', title: 'Ástra', sameAs: [] };
     const astraLine = [1, 2, 3].map((n) =>
       volume(n, { isbn: ['9782505000017', '9782505000024', '9782505000031'][n - 1], series: astra, title: 'Ástra', work: { id: `wd:Q300000${n}`, title: '' } }),
     );

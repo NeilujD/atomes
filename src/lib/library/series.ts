@@ -5,6 +5,7 @@
 // `CatalogAsk`, so every rule here is tested alone.
 import type { Edition } from '../catalog/catalog';
 import type { Follow } from './follow';
+import { isSeries } from './ids';
 import { currentStatus, isOwned, type Editions, type Library } from './model';
 import type { Status } from './reading-status';
 
@@ -87,7 +88,7 @@ export function earlierAnchor(follow: Follow, library: Library, line: Edition[],
   const inLine = new Set(line.map(({ isbn }) => isbn));
   const before = library.copies
     .flatMap(({ value }) => editions.get(value.isbn) ?? [])
-    .filter((each) => each.series?.id === follow.series && each.volume !== null && each.volume < from && !inLine.has(each.isbn))
+    .filter((each) => isSeries(each.series, follow.series) && each.volume !== null && each.volume < from && !inLine.has(each.isbn))
     .sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0));
   return before[0]?.isbn;
 }
@@ -181,7 +182,7 @@ export type SwitchProblem = 'unknown' | 'other-series' | 'same-line' | 'no-volum
 // Line. From Volume 1, the new line replaces the old one for every Volume.
 export function switchLine(current: Follow, edition: Edition | undefined, line: Edition[], now: Date): { follow: Follow } | { problem: SwitchProblem } {
   if (!edition) return { problem: 'unknown' };
-  if (edition.series?.id !== current.series) return { problem: 'other-series' };
+  if (!isSeries(edition.series, current.series)) return { problem: 'other-series' };
   if (line.some(({ isbn }) => isbn === edition.isbn)) return { problem: 'same-line' };
   if (edition.volume === null) return { problem: 'no-volume' };
   const follow: Follow = { series: current.series, anchorIsbn: edition.isbn, status: 'following', updatedAt: now.toISOString() };
@@ -194,5 +195,5 @@ export function switchLine(current: Follow, edition: Edition | undefined, line: 
 export function suggestsDrop(edition: Edition | undefined, chosen: Status, library: Library): boolean {
   const series = edition?.series;
   if (!series || chosen !== 'abandoned') return false;
-  return library.follows.some(({ rkey, value }) => rkey === series.id && value.status === 'following');
+  return library.follows.some(({ rkey, value }) => isSeries(series, rkey) && value.status === 'following');
 }

@@ -7,7 +7,7 @@ import { followOnRead, noOnboarding, onboardingSave, seriesOnboarding, seriesRec
 import { readingStatusCollection, type ReadingStatus } from './reading-status';
 import { lexicons, type Saved } from './records';
 
-const series = { id: 'wd:Q1000001', title: 'Blacksad' };
+const series = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
 const isbns = ['9791099999016', '9791099999023', '9791099999030', '9791099999047', '9791099999054'];
 
 // Volumes 1 to 5 of one Edition Line, as the Catalog answers `/volumes`.
@@ -79,7 +79,7 @@ describe('The records of one Series', () => {
     const other: Saved<Copy> = { rkey: 'other', value: { isbn: '9782723478991', works: ['wd:Q190192'], createdAt: '2026-11-01T00:00:00.000Z' } };
     const all = library({ copies: [copyOf(1), copyOf(4), other], readingStatuses: [readOf(2)], follows: [followOf('following')] });
 
-    const found = seriesRecords(series.id, volumes, all);
+    const found = seriesRecords(series, volumes, all);
 
     expect(found.copies.map(({ rkey }) => rkey)).toEqual(['copy1', 'copy4']);
     expect(found.readingStatuses.map(({ rkey }) => rkey)).toEqual([volume(2).work.id]);
@@ -282,5 +282,33 @@ describe('A Series becomes followed when a Volume is marked read', () => {
     ['a book the Catalog does not know', undefined, 'read', {}],
   ])('no follow for %s', (_, edition, status, change) => {
     expect(followOnRead(edition, status, library(change), now)).toBeUndefined();
+  });
+});
+
+describe('A follow saved under an older identifier of the Series (same_as, ADR 0010)', () => {
+  // The Catalog now answers wd:Q1000001, same as the identifier it minted first.
+  const minted = 'atomes:catalog.test:01M750SM80AX373XJ01DSVNDXC';
+  const linkedVolumes = volumes.map((each) => ({ ...each, series: { ...series, sameAs: [minted] } }));
+  const oldFollow = (status: Follow['status']): Saved<Follow> => ({
+    rkey: minted,
+    value: { series: minted, anchorIsbn: isbns[0], status, updatedAt: '2026-11-06T11:00:00.000Z' },
+  });
+
+  test('Quick Add sees the Series is followed or dropped', () => {
+    expect(noOnboarding(linkedVolumes[0], linkedVolumes, library({ follows: [oldFollow('following')] }))).toBe('followed');
+    expect(noOnboarding(linkedVolumes[0], linkedVolumes, library({ follows: [oldFollow('dropped')] }))).toBe('dropped');
+  });
+
+  test('reading a Volume writes no second follow', () => {
+    expect(followOnRead(linkedVolumes[2], 'read', library({ follows: [oldFollow('dropped')] }), now)).toBeUndefined();
+  });
+
+  test('Save changes the follow under its old record key', () => {
+    const before = library({ follows: [oldFollow('following')] });
+    const onboarding = seriesOnboarding(linkedVolumes[0], linkedVolumes, before);
+
+    const saved = onboardingSave(onboarding, before, { ...onboarding.start, follow: false }, now);
+
+    expect(saved.follow).toEqual({ series: minted, anchorIsbn: isbns[0], status: 'dropped', updatedAt: now.toISOString() });
   });
 });

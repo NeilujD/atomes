@@ -8,7 +8,7 @@ import { memorySpace } from '../lib/library/memory-space.fake';
 import { saveToBuy, toBuyCollection } from '../lib/library/to-buy';
 import { ToBuy, type Sources } from './ToBuy';
 
-const series = { id: 'wd:Q1000001', title: 'Blacksad' };
+const series = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
 const isbns = ['9791099999016', '9791099999023', '9791099999030', '9791099999047', '9791099999054'];
 const volume = (n: number): Edition => ({
   isbn: isbns[n - 1],

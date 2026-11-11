@@ -8,7 +8,7 @@ import type { ReadingStatus } from './reading-status';
 import { lexicons, type Saved } from './records';
 import { askCollected, collectedVolumes, dropSeries, followSeries, missingVolumes, seriesStanding, suggestsDrop, switchLine } from './series';
 
-const blacksad = { id: 'wd:Q1000001', title: 'Blacksad' };
+const blacksad = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
 
 // An ISBN-13 from its first 12 digits: the check digit makes the EAN-13 sum a multiple of 10.
 const isbn = (twelve: string) => {
@@ -275,7 +275,7 @@ describe('Follow, switch Edition Line, drop', () => {
 
   test('switching refuses an unknown Edition, another Series, the same line and an Edition with no Volume number', () => {
     expect(switchLine(follow(), undefined, lineA, now)).toEqual({ problem: 'unknown' });
-    expect(switchLine(follow(), volume(4, 'B', { series: { id: 'wd:Q9', title: 'Other' } }), lineA, now)).toEqual({ problem: 'other-series' });
+    expect(switchLine(follow(), volume(4, 'B', { series: { id: 'wd:Q9', title: 'Other', sameAs: [] } }), lineA, now)).toEqual({ problem: 'other-series' });
     expect(switchLine(follow(), lineA[3], lineA, now)).toEqual({ problem: 'same-line' });
     expect(switchLine(follow(), volume(4, 'B', { volumes: [], volume: null }), lineA, now)).toEqual({ problem: 'no-volume' });
   });
@@ -289,5 +289,34 @@ describe('Follow, switch Edition Line, drop', () => {
     expect(suggestsDrop(lineA[2], 'abandoned', dropped)).toBe(false);
     expect(suggestsDrop(lineA[2], 'abandoned', library())).toBe(false);
     expect(suggestsDrop(undefined, 'abandoned', followed)).toBe(false);
+  });
+});
+
+describe('A follow saved under an older identifier of the Series (same_as, ADR 0010)', () => {
+  // The Catalog minted this identifier first, then learned Wikidata's: it now
+  // answers wd:Q1000001, same as the minted one. The record keeps its key.
+  const minted = 'atomes:catalog.test:01M750SM80AX373XJ01DSVNDXC';
+  const linked = { ...blacksad, sameAs: [minted] };
+  const linkedA = lineA.map((each) => ({ ...each, series: linked }));
+  const linkedB = lineB.map((each) => ({ ...each, series: linked }));
+  const old = (change: Partial<Follow> = {}) => follow({ series: minted, ...change });
+
+  test('switching Edition Line keeps the identifier the follow was saved with', () => {
+    expect(switchLine(old(), linkedB[3], linkedA, now)).toEqual({
+      follow: { series: minted, anchorIsbn: linkedB[3].isbn, fromVolume: '4', status: 'following', updatedAt: now.toISOString() },
+    });
+  });
+
+  test('after a switch, the Volumes before it come from the earlier Edition Line', () => {
+    const switched = old({ anchorIsbn: linkedB[3].isbn, fromVolume: '4' });
+    const linkedEditions = new Map([...linkedA, ...linkedB].map((each) => [each.isbn, each]));
+
+    const collected = collectedVolumes(switched, library({ copies: owns(linkedA, 1, 3) }), byIsbn(linkedA, linkedB), linkedEditions);
+
+    expect(collected?.map(({ isbn: one }) => one)).toEqual([...linkedA.slice(0, 3), ...linkedB.slice(3)].map(({ isbn: one }) => one));
+  });
+
+  test('abandoning a Volume suggests dropping the Series', () => {
+    expect(suggestsDrop(linkedA[2], 'abandoned', library({ follows: [{ rkey: minted, value: old() }] }))).toBe(true);
   });
 });
