@@ -6,7 +6,8 @@
 export interface Settings {
   // Folder for the SQLite files (the Docker volume, ADR 0007).
   dataDir: string;
-  // The https origin readers open. Not set in local development: then the
+  // The https origin readers open: PUBLIC_APP_ORIGIN, or the Coolify URL on a
+  // pull request preview. Not set in local development: then the
   // server is a loopback public client on http://127.0.0.1 (spike 0003).
   appOrigin?: string;
   // Port of the loopback redirect URI in local development.
@@ -37,10 +38,12 @@ const didPattern = /^did:(plc|web):[a-zA-Z0-9._:%-]+$/;
 export function readSettings(env: Record<string, string | undefined>): Settings {
   const problems: string[] = [];
 
-  const appOrigin = env.PUBLIC_APP_ORIGIN?.trim() || undefined;
+  const preview = previewUrl(env);
+  const originName = preview ? 'COOLIFY_URL' : 'PUBLIC_APP_ORIGIN';
+  const appOrigin = preview ?? (env.PUBLIC_APP_ORIGIN?.trim() || undefined);
   const httpsOrigin = appOrigin !== undefined && isHttpsOrigin(appOrigin);
   if (appOrigin !== undefined && !httpsOrigin) {
-    problems.push(`PUBLIC_APP_ORIGIN must be an https origin, for example https://atomes.example.org. Found: ${appOrigin}`);
+    problems.push(`${originName} must be an https origin, for example https://atomes.example.org. Found: ${appOrigin}`);
   }
 
   const allowed = (env.ALLOWED_DIDS ?? '')
@@ -83,6 +86,16 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     sessionKey,
     oauthPrivateKey,
   };
+}
+
+// A Coolify pull request preview gets the staging variables, so its
+// PUBLIC_APP_ORIGIN names staging. Coolify gives the preview's own URL at
+// deploy time; the origin still never comes from the request (ADR 0013).
+// Coolify puts the URL with its scheme in COOLIFY_URL or COOLIFY_FQDN, by
+// version, and the bare hostname in the other. Several domains: the first.
+function previewUrl(env: Record<string, string | undefined>): string | undefined {
+  if (!/^pull\/\d+\/head$/.test(env.COOLIFY_BRANCH ?? '')) return undefined;
+  return [env.COOLIFY_URL, env.COOLIFY_FQDN].map((value) => value?.split(',')[0]?.trim()).find((value) => value?.includes('://'));
 }
 
 function isHttpsOrigin(value: string): boolean {
