@@ -11,6 +11,7 @@ import { pageLanguage, t } from '../lib/i18n/i18n';
 import { saveCopy } from '../lib/library/copy';
 import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
 import type { Library } from '../lib/library/model';
+import { askCollected, seriesHref, type CatalogAsk } from '../lib/library/series';
 import { bought, bySeries, deleteToBuy, handAdd, saveToBuy, toBuyList, type ToBuyItem } from '../lib/library/to-buy';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
@@ -18,12 +19,9 @@ import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/spa
 import { toast } from '../lib/toast';
 
 // Where the screen reads from: the reader's Library store and the Catalog.
-export interface Sources {
+export interface Sources extends CatalogAsk {
   // Undefined when signed out.
   open(): Promise<Space | undefined>;
-  // The Volumes of the Edition Line of `isbn`; undefined when the Catalog cannot say.
-  volumes(isbn: string): Promise<Edition[] | undefined>;
-  editions(isbns: string[]): Promise<Map<string, Edition>>;
 }
 
 const live: Sources = {
@@ -48,6 +46,7 @@ export function ToBuy({ sources }: { sources: Sources }) {
   const space = useRef<Space | undefined>(undefined);
   const listing = useRef<{ refresh: () => Promise<void> } | undefined>(undefined);
   // Catalog answers kept for this visit, so an offline reload keeps the titles.
+  // Edition Lines by anchor ISBN.
   const lines = useRef(new Map<string, Edition[]>());
   const editions = useRef(new Map<string, Edition>());
   const loaded = useRef(false);
@@ -87,17 +86,12 @@ export function ToBuy({ sources }: { sources: Sources }) {
       await listing.current.refresh();
     }
 
-    // The Edition Line of each Followed Series and the Editions added by hand,
-    // when not asked yet. A Series the Catalog cannot answer for now shows no
-    // Missing Volume, and is asked again on the next read.
+    // The Edition Lines of the Followed Series (series.ts) and the Editions
+    // added by hand, when not asked yet. A Series the Catalog cannot answer
+    // for now shows no Missing Volume, and is asked again on the next read.
     async function askCatalog(read: Library) {
-      const followed = read.follows.filter(({ rkey, value }) => value.status === 'following' && !lines.current.has(rkey));
-      await Promise.all(
-        followed.map(async ({ rkey, value }) => {
-          const volumes = await sources.volumes(value.anchorIsbn).catch(() => undefined);
-          if (volumes) lines.current.set(rkey, volumes);
-        }),
-      );
+      const followed = read.follows.filter(({ value }) => value.status === 'following').map(({ value }) => value);
+      await askCollected(followed, read, lines.current, editions.current, sources);
       const unknown = read.toBuy.map(({ value }) => value.isbn).filter((isbn) => !editions.current.has(isbn));
       for (const [isbn, edition] of await sources.editions(unknown)) editions.current.set(isbn, edition);
     }
@@ -220,8 +214,9 @@ export function ToBuy({ sources }: { sources: Sources }) {
         ) : (
           bySeries(list.missing).map((group, index) => (
             <section key={group.id} class="to-buy-series" aria-labelledby={`to-buy-series-${index}`}>
+              {/* The Series name opens its Series page (follow, switch Edition Line, stop following). */}
               <h3 class="to-buy-series-title" id={`to-buy-series-${index}`}>
-                {t('tobuy.series', group.title ?? '', group.items.length)}
+                <a href={seriesHref(group.items[0].isbn)}>{t('tobuy.series', group.title ?? '', group.items.length)}</a>
               </h3>
               <Paged items={group.items} row={row} />
             </section>

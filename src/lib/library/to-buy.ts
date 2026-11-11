@@ -12,6 +12,7 @@ import type { Copy } from './copy';
 import { editionWork, isIsbn13, readIsbn, type IsbnProblem } from './ids';
 import { editionLabel, isOwned, type Editions, type Library } from './model';
 import { listRecords, putRecord } from './records';
+import { collectedVolumes, missingVolumes, type EditionLines } from './series';
 
 export const toBuyCollection = 'app.atomes.toBuy';
 
@@ -32,11 +33,6 @@ export function deleteToBuy(space: Space, isbn: string): Promise<WriteState> {
 export function listToBuy(space: Space) {
   return listRecords<ToBuy>(space, toBuyCollection);
 }
-
-// The Volumes the Catalog knows in the Edition Line of each Followed Series,
-// by Series identifier (`/volumes` of the follow's anchor ISBN). A Series
-// missing here could not be asked (offline): it shows no Missing Volume.
-export type EditionLines = ReadonlyMap<string, Edition[]>;
 
 export interface ToBuyItem {
   isbn: string;
@@ -62,11 +58,15 @@ export interface ToBuyList {
   byHand: ToBuyItem[];
 }
 
+// `lines`: the Edition Lines of the Followed Series, by anchor ISBN (and, after
+// a switch, the earlier line: series.ts). A Series whose line could not be
+// asked (offline) shows no Missing Volume. `editions`: the Catalog's Editions
+// of the hand-added ISBNs and, after a switch, of the Copies.
 export function toBuyList(library: Library, lines: EditionLines, editions: Editions, language: Language): ToBuyList {
   const listed = new Set(library.toBuy.map(({ value }) => value.isbn));
   const missing = library.follows
     .filter(({ value }) => value.status === 'following')
-    .flatMap(({ rkey }) => missingVolumes(lines.get(rkey) ?? [], library))
+    .flatMap(({ value }) => missingVolumes(collectedVolumes(value, library, lines, editions) ?? [], library))
     .map((edition) => item(edition.isbn, edition, listed.has(edition.isbn), language))
     .sort((a, b) => compareText(language)(a.series ?? '', b.series ?? '') || (a.volume ?? 0) - (b.volume ?? 0));
 
@@ -95,23 +95,6 @@ export function bySeries(items: ToBuyItem[]): SeriesGroup[] {
     groups.set(each.seriesId, group);
   }
   return [...groups.values()];
-}
-
-// The Missing Volumes (glossary) of one Edition Line: numbered Volumes before
-// the latest one the reader owns, of which they own no printing. A Volume
-// counts as owned by ISBN or by Work (isOwned), so a Copy from another
-// Edition Line of the Series counts too.
-export function missingVolumes(volumes: Edition[], library: Library): Edition[] {
-  const byVolume = new Map<number, Edition[]>();
-  for (const each of volumes) {
-    if (each.volume !== null) byVolume.set(each.volume, [...(byVolume.get(each.volume) ?? []), each]);
-  }
-  const owned = [...byVolume].filter(([, printings]) => printings.some((each) => isOwned(each, library))).map(([volume]) => volume);
-  const latest = Math.max(0, ...owned);
-  return [...byVolume]
-    .filter(([volume]) => volume < latest && !owned.includes(volume))
-    .sort(([a], [b]) => a - b)
-    .map(([, printings]) => printings[0]);
 }
 
 // What to save when the reader says "I bought it": the Copy, and the hand-added record to delete, if any.

@@ -1,0 +1,222 @@
+---
+// Series page: where the reader stands in one Series; follow, switch Edition
+// Line, stop following (src/islands/Series.tsx). `?isbn=<an Edition of the
+// Series>` (seriesHref). Rendered on the device: it reads the Library.
+import AppShell from '../layouts/AppShell.astro';
+import Series, { SeriesSkeleton } from '../islands/Series';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
+const isbn = Astro.url.searchParams.get('isbn') ?? '';
+---
+
+<AppShell title={t('series.title')} current="library" detail>
+  <Series client:only="preact" isbn={isbn}>
+    <SeriesSkeleton slot="fallback" />
+  </Series>
+</AppShell>
+
+<style is:global>
+  /* Global: the island renders on the device, outside this page's scoped styles. */
+  .series {
+    max-width: 880px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .series-message {
+    font-size: 14px;
+  }
+
+  .series-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 32px;
+  }
+
+  .series-cover {
+    flex: none;
+    width: 160px;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border-radius: var(--radius-cover);
+    background: var(--soft);
+    box-shadow: 0 0 0 1px var(--cover-edge);
+  }
+
+  .series-cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .series-text {
+    flex: 1 1 420px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .series-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .series-tag {
+    padding: 2px 8px;
+    border-radius: var(--radius-control);
+    background: var(--soft);
+    color: var(--secondary);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* Ink, not cobalt: cobalt is for New and Upcoming Volumes, links and focus (ui-direction). */
+  .series-tag[data-following] {
+    color: var(--ink);
+  }
+
+  .series-title {
+    font-size: 40px;
+    line-height: 1.1;
+  }
+
+  .series-authors {
+    font-size: 15px;
+  }
+
+  .series-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin: 12px 0 8px;
+  }
+
+  /* The number above its label; the markup keeps the term first. */
+  .series-count {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+
+  .series-count dd {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .series-count dt {
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
+  .series-actions,
+  .series-switch-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .series-switch {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .series-label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .series-switch-row .field {
+    flex: 1;
+    max-width: 280px;
+  }
+
+  .series-hint {
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
+  .series-hint[data-error] {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .series-missing {
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+  }
+
+  .series-missing-title {
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .series-group-title {
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* The spine row: filled = read, outlined = owned not read, dashed grey = not owned. */
+  .series-spines {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .series-spine {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: var(--secondary);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .series-spine-bar {
+    width: 14px;
+    height: 44px;
+    border-radius: 2px;
+    border: 1.5px solid var(--ink);
+  }
+
+  .series-spine[data-state='read'] .series-spine-bar {
+    background: var(--ink);
+  }
+
+  .series-spine[data-state='not-owned'] .series-spine-bar {
+    border: 1.5px dashed var(--off);
+  }
+
+  .series-skeleton-title {
+    width: 50%;
+    height: 32px;
+  }
+
+  .series-skeleton-line {
+    width: 30%;
+    height: 14px;
+  }
+
+  @media (max-width: 959px) {
+    .series-cover {
+      width: 106px;
+    }
+
+    .series-title {
+      font-size: 28px;
+    }
+  }
+</style>
