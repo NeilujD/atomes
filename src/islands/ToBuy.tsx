@@ -277,7 +277,7 @@ function Cover({ src }: { src: string | null }) {
 
 function Row({ item, saving, onBuy, onRemove }: { item: ToBuyItem; saving: string | undefined; onBuy: () => void; onRemove: () => void }) {
   const id = `to-buy-${item.isbn}`;
-  const series = [item.series && item.series !== item.title ? item.series : '', item.volume !== null ? t('book.volume', item.volume) : '']
+  const series = [item.series && item.series !== item.title ? item.series : '', item.volumes.length > 0 ? t('book.volumes', item.volumes) : '']
     .filter(Boolean)
     .join(' · ');
   const busy = saving === item.isbn ? 'true' : undefined;

@@ -21,6 +21,7 @@ const volume = (n: number): Edition => ({
   cover: null,
   work: { id: `wd:Q200000${n}`, title: `Blacksad ${n}` },
   series,
+  volumes: [n],
   volume: n,
   sources: ['BnF'],
   fetchedAt: '2026-11-06T10:00:00.000Z',
@@ -111,7 +112,7 @@ describe('To Buy screen', () => {
       const sum = [...first12].reduce((total, digit, i) => total + Number(digit) * (i % 2 === 0 ? 1 : 3), 0);
       return `${first12}${(10 - (sum % 10)) % 10}`;
     };
-    const long = Array.from({ length: 15 }, (_, i) => ({ ...volume(1), isbn: isbnOf(i + 1), volume: i + 1, work: { id: `wd:Q30000${i + 1}`, title: '' } }));
+    const long = Array.from({ length: 15 }, (_, i) => ({ ...volume(1), isbn: isbnOf(i + 1), volumes: [i + 1], volume: i + 1, work: { id: `wd:Q30000${i + 1}`, title: '' } }));
     const { space } = memorySpace();
     await saveFollow(space, { series: series.id, anchorIsbn: long[0].isbn, status: 'following', updatedAt: '2026-11-06T11:00:00.000Z' });
     for (const each of [long[0], long[14]]) await saveCopy(space, { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-06T11:00:00.000Z' });

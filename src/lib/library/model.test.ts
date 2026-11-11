@@ -17,6 +17,7 @@ const onePiece56: Edition = {
   cover: 'https://inventaire.io/img/entities/65883d822ab1b56d8f46aeb26c35d1feb9098a9b',
   work: { id: 'inv:ce9131dff9916ae2e619de81800be29a', title: 'Merci pour tout' },
   series: { id: 'wd:Q673', title: 'One Piece' },
+  volumes: [56],
   volume: 56,
   sources: ['BnF', 'Inventaire'],
   fetchedAt: '2026-11-05T10:00:00.000Z',
@@ -41,6 +42,7 @@ describe('Book page', () => {
       authors: ['Eiichirō Oda'],
       series: 'One Piece',
       volume: '56',
+      volumes: [56],
       // From the Atomes server, never from the source: the source would learn who looks at this book.
       cover: '/api/catalog/editions/9782723478991/cover',
       status: 'unread',
@@ -135,6 +137,7 @@ describe('Book page', () => {
       authors: ['Gege Akutami', 'Yuji Iwasaki'],
       series: 'Jujutsu Kaisen Modulo',
       volume: '1',
+      volumes: [],
       cover: null,
       status: 'read',
       finishedAt: '2026-11-06T00:00:00.000Z',

@@ -29,6 +29,8 @@ export const en = {
   'link.book-page': 'Open its Book page',
   'book.isbn': (isbn: string) => `ISBN ${isbn}`,
   'book.volume': (volume: number | string) => `Volume ${volume}`,
+  // The Volumes of an Edition: one, or the range of an omnibus.
+  'book.volumes': (volumes: number[]) => (volumes.length > 1 ? `Volumes ${volumes[0]}–${volumes.at(-1)}` : `Volume ${volumes[0]}`),
   'status.unread': 'Not yet',
   'status.reading': 'Reading',
   'status.read': 'Read',
@@ -180,8 +182,8 @@ export const en = {
   'onboarding.new-series': 'New series',
   'onboarding.heading': 'Which Volumes do you have?',
   'onboarding.heading-series': (series: string) => `Which Volumes of ${series} do you have?`,
-  'onboarding.intro': (series: string, volume: number | string) =>
-    `${series}, Volume ${volume} is in your Library. Set the range, then tap a Volume to fix a gap.`,
+  'onboarding.intro': (series: string, volumes: number[]) =>
+    `${series}, ${volumes.length > 1 ? `Volumes ${volumes[0]}–${volumes.at(-1)} are` : `Volume ${volumes[0]} is`} in your Library. Set the range, then tap a Volume to fix a gap.`,
   'onboarding.own-up-to': 'I own Volumes 1 to',
   'onboarding.all': 'All',
   'onboarding.all-count': (last: number) => `All (${last})`,

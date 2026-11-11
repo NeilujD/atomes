@@ -8,9 +8,14 @@ export function coverUrl(edition: Pick<Edition, 'isbn' | 'cover'>): string | nul
   return edition.cover ? `/api/catalog/editions/${edition.isbn}/cover` : null;
 }
 
+// An answer the service worker kept from before omnibus Volumes (CORE-41) has
+// no `volumes`: its one Volume is all it has.
+type Answered = Omit<Edition, 'volumes'> & { volumes?: number[] };
+const withVolumes = (edition: Answered): Edition => ({ ...edition, volumes: edition.volumes ?? (edition.volume === null ? [] : [edition.volume]) });
+
 export async function lookupEdition(isbn: string): Promise<Lookup> {
   const response = await fetch(`/api/catalog/editions/${encodeURIComponent(isbn)}`);
-  if (response.ok) return { found: (await response.json()) as Edition };
+  if (response.ok) return { found: withVolumes((await response.json()) as Answered) };
   if (response.status === 404) return { notFound: true };
   return { unavailable: true };
 }
@@ -28,5 +33,7 @@ export async function lookupEditions(isbns: string[]): Promise<Map<string, Editi
 // not know the ISBN or cannot answer.
 export async function lookupVolumes(isbn: string): Promise<{ series: Edition['series']; volumes: Edition[] } | undefined> {
   const response = await fetch(`/api/catalog/editions/${encodeURIComponent(isbn)}/volumes`);
-  return response.ok ? ((await response.json()) as { series: Edition['series']; volumes: Edition[] }) : undefined;
+  if (!response.ok) return undefined;
+  const answer = (await response.json()) as { series: Edition['series']; volumes: Answered[] };
+  return { series: answer.series, volumes: answer.volumes.map(withVolumes) };
 }

@@ -5,7 +5,7 @@
 // cover URLs these sources gave.
 import { isIsbn13, isSeriesId } from '../library/ids';
 import type { Facts } from './facts';
-import { volumeNumber } from './facts';
+import { volumeNumbers } from './facts';
 import { isbns, publishedYear, recordFor, unimarcFacts, unimarcRecords } from './unimarc';
 
 export type SourceFetch = (url: string) => Promise<Response>;
@@ -104,7 +104,7 @@ export async function inventaire(fetch: SourceFetch, isbn: string): Promise<Fact
     cover: image ? new URL(image, 'https://inventaire.io').href : undefined,
     work: work && workId ? { id: workId, title: label(work) } : undefined,
     series: series && seriesId ? { id: seriesId, title: label(series) } : undefined,
-    volume: volumeNumber(claim(work, 'wdt:P1545')),
+    volumes: volumeNumbers(claim(work, 'wdt:P1545')),
   };
 }
 
@@ -145,7 +145,7 @@ export async function openLibrary(fetch: SourceFetch, isbn: string): Promise<Fac
     title: doc.title,
     cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : undefined,
     series: seriesId && isSeriesId(seriesId) ? { id: seriesId, title: doc.series_name?.[0] } : undefined,
-    volume: volumeNumber(doc.series_position?.[0]),
+    volumes: volumeNumbers(doc.series_position?.[0]),
   };
 }
 
@@ -164,8 +164,8 @@ export async function fetchFacts(fetch: SourceFetch, isbn: string): Promise<{ fa
   const known = [fromBnf, fromInventaire].filter((f) => f !== undefined);
   // A BnF Series without a Series record (`bnfId`) is only guessed from the
   // title, and recent BnF records often have no main author: SUDOC may know more.
-  const needSudoc = !fromBnf?.series?.bnfId || fromBnf.volume === undefined || !fromBnf.authors?.length;
-  const needOpenLibrary = !known.some((f) => f.cover) || !known.some((f) => f.series) || !known.some((f) => f.volume);
+  const needSudoc = !fromBnf?.series?.bnfId || !fromBnf.volumes?.length || !fromBnf.authors?.length;
+  const needOpenLibrary = !known.some((f) => f.cover) || !known.some((f) => f.series) || !known.some((f) => f.volumes?.length);
   const [fromSudoc, fromOpenLibrary] = await Promise.all([
     needSudoc ? ask(() => sudoc(fetch, isbn)) : undefined,
     needOpenLibrary ? ask(() => openLibrary(fetch, isbn)) : undefined,

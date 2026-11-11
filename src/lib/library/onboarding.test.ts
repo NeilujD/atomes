@@ -22,6 +22,7 @@ const volume = (n: number, change: Partial<Edition> = {}): Edition => ({
   cover: null,
   work: { id: `wd:Q200000${n}`, title: `Blacksad ${n}` },
   series,
+  volumes: [n],
   volume: n,
   sources: ['BnF'],
   fetchedAt: '2026-11-06T10:00:00.000Z',
@@ -67,7 +68,7 @@ describe('When Series Onboarding starts', () => {
 
   test.each<[string, Partial<Edition>]>([
     ['no Series', { series: null }],
-    ['no Volume number', { volume: null }],
+    ['no Volume number', { volumes: [], volume: null }],
   ])('an Edition with %s: no flow, nothing to say', (_, change) => {
     expect(noOnboarding(volume(1, change), [volume(1, change)], library())).toBe('no-series');
   });
@@ -83,6 +84,38 @@ describe('The records of one Series', () => {
     expect(found.copies.map(({ rkey }) => rkey)).toEqual(['copy1', 'copy4']);
     expect(found.readingStatuses.map(({ rkey }) => rkey)).toEqual([volume(2).work.id]);
     expect(found.follow?.rkey).toBe(series.id);
+  });
+});
+
+describe('Series Onboarding from an omnibus', () => {
+  // Quick Add just saved the omnibus of Volumes 1 and 2 ("Tomes 1-2").
+  const omnibus = volume(1, { isbn: '9791099999078', volumes: [1, 2], work: { id: 'wd:Q2999999', title: 'Blacksad 1-2' } });
+  const line = [omnibus, ...volumes];
+
+  test('the omnibus gives the tiles of both its Volumes; a single printing gives the others', () => {
+    const onboarding = seriesOnboarding(omnibus, line, library({ copies: [{ rkey: 'o', value: { isbn: omnibus.isbn, works: [omnibus.work.id], createdAt: now.toISOString() } }] }));
+
+    expect(onboarding.volumes.map(({ volume: n, isbn }) => [n, isbn])).toEqual([
+      [1, omnibus.isbn],
+      [2, omnibus.isbn],
+      [3, isbns[2]],
+      [4, isbns[3]],
+      [5, isbns[4]],
+    ]);
+    expect(onboarding.start.ownedUpTo).toBe(2);
+  });
+
+  test('saving "I own 1 to 3, read up to 2" writes one Copy and one Reading Status for the omnibus', () => {
+    const onboarding = seriesOnboarding(omnibus, line, library());
+
+    const saved = onboardingSave(onboarding, library(), { ...onboarding.start, ownedUpTo: 3, readUpTo: 2 }, now);
+
+    expect(saved.copies.map(({ isbn }) => isbn)).toEqual([omnibus.isbn, isbns[2]]);
+    expect(saved.readingStatuses.map(({ isbn }) => isbn)).toEqual([omnibus.isbn]);
+  });
+
+  test('a single Volume added: its other Volumes come from single printings, not the omnibus', () => {
+    expect(seriesOnboarding(volume(3), line, library()).volumes.map(({ isbn }) => isbn)).toEqual(isbns);
   });
 });
 
@@ -114,7 +147,7 @@ describe('Series Onboarding choices', () => {
   });
 
   test('only numbered Volumes take part; the steppers move through the known numbers', () => {
-    const known = [volume(1), volume(2), volume(5, { volume: 5.5 }), volume(4, { volume: null })];
+    const known = [volume(1), volume(2), volume(5, { volumes: [5.5], volume: 5.5 }), volume(4, { volumes: [], volume: null })];
     const some = seriesOnboarding(volume(1), known, afterQuickAdd);
 
     expect(some.volumes.map((each) => each.volume)).toEqual([1, 2, 5.5]);

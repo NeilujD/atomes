@@ -242,7 +242,7 @@ const answers = [
     addForm.querySelector('[data-authors]')!.textContent = found.authors.join(', ');
     addForm.querySelector('[data-series]')!.textContent = [
       found.series && found.series.title !== found.title ? found.series.title : '',
-      found.volume !== null ? t('book.volume', found.volume) : '',
+      found.volumes.length > 0 ? t('book.volumes', found.volumes) : '',
       found.volumeTitle ?? '',
     ]
       .filter(Boolean)

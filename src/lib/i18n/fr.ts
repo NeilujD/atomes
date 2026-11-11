@@ -29,6 +29,7 @@ export const fr: typeof en = {
   'link.book-page': 'Ouvrir la fiche du livre',
   'book.isbn': (isbn) => `ISBN ${isbn}`,
   'book.volume': (volume) => `Tome ${volume}`,
+  'book.volumes': (volumes) => (volumes.length > 1 ? `Tomes ${volumes[0]} à ${volumes.at(-1)}` : `Tome ${volumes[0]}`),
   'status.unread': 'Pas encore',
   'status.reading': 'En cours',
   'status.read': 'Lu',
@@ -178,8 +179,8 @@ export const fr: typeof en = {
   'onboarding.new-series': 'Nouvelle série',
   'onboarding.heading': 'Quels tomes avez-vous ?',
   'onboarding.heading-series': (series) => `Quels tomes de ${series} avez-vous ?`,
-  'onboarding.intro': (series, volume) =>
-    `${series}, tome ${volume}, est dans votre bibliothèque. Réglez la plage, puis touchez un tome pour combler un trou.`,
+  'onboarding.intro': (series, volumes) =>
+    `${series}, ${volumes.length > 1 ? `tomes ${volumes[0]} à ${volumes.at(-1)}, sont` : `tome ${volumes[0]}, est`} dans votre bibliothèque. Réglez la plage, puis touchez un tome pour combler un trou.`,
   'onboarding.own-up-to': 'J’ai les tomes 1 à',
   'onboarding.all': 'Tous',
   'onboarding.all-count': (last) => `Tous (${last})`,

@@ -21,6 +21,10 @@ export interface Edition {
   cover: string | null;
   work: { id: string; title: string };
   series: Series | null;
+  // The Volumes the Edition holds, in order: several for an omnibus ("Tomes
+  // 1-2"), none when it has no Volume number.
+  volumes: number[];
+  // The first of `volumes`, for clients that know one Volume per Edition.
   volume: number | null;
   // Licence Ouverte (BnF, SUDOC) asks to show the source and its date.
   sources: SourceName[];
@@ -83,6 +87,7 @@ const schema = `
     work_title text not null,
     series_id text references series (id),
     volume real,
+    volumes text,
     edition_line text,
     sources text not null,
     fetched_at text not null
@@ -118,6 +123,7 @@ type EditionRow = {
   series_id: string | null;
   series_title: string | null;
   volume: number | null;
+  volumes: string | null;
   sources: string;
   fetched_at: string;
 };
@@ -131,6 +137,12 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   // WAL: the hourly backup reads a snapshot while the server keeps writing (docs/backups.md).
   db.exec('pragma journal_mode = wal');
   db.exec(schema);
+  // Editions stored before omnibus Volumes (CORE-41) have no `volumes`: they
+  // are fetched again on their next lookup, and keep their one Volume until then.
+  const columns = db.prepare('pragma table_info(edition)').all() as { name: string }[];
+  if (!columns.some(({ name }) => name === 'volumes')) {
+    db.exec(`alter table edition add column volumes text; update edition set fetched_at = '${new Date(0).toISOString()}'`);
+  }
 
   const editionRow = (isbn: string) => db.prepare(`${selectEdition} where edition.isbn = ?`).get(isbn) as EditionRow | undefined;
   const age = (iso: string) => now().getTime() - Date.parse(iso);
@@ -167,6 +179,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const pick = <T>(get: (f: Facts) => T | undefined) => facts.map(get).find((v) => v !== undefined && v !== '');
     const series = seriesFor(facts);
     const work = facts.find((f) => f.work)?.work;
+    const volumes = pick((f) => (f.volumes?.length ? f.volumes : undefined)) ?? [];
     const edition: Edition = {
       isbn,
       title,
@@ -178,7 +191,8 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       cover: pick((f) => f.cover) ?? null,
       work: { id: work?.id ?? editionWork(isbn), title: work?.title ?? title },
       series,
-      volume: pick((f) => f.volume) ?? null,
+      volumes,
+      volume: volumes[0] ?? null,
       sources: facts.map((f) => f.source),
       fetchedAt: now().toISOString(),
     };
@@ -190,7 +204,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const line = editionLine(edition);
     db.prepare(
       `insert or replace into edition (isbn, title, volume_title, authors, publisher, language, format, cover, work_id,
-        work_title, series_id, volume, edition_line, sources, fetched_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        work_title, series_id, volume, volumes, edition_line, sources, fetched_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       edition.isbn,
       edition.title,
@@ -204,6 +218,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       edition.work.title,
       series?.id ?? null,
       edition.volume,
+      JSON.stringify(edition.volumes),
       line,
       JSON.stringify(edition.sources),
       edition.fetchedAt,
@@ -235,9 +250,10 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   // BnF search by Series title and publisher also finds other books (One Piece
   // Color Walk, magazines, quiz books): an Edition counts when it has a Volume
   // number, the Series title, the publisher and the language of the line, and
-  // the BnF Series record of the line. One Edition per Volume number: one the
-  // Catalog has already, else the latest printing. Like a lookup, nothing is
-  // stored when a source fails, so Work identifiers stay the ones a lookup gives.
+  // the BnF Series record of the line. One Edition per Volume or omnibus range
+  // ("1-2" next to Volumes 1 and 2): one the Catalog has already, else the
+  // latest printing. Like a lookup, nothing is stored when a source fails, so
+  // Work identifiers stay the ones a lookup gives.
   // Calls at the same time for one Edition Line share one fill.
   const filling = new Map<string, Promise<void>>();
   const failedAt = new Map<string, string>();
@@ -257,7 +273,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       failedAt.set(line, now().toISOString());
       console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
     };
-    const known = db.prepare('select isbn, volume from edition where edition_line = ?').all(line) as { isbn: string; volume: number | null }[];
+    const known = (db.prepare(`${selectEdition} where edition.edition_line = ?`).all(line) as EditionRow[]).map(toEdition);
     const lineBnfId = (db.prepare('select bnf_id from series where id = ?').get(anchor.series.id) as { bnf_id: string | null } | undefined)
       ?.bnf_id;
     let listed: Listed[];
@@ -268,7 +284,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     }
     const inLine = listed.filter(
       ({ facts }) =>
-        facts.volume !== undefined &&
+        facts.volumes?.length &&
         key(facts.series?.title ?? '') === key(anchor.series.title) &&
         key(facts.publisher ?? '') === key(anchor.publisher ?? '') &&
         facts.language === anchor.language,
@@ -277,20 +293,20 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const counts = new Map<string, number>();
     for (const { facts } of inLine) if (facts.series?.bnfId) counts.set(facts.series.bnfId, (counts.get(facts.series.bnfId) ?? 0) + 1);
     const bnfId = lineBnfId ?? [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
-    const byVolume = new Map<number, Listed>();
+    const byVolume = new Map<string, Listed>();
     const newer = (a: Listed, b: Listed) => (a.facts.series?.bnfId === bnfId) !== (b.facts.series?.bnfId === bnfId)
       ? a.facts.series?.bnfId === bnfId
       : (a.year ?? 0) > (b.year ?? 0);
     for (const each of inLine) {
       const theirs = each.facts.series?.bnfId;
       if (theirs && bnfId && theirs !== bnfId) continue;
-      const volume = each.facts.volume!;
+      const volume = String(each.facts.volumes);
       const kept = byVolume.get(volume);
       if (!kept || newer(each, kept)) byVolume.set(volume, each);
     }
     const knownIsbns = new Set(known.map(({ isbn }) => isbn));
-    const knownVolumes = new Set(known.map(({ volume }) => volume));
-    const added = [...byVolume.values()].filter(({ isbn, facts }) => !knownIsbns.has(isbn) && !knownVolumes.has(facts.volume!));
+    const knownVolumes = new Set(known.map(({ volumes }) => String(volumes)));
+    const added = [...byVolume].filter(([volume, { isbn }]) => !knownIsbns.has(isbn) && !knownVolumes.has(volume)).map(([, each]) => each);
     let fromInventaire: Map<string, Facts>;
     try {
       fromInventaire = await inventaireEditions(options.fetch, added.map(({ isbn }) => isbn));
@@ -372,6 +388,7 @@ function toEdition(row: EditionRow): Edition {
     cover: row.cover,
     work: { id: row.work_id, title: row.work_title },
     series: row.series_id && row.series_title ? { id: row.series_id, title: row.series_title } : null,
+    volumes: row.volumes ? (JSON.parse(row.volumes) as number[]) : row.volume === null ? [] : [row.volume],
     volume: row.volume,
     sources: JSON.parse(row.sources) as SourceName[],
     fetchedAt: row.fetched_at,

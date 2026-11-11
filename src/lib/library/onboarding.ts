@@ -14,7 +14,8 @@ export interface Onboarding {
   series: { id: string; title: string };
   // The Edition just added: it sets the Edition Line to follow.
   anchor: Edition;
-  // The numbered Volumes of the Edition Line, by Volume number.
+  // One Edition per numbered Volume of the Edition Line, by Volume number; `volume`
+  // is that Volume, also for an omnibus, which is there once for each of its Volumes.
   volumes: (Edition & { volume: number })[];
   // The values the two steppers move through: 0 (none), then each known Volume number.
   steps: number[];
@@ -72,15 +73,19 @@ export function seriesRecords(seriesId: string, volumes: Edition[], library: Lib
 export function seriesOnboarding(anchor: Edition, volumes: Edition[], library: Library): Onboarding {
   if (!anchor.series) throw new Error(`No Series for ISBN ${anchor.isbn}`);
   // One tile per Volume: a Volume can have several printings in one Edition
-  // Line (One Piece 1, 2000 and 2013). The one added, else the printing the
-  // reader owns (same ISBN), else the first.
+  // Line (One Piece 1, 2000 and 2013, or an omnibus of Volumes 1 and 2). The
+  // one added, else the printing the reader owns (same ISBN), else the one
+  // with the fewest Volumes, else the first.
   const owned = new Set(library.copies.map(({ value }) => value.isbn));
   const preferred = (each: Edition) => (each.isbn === anchor.isbn ? 2 : owned.has(each.isbn) ? 1 : 0);
+  const better = (each: Edition, kept: Edition) =>
+    preferred(each) - preferred(kept) || kept.volumes.length - each.volumes.length;
   const byVolume = new Map<number, Edition & { volume: number }>();
   for (const each of volumes) {
-    if (each.volume === null) continue;
-    const kept = byVolume.get(each.volume);
-    if (!kept || preferred(each) > preferred(kept)) byVolume.set(each.volume, { ...each, volume: each.volume });
+    for (const volume of each.volumes) {
+      const kept = byVolume.get(volume);
+      if (!kept || better(each, kept) > 0) byVolume.set(volume, { ...each, volume });
+    }
   }
   const numbered = [...byVolume.values()].sort((a, b) => a.volume - b.volume);
   const highest = (keep: (each: Edition) => boolean) => Math.max(0, ...numbered.filter(keep).map((each) => each.volume));
@@ -129,16 +134,16 @@ export function volumeTiles(onboarding: Onboarding, library: Library, choices: C
 }
 
 // What Save writes: a Copy for each owned Volume that has none, a Reading
-// Status for each read Volume not yet read, and the follow.
+// Status for each read Volume not yet read, and the follow. An omnibus has
+// several tiles and gets one Copy and one Reading Status.
 export function onboardingSave(onboarding: Onboarding, library: Library, choices: Choices, now: Date): OnboardingSave {
   const tiles = volumeTiles(onboarding, library, choices);
   const edition = (isbn: string) => onboarding.volumes.find((each) => each.isbn === isbn)!;
-  const copies = tiles
-    .filter(({ owned, kept }) => owned && !kept)
-    .map(({ isbn }): Copy => ({ isbn, works: [edition(isbn).work.id], createdAt: now.toISOString() }));
-  const readingStatuses = tiles
-    .filter(({ read }) => read)
-    .flatMap(({ isbn }) => statusChange(edition(isbn).work.id, isbn, 'read', library, now) ?? []);
+  const isbnsOf = (keep: (tile: Tile) => boolean) => [...new Set(tiles.filter(keep).map(({ isbn }) => isbn))];
+  const copies = isbnsOf(({ owned, kept }) => owned && !kept).map(
+    (isbn): Copy => ({ isbn, works: [edition(isbn).work.id], createdAt: now.toISOString() }),
+  );
+  const readingStatuses = isbnsOf(({ read }) => read).flatMap((isbn) => statusChange(edition(isbn).work.id, isbn, 'read', library, now) ?? []);
 
   const status = choices.follow ? 'following' : 'dropped';
   const current = library.follows.find(({ rkey }) => rkey === onboarding.series.id)?.value;
