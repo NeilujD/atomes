@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
@@ -6,7 +6,7 @@ import { isSeriesId } from '../library/ids';
 import { answerChoose, answerCover, answerEdition, answerSearch, answerVolumes } from './api';
 import type { Catalog, Edition, SearchFound } from './catalog';
 import { createCatalog } from './catalog';
-import { recordedFetch } from './recorded.fake';
+import { fixtureDir, recordedFetch } from './recorded.fake';
 import { isCoverUrl, type SourceFetch } from './sources';
 
 const onePiece56 = '9782723478991';
@@ -17,6 +17,8 @@ const unknown = '9791099999993'; // valid check digit, no source knows it
 // Owner's shelf (CORE-40): Kaamelott 10, Casterman. No source knows its ISBN; BnF has 1 to 9.
 const kaamelott10 = '9782203255647';
 const kaamelott9 = '9782203085053';
+const asterixWhiteIris = '9781408730218'; // Sphere, 2023: SUDOC's Series is "Aterix", a typo
+const asterixEmpire = '9782864976165'; // L'Empire du Milieu, album of the film: Inventaire's Series is wd:Q42490
 
 const dirs: string[] = [];
 const open: Catalog[] = [];
@@ -184,7 +186,7 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
     const body = (await response.json()) as { series: Edition['series']; volumes: Edition[] };
 
     expect(response.status).toBe(200);
-    expect(body.series).toEqual({ id: 'wd:Q673', title: 'One Piece' });
+    expect(body.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [] });
     expect(body.volumes.map((v) => [v.isbn, v.volume])).toEqual([[onePiece56, 56]]);
   });
 
@@ -204,7 +206,7 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
     const body = (await (await answerVolumes(catalog, onePiece112, signedIn)).json()) as { series: Edition['series']; volumes: Edition[] };
 
     // 112 has no Series link in any source: its title finds the Series that 56 brought.
-    expect(body.series).toEqual({ id: 'wd:Q673', title: 'One Piece' });
+    expect(body.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [] });
     expect(body.volumes.map((v) => [v.isbn, v.volume])).toEqual([
       [onePiece56, 56],
       [onePiece112, 112],
@@ -560,5 +562,194 @@ describe('GET /api/catalog/editions/{isbn}/cover', () => {
     ['https://example.com/cover.jpg', false],
   ])('only covers from the known cover hosts are fetched: %s', (url, allowed) => {
     expect(isCoverUrl(url)).toBe(allowed);
+  });
+});
+
+describe('One Series across sources and identifiers (same_as, ADR 0010)', () => {
+  const volumesOf = async (catalog: Catalog, isbn: string) =>
+    ((await (await answerVolumes(catalog, isbn, signedOut)).json()) as { series: Edition['series']; volumes: Edition[] });
+
+  test('a shared identifier that comes after a minted one is linked: both give one Series and its Volumes', async () => {
+    const { catalog } = setup();
+    // One Piece 112 has no Series link in any source: the Catalog mints an identifier.
+    const minted = (await edition(await answerEdition(catalog, onePiece112))).series!.id;
+    expect(minted).toMatch(/^atomes:catalog\.test:/);
+
+    // One Piece 56 brings Wikidata's identifier and joins the Series by title.
+    const found = await edition(await answerEdition(catalog, onePiece56));
+
+    expect(found.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [minted] });
+    expect(catalog.series('wd:Q673')).toEqual(found.series);
+    expect(catalog.series(minted)).toEqual(found.series);
+    for (const isbn of [onePiece56, onePiece112]) {
+      const body = await volumesOf(catalog, isbn);
+      expect(body.series).toEqual(found.series);
+      expect(body.volumes.map((v) => [v.isbn, v.volume, v.series?.id])).toEqual([
+        [onePiece56, 56, 'wd:Q673'],
+        [onePiece112, 112, 'wd:Q673'],
+      ]);
+    }
+  });
+
+  test('the link and the BnF Series record stay after a restart', async () => {
+    const { catalog, reopen } = setup();
+    const minted = (await edition(await answerEdition(catalog, onePiece112))).series!.id;
+    await answerEdition(catalog, onePiece56);
+
+    const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
+    const again = reopen(offline.fetch);
+
+    expect(again.series(minted)).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [minted] });
+    expect((await edition(await answerEdition(again, onePiece112))).series?.id).toBe('wd:Q673');
+    expect(offline.calls).toEqual([]);
+  });
+
+  test('a Series with another shared identifier stays another Series, even with the same title and BnF record', async () => {
+    let clock = new Date('2026-11-11T10:00:00.000Z');
+    const sources = recordedFetch();
+    // The recorded answers, edited: Wikidata first names the Series of One
+    // Piece 56 wd:Q99999, then fixes it to wd:Q673.
+    let fixed = false;
+    const fetch: SourceFetch = async (url) => {
+      if (fixed) return sources.fetch(url);
+      const answer = await sources.fetch(url.replace('wd%3AQ99999', 'wd%3AQ673'));
+      return new Response((await answer.text()).replaceAll('wd:Q673', 'wd:Q99999'), { status: answer.status });
+    };
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => clock });
+    open.push(catalog);
+    expect((await edition(await answerEdition(catalog, onePiece56))).series?.id).toBe('wd:Q99999');
+
+    fixed = true;
+    clock = new Date('2026-12-12T10:00:00.000Z'); // after a month the Edition is fetched again
+    const found = await edition(await answerEdition(catalog, onePiece56));
+
+    expect(found.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [] });
+    expect(catalog.series('wd:Q99999')).toEqual({ id: 'wd:Q99999', title: 'One Piece', sameAs: [] });
+  });
+
+  test('a shared identifier that names two Series of this Catalog makes them one', async () => {
+    const sources = recordedFetch();
+    // The recorded answers, edited: at first BnF is down and Inventaire labels
+    // wd:Q673 "Wan Pīsu", so it does not join the Series minted for 112.
+    let edited = true;
+    const fetch: SourceFetch = async (url) => {
+      if (!edited) return sources.fetch(url);
+      if (url.includes('catalogue.bnf.fr')) return new Response('down', { status: 503 });
+      const answer = await sources.fetch(url);
+      return new Response((await answer.text()).replaceAll('"One Piece"', '"Wan Pīsu"'), { status: answer.status });
+    };
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => new Date('2026-11-11T10:00:00.000Z') });
+    open.push(catalog);
+    edited = false;
+    const minted = (await edition(await answerEdition(catalog, onePiece112))).series!.id;
+    edited = true;
+    expect((await edition(await answerEdition(catalog, onePiece56))).series).toMatchObject({ id: 'wd:Q673', title: 'Wan Pīsu' });
+    expect(catalog.series(minted)?.id).toBe(minted);
+
+    edited = false;
+    const found = await edition(await answerEdition(catalog, onePiece56));
+
+    expect(found.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [minted] });
+    expect(catalog.series(minted)).toEqual(found.series);
+    const body = (await (await answerVolumes(catalog, onePiece112, signedOut)).json()) as { volumes: Edition[] };
+    expect(body.volumes.map((v) => [v.isbn, v.series?.id])).toEqual([
+      [onePiece56, 'wd:Q673'],
+      [onePiece112, 'wd:Q673'],
+    ]);
+  });
+
+  test('two Series linked by hand are one: best identifier, its title, every Volume; the old title still joins', async () => {
+    let clock = new Date('2026-11-11T10:00:00.000Z');
+    const catalog = createCatalog({ file: ':memory:', fetch: recordedFetch().fetch, host: 'catalog.test', now: () => clock });
+    open.push(catalog);
+    // SUDOC's Series of Asterix and the White Iris is "Aterix", with no shared identifier.
+    const aterix = (await edition(await answerEdition(catalog, asterixWhiteIris))).series!;
+    expect(aterix).toMatchObject({ id: expect.stringMatching(/^atomes:catalog\.test:/) as string, title: 'Aterix' });
+    // Inventaire gives Astérix (wd:Q42490) for the album of the film L'Empire du Milieu.
+    expect((await edition(await answerEdition(catalog, asterixEmpire))).series?.id).toBe('wd:Q42490');
+
+    const linked = catalog.link(aterix.id, 'wd:Q42490');
+
+    expect(linked).toEqual({ id: 'wd:Q42490', title: 'Astérix', sameAs: [aterix.id] });
+    expect(catalog.series(aterix.id)).toEqual(linked);
+    const body = (await (await answerVolumes(catalog, asterixWhiteIris, signedOut)).json()) as { series: Edition['series']; volumes: Edition[] };
+    expect(body.series).toEqual(linked);
+    expect(body.volumes.map((v) => [v.isbn, v.volume])).toEqual([[asterixWhiteIris, 40]]);
+    // A month later SUDOC still says "Aterix": it finds the linked Series.
+    clock = new Date('2026-12-12T10:00:00.000Z');
+    expect((await edition(await answerEdition(catalog, asterixWhiteIris))).series).toEqual(linked);
+  });
+
+  test('linking an identifier the Catalog does not know links nothing', async () => {
+    const { catalog } = setup();
+    const minted = (await edition(await answerEdition(catalog, spyFamily16))).series!.id;
+
+    expect(catalog.link(minted, 'wd:Q1')).toBeUndefined();
+    expect(catalog.series(minted)?.sameAs).toEqual([]);
+  });
+
+  test('an identifier the Catalog does not know resolves to nothing', () => {
+    const { catalog } = setup();
+
+    expect(catalog.series('wd:Q1')).toBeUndefined();
+  });
+});
+
+describe('A Catalog file from before same_as (migration)', () => {
+  // fixtures/catalog-v0.sqlite: made on 2026-11-11 by the Catalog of main
+  // (a3f8d6c) from the recorded answers: One Piece 112, then 56, then the
+  // Spy x Family Edition Line. One Piece got a minted identifier, and 56's
+  // wd:Q673 was lost (CORE-42).
+  const onePieceMinted = 'atomes:catalog.test:01M750SM80AX373XJ01DSVNDXC';
+  const spyFamilyMinted = 'atomes:catalog.test:01M750SM804ES35F6C61WNPNEJ';
+  const offline = () => recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
+
+  function openV0(fetch: SourceFetch, now: Date) {
+    const dir = mkdtempSync(join(tmpdir(), 'atomes-catalog-'));
+    dirs.push(dir);
+    const file = join(dir, 'catalog.sqlite');
+    copyFileSync(new URL('catalog-v0.sqlite', fixtureDir), file);
+    const catalog = createCatalog({ file, fetch, host: 'catalog.test', now: () => now });
+    open.push(catalog);
+    return catalog;
+  }
+
+  test('keeps the minted identifiers that reader records hold, and the Edition Lines', async () => {
+    const sources = offline();
+    const catalog = openV0(sources.fetch, new Date('2026-11-11T12:00:00.000Z'));
+
+    expect(catalog.series(onePieceMinted)).toEqual({ id: onePieceMinted, title: 'One Piece', sameAs: [] });
+    const onePiece = (await (await answerVolumes(catalog, onePiece112, signedOut)).json()) as { volumes: Edition[] };
+    expect(onePiece.volumes.map((v) => [v.isbn, v.series?.id])).toEqual([
+      [onePiece56, onePieceMinted],
+      [onePiece112, onePieceMinted],
+    ]);
+    // The Spy x Family line was filled: it is not asked for again.
+    const spyFamily = (await (await answerVolumes(catalog, spyFamily16, signedIn)).json()) as { volumes: Edition[] };
+    expect(spyFamily.volumes).toHaveLength(16);
+    expect(new Set(spyFamily.volumes.map((v) => v.series?.id))).toEqual(new Set([spyFamilyMinted]));
+    expect(sources.calls).toEqual([]);
+  });
+
+  test('links the lost shared identifier when the Edition is fetched again', async () => {
+    const catalog = openV0(recordedFetch().fetch, new Date('2026-12-12T12:00:00.000Z'));
+
+    const found = await edition(await answerEdition(catalog, onePiece56));
+
+    expect(found.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [onePieceMinted] });
+    expect(catalog.series(onePieceMinted)).toEqual(found.series);
+  });
+
+  test('a migrated file opens again with no change', async () => {
+    const catalog = openV0(offline().fetch, new Date('2026-11-11T12:00:00.000Z'));
+    catalog.close();
+    open.splice(open.indexOf(catalog), 1);
+    const file = join(dirs.at(-1)!, 'catalog.sqlite');
+
+    const again = createCatalog({ file, fetch: offline().fetch, host: 'catalog.test', now: () => new Date('2026-11-11T12:00:00.000Z') });
+    open.push(again);
+
+    expect(again.series(onePieceMinted)?.id).toBe(onePieceMinted);
+    expect((await edition(await answerEdition(again, onePiece112))).series?.id).toBe(onePieceMinted);
   });
 });

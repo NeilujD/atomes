@@ -8,7 +8,7 @@ import { memorySpace } from '../lib/library/memory-space.fake';
 import { saveReadingStatus } from '../lib/library/reading-status';
 import { Series, type Sources } from './Series';
 
-const blacksad = { id: 'wd:Q1000001', title: 'Blacksad' };
+const blacksad = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
 
 // An ISBN-13 from its first 12 digits.
 const isbn = (twelve: string) => {
@@ -36,20 +36,24 @@ const lineA = [1, 2, 3, 4, 5].map((n) => volume(n, 'A'));
 const lineB = [1, 2, 3, 4, 5].map((n) => volume(n, 'B'));
 const all = [...lineA, ...lineB];
 
-// The reader owns Volumes 1 and 3 of line A and read Volume 1; `follow` says how they follow Blacksad.
-async function seriesPage(follow?: Follow['status'], editions: Edition[] = all) {
+// The reader owns Volumes 1 and 3 of line A and read Volume 1; `follow` says how they follow Blacksad,
+// in a record saved under `followed`. `lines` are the Edition Lines the Catalog answers.
+async function seriesPage(follow?: Follow['status'], editions: Edition[] = all, followed = blacksad.id, lines = [lineA, lineB]) {
   const { space, stored } = memorySpace();
-  if (follow) await saveFollow(space, { series: blacksad.id, anchorIsbn: lineA[0].isbn, status: follow, updatedAt: '2026-11-06T11:00:00.000Z' });
+  if (follow) await saveFollow(space, { series: followed, anchorIsbn: lineA[0].isbn, status: follow, updatedAt: '2026-11-06T11:00:00.000Z' });
   for (const n of [1, 3]) await saveCopy(space, { isbn: lineA[n - 1].isbn, works: [lineA[n - 1].work.id], createdAt: '2026-11-06T11:00:00.000Z' });
   await saveReadingStatus(space, { work: lineA[0].work.id, isbn: lineA[0].isbn, status: 'read', updatedAt: '2026-11-07T10:00:00.000Z' });
   const sources: Sources = {
     open: () => Promise.resolve(space),
-    volumes: (each) => Promise.resolve([lineA, lineB].find((line) => line.some(({ isbn: one }) => one === each))),
+    volumes: (each) => Promise.resolve(lines.find((line) => line.some(({ isbn: one }) => one === each))),
     editions: (isbns) => Promise.resolve(new Map(editions.filter(({ isbn: one }) => isbns.includes(one)).map((each) => [each.isbn, each]))),
   };
   render(<Series isbn={lineA[2].isbn} sources={sources} />);
   await screen.findByRole('heading', { name: 'Blacksad' });
-  return { follows: () => stored(followCollection).map(({ value }) => value as Follow) };
+  return {
+    follows: () => stored(followCollection).map(({ value }) => value as Follow),
+    keys: () => stored(followCollection).map(({ rkey }) => rkey),
+  };
 }
 
 const count = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling?.textContent;
@@ -127,5 +131,23 @@ describe('Series page', () => {
     render(<Series isbn={lineA[0].isbn} sources={{ open: () => Promise.resolve(undefined), volumes: () => Promise.resolve(undefined), editions: () => Promise.resolve(new Map()) }} />);
 
     expect(await screen.findByText('Sign in to see your Series.')).toBeTruthy();
+  });
+});
+
+describe('Series page of a follow saved under an older identifier (same_as, ADR 0010)', () => {
+  // The Catalog minted this identifier first; it now answers wd:Q1000001, same as it.
+  const minted = 'atomes:catalog.test:01M750SM80AX373XJ01DSVNDXC';
+  const linked = { ...blacksad, sameAs: [minted] };
+  const linkedLines = [lineA, lineB].map((line) => line.map((each) => ({ ...each, series: linked })));
+
+  test('the Series shows as followed, and dropping it changes the same record', async () => {
+    const { follows, keys } = await seriesPage('following', linkedLines.flat(), minted, linkedLines);
+
+    expect(screen.getByText('Following')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Stop following' }));
+    await screen.findByText('Dropped');
+
+    expect(keys()).toEqual([minted]);
+    expect(follows()).toEqual([expect.objectContaining({ series: minted, status: 'dropped' })]);
   });
 });

@@ -3,12 +3,15 @@
 // so the reader's browser never asks a source for one (ADR 0001). It stores
 // books only: no reader identity, no Library data.
 import { DatabaseSync } from 'node:sqlite';
-import { editionWork } from '../library/ids';
-import type { Facts, SourceName } from './facts';
+import { editionWork, seriesIdRank } from '../library/ids';
+import { key, type Facts, type SourceName } from './facts';
+import { inTransaction, migrate } from './migrations';
 import type { SourceFetch } from './sources';
 import { bnfSearch, fetchFacts, inventaireEditions, isCoverUrl, type Listed } from './sources';
 
-type Series = { id: string; title: string };
+// `id` is the best identifier the Catalog knows (ADR 0010 order); `sameAs`
+// holds the others that name the same Series, oldest first.
+export type Series = { id: string; title: string; sameAs: string[] };
 
 export interface Edition {
   isbn: string;
@@ -95,6 +98,13 @@ export interface Catalog {
   choose(isbn: string, choice: Choice): Promise<Chosen>;
   // The cover of the Edition, fetched once from its source and kept.
   cover(isbn: string): Promise<CoverLookup>;
+  // The Series of an identifier, its main one or a same_as one (ADR 0010);
+  // undefined when this Catalog does not know it.
+  series(id: string): Series | undefined;
+  // Links two identifiers of one Series when no source does ("Aterix" in
+  // SUDOC is Asterix): one Series keeps the best identifier, its title and
+  // every Volume of both. Undefined when either identifier is unknown here.
+  link(a: string, b: string): Series | undefined;
   close(): void;
 }
 
@@ -115,48 +125,6 @@ const fillRetryMs = 3600 * 1000;
 const coverTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const maxCoverBytes = 2 * 1024 * 1024;
 
-const schema = `
-  create table if not exists series (
-    id text primary key,
-    title text not null,
-    title_key text not null,
-    bnf_id text
-  );
-  create index if not exists series_title_key on series (title_key);
-  create table if not exists edition (
-    isbn text primary key,
-    title text not null,
-    volume_title text,
-    authors text not null,
-    publisher text,
-    language text,
-    format text,
-    cover text,
-    work_id text not null,
-    work_title text not null,
-    series_id text references series (id),
-    volume real,
-    edition_line text,
-    sources text not null,
-    fetched_at text not null
-  );
-  create index if not exists edition_line on edition (edition_line);
-  create table if not exists miss (
-    isbn text primary key,
-    checked_at text not null
-  );
-  create table if not exists line_fill (
-    edition_line text primary key,
-    filled_at text not null
-  );
-  create table if not exists cover (
-    isbn text primary key,
-    url text not null,
-    type text not null,
-    bytes blob not null
-  );
-`;
-
 type EditionRow = {
   isbn: string;
   title: string;
@@ -170,12 +138,23 @@ type EditionRow = {
   work_title: string;
   series_id: string | null;
   series_title: string | null;
+  same_as: string | null;
   volume: number | null;
   sources: string;
   fetched_at: string;
 };
 
-const selectEdition = `select edition.*, series.title as series_title from edition left join series on series.id = edition.series_id`;
+// Every identifier of a Series but its main one, oldest link first.
+const sameAsOf = (n: string) =>
+  `(select json_group_array(id) from (select id from series_link where series = ${n} and id != series.id order by rowid))`;
+const selectEdition = `select edition.*, series.id as series_id, series.title as series_title, ${sameAsOf('series.n')} as same_as
+  from edition left join series on series.n = edition.series`;
+const selectSeries = `select series.n, series.id, series.title, series.bnf_id, ${sameAsOf('series.n')} as same_as from series`;
+
+type SeriesRow = { n: number; id: string; title: string; bnf_id: string | null; same_as: string };
+
+const toSeries = (row: SeriesRow): Series => ({ id: row.id, title: row.title, sameAs: JSON.parse(row.same_as) as string[] });
+const minted = (id: string) => id.startsWith('atomes:');
 
 // `host` mints `atomes:<host>:<ULID>` Series identifiers when no source has one.
 export function createCatalog(options: { file: string; fetch: SourceFetch; host: string; now?: () => Date }): Catalog {
@@ -183,27 +162,102 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   const db = new DatabaseSync(options.file);
   // WAL: the hourly backup reads a snapshot while the server keeps writing (docs/backups.md).
   db.exec('pragma journal_mode = wal');
-  db.exec(schema);
+  migrate(db);
 
   const editionRow = (isbn: string) => db.prepare(`${selectEdition} where edition.isbn = ?`).get(isbn) as EditionRow | undefined;
   const age = (iso: string) => now().getTime() - Date.parse(iso);
 
+  const seriesRow = (where: string, value: string | number) =>
+    db.prepare(`${selectSeries} where ${where}`).get(value) as SeriesRow | undefined;
+  const seriesRows = (where: string, value: string) =>
+    db.prepare(`${selectSeries} where ${where} order by series.n`).all(value) as SeriesRow[];
+  const byIdentifier = (id: string) => seriesRow('series.n = (select series from series_link where id = ?)', id);
+  const addTitleKey = (n: number, title: string) =>
+    db.prepare('insert or ignore into series_title (title_key, series) values (?, ?)').run(key(title), n);
+
+  // The Series of these facts, made or found, then linked (ADR 0010): an
+  // identifier never changes once a record uses it, so a shared identifier
+  // that comes after a minted one becomes the main identifier, and the minted
+  // one a same_as link. The title is the shared source's label (Wikidata,
+  // Inventaire); every older title key still finds the Series.
   function seriesFor(facts: Facts[]): Series | null {
-    const shared = facts.find((f) => f.series?.id && f.series.title)?.series;
-    const title = shared?.title ?? facts.find((f) => f.series?.title)?.series?.title;
+    const found = facts.find((f) => f.series?.id && f.series.title)?.series;
+    const shared = found?.id && found.title ? { id: found.id, title: found.title } : undefined;
+    const titles = facts.flatMap((f) => (f.series?.title ? [f.series.title] : []));
+    const title = shared?.title ?? titles[0];
     if (!title) return null;
     const bnfId = facts.find((f) => f.series?.bnfId)?.series?.bnfId ?? null;
-    const titleKey = key(title);
-    // Once a Series has an identifier here it keeps it (ADR 0010), even when a
-    // later Volume brings a shared one.
-    const find = (column: string, value: string | null | undefined) =>
-      value ? (db.prepare(`select id, title from series where ${column} = ? order by rowid`).get(value) as Series | undefined) : undefined;
-    const known = find('id', shared?.id) ?? find('bnf_id', bnfId) ?? find('title_key', titleKey);
-    if (known) return known;
-    const id = shared?.id ?? `atomes:${options.host}:${ulid(now())}`;
-    db.prepare('insert into series (id, title, title_key, bnf_id) values (?, ?, ?, ?)').run(id, title, titleKey, bnfId);
-    return { id, title };
+    return inTransaction(db, () => {
+      const byId = shared && byIdentifier(shared.id);
+      // A Series with another shared identifier is another Series, even with the same title.
+      const joinable = (row: SeriesRow) => !shared || minted(row.id) || row.n === byId?.n;
+      const other =
+        (bnfId ? seriesRows('series.bnf_id = ?', bnfId) : []).find(joinable) ??
+        [title, ...titles]
+          .flatMap((each) => seriesRows('series.n in (select series from series_title where title_key = ?)', key(each)))
+          .find(joinable);
+
+      let n: number;
+      if (!byId && !other) {
+        const id = shared?.id ?? `atomes:${options.host}:${ulid(now())}`;
+        n = Number(db.prepare('insert into series (id, title, bnf_id) values (?, ?, ?)').run(id, title, bnfId).lastInsertRowid);
+        db.prepare('insert into series_link (id, series) values (?, ?)').run(id, n);
+      } else if (byId) {
+        n = byId.n;
+        if (other && other.n !== n) n = mergeSeries(byId, other);
+      } else {
+        n = other!.n;
+        if (shared) {
+          db.prepare('insert into series_link (id, series) values (?, ?)').run(shared.id, n);
+          db.prepare('update series set id = ? where n = ?').run(shared.id, n);
+        }
+      }
+      if (shared) db.prepare('update series set title = ? where n = ?').run(shared.title, n);
+      if (bnfId) db.prepare('update series set bnf_id = ? where n = ? and bnf_id is null').run(bnfId, n);
+      for (const each of new Set([title, ...titles])) addTitleKey(n, each);
+      return toSeries(seriesRow('series.n = ?', n)!);
+    });
   }
+
+  // One Series from two: the one with the best main identifier (ADR 0010
+  // order, then the oldest) keeps its identifier and title, and takes every
+  // identifier, title key and Edition of the other. Gives the Series kept.
+  function mergeSeries(a: SeriesRow, b: SeriesRow): number {
+    const [keep, drop] = [a, b].sort((x, y) => seriesIdRank(x.id) - seriesIdRank(y.id) || x.n - y.n);
+    db.prepare('update series_link set series = ? where series = ?').run(keep.n, drop.n);
+    db.prepare('insert or ignore into series_title (title_key, series) select title_key, ? from series_title where series = ?').run(
+      keep.n,
+      drop.n,
+    );
+    db.prepare('delete from series_title where series = ?').run(drop.n);
+    db.prepare('update series set bnf_id = ? where n = ? and bnf_id is null').run(drop.bnf_id, keep.n);
+    // Its Editions move to the kept Series' Edition Lines; their old fills are forgotten.
+    const editions = db.prepare('select isbn, publisher, language, edition_line from edition where series = ?').all(drop.n) as {
+      isbn: string;
+      publisher: string | null;
+      language: string | null;
+      edition_line: string;
+    }[];
+    for (const each of editions) {
+      db.prepare('delete from line_fill where edition_line = ?').run(each.edition_line);
+      db.prepare('update edition set series = ?, edition_line = ? where isbn = ?').run(keep.n, lineKey(keep.n, each), each.isbn);
+    }
+    db.prepare('delete from series where n = ?').run(drop.n);
+    return keep.n;
+  }
+
+  function link(a: string, b: string): Series | undefined {
+    const [first, second] = [byIdentifier(a), byIdentifier(b)];
+    if (!first || !second) return undefined;
+    if (first.n === second.n) return toSeries(first);
+    return toSeries(seriesRow('series.n = ?', inTransaction(db, () => mergeSeries(first, second)))!);
+  }
+
+  // Edition Line (ADR 0010): one Series, publisher and language.
+  const lineOf = (edition: Edition) => {
+    const series = edition.series && byIdentifier(edition.series.id);
+    return series ? lineKey(series.n, edition) : null;
+  };
 
   // One Edition from the facts of every source, best source first. Sources
   // sometimes attach an ISBN to the wrong book (9780000000002 is three
@@ -239,11 +293,11 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   }
 
   function store(edition: Edition): void {
-    const { series } = edition;
-    const line = editionLine(edition);
+    const line = lineOf(edition);
+    const series = edition.series && byIdentifier(edition.series.id);
     db.prepare(
       `insert or replace into edition (isbn, title, volume_title, authors, publisher, language, format, cover, work_id,
-        work_title, series_id, volume, edition_line, sources, fetched_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        work_title, series, volume, edition_line, sources, fetched_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       edition.isbn,
       edition.title,
@@ -255,7 +309,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       edition.cover,
       edition.work.id,
       edition.work.title,
-      series?.id ?? null,
+      series?.n ?? null,
       edition.volume,
       line,
       JSON.stringify(edition.sources),
@@ -314,8 +368,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
     };
     const known = db.prepare('select isbn, volume from edition where edition_line = ?').all(line) as { isbn: string; volume: number | null }[];
-    const lineBnfId = (db.prepare('select bnf_id from series where id = ?').get(anchor.series.id) as { bnf_id: string | null } | undefined)
-      ?.bnf_id;
+    const lineBnfId = byIdentifier(anchor.series.id)?.bnf_id;
     let listed: Listed[];
     try {
       listed = await bnfSearch(options.fetch, anchor.series.title, anchor.publisher);
@@ -356,7 +409,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     for (const { isbn, facts } of added) {
       const edition = merge(isbn, [facts, ...(fromInventaire.get(isbn) ? [fromInventaire.get(isbn)!] : [])]);
       // The Series this Catalog gives it must be the line's.
-      if (edition && editionLine(edition) === line) store(edition);
+      if (edition && lineOf(edition) === line) store(edition);
     }
     db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(line, now().toISOString());
     failedAt.delete(line);
@@ -466,6 +519,11 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     cover,
     search,
     choose,
+    link,
+    series: (id) => {
+      const row = byIdentifier(id);
+      return row && toSeries(row);
+    },
     async volumes(edition, { fill }) {
       const anchor = db.prepare('select edition_line from edition where isbn = ?').get(edition.isbn) as
         | { edition_line: string | null }
@@ -482,13 +540,12 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   };
 }
 
-// Edition Line (ADR 0010): one Series, publisher and language. The sources
-// give no format, only a size in cm that varies inside one line (One Piece 56
-// "18 x 12 cm", 112 "19 cm"), so it is not part of the key. The key is
-// internal and may change when the Catalog fixes its data.
-function editionLine(edition: Edition): string | null {
-  const { series } = edition;
-  return series && [series.id, edition.publisher, edition.language].map((v) => key(v ?? '')).join('|');
+// The Edition Line key of Series `n` (ADR 0010): one Series, publisher and
+// language. The sources give no format, only a size in cm that varies inside
+// one line (One Piece 56 "18 x 12 cm", 112 "19 cm"), so it is not part of the
+// key. The key is internal and may change when the Catalog fixes its data.
+function lineKey(n: number, edition: { publisher: string | null; language: string | null }): string {
+  return [String(n), edition.publisher, edition.language].map((v) => key(v ?? '')).join('|');
 }
 
 function toEdition(row: EditionRow): Edition {
@@ -502,7 +559,10 @@ function toEdition(row: EditionRow): Edition {
     format: row.format,
     cover: row.cover,
     work: { id: row.work_id, title: row.work_title },
-    series: row.series_id && row.series_title ? { id: row.series_id, title: row.series_title } : null,
+    series:
+      row.series_id && row.series_title
+        ? { id: row.series_id, title: row.series_title, sameAs: JSON.parse(row.same_as ?? '[]') as string[] }
+        : null,
     volume: row.volume,
     sources: JSON.parse(row.sources) as EditionSource[],
     fetchedAt: row.fetched_at,
@@ -516,18 +576,6 @@ const isReader = (edition: Pick<Edition, 'sources'>) => edition.sources.includes
 function sameBook(a: string, b: string): boolean {
   const [shorter, longer] = [key(a).split(' '), key(b).split(' ')].sort((x, y) => x.length - y.length);
   return shorter.every((word) => longer.includes(word));
-}
-
-// Compares titles, publishers and formats: "Glénat" = "glenat", "One Piece" = "One piece",
-// "Spy × Family" = "Spy x family".
-function key(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/×/g, 'x')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim();
 }
 
 const crockford = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';

@@ -47,4 +47,17 @@ bun scripts/record-catalog-answers.ts --search "Réglez-lui son compte" "Fleuve"
 
 Search and batch files are named by a hash of the query (`recorded.fake.ts`).
 
+Recorded on 2026-11-11 for the `same_as` tests (CORE-42):
+
+```sh
+bun scripts/record-catalog-answers.ts 9781408730218 9782864976165
+```
+
+| ISBN | Book | Why |
+|---|---|---|
+| 9781408730218 | Asterix and the White Iris, Sphere, 2023 | SUDOC's Series is "Aterix" (a typo), with no shared identifier |
+| 9782864976165 | L'Empire du Milieu, album of the film, Albert René | Inventaire gives the Series Astérix, `wd:Q42490` |
+
+`catalog-v0.sqlite` is not a source answer: it is a Catalog file made on 2026-11-11 by the Catalog of `main` before `same_as` (commit a3f8d6c), from the recorded answers: One Piece 112, then 56, then the Spy x Family Edition Line with a fill. The migration tests open a copy of it. Never make it again: it stands for the files that real instances hold.
+
 Review the diff before committing: answers change when the sources fix their data.
