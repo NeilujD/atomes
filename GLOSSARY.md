@@ -80,7 +80,7 @@ _Avoid_: Unfollowed, cancelled, abandoned series
 _French_: Série arrêtée
 
 **New Volume**:
-A Volume of a Followed Series that is now in shops in the reader's Edition Line and that they don't own yet.
+A Volume of a Followed Series released in the reader's Edition Line after they followed the Series, that they don't own. A Volume they are behind on is on To Buy, but is not a New Volume.
 _Avoid_: Release, update, new tome
 _French_: Nouveau tome
 
@@ -102,7 +102,7 @@ _French_: Tome manquant
 ## Buying
 
 **To Buy**:
-The reader's list of Editions they intend to acquire. Missing Volumes and New Volumes of Followed Series appear on it automatically, and any Edition can be added by hand.
+The reader's list of Editions they intend to acquire: the Volumes of Followed Series that are in shops in the reader's Edition Line and that they don't own, plus the Editions added by hand. The Volumes of Followed Series appear on it automatically: the Missing Volumes and every Volume after the latest one owned. Upcoming Volumes do not.
 _Avoid_: Wishlist, shopping list, want-to-read
 _French_: À acheter
 

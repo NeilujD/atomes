@@ -232,9 +232,10 @@ export const en = {
   'tobuy.add-hint': 'Adds this one book only. To follow a whole Series, add one of its Volumes with Quick Add. The ISBN is the 13 digits under the barcode.',
   'tobuy.owned': 'You already have this book.',
   'tobuy.listed': 'This book is already on your To Buy list.',
-  'tobuy.missing': 'Missing Volumes',
-  'tobuy.missing-empty': 'No Missing Volume. A Missing Volume is one you skipped in a Series you follow: earlier than the latest Volume you own.',
-  'tobuy.series': (series: string, count: number) => `${series} · ${count} ${count === 1 ? 'Volume' : 'Volumes'}`,
+  'tobuy.followed': 'From the Series you follow',
+  'tobuy.followed-empty':
+    'Nothing to buy in the Series you follow. This list shows every Volume in shops, in the Edition Line you collect, that you do not own.',
+  'tobuy.series': (series: string, count: number, volumes: string) => `${series} · ${count} ${count === 1 ? 'Volume' : 'Volumes'} (${volumes})`,
   'tobuy.show-more': (count: number, left: number) => `Show ${count} more (${left} left)`,
   'tobuy.by-hand': 'Added by hand',
   'tobuy.by-hand-empty': 'Nothing added by hand yet.',

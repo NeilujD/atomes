@@ -1,6 +1,7 @@
 // The To Buy screen (glossary: To Buy), a Preact island (ADR 0014): the
-// Missing Volumes of the Followed Series and the Editions added by hand. The
-// rules are in src/lib/library/to-buy.ts; this file only renders and saves.
+// Volumes of the Followed Series the reader does not own, one row per Series,
+// and the Editions added by hand. The rules are in src/lib/library/to-buy.ts;
+// this file only renders and saves.
 import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
@@ -12,7 +13,7 @@ import { saveCopy } from '../lib/library/copy';
 import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
 import type { Library } from '../lib/library/model';
 import { askCollected, seriesHref, type CatalogAsk } from '../lib/library/series';
-import { bought, bySeries, deleteToBuy, handAdd, saveToBuy, toBuyList, type ToBuyItem } from '../lib/library/to-buy';
+import { bought, bySeries, deleteToBuy, handAdd, saveToBuy, toBuyList, type SeriesGroup, type ToBuyItem } from '../lib/library/to-buy';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
@@ -88,7 +89,7 @@ export function ToBuy({ sources }: { sources: Sources }) {
 
     // The Edition Lines of the Followed Series (series.ts) and the Editions
     // added by hand, when not asked yet. A Series the Catalog cannot answer
-    // for now shows no Missing Volume, and is asked again on the next read.
+    // for now shows no Volume, and is asked again on the next read.
     async function askCatalog(read: Library) {
       const followed = read.follows.filter(({ value }) => value.status === 'following').map(({ value }) => value);
       await askCollected(followed, read, lines.current, editions.current, sources);
@@ -205,22 +206,14 @@ export function ToBuy({ sources }: { sources: Sources }) {
         </p>
       </form>
 
-      <section class="to-buy-group" aria-labelledby="to-buy-missing">
-        <h2 class="to-buy-group-title" id="to-buy-missing">
-          {t('tobuy.missing')}
+      <section class="to-buy-group" aria-labelledby="to-buy-followed">
+        <h2 class="to-buy-group-title" id="to-buy-followed">
+          {t('tobuy.followed')}
         </h2>
-        {list.missing.length === 0 ? (
-          <p class="to-buy-empty">{t('tobuy.missing-empty')}</p>
+        {list.followed.length === 0 ? (
+          <p class="to-buy-empty">{t('tobuy.followed-empty')}</p>
         ) : (
-          bySeries(list.missing).map((group, index) => (
-            <section key={group.id} class="to-buy-series" aria-labelledby={`to-buy-series-${index}`}>
-              {/* The Series name opens its Series page (follow, switch Edition Line, stop following). */}
-              <h3 class="to-buy-series-title" id={`to-buy-series-${index}`}>
-                <a href={seriesHref(group.items[0].isbn)}>{t('tobuy.series', group.title ?? '', group.items.length)}</a>
-              </h3>
-              <Paged items={group.items} row={row} />
-            </section>
-          ))
+          bySeries(list.followed).map((group, index) => <Series key={group.id} group={group} id={`to-buy-series-${index}`} row={row} />)
         )}
       </section>
 
@@ -231,6 +224,29 @@ export function ToBuy({ sources }: { sources: Sources }) {
         {list.byHand.length === 0 ? <p class="to-buy-empty">{t('tobuy.by-hand-empty')}</p> : <Paged items={list.byHand} row={row} />}
       </section>
     </div>
+  );
+}
+
+// One row per Series, "One Piece · 63 Volumes (51–113)", that opens to its
+// Volumes: a Series the reader is far behind on stays one row.
+function Series({ group, id, row }: { group: SeriesGroup; id: string; row: (item: ToBuyItem) => JSX.Element }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section class="to-buy-series" aria-labelledby={`${id}-title`}>
+      <h3 class="to-buy-series-title" id={`${id}-title`}>
+        <button class="to-buy-series-toggle" type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
+          {t('tobuy.series', group.title ?? '', group.items.length, group.volumes)}
+        </button>
+      </h3>
+      {/* Hidden, not removed: "Show more" keeps its place when the row closes. */}
+      <div class="to-buy-series-volumes" id={id} hidden={!open}>
+        {/* Follow, switch Edition Line, stop following. */}
+        <a class="to-buy-series-link" href={seriesHref(group.items[0].isbn)}>
+          {t('series.open')}
+        </a>
+        <Paged items={group.items} row={row} />
+      </div>
+    </section>
   );
 }
 

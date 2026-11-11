@@ -68,15 +68,41 @@ const follow = (status: Follow['status'], series = blacksad.id, anchorIsbn = isb
 const toBuy = (isbn: string, createdAt = '2026-11-07T10:00:00.000Z'): Saved<ToBuy> => ({ rkey: isbn, value: { isbn, createdAt } });
 const library = (change: Partial<Library> = {}): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [], ...change });
 
-const missingIsbns = (each: Library) => toBuyList(each, lines, new Map(), 'en').missing.map(({ isbn }) => isbn);
+const followedIsbns = (each: Library) => toBuyList(each, lines, new Map(), 'en').followed.map(({ isbn }) => isbn);
 
-describe('Missing Volumes on To Buy', () => {
-  test('a Followed Series: the Volumes before the latest one owned that the reader does not own', () => {
-    expect(missingIsbns(library({ follows: [follow('following')], copies: owns(1, 4) }))).toEqual([isbns[1], isbns[2]]);
+// Volumes 1 to 113 of One Piece, valid ISBN-13s.
+const onePiece = { id: 'wd:Q1000003', title: 'One Piece', sameAs: [] };
+const isbnOf = (n: number) => {
+  const first12 = `979109998${String(n).padStart(3, '0')}`;
+  const sum = [...first12].reduce((total, digit, i) => total + Number(digit) * (i % 2 === 0 ? 1 : 3), 0);
+  return `${first12}${(10 - (sum % 10)) % 10}`;
+};
+const onePieceVolume = (n: number) => volume(n, { isbn: isbnOf(n), title: 'One Piece', series: onePiece, work: { id: `wd:Q5${String(n).padStart(5, '0')}`, title: '' } });
+const onePieceLine = Array.from({ length: 113 }, (_, i) => onePieceVolume(i + 1));
+const ownsOnePiece = (...numbers: number[]) => numbers.map((n) => copyOf(isbnOf(n), [onePieceVolume(n).work.id]));
+const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+const followedOnePiece = (copies: Saved<Copy>[]) =>
+  toBuyList(library({ follows: [follow('following', onePiece.id, isbnOf(1))], copies }), new Map([[isbnOf(1), onePieceLine]]), new Map(), 'en').followed;
+
+describe('Volumes of the Followed Series on To Buy', () => {
+  test('a reader behind on a Series: every Volume after the latest one owned', () => {
+    const items = followedOnePiece(ownsOnePiece(...range(1, 50)));
+
+    expect(items.map(({ volume: n }) => n)).toEqual(range(51, 113));
   });
 
-  test('a Missing Volume shows what the Catalog knows of it, and is not a hand-added item', () => {
-    const [item] = toBuyList(library({ follows: [follow('following')], copies: owns(1, 3) }), lines, new Map(), 'en').missing;
+  test('the gaps before the latest Volume owned, and every Volume after it', () => {
+    const items = followedOnePiece(ownsOnePiece(1, 2, 56));
+
+    expect(items.map(({ volume: n }) => n)).toEqual([...range(3, 55), ...range(57, 113)]);
+  });
+
+  test('a Followed Series: the Volumes the reader does not own, before and after the latest one owned', () => {
+    expect(followedIsbns(library({ follows: [follow('following')], copies: owns(1, 4) }))).toEqual([isbns[1], isbns[2], isbns[4]]);
+  });
+
+  test('a Volume not owned shows what the Catalog knows of it, and is not a hand-added item', () => {
+    const [item] = toBuyList(library({ follows: [follow('following')], copies: owns(1, 3) }), lines, new Map(), 'en').followed;
 
     expect(item).toEqual({
       isbn: isbns[1],
@@ -92,29 +118,38 @@ describe('Missing Volumes on To Buy', () => {
     });
   });
 
-  test('a bought Missing Volume leaves the list', () => {
+  test('a bought Volume leaves the list', () => {
     const before = library({ follows: [follow('following')], copies: owns(1, 4) });
-    const [first] = toBuyList(before, lines, new Map(), 'en').missing;
+    const [first] = toBuyList(before, lines, new Map(), 'en').followed;
 
     const { copy } = bought(first, now);
     const after = { ...before, copies: [...before.copies, { rkey: 'new', value: copy }] };
 
-    expect(missingIsbns(after)).toEqual([isbns[2]]);
+    expect(followedIsbns(after)).toEqual([isbns[2], isbns[4]]);
   });
 
-  test('a dropped Series, or one never followed, shows no Missing Volume', () => {
-    expect(missingIsbns(library({ follows: [follow('dropped')], copies: owns(1, 4) }))).toEqual([]);
-    expect(missingIsbns(library({ copies: owns(1, 4) }))).toEqual([]);
+  test('a dropped Series, or one never followed, shows no Volume', () => {
+    expect(followedIsbns(library({ follows: [follow('dropped')], copies: owns(1, 4) }))).toEqual([]);
+    expect(followedIsbns(library({ copies: owns(1, 4) }))).toEqual([]);
   });
 
-  test('nothing after the latest Volume owned is missing: those are New Volumes, not Missing ones', () => {
-    expect(missingIsbns(library({ follows: [follow('following')], copies: owns(1, 2, 3) }))).toEqual([]);
+  test('a reader who owns every Volume the Catalog lists has nothing to buy', () => {
+    expect(followedIsbns(library({ follows: [follow('following')], copies: owns(1, 2, 3, 4, 5) }))).toEqual([]);
+  });
+
+  test('two printings of a Volume give one item', () => {
+    const reprint = volume(5, { isbn: '9791099999061' });
+    const each = library({ follows: [follow('following')], copies: owns(1, 2, 3, 4) });
+
+    const items = toBuyList(each, new Map([[isbns[0], [...line, reprint]]]), new Map(), 'en').followed;
+
+    expect(items.map(({ volume: n }) => n)).toEqual([5]);
   });
 
   test('a Followed Series whose Edition Line the Catalog could not give shows nothing', () => {
     const each = library({ follows: [follow('following')], copies: owns(1, 4) });
 
-    expect(toBuyList(each, new Map(), new Map(), 'en').missing).toEqual([]);
+    expect(toBuyList(each, new Map(), new Map(), 'en').followed).toEqual([]);
   });
 
   test('after a switch "from Volume 4 in line B": line A before 4, line B from 4 on', () => {
@@ -126,7 +161,7 @@ describe('Missing Volumes on To Buy', () => {
     // The Catalog's Editions of the Copies tell which line the reader collected before 4.
     const editions = new Map([[isbns[0], volume(1)]]);
 
-    const items = toBuyList(each, new Map([[isbns[0], line], [lineB[3].isbn, lineB]]), editions, 'en').missing;
+    const items = toBuyList(each, new Map([[isbns[0], line], [lineB[3].isbn, lineB]]), editions, 'en').followed;
 
     expect(items.map(({ isbn }) => isbn)).toEqual([isbns[1], isbns[2], lineB[3].isbn]);
   });
@@ -157,20 +192,28 @@ describe('Missing Volumes on To Buy', () => {
       copies: [...owns(1, 4), copyOf(astraLine[2].isbn, [astraLine[2].work.id])],
     });
 
-    const items = toBuyList(each, new Map([...lines, [astraLine[0].isbn, astraLine]]), new Map(), 'fr').missing;
+    const items = toBuyList(each, new Map([...lines, [astraLine[0].isbn, astraLine]]), new Map(), 'fr').followed;
 
-    expect(items.map(({ series, volume: n }) => `${series} ${n}`)).toEqual(['Ástra 1', 'Ástra 2', 'Blacksad 2', 'Blacksad 3']);
+    expect(items.map(({ series, volume: n }) => `${series} ${n}`)).toEqual(['Ástra 1', 'Ástra 2', 'Blacksad 2', 'Blacksad 3', 'Blacksad 5']);
     // The screen shows one group per Series, in that order.
     expect(bySeries(items).map(({ title, items: volumes }) => `${title}: ${volumes.map(({ volume: n }) => n).join(',')}`)).toEqual([
       'Ástra: 1,2',
-      'Blacksad: 2,3',
+      'Blacksad: 2,3,5',
     ]);
+  });
+
+  test('a Series group says which Volumes it holds, as runs of numbers', () => {
+    const runs = (copies: Saved<Copy>[]) => bySeries(followedOnePiece(copies)).map(({ volumes }) => volumes);
+
+    expect(runs(ownsOnePiece(...range(1, 50)))).toEqual(['51–113']);
+    expect(runs(ownsOnePiece(1, 2, 56))).toEqual(['3–55, 57–113']);
+    expect(runs(ownsOnePiece(...range(1, 112)))).toEqual(['113']);
   });
 
   test('books of no Series form one group of their own', () => {
     const items = toBuyList(library({ toBuy: [toBuy('9782266320481')] }), lines, new Map(), 'en').byHand;
 
-    expect(bySeries(items)).toEqual([{ id: null, title: null, items }]);
+    expect(bySeries(items)).toEqual([{ id: null, title: null, volumes: '', items }]);
   });
 });
 
@@ -193,12 +236,16 @@ describe('Editions added to To Buy by hand', () => {
     expect(toBuyList({ ...listed, copies: [copyOf('9782505000000', [volume(5).work.id])] }, lines, editions, 'en').byHand).toEqual([]);
   });
 
-  test('a hand-added Edition that is also a Missing Volume is listed once, and buying it removes its record', () => {
-    const list = toBuyList(library({ follows: [follow('following')], copies: owns(1, 3), toBuy: [toBuy(isbns[1])] }), lines, new Map(), 'en');
+  test('a hand-added Edition that is also a Volume of a Followed Series is listed once, and buying it removes its record', () => {
+    const list = toBuyList(library({ follows: [follow('following')], copies: owns(1, 3), toBuy: [toBuy(isbns[1]), toBuy(isbns[4])] }), lines, new Map(), 'en');
 
     expect(list.byHand).toEqual([]);
-    expect(list.missing.map(({ isbn, byHand }) => [isbn, byHand])).toEqual([[isbns[1], true]]);
-    expect(bought(list.missing[0], now).remove).toBe(isbns[1]);
+    expect(list.followed.map(({ isbn, byHand }) => [isbn, byHand])).toEqual([
+      [isbns[1], true],
+      [isbns[3], false],
+      [isbns[4], true],
+    ]);
+    expect(bought(list.followed[0], now).remove).toBe(isbns[1]);
   });
 
   test('adding by hand reads the ISBN as typed, and refuses one owned or already listed', () => {
