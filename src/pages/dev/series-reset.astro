@@ -63,7 +63,7 @@ if (!import.meta.env.DEV) return new Response(null, { status: 404 });
     if (!own) return;
     const [answer, { library }] = await Promise.all([lookupVolumes(read.isbn), loadLibrary(own)]);
     if (!answer?.series) return toast('The Catalog knows no Series for this ISBN.', { error: true });
-    const records = seriesRecords(answer.series.id, answer.volumes, library);
+    const records = seriesRecords(answer.series, answer.volumes, library);
     targets = [
       ...records.copies.map(({ rkey }): [string, string] => [copyCollection, rkey]),
       ...records.readingStatuses.map(({ rkey }): [string, string] => [readingStatusCollection, rkey]),

@@ -16,7 +16,7 @@ const onePiece56: Edition = {
   format: '18 x 12 cm',
   cover: 'https://inventaire.io/img/entities/65883d822ab1b56d8f46aeb26c35d1feb9098a9b',
   work: { id: 'inv:ce9131dff9916ae2e619de81800be29a', title: 'Merci pour tout' },
-  series: { id: 'wd:Q673', title: 'One Piece' },
+  series: { id: 'wd:Q673', title: 'One Piece', sameAs: [] },
   volume: 56,
   sources: ['BnF', 'Inventaire'],
   fetchedAt: '2026-11-05T10:00:00.000Z',

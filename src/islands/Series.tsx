@@ -9,7 +9,7 @@ import { coverUrl, lookupEditions, lookupVolumes } from '../lib/catalog/client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
 import { saveFollow, type Follow } from '../lib/library/follow';
-import { readIsbn } from '../lib/library/ids';
+import { isSeries, readIsbn } from '../lib/library/ids';
 import { loadLibrary, savedText, sendWhenOnline, waitingCount } from '../lib/library/library';
 import { editionLabel, type Library } from '../lib/library/model';
 import { askCollected, collectedVolumes, dropSeries, followSeries, seriesStanding, switchLine, type CatalogAsk } from '../lib/library/series';
@@ -296,7 +296,7 @@ function linked(lines: Map<string, Edition[]>, isbn: string): Edition | undefine
 
 function followOf(library: Library, edition: Edition | undefined): Follow | undefined {
   const series = edition?.series;
-  return series ? library.follows.find(({ rkey }) => rkey === series.id)?.value : undefined;
+  return library.follows.find(({ rkey }) => isSeries(series, rkey))?.value;
 }
 
 function Count({ value, label }: { value: number | string; label: string }) {

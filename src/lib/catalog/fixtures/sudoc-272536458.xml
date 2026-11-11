@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record>
+  <leader>     cam0 22        450 </leader>
+  <controlfield tag="001">272536458</controlfield>
+  <controlfield tag="002">35,52,106</controlfield>
+  <controlfield tag="003">https://www.sudoc.fr/272536458</controlfield>
+  <controlfield tag="004">20231011</controlfield>
+  <controlfield tag="005">20260413101942.000</controlfield>
+  <controlfield tag="006">693822301</controlfield>
+  <controlfield tag="007">693822307</controlfield>
+  <controlfield tag="008">Aax3</controlfield>
+  <datafield tag="010" ind1="#" ind2="#">
+    <subfield code="a">978-2-86497-616-5</subfield>
+  </datafield>
+  <datafield tag="034" ind1=" " ind2=" ">
+    <subfield code="a">OCoLC</subfield>
+    <subfield code="0">1402202759</subfield>
+  </datafield>
+  <datafield tag="100" ind1="#" ind2="#">
+    <subfield code="a">20231011d2023    e  ||frey50      ba</subfield>
+  </datafield>
+  <datafield tag="101" ind1="0" ind2="#">
+    <subfield code="a">fre</subfield>
+    <subfield code="f">fre</subfield>
+    <subfield code="2">639-2</subfield>
+  </datafield>
+  <datafield tag="102" ind1="#" ind2="#">
+    <subfield code="a">FR</subfield>
+  </datafield>
+  <datafield tag="104" ind1="#" ind2="#">
+    <subfield code="a">e</subfield>
+    <subfield code="c">y</subfield>
+    <subfield code="d">ba</subfield>
+    <subfield code="f">fre</subfield>
+  </datafield>
+  <datafield tag="105" ind1="#" ind2="#">
+    <subfield code="a">a   ||||000by</subfield>
+  </datafield>
+  <datafield tag="106" ind1="#" ind2="#">
+    <subfield code="a">r</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="c">txt</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="#">
+    <subfield code="6">z02</subfield>
+    <subfield code="c">sti</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="1">
+    <subfield code="6">z01</subfield>
+    <subfield code="a">i#</subfield>
+    <subfield code="b">xxxe##</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="1">
+    <subfield code="6">z02</subfield>
+    <subfield code="a">b#</subfield>
+    <subfield code="b">xb2e##</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="6">z02</subfield>
+    <subfield code="c">n</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="1">
+    <subfield code="6">z01</subfield>
+    <subfield code="6">z02</subfield>
+    <subfield code="a">n</subfield>
+  </datafield>
+  <datafield tag="183" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="6">z02</subfield>
+    <subfield code="a">nga</subfield>
+    <subfield code="2">RDAfrCarrier</subfield>
+  </datafield>
+  <datafield tag="200" ind1="1" ind2="#">
+    <subfield code="a">L&apos; Empire du milieu</subfield>
+    <subfield code="f">texte d&apos;Olivier Gay</subfield>
+    <subfield code="g">dessins de Fabrice Tarrin</subfield>
+    <subfield code="g">mise en couleur de Thierry Mébarki</subfield>
+  </datafield>
+  <datafield tag="214" ind1="#" ind2="0">
+    <subfield code="a">Vanves</subfield>
+    <subfield code="c">Les éditions Albert René</subfield>
+    <subfield code="d">DL 2023</subfield>
+  </datafield>
+  <datafield tag="215" ind1="#" ind2="#">
+    <subfield code="a">1 vol. [46 p.]</subfield>
+    <subfield code="c">ill.</subfield>
+    <subfield code="d">30 cm</subfield>
+  </datafield>
+  <datafield tag="304" ind1="#" ind2="#">
+    <subfield code="a">D&apos;après le film de Guillaume Canet reprenant les aventures d&apos;Astérix.  Scénario original de Julien Hervé et Philippe Mechelen</subfield>
+  </datafield>
+  <datafield tag="608" ind1="#" ind2="#">
+    <subfield code="3">027321142</subfield>
+    <subfield code="a">Livres illustrés pour enfants</subfield>
+    <subfield code="2">rameau</subfield>
+  </datafield>
+  <datafield tag="700" ind1="#" ind2="1">
+    <subfield code="3">163713308</subfield>
+    <subfield code="a">Gay</subfield>
+    <subfield code="b">Olivier</subfield>
+    <subfield code="f">1979-....</subfield>
+    <subfield code="4">070</subfield>
+  </datafield>
+  <datafield tag="702" ind1="#" ind2="1">
+    <subfield code="3">086137719</subfield>
+    <subfield code="a">Tarrin</subfield>
+    <subfield code="b">Fabrice</subfield>
+    <subfield code="4">440</subfield>
+  </datafield>
+  <datafield tag="702" ind1="#" ind2="1">
+    <subfield code="3">17853420X</subfield>
+    <subfield code="a">Mébarki</subfield>
+    <subfield code="b">Thierry</subfield>
+    <subfield code="f">19..-....</subfield>
+    <subfield code="4">410</subfield>
+  </datafield>
+  <datafield tag="702" ind1="#" ind2="1">
+    <subfield code="3">026897717</subfield>
+    <subfield code="a">Goscinny</subfield>
+    <subfield code="b">René</subfield>
+    <subfield code="f">1926-1977</subfield>
+    <subfield code="4">100</subfield>
+  </datafield>
+  <datafield tag="702" ind1="#" ind2="1">
+    <subfield code="3">027172112</subfield>
+    <subfield code="a">Uderzo</subfield>
+    <subfield code="b">Albert</subfield>
+    <subfield code="f">1927-2020</subfield>
+    <subfield code="4">100</subfield>
+  </datafield>
+  <datafield tag="702" ind1="#" ind2="1">
+    <subfield code="3">059071141</subfield>
+    <subfield code="a">Canet</subfield>
+    <subfield code="b">Guillaume</subfield>
+    <subfield code="f">1973-....</subfield>
+    <subfield code="4">100</subfield>
+  </datafield>
+  <datafield tag="801" ind1="#" ind2="3">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">Abes</subfield>
+    <subfield code="c">20260413</subfield>
+    <subfield code="g">AFNOR</subfield>
+  </datafield>
+  <datafield tag="930" ind1="#" ind2="#">
+    <subfield code="5">590092102:800873947</subfield>
+    <subfield code="b">590092102</subfield>
+    <subfield code="a">BD AST</subfield>
+    <subfield code="j">u</subfield>
+  </datafield>
+  <datafield tag="940" ind1=" " ind2=" ">
+    <subfield code="5">590092102:800873947</subfield>
+    <subfield code="a">20231020</subfield>
+    <subfield code="b">x</subfield>
+  </datafield>
+  <datafield tag="941" ind1=" " ind2=" ">
+    <subfield code="5">590092102:800873947</subfield>
+    <subfield code="a">20231020</subfield>
+    <subfield code="b">14:40:06.000</subfield>
+  </datafield>
+  <datafield tag="930" ind1="#" ind2="#">
+    <subfield code="5">987352201:866554076</subfield>
+    <subfield code="b">987352201</subfield>
+    <subfield code="j">u</subfield>
+  </datafield>
+  <datafield tag="940" ind1=" " ind2=" ">
+    <subfield code="5">987352201:866554076</subfield>
+    <subfield code="a">20251021</subfield>
+    <subfield code="b">x</subfield>
+  </datafield>
+  <datafield tag="941" ind1=" " ind2=" ">
+    <subfield code="5">987352201:866554076</subfield>
+    <subfield code="a">20251021</subfield>
+    <subfield code="b">23:46:27.000</subfield>
+  </datafield>
+  <datafield tag="930" ind1="#" ind2="#">
+    <subfield code="5">693822301:799948144</subfield>
+    <subfield code="b">693822301</subfield>
+    <subfield code="a">BD AST e</subfield>
+    <subfield code="j">u</subfield>
+  </datafield>
+  <datafield tag="940" ind1=" " ind2=" ">
+    <subfield code="5">693822301:799948144</subfield>
+    <subfield code="a">20231011</subfield>
+    <subfield code="b">x</subfield>
+  </datafield>
+  <datafield tag="941" ind1=" " ind2=" ">
+    <subfield code="5">693822301:799948144</subfield>
+    <subfield code="a">20231011</subfield>
+    <subfield code="b">12:37:50.000</subfield>
+  </datafield>
+</record>

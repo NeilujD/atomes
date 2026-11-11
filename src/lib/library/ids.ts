@@ -45,6 +45,19 @@ export function isSeriesId(value: string): boolean {
   return sharedSchemes.some((scheme) => scheme.test(value));
 }
 
+// The rank of a Series identifier in the order above: 0 for `wd:`, 3 for `atomes:`.
+export function seriesIdRank(value: string): number {
+  const rank = sharedSchemes.findIndex((scheme) => scheme.test(value));
+  return rank === -1 ? sharedSchemes.length : rank;
+}
+
+// A Catalog Series answers to its best identifier and to its `sameAs` ones
+// (ADR 0010). A record that holds any of them is about this Series: a follow
+// keeps the identifier it was saved with, its record key.
+export function isSeries(series: { id: string; sameAs?: readonly string[] } | null | undefined, id: string): boolean {
+  return !!series && (series.id === id || (series.sameAs?.includes(id) ?? false));
+}
+
 // A Work can also be `isbn:<isbn13>`: the one Work of an Edition that no
 // Catalog identifies yet. It stays valid once the Catalog learns more.
 export function isWorkId(value: string): boolean {
