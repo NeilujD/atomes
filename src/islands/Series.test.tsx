@@ -27,6 +27,7 @@ const volume = (n: number, line: 'A' | 'B' = 'A', change: Partial<Edition> = {})
   cover: null,
   work: { id: `wd:Q${line === 'A' ? 2 : 3}00000${n}`, title: `Blacksad ${n}` },
   series: blacksad,
+  volumes: [n],
   volume: n,
   sources: ['BnF'],
   fetchedAt: '2026-11-06T10:00:00.000Z',

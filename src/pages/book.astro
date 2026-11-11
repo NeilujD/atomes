@@ -248,7 +248,7 @@ const choices = [
     article.querySelector('[data-authors]')!.textContent = page.authors.join(', ');
     // The Series name opens the Series page, when the Catalog knows the Series.
     const seriesLine = article.querySelector<HTMLElement>('[data-series]')!;
-    const volume = page.volume ? t('book.volume', page.volume) : '';
+    const volume = page.volumes.length > 0 ? t('book.volumes', page.volumes) : page.volume ? t('book.volume', page.volume) : '';
     const seriesName = page.series && page.series !== page.title ? page.series : '';
     const seriesPage = editions.get(page.isbn)?.series ? seriesHref(page.isbn) : undefined;
     seriesLine.replaceChildren(

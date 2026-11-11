@@ -1,4 +1,5 @@
 import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
@@ -13,6 +14,8 @@ const onePiece56 = '9782723478991';
 const onePiece112 = '9782344068922'; // 2026: no 461 in any source, 19 cm (56 is 18 x 12 cm)
 const spyFamily16 = '9791042021030'; // 2026: BnF has no Series link yet, SUDOC has
 const horde = '9782072927515'; // La Horde du Contrevent, Folio SF (owner's shelf)
+const dragonBallSuper1to2 = '9782344025437'; // omnibus "Tomes 1-2", 461 $v "1-2"
+const spyFamily1to3 = '9782380714487'; // omnibus "Tomes 1 à 3" in its own BnF Series record
 const unknown = '9791099999993'; // valid check digit, no source knows it
 // Owner's shelf (CORE-40): Kaamelott 10, Casterman. No source knows its ISBN; BnF has 1 to 9.
 const kaamelott10 = '9782203255647';
@@ -38,7 +41,7 @@ function setup(down: string[] = [], covers?: (url: string) => Response) {
     open.push(again);
     return again;
   };
-  return { catalog, calls: sources.calls, reopen };
+  return { catalog, calls: sources.calls, reopen, file };
 }
 
 afterEach(() => {
@@ -74,6 +77,26 @@ describe('GET /api/catalog/editions/{isbn}', () => {
     });
   });
 
+  test.each([
+    [dragonBallSuper1to2, [1, 2]],
+    [spyFamily1to3, [1, 2, 3]],
+  ])('an omnibus %s gives all its Volumes, and its first one as the Volume', async (isbn, volumes) => {
+    const { catalog, reopen } = setup();
+
+    const found = await edition(await answerEdition(catalog, isbn));
+    const stored = await edition(await answerEdition(reopen(), isbn));
+
+    expect(found).toMatchObject({ volumes, volume: 1 });
+    expect(stored).toMatchObject({ volumes, volume: 1 });
+  });
+
+  test('a single Volume has one Volume in its list; a book with no Volume has none', async () => {
+    const { catalog } = setup();
+
+    expect(await edition(await answerEdition(catalog, onePiece56))).toMatchObject({ volumes: [56], volume: 56 });
+    expect(await edition(await answerEdition(catalog, horde))).toMatchObject({ volumes: [], volume: null });
+  });
+
   test('a second lookup of the same ISBN is served from SQLite, also after a restart', async () => {
     const { catalog, calls, reopen } = setup();
     const first = await edition(await answerEdition(catalog, onePiece56));
@@ -88,6 +111,24 @@ describe('GET /api/catalog/editions/{isbn}', () => {
     expect(offline.calls).toEqual([]);
     expect(again).toEqual(first);
     expect(afterRestart).toEqual(first);
+  });
+
+  test('a Catalog file from before omnibus Volumes opens; its Editions are fetched again, and kept when a source is down', async () => {
+    const { catalog, reopen, file } = setup();
+    await answerEdition(catalog, dragonBallSuper1to2);
+    const old = new DatabaseSync(file);
+    old.exec('alter table edition drop column volumes; pragma user_version = 2');
+    old.close();
+
+    const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
+    const kept = await edition(await answerEdition(reopen(offline.fetch), dragonBallSuper1to2));
+    const online = recordedFetch();
+    const fetched = await edition(await answerEdition(reopen(online.fetch), dragonBallSuper1to2));
+
+    expect(offline.calls.length).toBeGreaterThan(0);
+    expect(kept).toMatchObject({ volumes: [1], volume: 1 });
+    expect(online.calls.length).toBeGreaterThan(0);
+    expect(fetched).toMatchObject({ volumes: [1, 2], volume: 1 });
   });
 
   test('an unknown ISBN gives a clear not-found answer, remembered for a day', async () => {
@@ -252,9 +293,33 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
     // Volume 11 has two printings; the one in the BnF Series record of the line counts.
     expect(isbns).toContain('9782380715378');
     expect(isbns).not.toContain('9782380714340');
-    // Another BnF Series with the same title (its own Volume 1) is another book.
-    expect(isbns).not.toContain('9782380714487');
+    // The omnibus of Volumes 1 to 3 has its own BnF Series record: a fill leaves it out (CORE-41, Q1).
+    expect(isbns).not.toContain(spyFamily1to3);
     expect(new Set(volumes.map((v) => v.series?.id)).size).toBe(1);
+  });
+
+  test('an omnibus looked up enters the Edition Line once, next to its single Volumes', async () => {
+    const { catalog } = setup();
+    await volumesOf(catalog, spyFamily16);
+
+    await answerEdition(catalog, spyFamily1to3);
+    const volumes = await volumesOf(catalog, spyFamily16);
+
+    expect(volumes.filter((v) => v.isbn === spyFamily1to3).map((v) => v.volumes)).toEqual([[1, 2, 3]]);
+    expect(volumes.filter((v) => v.volume !== null && v.volume <= 3).map((v) => v.volumes)).toEqual([[1], [1, 2, 3], [2], [3]]);
+  });
+
+  test('BnF lists the omnibus Editions of an omnibus line, each once with all its Volumes', async () => {
+    const { catalog } = setup();
+
+    const volumes = await volumesOf(catalog, dragonBallSuper1to2);
+
+    expect(volumes.map((v) => [v.isbn, v.volumes])).toEqual([
+      [dragonBallSuper1to2, [1, 2]],
+      ['9782344031940', [3, 4]],
+      ['9782344037546', [5, 6]],
+      ['9782344038130', [7, 8]],
+    ]);
   });
 
   test('a listed Volume gets the Work a lookup gives it: Inventaire, even when BnF names the Volume itself', async () => {
@@ -724,11 +789,12 @@ describe('A Catalog file from before same_as (migration)', () => {
       [onePiece56, onePieceMinted],
       [onePiece112, onePieceMinted],
     ]);
-    // The Spy x Family line was filled: it is not asked for again.
+    // The Spy x Family line was filled: it is not asked for again. The
+    // anchors are asked again for their Volumes (CORE-41), and kept offline.
     const spyFamily = (await (await answerVolumes(catalog, spyFamily16, signedIn)).json()) as { volumes: Edition[] };
     expect(spyFamily.volumes).toHaveLength(16);
     expect(new Set(spyFamily.volumes.map((v) => v.series?.id))).toEqual(new Set([spyFamilyMinted]));
-    expect(sources.calls).toEqual([]);
+    expect(sources.calls.filter((url) => !url.includes('isbn'))).toEqual([]);
   });
 
   test('links the lost shared identifier when the Edition is fetched again', async () => {

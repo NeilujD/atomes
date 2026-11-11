@@ -118,8 +118,17 @@ const sameAs: Step = (db) => {
   for (const [old, line] of moved) db.prepare('update line_fill set edition_line = ? where edition_line = ?').run(line, old);
 };
 
+// CORE-41, omnibus Volumes: an Edition holds the JSON list of its Volumes
+// ("Tomes 1-2" is [1, 2]). Editions stored before have no list: they are
+// fetched again on their next lookup, and keep their one Volume until then.
+const omnibusVolumes: Step = (db) =>
+  db.exec(`
+    alter table edition add column volumes text;
+    update edition set fetched_at = '${new Date(0).toISOString()}';
+  `);
+
 // Add a step at the end; never edit or remove one.
-const steps: Step[] = [catalogV0, sameAs];
+const steps: Step[] = [catalogV0, sameAs, omnibusVolumes];
 
 export function migrate(db: DatabaseSync): void {
   const { user_version: done } = db.prepare('pragma user_version').get() as { user_version: number };

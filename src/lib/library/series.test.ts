@@ -28,6 +28,7 @@ const volume = (n: number, line: 'A' | 'B' = 'A', change: Partial<Edition> = {})
   cover: null,
   work: { id: `wd:Q${line === 'A' ? 2 : 3}00000${n}`, title: `Blacksad ${n}` },
   series: blacksad,
+  volumes: [n],
   volume: n,
   sources: ['BnF'],
   fetchedAt: '2026-11-06T10:00:00.000Z',
@@ -100,7 +101,7 @@ describe('Where the reader stands in a Series', () => {
 
   test('two printings of a Volume make one spine; a Volume with no number makes none', () => {
     const reprint = volume(2, 'A', { isbn: isbn('979109999099') });
-    const special = volume(0, 'A', { isbn: isbn('979109999098'), volume: null });
+    const special = volume(0, 'A', { isbn: isbn('979109999098'), volumes: [], volume: null });
 
     const standing = seriesStanding([...lineA, reprint, special], library({ copies: [copy(reprint)] }));
 
@@ -112,6 +113,44 @@ describe('Where the reader stands in a Series', () => {
     const reprint = volume(2, 'A', { isbn: isbn('979109999099') });
 
     expect(missingVolumes([...lineA, reprint], library({ copies: [...owns(lineA, 1, 4), copy(reprint)] })).map(({ volume: n }) => n)).toEqual([3]);
+  });
+});
+
+describe('An omnibus Edition holds several Volumes', () => {
+  // Line A also has an omnibus of Volumes 1 and 2 ("Tomes 1-2").
+  const omnibus = volume(1, 'A', { isbn: isbn('979109999097'), volumes: [1, 2], work: { id: 'wd:Q2999999', title: 'Blacksad 1-2' } });
+  const withOmnibus = [omnibus, ...lineA];
+
+  test('owning only the omnibus owns both its Volumes: neither is missing', () => {
+    const standing = seriesStanding(withOmnibus, library({ copies: [copy(omnibus), ...owns(lineA, 4)] }));
+
+    expect(standing.owned).toBe(3);
+    expect(standing.missing.map(({ volume: n }) => n)).toEqual([3]);
+    expect(standing.spines.map(({ volume: n, state }) => `${n} ${state}`)).toEqual([
+      '1 owned',
+      '2 owned',
+      '3 not-owned',
+      '4 owned',
+      '5 not-owned',
+      '6 not-owned',
+    ]);
+  });
+
+  test('reading the omnibus reads both its Volumes', () => {
+    const standing = seriesStanding(withOmnibus, library({ copies: [copy(omnibus)], readingStatuses: [status(omnibus, 'read')] }));
+
+    expect(standing.read).toBe(2);
+    expect(standing.spines.slice(0, 3).map(({ state }) => state)).toEqual(['read', 'read', 'not-owned']);
+  });
+
+  test('a Missing Volume suggests its single printing before the omnibus', () => {
+    expect(missingVolumes(withOmnibus, library({ copies: owns(lineA, 3) })).map(({ isbn: one }) => one)).toEqual([lineA[0].isbn, lineA[1].isbn]);
+  });
+
+  test('when the omnibus is the only printing of two Missing Volumes, it is suggested once', () => {
+    const line = [omnibus, ...lineA.slice(2)];
+
+    expect(missingVolumes(line, library({ copies: owns(lineA, 3) })).map(({ isbn: one }) => one)).toEqual([omnibus.isbn]);
   });
 });
 
@@ -238,7 +277,7 @@ describe('Follow, switch Edition Line, drop', () => {
     expect(switchLine(follow(), undefined, lineA, now)).toEqual({ problem: 'unknown' });
     expect(switchLine(follow(), volume(4, 'B', { series: { id: 'wd:Q9', title: 'Other', sameAs: [] } }), lineA, now)).toEqual({ problem: 'other-series' });
     expect(switchLine(follow(), lineA[3], lineA, now)).toEqual({ problem: 'same-line' });
-    expect(switchLine(follow(), volume(4, 'B', { volume: null }), lineA, now)).toEqual({ problem: 'no-volume' });
+    expect(switchLine(follow(), volume(4, 'B', { volumes: [], volume: null }), lineA, now)).toEqual({ problem: 'no-volume' });
   });
 
   test('abandoning a Volume of a Followed Series suggests dropping it; nothing else does', () => {

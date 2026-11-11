@@ -43,6 +43,8 @@ export interface ToBuyItem {
   seriesId: string | null;
   series: string | null;
   volume: number | null;
+  // All its Volumes: several for an omnibus.
+  volumes: number[];
   // A path on the Atomes server.
   cover: string | null;
   // Publisher and language, as far as the Catalog knows them.
@@ -127,6 +129,7 @@ function item(isbn: string, edition: Edition | undefined, byHand: boolean, langu
     seriesId: edition?.series?.id ?? null,
     series: edition?.series?.title ?? null,
     volume: edition?.volume ?? null,
+    volumes: edition?.volumes ?? [],
     cover: edition ? coverUrl(edition) : null,
     edition: editionLabel(edition, language),
     byHand,

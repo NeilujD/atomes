@@ -290,7 +290,7 @@ const steppers = [
     const series = onboarding.series.title;
     document.title = `${series} · Atomes`;
     form.querySelector('[data-heading]')!.textContent = t('onboarding.heading-series', series);
-    form.querySelector('[data-intro]')!.textContent = t('onboarding.intro', series, anchor.volume);
+    form.querySelector('[data-intro]')!.textContent = t('onboarding.intro', series, anchor.volumes);
     const line = editionLabel(anchor);
     form.querySelector('[data-edition-line]')!.textContent = line
       ? t('onboarding.in-edition', line)

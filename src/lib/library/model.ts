@@ -32,6 +32,8 @@ export interface BookPage {
   authors: string[];
   series: string | null;
   volume: string | null;
+  // The Catalog's Volumes of the Edition, several for an omnibus; none when it does not know them.
+  volumes: number[];
   // A path on the Atomes server.
   cover: string | null;
   status: Status;
@@ -74,6 +76,7 @@ export function bookPage(work: string, library: Library, editions: Editions): Bo
     authors: edition?.authors ?? details?.authors ?? [],
     series: edition?.series?.title ?? details?.series ?? null,
     volume: edition && edition.volume !== null ? String(edition.volume) : (details?.volume ?? null),
+    volumes: edition?.volumes ?? [],
     cover: edition ? coverUrl(edition) : null,
     status: readingStatus?.status ?? 'unread',
     finishedAt: readingStatus?.finishedAt,

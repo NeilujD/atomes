@@ -2,7 +2,7 @@
 // tags) and SUDOC (`<ppn>.xml`, plain tags) serve them. The records are flat
 // lists of datafields, so a few regular expressions are enough.
 import type { Facts, SourceName } from './facts';
-import { volumeNumber } from './facts';
+import { volumeNumbers } from './facts';
 
 type Field = { tag: string; subfields: [code: string, value: string][] };
 export type UnimarcRecord = Field[];
@@ -72,8 +72,9 @@ export function publishedYear(record: UnimarcRecord): number | undefined {
 }
 
 // A title that holds the Volume, as records made before publication have it:
-// "One Piece - Édition originale - Tome 113", "Spy x Family - Tome 16".
-const volumeInTitle = /^(.+?)\s+-\s+(?:.+\s+-\s+)?(?:tome|t\.|vol(?:ume)?\.?)\s*(\d+(?:[.,]\d+)?)$/i;
+// "One Piece - Édition originale - Tome 113", "Spy x Family - Tome 16",
+// "Dragon Ball Super - Tomes 1-2".
+const volumeInTitle = /^(.+?)\s+-\s+(?:.+\s+-\s+)?(?:tomes?|t\.|vol(?:ume)?s?\.?)\s*(\d+(?:[.,]\d+)?(?:\s*(?:-|–|à|&|et)\s*\d+)?)$/i;
 
 // 461 is the Series link (`$t` title, `$v` number, `$0` BnF Series record).
 // 225 and 410 are publisher collections (Folio, Pika Shônen), not Series.
@@ -90,9 +91,10 @@ export function unimarcFacts(record: UnimarcRecord, source: SourceName): Facts {
     .filter(Boolean);
   const title = subfield(record, '200', 'a');
   const inTitle = title ? volumeInTitle.exec(title) : null;
-  const volume =
-    volumeNumber(subfield(record, '461', 'v')) ?? volumeNumber(subfield(record, '200', 'h')) ?? volumeNumber(inTitle?.[2]);
-  const seriesTitle = subfield(record, '461', 't') ?? (volume === undefined ? undefined : inTitle ? inTitle[1] : title);
+  const volumes = [subfield(record, '461', 'v'), subfield(record, '200', 'h'), inTitle?.[2]]
+    .map(volumeNumbers)
+    .find((each) => each.length > 0);
+  const seriesTitle = subfield(record, '461', 't') ?? (volumes ? (inTitle ? inTitle[1] : title) : undefined);
   const bnfSeries = source === 'BnF' ? subfield(record, '461', '0') : undefined;
   return {
     source,
@@ -103,6 +105,6 @@ export function unimarcFacts(record: UnimarcRecord, source: SourceName): Facts {
     language: subfield(record, '101', 'a'),
     format: subfield(record, '215', 'd'),
     series: seriesTitle ? { title: seriesTitle, bnfId: bnfSeries } : undefined,
-    volume,
+    volumes,
   };
 }

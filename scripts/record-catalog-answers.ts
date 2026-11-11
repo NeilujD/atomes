@@ -27,7 +27,7 @@ const recording: SourceFetch = async (url) => {
 if (process.argv[2] === '--search') {
   const [title, publisher] = process.argv.slice(3);
   const listed = await bnfSearch(recording, title, publisher, 50);
-  console.log(listed.map(({ isbn, facts, year }) => `${isbn} ${year} ${facts.series?.title} ${facts.volume} | ${facts.title} | ${facts.publisher}`).join('\n'));
+  console.log(listed.map(({ isbn, facts, year }) => `${isbn} ${year} ${facts.series?.title} ${facts.volumes?.join('-')} | ${facts.title} | ${facts.publisher}`).join('\n'));
   process.exit(0);
 }
 

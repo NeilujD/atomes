@@ -138,21 +138,26 @@ export function seriesStanding(volumes: Edition[], library: Library): SeriesStan
 
 // The Missing Volumes (glossary) of a Series: numbered Volumes before the
 // latest one the reader owns, of which they own no printing. One Edition per
-// Volume. A Volume counts as owned by ISBN or by Work (isOwned), so a Copy
-// from another Edition Line of the Series counts too.
+// Volume, a single Volume before an omnibus; an omnibus that is the only
+// printing of two Missing Volumes is listed once. A Volume counts as owned by
+// ISBN or by Work (isOwned), so a Copy from another Edition Line of the Series
+// counts too.
 export function missingVolumes(volumes: Edition[], library: Library): Edition[] {
   const numbered = byVolume(volumes);
   const owned = numbered.filter(([, printings]) => printings.some((each) => isOwned(each, library))).map(([volume]) => volume);
   const latest = Math.max(0, ...owned);
-  return numbered.filter(([volume]) => volume < latest && !owned.includes(volume)).map(([, printings]) => printings[0]);
+  const missing = numbered.filter(([volume]) => volume < latest && !owned.includes(volume)).map(([, printings]) => printings[0]);
+  return [...new Set(missing)];
 }
 
-// The printings of each numbered Volume, in Volume order.
+// The printings of each numbered Volume, in Volume order, the ones with the
+// fewest Volumes first: an omnibus is a printing of each of its Volumes.
 function byVolume(volumes: Edition[]): [number, Edition[]][] {
   const numbered = new Map<number, Edition[]>();
   for (const each of volumes) {
-    if (each.volume !== null) numbered.set(each.volume, [...(numbered.get(each.volume) ?? []), each]);
+    for (const volume of each.volumes) numbered.set(volume, [...(numbered.get(volume) ?? []), each]);
   }
+  for (const printings of numbered.values()) printings.sort((a, b) => a.volumes.length - b.volumes.length);
   return [...numbered].sort(([a], [b]) => a - b);
 }
 
