@@ -2,7 +2,7 @@
 
 Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) and Bun (`packageManager` in `package.json`). Bun installs and runs scripts; Node runs Astro and Vitest.
 
-- `bun install` — install dependencies
+- `bun install` — install dependencies. Run `bun install --frozen-lockfile` again after a merge or rebase that changes `bun.lock`: Jean installs only when it creates the worktree.
 - `bun run check` — type check (`astro check`)
 - `bun run lint` — lint (ESLint, type-aware rules, Astro and a11y rules).
 - `bun run test` — run tests (Vitest). Never `bun test`: that starts Bun's own test runner, not Vitest.
