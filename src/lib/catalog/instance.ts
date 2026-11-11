@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { version } from '../../../package.json';
 import { readerOf } from '../server/auth';
 import { authDeps } from '../server/instance';
+import { settings } from '../server/settings';
 import { type CatalogAccess, createIpLimit } from './access';
 import type { Catalog } from './catalog';
 import { createCatalog } from './catalog';
@@ -26,7 +27,7 @@ export function catalog(): Catalog {
   if (!instance) {
     const dir = process.env.DATA_DIR ?? 'data';
     mkdirSync(dir, { recursive: true });
-    const origin = process.env.PUBLIC_APP_ORIGIN;
+    const origin = settings().appOrigin;
     instance = createCatalog({
       file: join(dir, 'catalog.sqlite'),
       // Sources ask for a contact URL, never an email (spike 0002).

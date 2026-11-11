@@ -61,7 +61,7 @@ Put an HTTPS reverse proxy in front of it (Coolify, Caddy, Traefik): sign-in nee
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `PUBLIC_APP_ORIGIN` | not set | The https origin readers open, for example `https://atomes.example.org`. Without it, the server is a loopback client for `http://127.0.0.1` (development only). |
+| `PUBLIC_APP_ORIGIN` | not set | The https origin readers open, for example `https://atomes.example.org`. Without it, the server is a loopback client for `http://127.0.0.1` (development only). On a Coolify pull request preview (`COOLIFY_BRANCH=pull/<n>/head`), the preview URL that Coolify gives replaces it. |
 | `ALLOWED_DIDS` | required | The DIDs that may sign in, separated by commas. Others see a clear message and the instance keeps nothing for them. |
 | `SESSION_ENCRYPTION_KEY` | required | 32 random bytes in base64. Encrypts OAuth tokens and DPoP keys in `auth.sqlite`. A new key signs every reader out. |
 | `OAUTH_PRIVATE_KEY` | required with `PUBLIC_APP_ORIGIN` | The confidential client's ES256 private key, a JWK with a `kid`, as one line of JSON. Its public part is served at `/oauth/jwks.json`. |

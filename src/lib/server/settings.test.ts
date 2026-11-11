@@ -32,6 +32,43 @@ describe('readSettings', () => {
     expect(settings.oauthPrivateKey).toBe(privateJwk);
   });
 
+  describe('a Coolify pull request preview, with the staging variables', () => {
+    const staging = { ...local, PUBLIC_APP_ORIGIN: 'https://staging.atomes.example', OAUTH_PRIVATE_KEY: privateJwk };
+
+    // Coolify swaps the two names by version: test both.
+    test.each([
+      ['COOLIFY_URL', { COOLIFY_URL: 'https://34.staging.atomes.example', COOLIFY_FQDN: '34.staging.atomes.example' }],
+      ['COOLIFY_FQDN', { COOLIFY_FQDN: 'https://34.staging.atomes.example', COOLIFY_URL: '34.staging.atomes.example' }],
+    ])('takes its own origin from %s', (_, coolify) => {
+      const settings = readSettings({ ...staging, COOLIFY_BRANCH: 'pull/34/head', ...coolify });
+
+      expect(settings.appOrigin).toBe('https://34.staging.atomes.example');
+    });
+
+    test('takes the first of several domains', () => {
+      const settings = readSettings({
+        ...staging,
+        COOLIFY_BRANCH: 'pull/34/head',
+        COOLIFY_URL: 'https://34.staging.atomes.example,https://other.example',
+      });
+
+      expect(settings.appOrigin).toBe('https://34.staging.atomes.example');
+    });
+
+    test('refuses a preview URL that is not https', () => {
+      expect(problemsOf({ ...staging, COOLIFY_BRANCH: 'pull/34/head', COOLIFY_URL: 'http://34.staging.atomes.example' })).toEqual([
+        expect.stringMatching(/^COOLIFY_URL must be an https origin/),
+      ]);
+    });
+
+    test.each([
+      ['staging or production (a branch)', { COOLIFY_BRANCH: 'main', COOLIFY_URL: 'https://other.example' }],
+      ['a preview with no URL', { COOLIFY_BRANCH: 'pull/34/head', COOLIFY_FQDN: '34.staging.atomes.example' }],
+    ])('keeps PUBLIC_APP_ORIGIN on %s', (_, coolify) => {
+      expect(readSettings({ ...staging, ...coolify }).appOrigin).toBe('https://staging.atomes.example');
+    });
+  });
+
   test('a missing required setting stops the start with a message that names each one', () => {
     expect(() => readSettings({})).toThrow(SettingsError);
     const problems = problemsOf({});
