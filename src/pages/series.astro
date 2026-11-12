@@ -205,6 +205,24 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     height: 44px;
     border-radius: 2px;
     border: 1.5px solid var(--ink);
+    transition: transform 0.15s ease-out;
+  }
+
+  /* A book pulled a little off the shelf: with a mouse, or with the keyboard. */
+  @media (hover: hover) {
+    .series-spine-button:hover .series-spine-bar {
+      transform: translateY(-4px);
+    }
+  }
+
+  .series-spine-button:focus-visible .series-spine-bar {
+    transform: translateY(-4px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .series-spine-bar {
+      transition: none;
+    }
   }
 
   .series-spine[data-state='read'] .series-spine-bar {
