@@ -289,15 +289,18 @@ const t = translator(requestLanguage(Astro.request));
 <style is:global>
   /* List and Cover flow (src/islands/LibraryList.tsx, LibraryCoverFlow.tsx). */
 
-  /* The Grid / List / Cover flow switch. Phone: the first row of the toolbar. */
-  .segmented.library-modes {
+  /* The Grid / List / Cover flow switch, as the Books / Series one. Phone: a row of its own, under it. Desktop: the end of the search row. */
+  .library-toolbar > .library-modes {
     display: flex;
-    flex: none;
   }
 
-  .library-modes .segment {
+  .library-toolbar > .library-modes .segment {
     flex: 1;
     justify-content: center;
+  }
+
+  .library-search-row .library-modes {
+    flex: none;
   }
 
   /* List: letter groups on hairlines (ui-direction: list with groups). */
@@ -532,10 +535,6 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   @media (min-width: 960px) {
-    .segmented.library-modes {
-      display: inline-flex;
-    }
-
     /* The toolbar sticks at a height that changes, so the letters do not stick under it. */
     .library-letter {
       position: static;

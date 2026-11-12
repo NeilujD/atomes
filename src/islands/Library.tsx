@@ -127,8 +127,11 @@ export function Library({ sources }: { sources: Sources }) {
   }
 
   const found = browse(books, read.labels, query, pageLanguage());
-  const listed = mode === 'list' ? letterGroups(found.books, query.sort, pageLanguage()) : undefined;
-  const modeSwitch = (
+  // Grid, List or Cover flow is for Books. Series show as a grid of cards, with
+  // no mode switch and no letter index; the mode is kept for the way back.
+  const byBooks = grouping === 'books';
+  const listed = byBooks && mode === 'list' ? letterGroups(found.books, query.sort, pageLanguage()) : undefined;
+  const modeSwitch = byBooks && (
     <ModeSwitch
       mode={mode}
       onChange={(chosen) => {

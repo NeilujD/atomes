@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/pre
 import { afterEach, describe, expect, test } from 'vitest';
 import type { Edition } from '../lib/catalog/catalog';
 import { saveCopy } from '../lib/library/copy';
+import { saveLabel } from '../lib/library/label';
 import { memorySpace } from '../lib/library/memory-space.fake';
 import { saveReadingStatus } from '../lib/library/reading-status';
 import { Library, type Sources } from './Library';
@@ -33,9 +34,10 @@ const books = [
 const onePiece = { id: 'wd:Q673', title: 'One Piece', sameAs: [] };
 const volumes = ['9782723434621', '9782723434638'].map((isbn, index) => ({ ...edition(isbn, 'One Piece', ['Eiichirō Oda']), series: onePiece, volumes: [index + 1], volume: index + 1 }));
 
-// The reader owns the three books and has read Dune.
-async function libraryScreen(owned = books) {
+// The reader owns the three books and has read Dune. `labelled`: the books that carry the Label "Sci-fi".
+async function libraryScreen(owned = books, labelled: Edition[] = []) {
   const { space } = memorySpace();
+  if (labelled.length > 0) await saveLabel(space, { name: 'Sci-fi', works: labelled.map((each) => each.work.id), createdAt: '2026-11-01T00:00:00.000Z' });
   for (const each of owned) await saveCopy(space, { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-01T00:00:00.000Z' });
   await saveReadingStatus(space, { work: books[1].work.id, isbn: books[1].isbn, status: 'read', updatedAt: '2026-11-02T00:00:00.000Z' });
   const sources: Sources = {
@@ -138,6 +140,34 @@ describe('Library modes', () => {
 
     expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Grid' }).checked).toBe(true);
     expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent']);
+  });
+
+  test('the mode is for Books: Series shows its cards with no mode switch and no index; back to Books, the kept List shows again', async () => {
+    await libraryScreen([...books, ...volumes]);
+    choose('List');
+    choose('Series');
+
+    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent', 'One Piece']);
+    expect(screen.queryByRole('radiogroup', { name: 'View' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Jump to a letter' })).toBeNull();
+
+    choose('Books');
+
+    expect(headings()).toEqual(['A', 'D', 'L', 'O']);
+    expect(screen.getByRole<HTMLInputElement>('radio', { name: 'List' }).checked).toBe(true);
+  });
+
+  test('a Label filter narrows List and Cover flow', async () => {
+    await libraryScreen(books, [books[1], books[2]]);
+    fireEvent.click(screen.getAllByRole('button', { name: /Sci-fi/ })[0]);
+    choose('List');
+
+    expect(headings()).toEqual(['D', 'L']);
+
+    choose('Cover flow');
+
+    expect(screen.getByText('2 of 2')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Astérix' })).toBeNull();
   });
 
   test('sorted by "Recently added", List is one group with no index', async () => {
