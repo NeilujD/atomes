@@ -60,7 +60,7 @@ Mix in `oklab`, not `oklch`: Chrome gives an `oklch` mix of near-greys the hue `
 
 **Breakpoint.** Desktop frame from 960 px wide. Under 960 px, phone frame. Row height follows the input type: 32 px with a fine pointer, 44 px with a coarse pointer.
 
-**Sidebar (desktop).** 232 px, fixed. Top row: mark and "Atomes" (links to Home), Search icon button (goes to Library search). Under it: "Check a book". Then Home, Library, New & upcoming, To Buy. Bottom: Settings and the line "Private by default". The active item has a soft fill and ink text; the others have secondary text. Hover gives the soft fill. No accent colour. New & upcoming may show a count of New Volumes, in tabular figures, never a coloured dot.
+**Sidebar (desktop).** 232 px, fixed. Top row: mark and "Atomes" (links to Home), Search icon button (goes to Library search). Under it: "Check a book". Then Home, Library, New & upcoming, To Buy. Bottom: Settings, Sign out and the line "Private by default". On the phone, Sign out is in Settings (the You tab). The active item has a soft fill and ink text; the others have secondary text. Hover gives the soft fill. No accent colour. New & upcoming may show a count of New Volumes, in tabular figures, never a coloured dot.
 
 **Panel (desktop).** One surface panel, 8 px from the window edges. Only the panel scrolls; the sidebar stays.
 

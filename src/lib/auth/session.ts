@@ -67,7 +67,7 @@ export async function signOut(
   client: AuthClient,
   account: Account,
   device: Pick<LocalCopy, 'clear'>,
-): Promise<AuthState> {
+): Promise<Extract<AuthState, { status: 'signed-out' }>> {
   const cleared = await device.clear().then(
     () => true,
     () => false,

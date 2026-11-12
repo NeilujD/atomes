@@ -9,6 +9,7 @@ import Keyboard from '@lucide/astro/icons/keyboard';
 import Layers from '@lucide/astro/icons/layers';
 import Library from '@lucide/astro/icons/library';
 import Lock from '@lucide/astro/icons/lock';
+import LogOut from '@lucide/astro/icons/log-out';
 import Minus from '@lucide/astro/icons/minus';
 import Monitor from '@lucide/astro/icons/monitor';
 import Moon from '@lucide/astro/icons/moon';
@@ -35,6 +36,7 @@ export const icons = {
   layers: Layers,
   library: Library,
   lock: Lock,
+  'log-out': LogOut,
   minus: Minus,
   monitor: Monitor,
   moon: Moon,

@@ -8,7 +8,9 @@ import { toast } from '../toast';
 import { indexedDbLocalCopy } from '../space/local-copy';
 import { instanceFetch, openInstanceStore } from '../space/instance-store';
 import type { Space } from '../space/space';
-import { gate, type Account, type AuthClient } from './session';
+import { deviceData } from './device-data';
+import { signInPath } from './return-to';
+import { gate, signOut, type Account, type AuthClient } from './session';
 
 const accountKey = 'atomes-account';
 
@@ -94,6 +96,16 @@ export function checkedAccount(): Promise<Account | undefined> {
 export async function gateScreen(): Promise<void> {
   const href = await gate({ init: checkedAccount }, location.pathname + location.search + location.hash);
   if (href) location.replace(href);
+}
+
+// Signs the reader out of this device and the server (Settings, sidebar), then
+// goes to the sign-in screen. Gives the message to show instead when something
+// went wrong that the reader must read first: the page stays.
+export async function signOutHere(): Promise<string | undefined> {
+  const account = await checkedAccount().catch(() => undefined);
+  const { message } = account ? await signOut(createAuthClient(), account, deviceData(indexedDbLocalCopy())) : {};
+  if (!message) location.replace(signInPath);
+  return message;
 }
 
 // The signed-in reader and their Library store on this instance. Undefined when

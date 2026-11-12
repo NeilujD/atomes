@@ -89,12 +89,9 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
 
 <script>
   import { applyAppearance, parseAppearance, readAppearance, saveAppearance } from '../lib/appearance';
-  import { signInPath } from '../lib/auth/return-to';
-  import { checkedAccount, createAuthClient } from '../lib/auth/server-client';
-  import { deviceData } from '../lib/auth/device-data';
+  import { checkedAccount, signOutHere } from '../lib/auth/server-client';
   import { parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
-  import { loadSession, signOut, type AuthState } from '../lib/auth/session';
-  import { indexedDbLocalCopy } from '../lib/space/local-copy';
+  import { loadSession, type AuthState } from '../lib/auth/session';
 
   const auth = document.querySelector<HTMLElement>('[data-auth]')!;
   const status = auth.querySelector<HTMLElement>('[data-auth-status]')!;
@@ -122,11 +119,8 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
   signOutButton.addEventListener('click', () => {
     if (state.status !== 'signed-in') return;
     busy(true);
-    void signOut(createAuthClient(), state.account, deviceData(indexedDbLocalCopy()))
-      .then((next) => {
-        if (next.status === 'signed-out' && !next.message) return location.replace(signInPath);
-        render(next);
-      })
+    void signOutHere()
+      .then((message) => render({ status: 'signed-out', message }))
       .finally(() => busy(false));
   });
 
