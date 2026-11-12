@@ -685,12 +685,54 @@ const steppers = [
     }
   }
 
-  /* Desktop: the screen is a card on the ground colour. */
+  /* Desktop: the screen is a card on the ground colour. With the form, the card
+     is wide: the questions on the left, the Volumes on the right. */
   @media (min-width: 960px) {
     .card {
       padding: 40px;
       border: 1px solid var(--line);
       border-radius: 20px;
+      background: var(--surface);
+    }
+
+    .card[data-state='ready'] {
+      width: min(100%, 1120px);
+    }
+
+    .onboarding {
+      display: grid;
+      grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+      grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+      grid-template-areas:
+        'intro volumes'
+        'ranges volumes'
+        'follow volumes'
+        '. volumes'
+        'actions actions';
+      gap: 22px 56px;
+    }
+
+    .intro {
+      grid-area: intro;
+    }
+
+    .ranges {
+      grid-area: ranges;
+    }
+
+    .follow {
+      grid-area: follow;
+    }
+
+    .volumes {
+      grid-area: volumes;
+    }
+
+    .actions {
+      grid-area: actions;
+      margin: 0 -40px -40px;
+      padding: 16px 40px;
+      border-radius: 0 0 20px 20px;
       background: var(--surface);
     }
 
@@ -701,12 +743,30 @@ const steppers = [
     .mark-box {
       background: var(--ground);
     }
+  }
 
-    .actions {
-      margin: 0 -40px -40px;
-      padding: 16px 40px;
-      border-radius: 0 0 20px 20px;
-      background: var(--surface);
+  /* Desktop with room for the questions: the card fits the window and only the
+     tiles scroll, so a long Series (100+ Volumes) needs no page scroll. */
+  @media (min-width: 960px) and (min-height: 640px) {
+    .card[data-state='ready'] {
+      max-height: calc(100dvh - 48px);
+    }
+
+    .onboarding {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .volumes {
+      min-height: 0;
+    }
+
+    /* Room for the focus ring, which the scroll box would cut. */
+    .tiles {
+      min-height: 0;
+      overflow-y: auto;
+      margin: -4px;
+      padding: 4px;
     }
   }
 </style>
