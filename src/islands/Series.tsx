@@ -17,6 +17,7 @@ import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
 import { toast } from '../lib/toast';
+import { Cover } from './Cover';
 
 export interface Sources extends CatalogAsk {
   // Undefined when signed out.
@@ -179,7 +180,14 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   return (
     <div class="series">
       <div class="series-head">
-        <div class="series-cover">{cover && <img src={cover} alt="" />}</div>
+        <Cover
+          class="series-cover"
+          src={cover}
+          title={anchor.title}
+          series={edition.series.title}
+          volumeTitle={anchor.volumeTitle}
+          volume={anchor.volumes.length > 0 ? t('book.volumes', anchor.volumes) : ''}
+        />
         <div class="series-text">
           <p class="series-tags">
             <span class="series-tag" data-following={following ? '' : undefined}>
@@ -324,7 +332,7 @@ export function SeriesSkeleton() {
   return (
     <div class="series" aria-busy="true">
       <div class="series-head" aria-hidden="true">
-        <div class="series-cover skeleton" />
+        <div class="book-cover series-cover skeleton" />
         <div class="series-text">
           <div class="skeleton series-skeleton-title" />
           <div class="skeleton series-skeleton-line" />

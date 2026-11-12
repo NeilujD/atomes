@@ -302,11 +302,14 @@ function Book({ book }: { book: LibraryBook }) {
   return (
     <li>
       <a class="library-book" href={bookHref(book.work)}>
-        <Cover class="library-cover" src={book.cover}>
-          <span class="library-cover-title" aria-hidden="true">
-            {book.title}
-          </span>
-        </Cover>
+        <Cover
+          class="library-cover"
+          src={book.cover}
+          title={book.title}
+          series={book.series}
+          volumeTitle={book.volumeTitle}
+          volume={book.volume ? t('book.volume', book.volume) : ''}
+        />
         <span class="library-book-title">{book.title}</span>
         {line && <span class="library-book-line">{line}</span>}
       </a>
@@ -334,7 +337,7 @@ export function LibrarySkeleton() {
       <ul class="library-grid" aria-hidden="true">
         {Array.from({ length: 12 }, (_, each) => (
           <li key={each}>
-            <div class="library-cover skeleton" />
+            <div class="book-cover library-cover skeleton" />
           </li>
         ))}
       </ul>

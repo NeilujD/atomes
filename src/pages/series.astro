@@ -39,18 +39,6 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
   .series-cover {
     flex: none;
     width: 160px;
-    aspect-ratio: 2 / 3;
-    overflow: hidden;
-    border-radius: var(--radius-cover);
-    background: var(--soft);
-    box-shadow: 0 0 0 1px var(--cover-edge);
-  }
-
-  .series-cover img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
   }
 
   .series-text {

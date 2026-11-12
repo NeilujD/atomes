@@ -229,6 +229,125 @@ a {
   }
 }
 
+/*
+ * A book cover (src/lib/cover.ts). Each screen sets only its width: the box is
+ * 2:3 before the image loads, so nothing under it moves. Covers that are not
+ * 2:3 fill the box. Text sizes follow the box width (container units).
+ */
+.book-cover {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: var(--radius-cover);
+  background: var(--soft);
+  box-shadow: 0 0 0 1px var(--cover-edge);
+}
+
+.book-cover[data-cover='loading'] {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.book-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.book-cover[data-cover='loaded'] img {
+  opacity: 1;
+}
+
+/*
+ * No image, or it failed: a plain book. The Series name on top, a grey
+ * picture, the name of the book under it, three grey lines.
+ */
+.book-cover-default {
+  display: flex;
+  flex-direction: column;
+  gap: 5cqi;
+  height: 100%;
+  padding: 9cqi 9cqi 10cqi;
+  color: var(--ink);
+  font-weight: 700;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.book-cover-series,
+.book-cover-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.book-cover-series {
+  font-size: clamp(8px, 9cqi, 15px);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.book-cover-picture {
+  flex: 1;
+  min-height: 0;
+  border-radius: 2px;
+  background: var(--off);
+}
+
+.book-cover-name {
+  font-size: clamp(8px, 10cqi, 18px);
+}
+
+.book-cover-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3cqi;
+}
+
+.book-cover-lines span {
+  height: max(2px, 2.5cqi);
+  border-radius: 999px;
+  background: var(--off);
+}
+
+.book-cover-lines span:nth-child(1) {
+  width: 85%;
+}
+.book-cover-lines span:nth-child(2) {
+  width: 60%;
+}
+.book-cover-lines span:nth-child(3) {
+  width: 72%;
+}
+
+/* A thumbnail is too small for text: the row next to it shows the title. */
+@container (width < 64px) {
+  .book-cover-series,
+  .book-cover-name {
+    display: none;
+  }
+
+  .book-cover-default {
+    gap: 8cqi;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-cover[data-cover='loading'] {
+    animation: none;
+  }
+
+  .book-cover img {
+    transition: none;
+  }
+}
+
 .segmented {
   display: inline-flex;
   flex-wrap: wrap;

@@ -180,41 +180,8 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   .library-cover {
-    display: flex;
-    align-items: flex-end;
     width: 100%;
-    aspect-ratio: 2 / 3;
     margin-bottom: 6px;
-    overflow: hidden;
-    border-radius: var(--radius-cover);
-    background: var(--soft);
-    box-shadow: 0 0 0 1px var(--cover-edge);
-  }
-
-  .library-cover img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0;
-    transition: opacity 0.2s ease-out;
-  }
-
-  .library-cover[data-loading] {
-    animation: pulse 1.4s ease-in-out infinite;
-  }
-
-  .library-cover img[data-loaded] {
-    opacity: 1;
-  }
-
-  /* No cover: the title on the placeholder, as on a plain book. */
-  .library-cover-title {
-    padding: 8px;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.15;
-    overflow-wrap: anywhere;
   }
 
   .library-book-title,
@@ -272,16 +239,6 @@ const t = translator(requestLanguage(Astro.request));
 
   .library-sheet .field {
     width: 100%;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .library-cover[data-loading] {
-      animation: none;
-    }
-
-    .library-cover img {
-      transition: none;
-    }
   }
 
   /* Desktop: the toolbar is a second header row, under the view header (ui-direction). */
