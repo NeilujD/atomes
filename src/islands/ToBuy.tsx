@@ -278,7 +278,14 @@ function Row({ item, saving, onBuy, onRemove }: { item: ToBuyItem; saving: strin
   const busy = saving === item.isbn ? 'true' : undefined;
   return (
     <li class="to-buy-item">
-      <Cover class="to-buy-cover" src={item.cover} title={item.title} volume={item.volumes.length > 0 ? t('book.volumes', item.volumes) : ''} />
+      <Cover
+        class="to-buy-cover"
+        src={item.cover}
+        title={item.title}
+        series={item.series}
+        volumeTitle={null}
+        volume={item.volumes.length > 0 ? t('book.volumes', item.volumes) : ''}
+      />
       {/* The buttons say which book they act on through this text. */}
       <div class="to-buy-text" id={id}>
         <p class="to-buy-title">{item.title}</p>

@@ -235,7 +235,13 @@ const choices = [
     document.title = `${page.title} · Atomes`;
     document.querySelector('[data-view-title]')!.textContent = page.title;
     const volume = page.volumes.length > 0 ? t('book.volumes', page.volumes) : page.volume ? t('book.volume', page.volume) : '';
-    showCover(article.querySelector<HTMLElement>('[data-cover]')!, { src: page.cover, title: page.title, volume });
+    showCover(article.querySelector<HTMLElement>('[data-cover]')!, {
+      src: page.cover,
+      title: page.title,
+      series: page.series,
+      volumeTitle: page.volumeTitle,
+      volume,
+    });
     article.querySelector('[data-title]')!.textContent = page.title;
     article.querySelector('[data-volume-title]')!.textContent = page.volumeTitle ?? '';
     article.querySelector('[data-authors]')!.textContent = page.authors.join(', ');

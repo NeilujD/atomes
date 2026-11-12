@@ -302,7 +302,14 @@ function Book({ book }: { book: LibraryBook }) {
   return (
     <li>
       <a class="library-book" href={bookHref(book.work)}>
-        <Cover class="library-cover" src={book.cover} title={book.title} volume={book.volume ? t('book.volume', book.volume) : ''} />
+        <Cover
+          class="library-cover"
+          src={book.cover}
+          title={book.title}
+          series={book.series}
+          volumeTitle={book.volumeTitle}
+          volume={book.volume ? t('book.volume', book.volume) : ''}
+        />
         <span class="library-book-title">{book.title}</span>
         {line && <span class="library-book-line">{line}</span>}
       </a>

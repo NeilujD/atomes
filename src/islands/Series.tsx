@@ -180,7 +180,14 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   return (
     <div class="series">
       <div class="series-head">
-        <Cover class="series-cover" src={cover} title={edition.series.title} volume={anchor.volumes.length > 0 ? t('book.volumes', anchor.volumes) : ''} />
+        <Cover
+          class="series-cover"
+          src={cover}
+          title={anchor.title}
+          series={edition.series.title}
+          volumeTitle={anchor.volumeTitle}
+          volume={anchor.volumes.length > 0 ? t('book.volumes', anchor.volumes) : ''}
+        />
         <div class="series-text">
           <p class="series-tags">
             <span class="series-tag" data-following={following ? '' : undefined}>

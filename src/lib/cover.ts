@@ -1,15 +1,27 @@
 // One cover for every screen (islands through `Cover.tsx`, page scripts
 // directly). The box is a 2:3 `.book-cover` styled in `theme.css`: it keeps
 // its place while the image loads, pulses (`data-cover="loading"`), fades the
-// image in (`loaded`), and shows the default cover, the title and Volume on
-// soft grey (`default`), when there is no image or it fails to load.
+// image in (`loaded`), and shows the default cover (`default`) when there is
+// no image or it fails to load: a plain book with the Series name on top, a
+// grey picture, the name of the book under it and three grey lines.
 
 export interface CoverContent {
   // A path on the Atomes server, or none.
   src: string | null;
   title: string;
-  // The Volume line of the default cover, such as "Volume 3"; empty for none.
+  // The Series title, when the book is part of one.
+  series: string | null;
+  volumeTitle: string | null;
+  // The Volume line, such as "Volume 3"; empty for none.
   volume: string;
+}
+
+// The name under the picture. A Volume of a Series: its Volume title, else its
+// title when it is not the Series name (the Catalog often files the Volume
+// title there), else its Volume. A book with no Series: its title.
+export function coverName({ title, series, volumeTitle, volume }: Omit<CoverContent, 'src'>): string {
+  if (!series) return title;
+  return volumeTitle || (title !== series ? title : '') || volume || title;
 }
 
 const shown = new WeakMap<HTMLElement, CoverContent>();
@@ -37,20 +49,21 @@ export function showCover(box: HTMLElement, content: CoverContent): void {
 }
 
 function showDefault(box: HTMLElement): void {
-  const { title, volume } = shown.get(box)!;
-  const cover = document.createElement('span');
-  cover.className = 'book-cover-default';
+  const content = shown.get(box)!;
+  const cover = span('book-cover-default');
   // The screen shows the title next to the cover: screen readers skip this copy.
   cover.setAttribute('aria-hidden', 'true');
-  cover.append(line('book-cover-title', title));
-  if (volume) cover.append(line('book-cover-volume', volume));
+  if (content.series) cover.append(span('book-cover-series', content.series));
+  const lines = span('book-cover-lines');
+  lines.append(span(), span(), span());
+  cover.append(span('book-cover-picture'), span('book-cover-name', coverName(content)), lines);
   box.dataset.cover = 'default';
   box.replaceChildren(cover);
 }
 
-function line(name: string, text: string): HTMLElement {
+function span(name?: string, text?: string): HTMLElement {
   const element = document.createElement('span');
-  element.className = name;
-  element.textContent = text;
+  if (name) element.className = name;
+  if (text) element.textContent = text;
   return element;
 }
