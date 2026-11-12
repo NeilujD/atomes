@@ -69,18 +69,14 @@ export function bookIsbns(work: string, library: Library): string[] {
 
 // Undefined when the Work is not in the Library: no Copy and no Reading Status.
 export function bookPage(work: string, library: Library, editions: Editions, language: Language = pageLanguage()): BookPage | undefined {
-  const copies = library.copies
-    .filter(({ value }) => value.works.includes(work))
-    .sort((a, b) => a.value.createdAt.localeCompare(b.value.createdAt) || a.rkey.localeCompare(b.rkey));
+  const copies = copiesOf(work, library);
   const readingStatus = currentReadingStatus(work, library);
   const isbn = readingStatus?.isbn ?? copies[0]?.value.isbn;
   if (isbn === undefined) return undefined;
 
-  // The Catalog's Edition of this Work, else any Edition it knows of these
-  // ISBNs (an omnibus, or a Work the Catalog identified later), else what the
-  // reader typed on a Copy. A typed title wins: it is the reader's own.
-  const known = [isbn, ...copies.map(({ value }) => value.isbn)].flatMap((each) => editions.get(each) ?? []);
-  const edition = known.find((each) => each.work.id === work) ?? known[0];
+  // The Catalog's Edition (workEdition), else what the reader typed on a
+  // Copy. A typed title wins: it is the reader's own.
+  const edition = workEdition(work, library, editions);
   const details = copies.find(({ value }) => value.details)?.value.details;
 
   return {
@@ -107,6 +103,23 @@ export function bookPage(work: string, library: Library, editions: Editions, lan
       };
     }),
   };
+}
+
+// The Copies of a Work, the first one added first.
+function copiesOf(work: string, library: Library): Saved<Copy>[] {
+  return library.copies
+    .filter(({ value }) => value.works.includes(work))
+    .sort((a, b) => a.value.createdAt.localeCompare(b.value.createdAt) || a.rkey.localeCompare(b.rkey));
+}
+
+// The Catalog's Edition of a Work of the Library, for every screen that shows
+// the book: the Edition of this Work, else any Edition the Catalog knows of
+// its ISBNs (an omnibus, or a Work the Catalog identified later), the one
+// read first, then the Copies from the first added.
+export function workEdition(work: string, library: Library, editions: Editions): Edition | undefined {
+  const isbns = [currentReadingStatus(work, library)?.isbn ?? [], copiesOf(work, library).map(({ value }) => value.isbn)].flat();
+  const known = isbns.flatMap((isbn) => editions.get(isbn) ?? []);
+  return known.find((each) => each.work.id === work) ?? known[0];
 }
 
 // The Loans of one Copy, latest first: its history, and at most one open

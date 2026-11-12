@@ -5,7 +5,7 @@ import type { Copy } from './copy';
 import type { Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
-import { librarySeries, parseGrouping, seriesCards, type LibraryCard } from './series-mode';
+import { librarySeries, seriesCards, type LibraryCard } from './series-mode';
 
 const edition = (isbn: string, title: string, change: Partial<Edition> = {}): Edition => ({
   isbn,
@@ -52,7 +52,8 @@ const library = (change: Partial<Library> = {}): Library => ({ copies: [], readi
 function cards(reader: Library, known: Edition[], query: Partial<LibraryQuery> = {}): LibraryCard[] {
   const editions = new Map(known.map((each) => [each.isbn, each]));
   const books = libraryBooks(reader, editions, []);
-  return seriesCards(browse(books, [], { ...allBooks, ...query }, 'fr').books, librarySeries(books, reader, editions));
+  const asked = { ...allBooks, ...query };
+  return seriesCards(browse(books, [], asked, 'fr').books, librarySeries(books, reader, editions), asked.sort, 'fr');
 }
 // "One Piece (2 owned, 1 read)" for a Series, the title for a book.
 const names = (found: LibraryCard[]) => found.map((card) => ('series' in card ? `${card.series.title} (${card.series.owned} owned, ${card.series.read} read)` : card.book.title));
@@ -75,8 +76,8 @@ describe('Series mode', () => {
     expect(names(cards(reader, known))).toEqual([
       'Astérix (1 owned, 0 read)',
       'Dune',
-      'Le Cycle de Fondation (0 owned, 1 read)', // where its book "Fondation" stands
       'La Horde du Contrevent',
+      'Le Cycle de Fondation (0 owned, 1 read)',
       'One Piece (2 owned, 1 read)',
     ]);
   });
@@ -108,6 +109,23 @@ describe('Series mode', () => {
     const typed: Saved<Copy> = { rkey: 'a', value: { isbn: '9782505000013', works: ['isbn:9782505000013'], createdAt: '2026-11-01T00:00:00.000Z', details: { title: 'Blacksad 1', series: 'Blacksad' } } };
 
     expect(names(cards(library({ copies: [typed] }), []))).toEqual(['Blacksad 1']);
+  });
+});
+
+describe('The Edition of a book in Series mode', () => {
+  test('is the one the book shows: a book never sits under the Series of another of its Editions', () => {
+    // One Work the Catalog knows by two Editions, each filed under another Work and Series.
+    const first = volume('9782723434621', { id: 'wd:Q1', title: 'Alpha', sameAs: [] }, 1);
+    const second = volume('9782723434638', { id: 'wd:Q2', title: 'Beta', sameAs: [] }, 1);
+    const own = 'wd:Q777';
+    const copyOf = (each: Edition, createdAt: string): Saved<Copy> => ({ rkey: each.isbn, value: { isbn: each.isbn, works: [own], createdAt } });
+    // The store lists the latest Copy first; the book shows the Edition of the first Copy.
+    const reader = library({ copies: [copyOf(second, '2026-11-02T00:00:00.000Z'), copyOf(first, '2026-11-01T00:00:00.000Z')] });
+    const editions = new Map([first, second].map((each) => [each.isbn, each]));
+    const [book] = libraryBooks(reader, editions, []);
+
+    expect(book.series).toBe('Alpha');
+    expect(names(cards(reader, [first, second]))).toEqual(['Alpha (1 owned, 0 read)']);
   });
 });
 
@@ -162,7 +180,18 @@ describe('Search, sort and filters in Series mode', () => {
     expect(cards(reader, known, { text: 'zzz' })).toEqual([]);
   });
 
-  test('sort: a Series stands where the first of its books found stands', () => {
+  test('sorted by title, a Series stands at its own title, not at the title of its first book', () => {
+    // "Fondation" is before "La Horde du Contrevent"; its Series "Le Cycle de Fondation" is after.
+    expect(names(cards(reader, known, { sort: 'title' }))).toEqual([
+      'Astérix (1 owned, 0 read)',
+      'Dune',
+      'La Horde du Contrevent',
+      'Le Cycle de Fondation (0 owned, 1 read)',
+      'One Piece (2 owned, 1 read)',
+    ]);
+  });
+
+  test('other sorts: a Series stands where the first of its books found stands', () => {
     expect(names(cards(reader, known, { sort: 'series' }))).toEqual([
       'Astérix (1 owned, 0 read)',
       'Dune',
@@ -178,13 +207,5 @@ describe('Search, sort and filters in Series mode', () => {
       'La Horde du Contrevent',
       'Le Cycle de Fondation (0 owned, 1 read)',
     ]);
-  });
-});
-
-describe('The Books / Series choice', () => {
-  test('is Books until the reader picks Series; a value kept on the device that the app does not know is Books', () => {
-    expect(parseGrouping(null)).toBe('books');
-    expect(parseGrouping('series')).toBe('series');
-    expect(parseGrouping('<img src=x>')).toBe('books');
   });
 });

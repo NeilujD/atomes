@@ -15,11 +15,11 @@ import { allBooks, browse, clearAll, libraryBooks, type Browsed, type LibraryBoo
 import { listLabels, type Label } from '../lib/library/label';
 import { letterGroups } from '../lib/library/letters';
 import { loadLibrary, waitingCount } from '../lib/library/library';
-import { modes, readMode, saveMode, type Mode } from '../lib/library/mode';
+import { groupings, modes, readGrouping, readMode, saveGrouping, saveMode, type Grouping, type Mode } from '../lib/library/mode';
 import { bookHref, type Library as LibraryRecords } from '../lib/library/model';
 import type { Saved } from '../lib/library/records';
 import { seriesHref } from '../lib/library/series';
-import { groupings, librarySeries, readGrouping, saveGrouping, seriesCards, type Grouping, type LibrarySeries } from '../lib/library/series-mode';
+import { librarySeries, seriesCards, type LibrarySeries } from '../lib/library/series-mode';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space } from '../lib/space/space';
@@ -167,7 +167,7 @@ export function Library({ sources }: { sources: Sources }) {
       ))}
     </div>
   );
-  const cards = grouping === 'series' && seriesCards(found.books, series);
+  const cards = grouping === 'series' && seriesCards(found.books, series, query.sort, pageLanguage());
 
   return (
     <div class="library">
