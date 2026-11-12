@@ -268,7 +268,8 @@ const steppers = [
 
   async function start() {
     const own = await openOwnSpace();
-    if (!own) return stop(t('add.sign-in'), { href: '/settings', label: t('link.settings') });
+    // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
+    if (!own) return;
     space = own.space;
     let answer: Awaited<ReturnType<typeof lookupVolumes>>;
     try {

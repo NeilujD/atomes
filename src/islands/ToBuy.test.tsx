@@ -179,10 +179,4 @@ describe('To Buy screen', () => {
     expect(first.closest('[data-loading]')).toBeNull();
     expect(document.querySelectorAll('.to-buy-cover img')).toHaveLength(1);
   });
-
-  test('signed out: says to sign in', async () => {
-    render(<ToBuy sources={{ open: () => Promise.resolve(undefined), volumes: () => Promise.resolve(undefined), editions: () => Promise.resolve(new Map()) }} />);
-
-    expect(await screen.findByText('Sign in to see what to buy.', { exact: false })).toBeTruthy();
-  });
 });

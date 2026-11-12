@@ -37,7 +37,7 @@ export default function SeriesIsland({ isbn }: { isbn: string }) {
 export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const [library, setLibrary] = useState<Library>();
   // In place of the page when there is nothing to show.
-  const [message, setMessage] = useState<{ text: string; signIn: boolean }>();
+  const [message, setMessage] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [typed, setTyped] = useState('');
@@ -58,14 +58,15 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
     function fail(error: unknown) {
       const network = isNetworkFailure(error);
       if (network) reportNetwork(false);
-      if (!loaded.current) setMessage({ text: spaceErrorMessage(error), signIn: false });
+      if (!loaded.current) setMessage(spaceErrorMessage(error));
       else if (!network) toast(spaceErrorMessage(error), { error: true });
     }
 
     async function start() {
-      if (!('isbn' in readIsbn(isbn))) return setMessage({ text: t('series.bad-link'), signIn: false });
+      if (!('isbn' in readIsbn(isbn))) return setMessage(t('series.bad-link'));
       const own = await sources.open();
-      if (!own) return setMessage({ text: t('series.sign-in'), signIn: true });
+      // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
+      if (!own) return;
       space.current = own;
       listing.current = freshListing(
         async () => {
@@ -156,7 +157,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
     return (
       <div class="series">
         <p class="series-message" role="status">
-          {message.text} {message.signIn && <a href="/settings">{t('link.settings')}</a>}
+          {message}
         </p>
       </div>
     );

@@ -422,7 +422,8 @@ const choices = [
   async function start() {
     if (!isWorkId(work)) return showNotFound(undefined, { title: t('book.not-found'), text: t('book.bad-link') });
     const own = await openOwnSpace();
-    if (!own) return say(t('book.sign-in'), { href: '/settings', label: t('link.settings') });
+    // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
+    if (!own) return;
     space = own.space;
     listing = freshListing(
       async () => {

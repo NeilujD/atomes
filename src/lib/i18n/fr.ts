@@ -25,7 +25,6 @@ export const fr: typeof en = {
 
   // Shared words and links
   'link.home': 'Aller à l’accueil',
-  'link.settings': 'Aller aux réglages',
   'link.book-page': 'Ouvrir la fiche du livre',
   'book.isbn': (isbn) => `ISBN ${isbn}`,
   'book.volume': (volume) => `Tome ${volume}`,
@@ -63,6 +62,13 @@ export const fr: typeof en = {
   'auth.no-account': 'Aucun compte trouvé pour cet identifiant. Vérifiez l’orthographe.',
   'auth.pds-unreachable': 'Impossible de joindre votre PDS. Réessayez plus tard.',
   'auth.failed': 'La connexion a échoué. Réessayez.',
+  // Sign-in screen (src/pages/sign-in.astro)
+  'auth.needs-network': 'La connexion a besoin du réseau. Connectez cet appareil, puis réessayez.',
+  'signin.title': 'Connexion',
+  'signin.heading': 'Se connecter à Atomes',
+  'signin.hint': 'Utilisez votre compte AT Protocol. Vous vous connectez sur la page de votre PDS : Atomes ne voit jamais votre mot de passe.',
+  'signin.handle': 'Votre identifiant',
+  'signin.submit': 'Se connecter',
 
   // ISBN and camera problems (src/lib/library/ids.ts, src/lib/scan/barcode.ts)
   'isbn.not-isbn': 'Ce n’est pas l’ISBN d’un livre. Il a 13 chiffres et commence par 978 ou 979.',
@@ -94,11 +100,8 @@ export const fr: typeof en = {
   'settings.account': 'Compte',
   'settings.atproto-account': 'Compte AT Protocol',
   'settings.checking': 'Vérification…',
-  'settings.handle': 'Votre identifiant',
-  'settings.sign-in': 'Se connecter',
   'settings.sign-out': 'Se déconnecter',
   'settings.signed-in-as': (handle) => `Connecté en tant que @${handle}`,
-  'settings.sign-in-hint': 'Connectez-vous sur la page de votre PDS. Atomes ne voit jamais votre mot de passe.',
   'settings.display': 'Affichage',
   'settings.appearance': 'Apparence',
   'settings.language': 'Langue',
@@ -134,7 +137,6 @@ export const fr: typeof en = {
   'add.lookup-failed': 'Impossible de rechercher cet ISBN. Réessayez.',
   'add.unknown-isbn': (isbn) => `ISBN ${isbn}. Aucune source de livres ne le connaît encore : saisissez ce qui est sur la couverture.`,
   'add.already-have': 'Vous avez déjà ce livre. L’ajouter encore ajoute un autre exemplaire.',
-  'add.sign-in': 'Connectez-vous pour ajouter des livres à votre bibliothèque.',
   'add.added': (title) => `${title} est dans votre bibliothèque.`,
   'add.looking-for-volumes': (title, series) => `${title} est enregistré. Recherche des autres tomes de ${series}…`,
   'add.no-onboarding.in-library': (series) =>
@@ -145,7 +147,6 @@ export const fr: typeof en = {
   'find.hint': 'Saisissez le titre ci-dessus, et l’éditeur si vous le connaissez. Seuls ces mots partent à la BnF, jamais l’ISBN.',
   'find.publisher': 'Éditeur',
   'find.search': 'Chercher à la BnF',
-  'find.sign-in': 'Connectez-vous pour chercher à la BnF.',
   'find.failed': 'La recherche à la BnF n’a pas abouti. Réessayez.',
   'find.nothing': 'La BnF ne liste rien sous ce titre. Saisissez le livre.',
   'find.lines': 'Séries',
@@ -185,7 +186,6 @@ export const fr: typeof en = {
   'book.past-loans': (count) => `Prêts passés (${count})`,
   'book.past-loan': (borrower, from, to) => `${borrower}, du ${from} au ${to}`,
   'book.edition-unknown': 'Édition encore inconnue',
-  'book.sign-in': 'Connectez-vous pour voir votre bibliothèque.',
 
   // Series Onboarding
   'onboarding.title': 'Ajout d’une série',
@@ -239,11 +239,9 @@ export const fr: typeof en = {
   'tobuy.by-hand-empty': 'Rien d’ajouté à la main pour l’instant.',
   'tobuy.bought': 'Je l’ai acheté',
   'tobuy.remove': 'Retirer',
-  'tobuy.sign-in': 'Connectez-vous pour voir ce qu’il vous reste à acheter.',
 
   // Page d’une série (src/islands/Series.tsx)
   'series.title': 'Série',
-  'series.sign-in': 'Connectez-vous pour voir vos séries.',
   'series.bad-link': 'Ce lien ne mène à aucun livre.',
   'series.no-series': 'Le catalogue ne connaît pas de série pour ce livre.',
   'series.unavailable': 'Le catalogue ne peut pas répondre pour le moment. Réessayez plus tard.',
@@ -277,7 +275,6 @@ export const fr: typeof en = {
 
   // Bibliothèque (src/islands/Library.tsx)
   'library.title': 'Bibliothèque',
-  'library.sign-in': 'Connectez-vous pour voir votre bibliothèque.',
   'library.empty': 'Votre bibliothèque est vide. Ajoutez un livre avec l’ajout rapide : scannez ou tapez son ISBN.',
   'library.search': 'Chercher dans votre bibliothèque',
   'library.search-placeholder': 'Titre, auteur, série, titre du tome',

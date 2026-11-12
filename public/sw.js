@@ -13,6 +13,7 @@ const SHELL = [
   '/book',
   '/library',
   '/settings',
+  '/sign-in',
   '/manifest.webmanifest',
   '/favicon.svg',
   '/favicon-32.png',

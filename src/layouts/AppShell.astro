@@ -166,7 +166,14 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
 
 <script>
   import { applyAppearance, readAppearance } from '../lib/appearance';
+  import { signInPath } from '../lib/auth/return-to';
+  import { gateScreen } from '../lib/auth/server-client';
   import { startConnectionStatus } from '../lib/connection';
+
+  // Every screen but the sign-in screen needs a signed-in reader (ADR 0013,
+  // amendment 2026-11-12). Checked here, not on the server: see gate() in
+  // src/lib/auth/session.ts.
+  if (location.pathname !== signInPath) void gateScreen();
 
   startConnectionStatus();
 

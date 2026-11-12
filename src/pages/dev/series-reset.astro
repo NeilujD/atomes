@@ -50,9 +50,7 @@ if (!import.meta.env.DEV) return new Response(null, { status: 404 });
   let targets: [string, string][] = [];
 
   async function space(): Promise<Space | undefined> {
-    const own = await openOwnSpace();
-    if (!own) toast('Sign in first.', { error: true, link: { href: '/settings', label: 'Go to Settings' } });
-    return own?.space;
+    return (await openOwnSpace())?.space;
   }
 
   async function find() {

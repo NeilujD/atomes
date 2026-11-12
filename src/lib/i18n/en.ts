@@ -25,7 +25,6 @@ export const en = {
 
   // Shared words and links
   'link.home': 'Go to Home',
-  'link.settings': 'Go to Settings',
   'link.book-page': 'Open its Book page',
   'book.isbn': (isbn: string) => `ISBN ${isbn}`,
   'book.volume': (volume: number | string) => `Volume ${volume}`,
@@ -64,6 +63,13 @@ export const en = {
   'auth.no-account': 'No account found for this handle. Check the spelling.',
   'auth.pds-unreachable': 'Could not reach your PDS. Try again later.',
   'auth.failed': 'Sign-in failed. Try again.',
+  // Sign-in screen (src/pages/sign-in.astro)
+  'auth.needs-network': 'Signing in needs the network. Connect this device, then try again.',
+  'signin.title': 'Sign in',
+  'signin.heading': 'Sign in to Atomes',
+  'signin.hint': 'Use your AT Protocol account. You sign in on your PDS page: Atomes never sees your password.',
+  'signin.handle': 'Your handle',
+  'signin.submit': 'Sign in',
 
   // ISBN and camera problems (src/lib/library/ids.ts, src/lib/scan/barcode.ts)
   'isbn.not-isbn': 'This is not a book’s ISBN. It has 13 digits and starts with 978 or 979.',
@@ -94,11 +100,8 @@ export const en = {
   'settings.account': 'Account',
   'settings.atproto-account': 'AT Protocol account',
   'settings.checking': 'Checking…',
-  'settings.handle': 'Your handle',
-  'settings.sign-in': 'Sign in',
   'settings.sign-out': 'Sign out',
   'settings.signed-in-as': (handle: string) => `Signed in as @${handle}`,
-  'settings.sign-in-hint': 'Sign in on your PDS page. Atomes never sees your password.',
   'settings.display': 'Display',
   'settings.appearance': 'Appearance',
   'settings.language': 'Language',
@@ -135,7 +138,6 @@ export const en = {
   'add.lookup-failed': 'Could not look up this ISBN. Try again.',
   'add.unknown-isbn': (isbn: string) => `ISBN ${isbn}. No book source knows it yet: type what is on the cover.`,
   'add.already-have': 'You already have this book. Adding it again adds another Copy.',
-  'add.sign-in': 'Sign in to add books to your Library.',
   'add.added': (title: string) => `${title} is in your Library.`,
   'add.looking-for-volumes': (title: string, series: string) =>
     `${title} is saved. Looking for the other Volumes of ${series}…`,
@@ -148,7 +150,6 @@ export const en = {
   'find.hint': 'Type the title above, and the publisher if you know it. Only these words go to the BnF, never the ISBN.',
   'find.publisher': 'Publisher',
   'find.search': 'Search the BnF',
-  'find.sign-in': 'Sign in to search the BnF.',
   'find.failed': 'Could not search the BnF. Try again.',
   'find.nothing': 'The BnF lists nothing under this title. Type the book.',
   'find.lines': 'Series',
@@ -188,7 +189,6 @@ export const en = {
   'book.past-loans': (count: number) => `Past Loans (${count})`,
   'book.past-loan': (borrower: string, from: string, to: string) => `${borrower}, ${from} to ${to}`,
   'book.edition-unknown': 'Edition not known yet',
-  'book.sign-in': 'Sign in to see your Library.',
 
   // Series Onboarding
   'onboarding.title': 'Series Onboarding',
@@ -241,11 +241,9 @@ export const en = {
   'tobuy.by-hand-empty': 'Nothing added by hand yet.',
   'tobuy.bought': 'I bought it',
   'tobuy.remove': 'Remove',
-  'tobuy.sign-in': 'Sign in to see what to buy.',
 
   // Series page (src/islands/Series.tsx)
   'series.title': 'Series',
-  'series.sign-in': 'Sign in to see your Series.',
   'series.bad-link': 'This link does not point to a book.',
   'series.no-series': 'The Catalog knows no Series for this book.',
   'series.unavailable': 'The Catalog cannot answer now. Try again later.',
@@ -280,7 +278,6 @@ export const en = {
 
   // Library (src/islands/Library.tsx)
   'library.title': 'Library',
-  'library.sign-in': 'Sign in to see your Library.',
   'library.empty': 'Your Library is empty. Add a book with Quick Add: scan or type its ISBN.',
   'library.search': 'Search your Library',
   'library.search-placeholder': 'Title, author, Series, Volume title',

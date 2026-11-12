@@ -315,9 +315,8 @@ const answers = [
 
   async function openSpaceOrSay(): Promise<Space | undefined> {
     try {
-      const opened = await own;
-      if (opened) return opened.space;
-      toast(t('add.sign-in'), { link: { href: '/settings', label: t('link.settings') } });
+      // Undefined with no session: the gate (AppShell) is sending the visitor to the sign-in screen.
+      return (await own)?.space;
     } catch (error) {
       toast(spaceErrorMessage(error), { error: true });
     }

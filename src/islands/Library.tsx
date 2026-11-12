@@ -42,7 +42,7 @@ const desktop = '(min-width: 960px)';
 export function Library({ sources }: { sources: Sources }) {
   const [read, setRead] = useState<{ library: LibraryRecords; labels: Saved<Label>[] }>();
   // In place of the grid when there is none to show (signed out, or the first read failed).
-  const [message, setMessage] = useState<{ text: string; signIn: boolean }>();
+  const [message, setMessage] = useState<string>();
   const [query, setQuery] = useState<LibraryQuery>(allBooks);
   const wide = useMedia(desktop);
   // Catalog answers kept for this visit, so an offline reload keeps the titles.
@@ -54,13 +54,14 @@ export function Library({ sources }: { sources: Sources }) {
     function fail(error: unknown) {
       const network = isNetworkFailure(error);
       if (network) reportNetwork(false);
-      if (!loaded.current) setMessage({ text: spaceErrorMessage(error), signIn: false });
+      if (!loaded.current) setMessage(spaceErrorMessage(error));
       else if (!network) toast(spaceErrorMessage(error), { error: true });
     }
 
     async function start() {
       const own = await sources.open();
-      if (!own) return setMessage({ text: t('library.sign-in'), signIn: true });
+      // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
+      if (!own) return;
       const listing = freshListing(
         async () => {
           const [records, labels] = await Promise.all([loadLibrary(own), listLabels(own)]);
@@ -97,7 +98,7 @@ export function Library({ sources }: { sources: Sources }) {
     return (
       <div class="library">
         <p class="library-message" role="status">
-          {message.text} {message.signIn && <a href="/settings">{t('link.settings')}</a>}
+          {message}
         </p>
       </div>
     );

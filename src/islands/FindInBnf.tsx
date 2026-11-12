@@ -52,7 +52,7 @@ export function FindInBnf({ isbn, typed, onChosen, onTyped, sources = live }: Fi
     if ('problem' in read) return setProblem(read.problem);
     const answer = await run(() => sources.search(read.details.title, publisher.trim()));
     if (!answer) return;
-    if ('signedOut' in answer) return setProblem(t('find.sign-in'));
+    if ('signedOut' in answer) return setProblem(t('auth.session-ended'));
     if ('unavailable' in answer) return setProblem(t('add.sources-down'));
     setFound(answer.found);
     setVolumes(Object.fromEntries(answer.found.lines.map((line) => [line.anchor, String(Math.max(...line.volumes) + 1)])));
@@ -65,7 +65,7 @@ export function FindInBnf({ isbn, typed, onChosen, onTyped, sources = live }: Fi
     const answer: ChooseAnswer | undefined = await run(() => sources.choose(isbn, { anchor, volume, title, authors }));
     if (!answer) return;
     if ('found' in answer) return onChosen(answer.found);
-    if ('signedOut' in answer) return setProblem(t('find.sign-in'));
+    if ('signedOut' in answer) return setProblem(t('auth.session-ended'));
     if ('noSharedWork' in answer && fallback) {
       const names = authors.length ? authors : fallback.authors;
       onTyped({ title, ...(names.length > 0 && { authors: names }) });

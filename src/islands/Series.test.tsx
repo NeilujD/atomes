@@ -127,12 +127,6 @@ describe('Series page', () => {
 
     expect(await screen.findByText('The Catalog knows no Series for this book.')).toBeTruthy();
   });
-
-  test('signed out: a link to Settings', async () => {
-    render(<Series isbn={lineA[0].isbn} sources={{ open: () => Promise.resolve(undefined), volumes: () => Promise.resolve(undefined), editions: () => Promise.resolve(new Map()) }} />);
-
-    expect(await screen.findByText('Sign in to see your Series.')).toBeTruthy();
-  });
 });
 
 describe('Series page of a follow saved under an older identifier (same_as, ADR 0010)', () => {

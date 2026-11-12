@@ -1,17 +1,18 @@
 import { describe, expect, test } from 'vitest';
 import { memoryLocalCopy } from '../space/local-copy.fake';
 import { serverAuthClient } from './server-client';
-import { errorMessage, loadSession, signIn, signInResultMessage, signOut, type AuthClient } from './session';
+import { errorMessage, gate, loadSession, signIn, signInResultMessage, signOut, type AuthClient } from './session';
 
 const reader = { did: 'did:plc:reader', handle: 'reader.test' };
 
 // The Atomes server as the device sees it: one browser session, behind a cookie
 // the device cannot read. `online = false` stands for the network off.
 function fakeServer() {
-  const server = { signedIn: false, online: true, signOutCalls: 0, submitted: [] as string[] };
+  const server = { signedIn: false, online: true, failing: false, signOutCalls: 0, submitted: [] as { handle: string; returnTo: string }[] };
   const fetch = (input: string, init?: RequestInit) => {
     if (!server.online) return Promise.reject(new TypeError('Failed to fetch'));
     if (input === '/api/session') {
+      if (server.failing) return Promise.resolve(new Response(null, { status: 502 }));
       return Promise.resolve(server.signedIn ? Response.json(reader) : Response.json({ error: 'SignedOut' }, { status: 401 }));
     }
     if (input === '/oauth/sign-out' && init?.method === 'POST') {
@@ -39,7 +40,7 @@ function memoryStorage() {
 function setup() {
   const { server, fetch } = fakeServer();
   const storage = memoryStorage();
-  const client = (): AuthClient => serverAuthClient({ fetch, storage, submitSignIn: (handle) => server.submitted.push(handle) });
+  const client = (): AuthClient => serverAuthClient({ fetch, storage, submitSignIn: (handle, returnTo) => server.submitted.push({ handle, returnTo }) });
   return { server, storage, client };
 }
 
@@ -49,8 +50,8 @@ describe('session', () => {
 
     expect(await loadSession(client())).toEqual({ status: 'signed-out' });
 
-    void signIn(client(), ' @reader.test ');
-    expect(server.submitted).toEqual(['reader.test']);
+    void signIn(client(), ' @reader.test ', '/book?work=isbn%3A9782723488525');
+    expect(server.submitted).toEqual([{ handle: 'reader.test', returnTo: '/book?work=isbn%3A9782723488525' }]);
 
     server.signedIn = true;
     expect(await loadSession(client())).toEqual({ status: 'signed-in', account: reader });
@@ -70,13 +71,13 @@ describe('session', () => {
     expect(await loadSession(client())).toEqual({ status: 'signed-in', account: reader });
   });
 
-  test('offline on a device that was never signed in: signed out, and told why', async () => {
+  test('offline on a device that was never signed in: signed out, and told that signing in needs the network', async () => {
     const { server, client } = setup();
     server.online = false;
 
     expect(await loadSession(client())).toEqual({
       status: 'signed-out',
-      message: 'Could not reach this Atomes server. Check your connection and try again.',
+      message: 'Signing in needs the network. Connect this device, then try again.',
     });
   });
 
@@ -106,7 +107,7 @@ describe('session', () => {
   test('an empty handle asks for one', async () => {
     const { server, client } = setup();
 
-    expect(await signIn(client(), '  ')).toEqual({ status: 'signed-out', message: 'Type your handle, for example alice.bsky.social.' });
+    expect(await signIn(client(), '  ', '/')).toEqual({ status: 'signed-out', message: 'Type your handle, for example alice.bsky.social.' });
     expect(server.submitted).toEqual([]);
   });
 
@@ -133,6 +134,66 @@ describe('session', () => {
       message: 'Signed out, but some of your data could not be removed from this device. Clear this site’s data in the browser.',
     });
     expect(server.signedIn).toBe(false);
+  });
+});
+
+// Every app screen needs a signed-in reader (ADR 0013, amendment 2026-11-12).
+describe('gate', () => {
+  test('signed in: the screen stays', async () => {
+    const { server, client } = setup();
+    server.signedIn = true;
+
+    expect(await gate(client(), '/library')).toBeUndefined();
+  });
+
+  test('no session: the sign-in screen, with the screen asked as the return target', async () => {
+    const { client } = setup();
+
+    expect(await gate(client(), '/book?work=isbn%3A9782723488525#notes')).toBe('/sign-in?next=%2Fbook%3Fwork%3Disbn%253A9782723488525%23notes');
+  });
+
+  test('no session on Home: the sign-in screen with no return target', async () => {
+    const { client } = setup();
+
+    expect(await gate(client(), '/')).toBe('/sign-in');
+  });
+
+  test('a session ended on the server: the sign-in screen, even with a saved account', async () => {
+    const { server, client } = setup();
+    server.signedIn = true;
+    await loadSession(client());
+
+    server.signedIn = false;
+
+    expect(await gate(client(), '/to-buy')).toBe('/sign-in?next=%2Fto-buy');
+  });
+
+  test('network error with a saved account: the screen stays (offline use, ADR 0002)', async () => {
+    const { server, client } = setup();
+    server.signedIn = true;
+    await loadSession(client());
+
+    server.online = false;
+
+    expect(await gate(client(), '/library')).toBeUndefined();
+  });
+
+  test('network error with no saved account: the sign-in screen, which says it needs the network', async () => {
+    const { server, client } = setup();
+    server.online = false;
+
+    expect(await gate(client(), '/library')).toBe('/sign-in?next=%2Flibrary');
+    expect(await loadSession(client())).toEqual({
+      status: 'signed-out',
+      message: 'Signing in needs the network. Connect this device, then try again.',
+    });
+  });
+
+  test('the server answers with an error: the screen stays and tells it, the reader is not sent away', async () => {
+    const { server, client } = setup();
+    server.failing = true;
+
+    expect(await gate(client(), '/library')).toBeUndefined();
   });
 });
 

@@ -81,13 +81,13 @@ describe('Find in BnF (Quick Add, an ISBN no source knows)', () => {
     expect(result.chosen).toBeUndefined();
   });
 
-  test('signed out, the screen says to sign in', async () => {
+  test('a session ended while on the screen: says so', async () => {
     screenFor({ signedOut: true });
     await searchCasterman();
 
     fireEvent.click(screen.getByRole('button', { name: 'This is Kaamelott' }));
 
-    expect(await screen.findByText('Sign in to search the BnF.')).toBeTruthy();
+    expect(await screen.findByText('Your session has ended. Sign in again.')).toBeTruthy();
   });
 
   test.each([

@@ -39,7 +39,7 @@ export default function ToBuyIsland() {
 export function ToBuy({ sources }: { sources: Sources }) {
   const [library, setLibrary] = useState<Library>();
   // In place of the list when there is none to show (signed out, or the first read failed).
-  const [message, setMessage] = useState<{ text: string; signIn: boolean }>();
+  const [message, setMessage] = useState<string>();
   // The ISBN whose change is saving, or 'add'.
   const [saving, setSaving] = useState<string>();
   const [typed, setTyped] = useState('');
@@ -61,13 +61,14 @@ export function ToBuy({ sources }: { sources: Sources }) {
     function fail(error: unknown) {
       const network = isNetworkFailure(error);
       if (network) reportNetwork(false);
-      if (!loaded.current) setMessage({ text: spaceErrorMessage(error), signIn: false });
+      if (!loaded.current) setMessage(spaceErrorMessage(error));
       else if (!network) toast(spaceErrorMessage(error), { error: true });
     }
 
     async function start() {
       const own = await sources.open();
-      if (!own) return setMessage({ text: t('tobuy.sign-in'), signIn: true });
+      // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
+      if (!own) return;
       space.current = own;
       listing.current = freshListing(
         async () => {
@@ -169,7 +170,7 @@ export function ToBuy({ sources }: { sources: Sources }) {
     return (
       <div class="to-buy">
         <p class="to-buy-message" role="status">
-          {message.text} {message.signIn && <a href="/settings">{t('link.settings')}</a>}
+          {message}
         </p>
       </div>
     );

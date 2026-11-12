@@ -31,21 +31,6 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
           <p class="row-label">{t('settings.atproto-account')}</p>
           <p class="row-hint" data-auth-status aria-live="polite">{t('settings.checking')}</p>
         </div>
-        <form class="sign-in" data-sign-in hidden>
-          <label class="visually-hidden" for="handle">{t('settings.handle')}</label>
-          <input
-            class="field"
-            id="handle"
-            name="handle"
-            type="text"
-            inputmode="url"
-            autocomplete="username"
-            autocapitalize="none"
-            spellcheck="false"
-            placeholder="alice.bsky.social"
-          />
-          <button class="button" type="submit">{t('settings.sign-in')}</button>
-        </form>
         <button class="button" type="button" data-sign-out hidden>{t('settings.sign-out')}</button>
       </div>
       <p class="row-error" data-auth-error role="alert" hidden></p>
@@ -104,26 +89,25 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
 
 <script>
   import { applyAppearance, parseAppearance, readAppearance, saveAppearance } from '../lib/appearance';
-  import { createAuthClient } from '../lib/auth/server-client';
+  import { signInPath } from '../lib/auth/return-to';
+  import { checkedAccount, createAuthClient } from '../lib/auth/server-client';
   import { deviceData } from '../lib/auth/device-data';
   import { parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
-  import { loadSession, signIn, signInResultMessage, signOut, type AuthState } from '../lib/auth/session';
+  import { loadSession, signOut, type AuthState } from '../lib/auth/session';
   import { indexedDbLocalCopy } from '../lib/space/local-copy';
 
   const auth = document.querySelector<HTMLElement>('[data-auth]')!;
   const status = auth.querySelector<HTMLElement>('[data-auth-status]')!;
-  const form = auth.querySelector<HTMLFormElement>('[data-sign-in]')!;
-  const handleInput = form.querySelector<HTMLInputElement>('input[name="handle"]')!;
   const signOutButton = auth.querySelector<HTMLButtonElement>('[data-sign-out]')!;
   const error = auth.querySelector<HTMLElement>('[data-auth-error]')!;
 
   let state: AuthState = { status: 'signed-out' };
 
+  // Signed out with no message: the gate (AppShell) sends the visitor to the sign-in screen.
   function render(next: AuthState) {
     state = next;
     const signedIn = next.status === 'signed-in';
-    status.textContent = signedIn ? t('settings.signed-in-as', next.account.handle) : t('settings.sign-in-hint');
-    form.hidden = signedIn;
+    status.textContent = signedIn ? t('settings.signed-in-as', next.account.handle) : '';
     signOutButton.hidden = !signedIn;
     error.textContent = signedIn ? '' : (next.message ?? '');
     error.hidden = !error.textContent;
@@ -133,31 +117,16 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
     for (const control of auth.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')) control.disabled = on;
   }
 
-  const client = createAuthClient();
-
-  // The server sends the reader back here after a sign-in, with `?auth=<result>`.
-  // Read once, then dropped from the address, so a reload does not show it again.
-  const url = new URL(location.href);
-  const result = url.searchParams.get('auth');
-  url.searchParams.delete('auth');
-  history.replaceState(history.state, '', url);
-
-  void loadSession(client).then((loaded) => {
-    const message = signInResultMessage(result);
-    render(loaded.status === 'signed-out' && !loaded.message && message ? { ...loaded, message } : loaded);
-  });
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    busy(true);
-    void signIn(client, handleInput.value)
-      .then(render)
-      .finally(() => busy(false));
-  });
+  void loadSession({ init: checkedAccount }).then(render);
+  // Signed out: the sign-in screen, unless something went wrong that the reader must read first.
   signOutButton.addEventListener('click', () => {
     if (state.status !== 'signed-in') return;
     busy(true);
-    void signOut(client, state.account, deviceData(indexedDbLocalCopy()))
-      .then(render)
+    void signOut(createAuthClient(), state.account, deviceData(indexedDbLocalCopy()))
+      .then((next) => {
+        if (next.status === 'signed-out' && !next.message) return location.replace(signInPath);
+        render(next);
+      })
       .finally(() => busy(false));
   });
 
@@ -215,17 +184,6 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
   .row-hint {
     color: var(--secondary);
     font-size: 13px;
-  }
-
-  .sign-in {
-    display: flex;
-    gap: 8px;
-    width: 100%;
-    max-width: 360px;
-  }
-
-  .sign-in .field {
-    flex: 1;
   }
 
   .row-error {
