@@ -172,7 +172,45 @@ Coolify builds on the push, not on the CI result. `protect-main` only merges a p
 
    3. Select **Redeploy**, wait for the end, open **Terminal** again and run the same command. The count is the same or higher.
 
+## Reset the data
+
+To start again with an empty instance (debugging, tests), empty its SQLite files. Every browser is signed out; the Library and the Catalog are empty. Records on the PDS do not change. The container keeps running: no restart.
+
+### A button in the dashboard (staging)
+
+Set it up once. Then a reset is one click in the Coolify dashboard, also on a phone.
+
+1. In the **staging** app, open **Scheduled Tasks** and select **+ Add** ([create a task](https://coolify.io/docs/core/automation/scheduled-tasks/create-a-task)):
+   - Name: `Reset the data`
+   - Command: `node scripts/reset-env.ts` (or `node scripts/reset-env.ts --keep-catalog`, so no book source is asked again)
+   - Frequency: `0 4 1 1 *` (a value is required; the task is disabled at step 2, so it never runs on it)
+   - Timeout: `60`. Container: empty. **Run in a shell**: on.
+2. Open the task and select **Disable**. A disabled task never runs on its schedule ([manage tasks](https://coolify.io/docs/core/automation/scheduled-tasks/manage-tasks#enable-or-disable-a-task)).
+
+To reset: open the staging app, **Scheduled Tasks**, **Reset the data**, then **Execute now**. **Execute now** stays on a disabled task: it shows when the app is running and does not check the Enabled state ([`show.blade.php`](https://github.com/coollabsio/coolify/blob/v4.7.5/resources/views/livewire/project/shared/scheduled-task/show.blade.php#L26-L37), [`executeNow()`](https://github.com/coollabsio/coolify/blob/v4.7.5/app/Livewire/Project/Shared/ScheduledTask/Show.php#L167-L172), Coolify v4.7.5). Open **Executions** to read the output: each file and its count of deleted rows. Then sign in again.
+
+- Never **Enable** the task: it would then reset staging every year on 1 January at 04:00.
+- Never add the task to the production app: a click would empty production. The command refuses production anyway without `--production`.
+- For a pull request preview, use the Terminal.
+
+### The Terminal (production, previews)
+
+1. In the app, open **Terminal** and pick the app container.
+2. Run one of these commands:
+
+   ```sh
+   node scripts/reset-env.ts                  # staging or a preview: sessions, Library, Catalog
+   node scripts/reset-env.ts --keep-catalog   # the same, but keep the Catalog: no book source is asked again
+   node scripts/reset-env.ts --production     # production: take a backup first (node dist/backup.mjs backup)
+   ```
+
+3. The command prints each file and its count of deleted rows. Sign in again.
+
+The command refuses production without `--production`, and refuses an image with no `APP_ENV`: such an instance may be production with a missing setting.
+
 ## Rules and pitfalls
+
+- If production shows the grey Staging pill, the orange icon or the name "Atomes Staging", its `APP_ENV` is not `production` in the container. In the **production** app, **Environment Variables**, set `APP_ENV` = `production` with **Available in the container** on, then **Restart**. The start log says which instance it is: `Atomes settings are fine: production, …`.
 
 - No secret in the repository or in CI. The GitHub App key, the webhook secret, `SESSION_ENCRYPTION_KEY` and `OAUTH_PRIVATE_KEY` stay in Coolify, `APP_KEY` and copies of the two keys in your password manager.
 - The volume lives on this host only and is not a backup. Production backs up to R2 every hour: `docs/backups.md`.

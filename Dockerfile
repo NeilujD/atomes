@@ -27,8 +27,8 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/scripts/check-settings.ts ./scripts/
-COPY --from=build /app/src/lib/server/settings.ts ./src/lib/server/
+COPY --from=build /app/scripts/check-settings.ts /app/scripts/reset-env.ts ./scripts/
+COPY --from=build /app/src/lib/server/settings.ts /app/src/lib/server/reset.ts ./src/lib/server/
 COPY package.json ./
 RUN mkdir -p /data && chown node:node /data
 VOLUME /data

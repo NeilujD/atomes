@@ -16,7 +16,7 @@
     "test": "vitest run",
     "lint": "eslint .",
     "astro": "astro",
-    "reset": "bun scripts/reset-env.ts",
+    "reset": "node --env-file-if-exists=.env.local scripts/reset-env.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
