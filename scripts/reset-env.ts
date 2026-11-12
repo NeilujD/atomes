@@ -1,28 +1,28 @@
-// Resets the local environment for debugging and tests: deletes the SQLite
-// files in DATA_DIR (`data/` by default). `auth.sqlite` holds the browser and
-// OAuth sessions, so every browser is signed out; `library.sqlite` holds the
-// Library; `catalog.sqlite` holds the Catalog. The server makes new empty
-// files at its next start. Records on the PDS are not changed.
+// Resets an instance for debugging and tests: empties the SQLite files in
+// DATA_DIR (`data/` by default) in place (src/lib/server/reset.ts). Every
+// browser is signed out; the Library and the Catalog are empty. The server
+// can keep running. Records on the PDS do not change. Runs with Node alone
+// (type stripping): `bun run reset` on a laptop, and in the Docker image from
+// the Coolify Terminal (docs/staging-coolify.md, "Reset the data").
 //
-// Usage: bun run reset [--keep-catalog]
+// Usage: node scripts/reset-env.ts [--keep-catalog] [--production]
 //   --keep-catalog  keep catalog.sqlite, so no book source is asked again
-// Stop the dev server first: it keeps the deleted files open.
-import { existsSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+//   --production    needed when APP_ENV is production
+import { emptyDatabases, resetRefusal } from '../src/lib/server/reset.ts';
 
-if (process.env.NODE_ENV === 'production') {
-  console.error('NODE_ENV is production: reset-env runs only on a local environment.');
+const args = process.argv.slice(2);
+const refusal = resetRefusal(process.env, { production: args.includes('--production') });
+if (refusal) {
+  console.error(refusal);
   process.exit(1);
 }
 
-const keepCatalog = process.argv.includes('--keep-catalog');
 const dir = process.env.DATA_DIR?.trim() || 'data';
-const databases = ['auth.sqlite', 'library.sqlite', ...(keepCatalog ? [] : ['catalog.sqlite'])];
+const emptied = emptyDatabases(dir, { keepCatalog: args.includes('--keep-catalog') });
 
-const removed = databases
-  .flatMap((name) => ['', '-wal', '-shm', '-journal'].map((suffix) => join(dir, name + suffix)))
-  .filter((file) => existsSync(file));
-for (const file of removed) rmSync(file);
-
-console.log(removed.length > 0 ? `Deleted:\n  ${removed.join('\n  ')}` : `Nothing to delete in ${dir}/.`);
-console.log('Start the dev server again, then sign in again.');
+console.log(
+  emptied.length > 0
+    ? `Emptied:\n${emptied.map(({ file, rows }) => `  ${file} (${rows} rows)`).join('\n')}`
+    : `Nothing to empty in ${dir}/.`,
+);
+console.log('Sign in again in every browser.');
