@@ -15,7 +15,8 @@
     "check": "astro check",
     "test": "vitest run",
     "lint": "eslint .",
-    "astro": "astro"
+    "astro": "astro",
+    "reset": "bun scripts/reset-env.ts"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",
