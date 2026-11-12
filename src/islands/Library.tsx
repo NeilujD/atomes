@@ -108,7 +108,7 @@ export function Library({ sources }: { sources: Sources }) {
     return (
       <div class="library">
         <p class="library-message">{t('library.empty')}</p>
-        <a class="button button-primary library-add" href="/add">
+        <a class="button button-primary library-add" href="/check">
           {t('book.add-a-book')}
         </a>
       </div>

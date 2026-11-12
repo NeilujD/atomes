@@ -28,7 +28,7 @@ const choices = [
       <h2 class="not-found-title" id="not-found-title" data-not-found-title>{t('book.not-in-library')}</h2>
       <p class="not-found-text" data-not-found-text>{t('book.not-in-library-text')}</p>
       <div class="not-found-actions">
-        <a class="button button-primary" href="/add" data-not-found-add>
+        <a class="button button-primary" href="/check" data-not-found-add>
           <Icon name="plus" />
           <span data-not-found-add-label>{t('book.add-a-book')}</span>
         </a>
@@ -80,7 +80,7 @@ const choices = [
           <h2 class="group-title" id="copies-title">{t('book.copies')}</h2>
           <p class="hint" data-no-copies hidden>{t('book.no-copies')}</p>
           <ul class="copies" data-copies></ul>
-          <a class="button" href="/add" data-add-copy>
+          <a class="button" href="/check" data-add-copy>
             <Icon name="plus" />
             <span>{t('book.add-copy')}</span>
           </a>
@@ -206,7 +206,7 @@ const choices = [
     notFound.querySelector('[data-not-found-title]')!.textContent = why.title;
     notFound.querySelector('[data-not-found-text]')!.textContent = why.text;
     const add = notFound.querySelector<HTMLAnchorElement>('[data-not-found-add]')!;
-    add.href = isbn ? `/add?isbn=${isbn}` : '/add';
+    add.href = isbn ? `/check?isbn=${isbn}` : '/check';
     notFound.querySelector('[data-not-found-add-label]')!.textContent = t(isbn ? 'book.add-this-book' : 'book.add-a-book');
   }
 
@@ -269,7 +269,7 @@ const choices = [
       renderedCopies = copies;
       copyList.replaceChildren(...page.copies.map(copyRow));
     }
-    article.querySelector<HTMLAnchorElement>('[data-add-copy]')!.href = `/add?isbn=${page.isbn}`;
+    article.querySelector<HTMLAnchorElement>('[data-add-copy]')!.href = `/check?isbn=${page.isbn}`;
   }
 
   function copyRow(copy: BookPage['copies'][number]): HTMLLIElement {

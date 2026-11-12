@@ -1,6 +1,8 @@
 ---
-// Quick Add by ISBN: scan the barcode or type the ISBN, check the book, say if
-// it is read, add it. The barcode is read on the device (ADR 0003). The Copy
+// Check a book: scan the barcode or type the ISBN, see the Shelf Check answer
+// (owned, read, missing from a Followed Series, or not in the Library), then
+// Quick Add: say if it is read, add it. The barcode is read on the device
+// (ADR 0003). Online only: the offline answer is CORE-37. The Copy
 // and the Reading Status go to the reader's Space from the browser; the Atomes
 // server only gets the ISBN to look up (ADR 0001).
 import Icon from '../components/Icon.astro';
@@ -16,7 +18,7 @@ const answers = [
 ];
 ---
 
-<AppShell title={t('add.title')}>
+<AppShell title={t('check.title')} current="check">
   <div class="quick-add">
     <!-- Shown only where the browser can open a camera (HTTPS or loopback). -->
     <button class="button button-primary scan" type="button" data-scan hidden>
@@ -113,6 +115,13 @@ const answers = [
         <div data-find></div>
       </fieldset>
 
+      <!-- The Shelf Check answer (src/lib/library/shelf-check.ts), once the Library is read. -->
+      <div class="answer" data-answer hidden>
+        <p class="answer-title" data-answer-title></p>
+        <p class="hint" data-answer-text></p>
+        <a class="answer-link" href="/library" data-answer-link hidden>{t('link.book-page')}</a>
+      </div>
+
       <fieldset class="question">
         <legend class="label">{t('add.read-question')}</legend>
         <div class="segmented">
@@ -135,9 +144,10 @@ const answers = [
         </div>
       </div>
 
+      <!-- Main action when the reader does not own the book; Add another Copy when they do. -->
       <button class="button button-primary add" type="submit">
         <Icon name="book-plus" />
-        <span>{t('add.submit')}</span>
+        <span data-add-label>{t('add.submit')}</span>
       </button>
     </form>
   </div>
@@ -148,7 +158,7 @@ const answers = [
   import { FindInBnf } from '../islands/FindInBnf';
   import { openOwnSpace } from '../lib/auth/server-client';
   import type { Edition } from '../lib/catalog/catalog';
-  import { coverUrl, lookupEdition } from '../lib/catalog/client';
+  import { coverUrl, lookupEdition, lookupVolumes } from '../lib/catalog/client';
   import { showCover } from '../lib/cover';
   import { saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
   import { editionWork, readIsbn } from '../lib/library/ids';
@@ -157,9 +167,10 @@ const answers = [
   import { t } from '../lib/i18n/i18n';
   import { saveFollow } from '../lib/library/follow';
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
-  import { bookPage, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
+  import { bookHref, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
   import { followOnRead, noOnboarding } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses } from '../lib/library/reading-status';
+  import { followedLine, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
   import { isNetworkFailure } from '../lib/network';
   import { lockWhileSaving } from '../lib/save-lock';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
@@ -173,6 +184,7 @@ const answers = [
   const skeleton = document.querySelector<HTMLElement>('[data-skeleton]')!;
   const addForm = document.querySelector<HTMLFormElement>('[data-add-form]')!;
   const addButton = addForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const answer = addForm.querySelector<HTMLElement>('[data-answer]')!;
   const radios = addForm.querySelectorAll<HTMLInputElement>('input[name="status"]');
   const preview = addForm.querySelector<HTMLElement>('[data-preview]')!;
   const details = addForm.querySelector<HTMLFieldSetElement>('[data-details]')!;
@@ -208,8 +220,6 @@ const answers = [
     if (on) button.setAttribute('aria-busy', 'true');
     else button.removeAttribute('aria-busy');
   }
-
-  const bookHref = (work: string) => `/book?work=${encodeURIComponent(work)}`;
 
   async function lookUp() {
     const read = readIsbn(isbnInput.value);
@@ -286,31 +296,63 @@ const answers = [
     details.hidden = !typing;
     details.disabled = !typing;
     for (const radio of radios) radio.checked = radio.value === 'unread';
+    answer.hidden = true;
+    showAction(false);
     addForm.hidden = false;
     (typing ? detail('title') : addButton).focus();
 
     // Already in the Library: start from its Reading Status, and say so.
     const space = await openSpaceOrSay();
     if (!space) return;
+    let line: Edition[] | undefined;
     try {
       const loaded = await loadLibrary(space);
       library = loaded.library;
       reportNetwork(!loaded.stale);
       reportWaiting(await waitingCount(space));
+      // A Followed Series: its Edition Line tells whether this Volume is missing.
+      const anchor = followedLine(next.edition, library);
+      line = anchor ? (await lookupVolumes(anchor).catch(() => undefined))?.volumes : undefined;
     } catch {
-      // No copy on this device and no network: the status starts at "Not yet".
+      // No copy on this device and no network: the status starts at "Not yet",
+      // and no answer (CORE-37 answers offline).
       library = { copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] };
+      return;
     }
     if (book !== next) return;
+    showAnswer(shelfCheck(next.isbn, next.edition, library, line), next.work);
     // Abandoned is not an answer here: no choice keeps it.
     const status = currentStatus(next.work, library);
     for (const radio of radios) radio.checked = radio.value === status;
     // Another Copy of a book typed before: start from what the reader typed then.
     const before = library.copies.find(({ value }) => value.isbn === next.isbn && value.details)?.value.details;
     if (typing && before && !detail('title').value) fillDetails(before);
-    if (bookPage(next.work, library, new Map())) {
-      toast(t('add.already-have'), { link: { href: bookHref(next.work), label: t('link.book-page') } });
-    }
+  }
+
+  // The Shelf Check answer, and the action that fits it.
+  function showAnswer(check: ShelfCheck, work: string) {
+    const status = t(`status.${check.status}`);
+    const series = check.followed?.title ?? '';
+    const [title, text] = {
+      owned: [t('check.owned'), t('check.status', status)],
+      missing: [t('check.missing', series), [t('check.missing-text'), check.status === 'unread' ? '' : t('check.status', status)].filter(Boolean).join(' ')],
+      read: [t('check.read', status), ''],
+      new: [t('check.new'), check.followed ? t('check.followed', series) : ''],
+    }[check.kind];
+    answer.dataset.kind = check.kind;
+    answer.querySelector('[data-answer-title]')!.textContent = title;
+    answer.querySelector('[data-answer-text]')!.textContent = text;
+    const link = answer.querySelector<HTMLAnchorElement>('[data-answer-link]')!;
+    link.href = bookHref(work);
+    link.hidden = check.kind !== 'owned' && check.kind !== 'read';
+    answer.hidden = false;
+    showAction(check.kind === 'owned');
+  }
+
+  // Add to Library is the main action; for a book the reader owns, Add another Copy is secondary.
+  function showAction(owned: boolean) {
+    addButton.classList.toggle('button-primary', !owned);
+    addButton.querySelector('[data-add-label]')!.textContent = t(owned ? 'book.add-copy' : 'add.submit');
   }
 
   async function openSpaceOrSay(): Promise<Space | undefined> {
@@ -503,7 +545,7 @@ const answers = [
   });
   lockWhileSaving(addForm, document.querySelector<HTMLElement>('.quick-add')!, add);
 
-  // From the Book page ("Add another Copy"): the ISBN is already known.
+  // From the Book page ("Add another Copy") or an old Quick Add link (/add): the ISBN is already known.
   const given = new URLSearchParams(location.search).get('isbn');
   if (given) {
     isbnInput.value = given;
@@ -866,6 +908,28 @@ const answers = [
 
   .add {
     width: 100%;
+  }
+
+  .answer {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border-radius: var(--radius-panel);
+    border: 1px solid var(--line);
+  }
+
+  .answer-title {
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .answer .hint:empty {
+    display: none;
+  }
+
+  .answer-link {
+    font-size: 14px;
   }
 
   /* Desktop: one narrow column in the middle of the panel. */
