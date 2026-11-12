@@ -147,7 +147,7 @@ export function seriesStanding(volumes: Edition[], library: Library): SeriesStan
 // the cover of Volume 1, else of the lowest Volume with a cover, else Volume 1
 // (the lowest Volume), which shows the default cover. A printing with a cover
 // wins, an omnibus too. Undefined when there is no Edition.
-export function seriesCover(volumes: Edition[]): Edition | undefined {
+export function seriesCover<Volume extends Edition>(volumes: Volume[]): Volume | undefined {
   const printings = byVolume(volumes).flatMap(([, each]) => each);
   return printings.find(({ cover }) => cover) ?? printings[0] ?? volumes[0];
 }
@@ -180,8 +180,8 @@ function notOwned(volumes: Edition[], library: Library, beforeLatest: boolean): 
 
 // The printings of each numbered Volume, in Volume order, the ones with the
 // fewest Volumes first: an omnibus is a printing of each of its Volumes.
-function byVolume(volumes: Edition[]): [number, Edition[]][] {
-  const numbered = new Map<number, Edition[]>();
+function byVolume<Volume extends Edition>(volumes: Volume[]): [number, Volume[]][] {
+  const numbered = new Map<number, Volume[]>();
   for (const each of volumes) {
     for (const volume of each.volumes) numbered.set(volume, [...(numbered.get(volume) ?? []), each]);
   }

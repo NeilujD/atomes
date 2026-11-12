@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
-import { allBooks, browse, clearAll, libraryBooks, type LibraryBook, type LibraryQuery } from './browse';
+import { allBooks, browse, clearAll, libraryBooks, volumeLine, type LibraryBook, type LibraryQuery } from './browse';
 import type { Copy } from './copy';
 import type { Label } from './label';
 import type { Library } from './model';
@@ -152,14 +152,14 @@ describe('Sort', () => {
     expect(names(find({ sort: 'title' }).books)).toEqual(['Astérix 40', 'Dune', 'Fondation 1', 'La Horde du Contrevent', 'One Piece 9', 'One Piece 105']);
   });
 
-  test('author: the first author, then title', () => {
+  test('author: the surname of the first author, then title', () => {
     expect(names(find({ sort: 'author' }).books)).toEqual([
+      'Fondation 1', // Isaac Asimov
       'La Horde du Contrevent', // Alain Damasio
-      'One Piece 9', // Eiichirō Oda
-      'One Piece 105',
       'Astérix 40', // Fabcaro
       'Dune', // Frank Herbert
-      'Fondation 1', // Isaac Asimov
+      'One Piece 9', // Eiichirō Oda
+      'One Piece 105',
     ]);
   });
 
@@ -244,5 +244,12 @@ describe('Count and Clear all', () => {
 
     expect(clearAll(query)).toEqual({ ...allBooks, sort: 'added' });
     expect(find(clearAll(query)).filtered).toBe(false);
+  });
+});
+
+describe('The Volume line of a book', () => {
+  test('names the Volume; a book with no Volume has no line', () => {
+    expect(volumeLine({ volume: '9' })).toBe('Volume 9');
+    expect(volumeLine({ volume: null })).toBe('');
   });
 });

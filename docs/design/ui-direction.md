@@ -66,7 +66,7 @@ Mix in `oklab`, not `oklch`: Chrome gives an `oklch` mix of near-greys the hue `
 
 **View header.** 48 px, sticky inside the panel, hairline under it. Left: page title (15 px, 600). Right: actions of the page (slot `actions`). On the phone: 28 px title, not sticky.
 
-**View toolbar (Library only, to build).** A second header row under the view header, on desktop: search, "Search in", Sort, filters (author, Series, Reading Status, Label), result count, "Clear all", and the Grid / List / Cover flow switch at the right. On the phone, the same controls go in a sheet. The toolbar never changes the sidebar.
+**View toolbar (Library only).** A second header row under the view header; it sticks on desktop, not on the phone. Desktop, first row: search, the Books / Series switch, the result count, "Clear all" when a search or a filter is on, and the Grid / List / Cover flow switch at the right. In a narrow window with a filter on, this row wraps: the mode switch goes to a second line, still at the right. Under it: "Search in", Sort, the author and Series filters, then the Reading Status chips and the Label chips (none until the reader has a Label). In List, the A to Z index is the last row of the toolbar. Phone: the two switches are toolbar rows, Books / Series then Grid / List / Cover flow, each as wide as the screen. Then search and a "Sort and filter" button: it opens "Search in", Sort and the filters in a sheet, and shows how many are on. Then the result count and "Clear all". In List, the A to Z index is a rail on the right edge. Grid, List and Cover flow are for Books: Series shows a grid of cards, with no mode switch and no index. The toolbar never changes the sidebar. Code: `src/islands/Library.tsx`, `src/pages/library.astro`.
 
 **Tab bar (phone).** Home, Library, Check, To Buy, You. Check is a 52 px ink circle in the centre, labelled for screen readers only. The bar sits on the surface colour with a top hairline and the bottom safe-area inset.
 
@@ -87,7 +87,7 @@ Before a screen is built, check that its view type works in the frame, in light,
 | View type | Screens | Check |
 | --- | --- | --- |
 | Cover grid | Library (Grid), Home "Owned, not read yet" | Covers on the panel in both themes; cover edge visible. |
-| List with groups | Library (List), New & upcoming, To Buy | Letter headers as list groups; A to Z index fits the panel edge. |
+| List with groups | Library (List), New & upcoming, To Buy | Letter headers as list groups. Library (List): the A to Z index is a row of the toolbar on desktop and a rail on the right edge on the phone. |
 | Cover flow | Library (Cover flow) | Full panel width; toolbar stays visible. |
 | Detail | Book, Series | Large title in content; spine row legible in high contrast. |
 | Camera | Shelf Check, Quick Add (scan built: modal `<dialog>` in `src/pages/check.astro`, reader in `src/lib/scan/barcode.ts`) | Full screen on the phone (no tab bar); a card on desktop; colours not themed (`--camera`, `--camera-ink`); Close and "Type the ISBN" always reachable. The frame shows the reader's state: starting (dim), looking (a line sweeps; after 8 s a distance and light tip), wrong barcode (dashed, one shake, the reason), found (check mark and the ISBN for 0.6 s, a short vibration where supported). No motion with reduced motion. |

@@ -1,8 +1,8 @@
 // The Library in Grid, List and Cover flow: one book per Work, and the shared
 // toolbar (search, Search in, Sort, filters, count, Clear all). Pure, so the
 // rules are tested in Node; src/islands/Library.tsx only renders them.
-import { compareText, type Language } from '../i18n/i18n';
-import type { Label } from './label';
+import { compareText, t, type Language } from '../i18n/i18n';
+import { labelsAtoZ, type Label } from './label';
 import { bookPage, type Editions, type Library } from './model';
 import { statuses, type Status } from './reading-status';
 import type { Saved } from './records';
@@ -21,6 +21,11 @@ export interface LibraryBook {
   labels: string[];
   // Its first Copy, else its Reading Status for a Work the reader does not own.
   addedAt: string;
+}
+
+// The Volume of a book as every mode writes it, "Volume 9"; empty for a book with no Volume.
+export function volumeLine({ volume }: Pick<LibraryBook, 'volume'>): string {
+  return volume ? t('book.volume', volume) : '';
 }
 
 // The Library: every Work the reader has a Copy of or a Reading Status for.
@@ -67,6 +72,13 @@ export function clearAll(query: LibraryQuery): LibraryQuery {
   return { ...allBooks, sort: query.sort };
 }
 
+// The query the reader's Labels still allow: a Label deleted since the reader
+// picked it (on this device or another) filters nothing, so it leaves the
+// query. The count of filters on and the chips then read the same query.
+export function liveQuery(query: LibraryQuery, labels: Saved<Label>[]): LibraryQuery {
+  return query.label === null || labels.some(({ rkey }) => rkey === query.label) ? query : { ...query, label: null };
+}
+
 export interface Browsed {
   // The books found, in the order asked.
   books: LibraryBook[];
@@ -81,7 +93,8 @@ export interface Browsed {
   labels: { label: string | null; name: string; count: number }[];
 }
 
-export function browse(books: LibraryBook[], labels: Saved<Label>[], query: LibraryQuery, language: Language): Browsed {
+export function browse(books: LibraryBook[], labels: Saved<Label>[], asked: LibraryQuery, language: Language): Browsed {
+  const query = liveQuery(asked, labels);
   const compare = compareText(language);
   const words = fold(query.text).split(/\s+/).filter(Boolean);
   const searched = (book: LibraryBook) => {
@@ -114,9 +127,7 @@ export function browse(books: LibraryBook[], labels: Saved<Label>[], query: Libr
     })),
     labels: [
       { label: null, name: '', count: forLabel.length },
-      ...[...labels]
-        .sort((a, b) => compare(a.value.name, b.value.name))
-        .map(({ rkey, value }) => ({ label: rkey, name: value.name, count: forLabel.filter((book) => book.labels.includes(rkey)).length })),
+      ...labelsAtoZ(labels, language).map(({ rkey, value }) => ({ label: rkey, name: value.name, count: forLabel.filter((book) => book.labels.includes(rkey)).length })),
     ],
   };
 }
@@ -141,6 +152,14 @@ function fold(text: string): string {
     .replace(/æ/g, 'ae');
 }
 
+// An author as the sort reads the name: the surname first, "Herbert Frank".
+// The Catalog gives "Frank Herbert", so the surname is the last word; a
+// particle stays behind ("Antoine de Saint-Exupéry" goes under S).
+export function sortName(author: string): string {
+  const words = author.trim().split(/\s+/);
+  return [words.at(-1), ...words.slice(0, -1)].join(' ');
+}
+
 type Compare = (a: string, b: string) => number;
 
 function order(sort: SortBy, compare: Compare): (a: LibraryBook, b: LibraryBook) => number {
@@ -148,9 +167,9 @@ function order(sort: SortBy, compare: Compare): (a: LibraryBook, b: LibraryBook)
   switch (sort) {
     case 'title':
       return byTitle;
-    // A book with no author goes last.
+    // By surname. A book with no author goes last.
     case 'author':
-      return (a, b) => missingLast(a.authors[0], b.authors[0], compare) || byTitle(a, b);
+      return (a, b) => missingLast(a.authors[0], b.authors[0], (first, second) => compare(sortName(first), sortName(second))) || byTitle(a, b);
     case 'series':
       return (a, b) => compare(a.series ?? a.title, b.series ?? b.title) || compare(a.volume ?? '', b.volume ?? '') || byTitle(a, b);
     case 'added':

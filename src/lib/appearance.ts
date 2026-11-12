@@ -1,6 +1,7 @@
 // The Appearance setting: System, Light or Dark, kept on the device.
 // CSS does the painting (theme.css): `color-scheme: light dark` follows the
 // system, and `data-appearance` on <html> forces one theme.
+import { keptChoice } from './kept-choice';
 
 export const appearances = ['system', 'light', 'dark'] as const;
 export type Appearance = (typeof appearances)[number];
@@ -8,31 +9,11 @@ export type Theme = 'light' | 'dark';
 
 export const appearanceKey = 'atomes:appearance';
 
-export function parseAppearance(value: string | null): Appearance {
-  return appearances.find((appearance) => appearance === value) ?? 'system';
-}
+export const { parse: parseAppearance, read: readAppearance, save: saveAppearance } = keptChoice(appearanceKey, appearances, 'system');
 
 export function resolveTheme(appearance: Appearance, systemPrefersDark: boolean): Theme {
   if (appearance === 'system') return systemPrefersDark ? 'dark' : 'light';
   return appearance;
-}
-
-// Storage can be blocked (private mode, browser settings): even reading
-// `localStorage` can throw. Then the setting lasts for the page only.
-export function readAppearance(): Appearance {
-  try {
-    return parseAppearance(localStorage.getItem(appearanceKey));
-  } catch {
-    return 'system';
-  }
-}
-
-export function saveAppearance(appearance: Appearance): void {
-  try {
-    localStorage.setItem(appearanceKey, appearance);
-  } catch {
-    // See readAppearance.
-  }
 }
 
 export function applyAppearance(doc: Document, appearance: Appearance, systemPrefersDark: boolean): void {

@@ -86,9 +86,15 @@ export function createAuthClient(): AuthClient {
 let checked: Promise<Account | undefined> | undefined;
 
 // The session check of this page load: the gate (AppShell) and the screen
-// share one ask to the server.
+// share one ask to the server. A check that failed is not kept: the next ask
+// tries again.
 export function checkedAccount(): Promise<Account | undefined> {
-  return (checked ??= createAuthClient().init());
+  return (checked ??= createAuthClient()
+    .init()
+    .catch((error: unknown) => {
+      checked = undefined;
+      throw error;
+    }));
 }
 
 // The gate of every app screen: a visitor with no session goes to the sign-in
@@ -112,7 +118,19 @@ export async function signOutHere(): Promise<string | undefined> {
 // signed out: the gate is sending the visitor to the sign-in screen.
 // A change refused because another device changed the record first gets a
 // toast that names the book (ADR 0012).
-export async function openOwnSpace(): Promise<{ account: Account; space: Space } | undefined> {
+// One store per page load: the screens of a page (the Book page and its Labels
+// island) share one write queue, so a waiting save is never sent twice. An
+// open that failed is not kept: the next ask opens again, with no reload.
+export function openOwnSpace(): Promise<{ account: Account; space: Space } | undefined> {
+  return (own ??= openStore().catch((error: unknown) => {
+    own = undefined;
+    throw error;
+  }));
+}
+
+let own: Promise<{ account: Account; space: Space } | undefined> | undefined;
+
+async function openStore(): Promise<{ account: Account; space: Space } | undefined> {
   const account = await checkedAccount();
   if (!account) return undefined;
   const space = openInstanceStore(instanceFetch, account.did, indexedDbLocalCopy(), (write) => {
