@@ -11,7 +11,7 @@ ADR 0009 kept tokens out of the server because the server held no Library data. 
 - **Who may sign in**: an allow-list of DIDs per instance. Only the owner at first, then invited readers. Opening sign-up to anyone is a later decision, because it widens the data the instance holds (ADR 0012).
 - **CSRF**: every request that writes checks that `Origin` is `PUBLIC_APP_ORIGIN`, on top of `SameSite=Lax`.
 - **Security headers**: every response sends a Content-Security-Policy and the usual headers (no framing, no MIME sniffing, strict referrer). Any XSS can now act as the reader, so this is required, not optional.
-- **Offline**: unchanged for the reader. The device copy and write queue work while offline or signed out (ADR 0002) and send when the server answers.
+- **Offline**: unchanged for the reader. The device copy and write queue work while offline (ADR 0002) and send when the server answers. A signed-out reader sees only the sign-in screen (amendment 2026-11-12).
 - **PDS outages**: Private writes no longer need the reader's PDS; only Shared writes wait for it.
 - **CORS**: a PDS that refuses browser calls can now be used, because only the server calls it.
 - **Handles** are resolved by the server, not through Bluesky, so Bluesky does not learn who signs in (as in ADR 0009).
@@ -25,3 +25,11 @@ ADR 0009 kept tokens out of the server because the server held no Library data. 
 - Keep the browser public client (ADR 0009) and send a service-auth JWT from the reader's PDS with every call: rejected. Every Private write would need the PDS to be up, sessions would stay at 2 weeks, and the project would own the JWT and DID checks.
 - Let atproto prove the identity once, then issue the instance's own session: rejected. It keeps the CORS limit and the project would own the identity check and the sessions.
 - Keep ADR 0009 unchanged: not possible, because the server would not know which reader calls it.
+
+## Amendment 2026-11-12: sign-in is required
+
+This ADR said the device copy works while signed out. The code never did: when the server answers that no one is signed in, the app opens no device copy, and every screen shows a "Sign in to…" line. Decision of the owner, 2026-11-12:
+
+- **Every screen of the app needs a signed-in reader.** A visitor with no session goes to a sign-in screen. Only the sign-in screen, the OAuth routes and `/health` answer without a session.
+- **Offline is unchanged.** On a device where the reader signed in before, the device copy and the write queue work offline, as ADR 0002 says.
+- Rejected: a signed-out mode with a Library kept only on the device. The instance lets only allow-listed DIDs sign in, so that mode would serve no reader. It would also need a device store with no DID and a merge at the first sign-in.

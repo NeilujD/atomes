@@ -25,7 +25,7 @@ Each record type also has a `createdAt` or `updatedAt` datetime.
   - `atomes:<host>:<ULID>`: minted by a Catalog instance when no source knows the entity. The host keeps it unique across instances.
 - **Work, when no Catalog identifies it**: `isbn:<isbn13>`, the one Work of that Edition. The Catalog learns the real Work later and links it.
 - **An identifier never changes once a record uses it.** Each Catalog keeps `same_as` links (for example `atomes:catalog.example:01J…` = `wd:Q123`) and resolves both. It never rewrites reader records. A Catalog that cannot resolve an `atomes:` identifier (its host is gone) shows the Series from the reader's own records until a `same_as` link exists.
-- **Edition Line is not stored.** A follow holds an anchor ISBN, an Edition in the Edition Line the reader collects. Every Catalog derives the Edition Line from it (Series, publisher, language; see the amendment below). Inside a Catalog the Edition Line key is internal and may change when the Catalog fixes its data.
+- **Edition Line is not stored.** A follow holds an anchor ISBN, an Edition in the Edition Line the reader collects. Every Catalog derives the Edition Line from it (Series, publisher, language and book size; see the amendments below). Inside a Catalog the Edition Line key is internal and may change when the Catalog fixes its data.
 
 Every identifier above is also a valid atproto record key, so it is the key itself where the table says so.
 
@@ -61,14 +61,14 @@ This ADR first said the Edition Line is derived from publisher, language and for
 
 - Consequence: two Edition Lines of one Series with the same publisher and language (for example a standard and a deluxe edition) are grouped as one until the Catalog can tell them apart. The reader's records do not change when that is fixed, because the Edition Line key is internal (see Identifiers).
 - Follow-up: tell such Edition Lines apart from their own Series record when they have one (BnF 461 `$0`) or from title words ("Perfect Edition", "Deluxe"), once recorded answers for such a Series exist.
-- Using the size in cm: rejected, see above.
+- Using the size in cm: rejected, see above. Replaced by the 2026-11-12 amendment: only a difference of 2 cm or more splits a line, so 1 cm of drift does not.
 
 
 ## Amendment 2026-11-06: the Catalog fills an Edition Line from BnF
 
 Series Onboarding (CORE-31) needs every Volume of an Edition Line, but a Catalog knew only the ISBNs readers had looked up (One Piece: 1 of 113). When the Volumes of an Edition Line are asked for, the Catalog now searches BnF by Series title and publisher (`bib.title all … and bib.publisher all …`, 50 records per page, at most 500), at most once a week per Edition Line, and asks Inventaire for the Works of the new ISBNs, 50 per request.
 
-- An Edition counts when it has a Volume number, the Series title, the publisher and the language of the line, and the BnF Series record (461 `$0`) of the line, or none. One Edition per Volume number: one the Catalog has already, else the latest printing. Measured on 2026-11-06: One Piece, Glénat: 112 of 113 Volumes (BnF gives no Volume number for 13) in 7.5 s; Spy x Family, Kurokawa: 16 of 16.
+- An Edition counts when it has a Volume number, the Series title, the publisher and the language of the line, and the BnF Series record (461 `$0`) of the line, or none (limited to omnibus Editions by the 2026-11-12 amendment). One Edition per Volume number: one the Catalog has already, else the latest printing. Measured on 2026-11-06: One Piece, Glénat: 112 of 113 Volumes (BnF gives no Volume number for 13) in 7.5 s; Spy x Family, Kurokawa: 16 of 16.
 - Like a lookup, nothing is stored when a source fails, so a listed Volume gets the Work identifier a lookup would give it. `/volumes` needs no sign-in, so calls at the same time for one Edition Line share one fill, and after a failed fill the sources are not asked again for an hour.
 - Only a Series title and a publisher leave the server, never an ISBN a reader asked about, and they say nothing about who asked (ADR 0001).
 - Rejected: a full lookup (four sources) per Volume, about 4 minutes for One Piece at one request per second per host; Inventaire's Series to Works links, 37 Works for One Piece.
@@ -105,3 +105,19 @@ A shelf check of 10 real ISBNs (PR #15) found 4 that no source knows, though BnF
 - The pick serves every reader of the instance. A later pick replaces it. The sources are asked about the ISBN again once a day, as for an unknown ISBN; when one knows it, its Edition replaces the pick whole.
 - Only a signed-in reader may search or pick: both cost source calls, and a pick writes data every reader sees.
 - What leaves the server: the title and publisher the reader typed, never the ISBN. They say nothing about who asked (ADR 0001).
+
+## Amendment 2026-11-12: book size splits an Edition Line; the BnF Series record counts for omnibus Editions only
+
+The owner's first real test found two faults in the Edition Line fill.
+
+- **One Piece, Glénat, looked up from Volume 1 first: the fill kept 5 of 113 Volumes.** Volume 1 names BnF Series record 43702987, and Volume 56 (and most likely most of the run) names 38888890. The fill dropped every Edition with another 461 `$0` than the line's, so the result depended on the Volume a reader looked up first (112 of 113 when the first lookup was Volume 112 or 56).
+- **Dragon Ball, Glénat: two Edition Lines became one.** Volume 1 is 18 cm (SUDOC). The fill added Volumes 2 to 34 at 21 cm (BnF), most likely the Perfect Edition (not checked against a source). Series Onboarding saved ISBNs of the 21 cm line for a reader of the 18 cm line.
+
+Decisions of the owner, 2026-11-12:
+
+- **Book size is part of the Edition Line.** An Edition whose height differs by 2 cm or more from the anchor's is in another Edition Line. A difference of 1 cm is drift inside one line (One Piece: 18 and 19 cm). An Edition with no size stays in the line. How the key holds the size is decided in code, with tests on recorded answers.
+- **The BnF Series record counts for omnibus Editions only.** An omnibus Edition (several Volumes in one Copy, CORE-41) with another 461 `$0` than the line's is in another Edition Line (Dragon Ball Super, 45439866 and 45286066). An Edition of one Volume no longer needs the line's 461 `$0`.
+- **Every Edition Line is filled again once** after the change: a migration step clears the record of past fills.
+- **Reader records do not change**, because the Edition Line key is internal (see Identifiers). Copies already saved with an ISBN of the wrong line stay until the reader removes them.
+- Rejected: the BnF Series record as the line key. One Piece has two Series records for one line.
+- Rejected: title words ("Perfect Edition", "Deluxe"). No recorded answer shows them yet, and each publisher words them differently. The size is in most BnF and SUDOC records (215 `$d`).
