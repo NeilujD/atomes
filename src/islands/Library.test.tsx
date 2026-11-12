@@ -39,12 +39,15 @@ async function libraryScreen() {
     editions: (isbns) => Promise.resolve(new Map(books.filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
   };
   render(<Library sources={sources} />);
-  await screen.findByRole('list');
+  await screen.findAllByRole('list');
 }
 
 const titles = () => within(screen.getByRole('list')).getAllByRole('link').map((link) => link.querySelector('.library-book-title')?.textContent);
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 describe('Library screen', () => {
   test('shows every book A to Z, each linking to its Book page', async () => {
@@ -73,5 +76,121 @@ describe('Library screen', () => {
     fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'zzz' } });
 
     expect(screen.getByText('No book matches these filters.')).toBeTruthy();
+  });
+});
+
+const headings = () => screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+const choose = (mode: string) => fireEvent.click(screen.getByRole('radio', { name: mode }));
+
+describe('Library modes', () => {
+  test('List puts the books under their letters, each linking to its Book page; Grid brings the grid back', async () => {
+    await libraryScreen();
+    choose('List');
+
+    expect(headings()).toEqual(['A', 'D', 'L']);
+    expect(within(screen.getByRole('region', { name: 'D' })).getByRole('link', { name: /Dune/ }).getAttribute('href')).toBe('/book?work=wd%3AQ320481');
+
+    choose('Grid');
+
+    expect(screen.queryAllByRole('heading', { level: 2 })).toEqual([]);
+    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent']);
+  });
+
+  test('the index of List jumps to a letter: the focus moves to its group; a letter with no book is off', async () => {
+    await libraryScreen();
+    choose('List');
+    const index = within(screen.getByRole('navigation', { name: 'Jump to a letter' }));
+    fireEvent.click(index.getByRole('button', { name: 'L' }));
+
+    expect(document.activeElement).toBe(screen.getByRole('region', { name: 'L' }));
+    expect(index.getByRole<HTMLButtonElement>('button', { name: 'B' }).disabled).toBe(true);
+  });
+
+  test('the mode is kept on this device: the next visit opens in it; a kept value that is no mode opens the Grid', async () => {
+    await libraryScreen();
+    choose('List');
+    cleanup();
+    await libraryScreen();
+
+    expect(headings()).toEqual(['A', 'D', 'L']);
+
+    cleanup();
+    localStorage.setItem('atomes:library-mode', 'shelf');
+    await libraryScreen();
+
+    expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Grid' }).checked).toBe(true);
+    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent']);
+  });
+
+  test('sorted by "Recently added", List is one group with no index', async () => {
+    await libraryScreen();
+    choose('List');
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'added' } });
+
+    expect(headings()).toEqual(['Recently added']);
+    expect(screen.queryByRole('navigation', { name: 'Jump to a letter' })).toBeNull();
+  });
+});
+
+describe('Cover flow', () => {
+  // The cover in front.
+  const current = () => screen.getByRole('link', { current: true }).getAttribute('aria-label');
+  const slider = () => screen.getByRole<HTMLInputElement>('slider', { name: 'Browse your Library' });
+
+  test('starts on the book in the middle', async () => {
+    await libraryScreen();
+    choose('Cover flow');
+
+    expect(current()).toBe('Dune');
+    expect(screen.getByText('2 of 3')).toBeTruthy();
+    expect(slider().value).toBe('2');
+  });
+
+  test('Next and Previous move one book, the slider follows, and each stops at its end', async () => {
+    await libraryScreen();
+    choose('Cover flow');
+    const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+    press('Next');
+
+    expect([current(), slider().value]).toEqual(['La Horde du Contrevent', '3']);
+    expect(screen.getByText('3 of 3')).toBeTruthy();
+
+    press('Next');
+
+    expect(current()).toBe('La Horde du Contrevent');
+
+    press('Previous');
+    press('Previous');
+    press('Previous');
+
+    expect([current(), slider().value]).toEqual(['Astérix', '1']);
+  });
+
+  test('the slider goes straight to a book', async () => {
+    await libraryScreen();
+    choose('Cover flow');
+    fireEvent.input(slider(), { target: { value: '3' } });
+
+    expect(current()).toBe('La Horde du Contrevent');
+    expect(screen.getByText('3 of 3')).toBeTruthy();
+  });
+
+  test('a cover on the side comes to the front when chosen; in front, it links to its Book page', async () => {
+    await libraryScreen();
+    choose('Cover flow');
+    fireEvent.click(screen.getByRole('link', { name: 'Astérix' }));
+
+    expect([current(), slider().value]).toEqual(['Astérix', '1']);
+    expect(screen.getByRole('link', { current: true }).getAttribute('href')).toBe('/book?work=wd%3AQ976165');
+  });
+
+  test('a search starts again in the middle of the books it finds', async () => {
+    await libraryScreen();
+    choose('Cover flow');
+    fireEvent.input(slider(), { target: { value: '1' } });
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'd' } });
+
+    expect(current()).toBe('La Horde du Contrevent');
+    expect(screen.getByText('2 of 2')).toBeTruthy();
   });
 });

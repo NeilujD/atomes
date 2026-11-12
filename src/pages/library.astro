@@ -1,5 +1,5 @@
 ---
-// The Library in Grid mode, with the shared toolbar (src/islands/Library.tsx).
+// The Library in Grid, List and Cover flow, with the shared toolbar (src/islands/Library.tsx).
 // Rendered on the device: it reads the Library, so it opens offline.
 import AppShell from '../layouts/AppShell.astro';
 import Library, { LibrarySkeleton } from '../islands/Library';
@@ -268,6 +268,325 @@ const t = translator(requestLanguage(Astro.request));
     .library-grid {
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
       gap: 28px 24px;
+    }
+  }
+</style>
+
+<style is:global>
+  /* List and Cover flow (src/islands/LibraryList.tsx, LibraryCoverFlow.tsx). */
+
+  /* The Grid / List / Cover flow switch. Phone: the first row of the toolbar. */
+  .segmented.library-modes {
+    display: flex;
+    flex: none;
+  }
+
+  .library-modes .segment {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* List: letter groups on hairlines (ui-direction: list with groups). */
+  .library-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .library-group ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Phone: the letter stays on top while its books scroll. */
+  .library-letter {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 1;
+    padding: 10px 0 6px;
+    border-bottom: 1px solid var(--line);
+    background: var(--ground);
+    color: var(--secondary);
+    font-size: 13px;
+    letter-spacing: 0;
+  }
+
+  /* Phone: the author under the title. */
+  .library-row {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'cover main status'
+      'cover author status';
+    align-content: center;
+    column-gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .library-row-cover {
+    grid-area: cover;
+    align-self: center;
+  }
+
+  .library-row-main {
+    grid-area: main;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .library-row-title,
+  .library-row-line,
+  .library-row-author {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .library-row-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .library-row-line,
+  .library-row-author {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .library-row-author {
+    grid-area: author;
+    color: var(--secondary);
+  }
+
+  .library-row-status {
+    grid-area: status;
+    align-self: center;
+    color: var(--secondary);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .library-row:hover .library-row-title {
+    text-decoration: underline;
+  }
+
+  /* The A to Z index. Phone: a rail on the right edge, in the margin of the page. */
+  .library-index {
+    position: fixed;
+    top: 50%;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    height: min(432px, 100dvh - 200px);
+    transform: translateY(-50%);
+  }
+
+  .library-index button {
+    flex: 1;
+    width: 20px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .library-index button:disabled {
+    color: var(--off);
+    font-weight: 500;
+    cursor: default;
+  }
+
+  /* Cover flow: one cover in front, the covers nearby turned on each side. */
+  .library-flow {
+    --flow-cover: 170px;
+    --flow-near: 128px;
+    --flow-step: 34px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* As wide as the panel: the covers on the sides go under its edges. */
+  .library-flow-stage {
+    position: relative;
+    height: calc(var(--flow-cover) * 1.5 + 65px);
+    margin: 0 -20px;
+    overflow: hidden;
+    perspective: 1100px;
+  }
+
+  /* `--side` is -1, 0 or 1; `--away` counts the covers from the one in front. */
+  .library-flow-cover {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    z-index: calc(10 - var(--away));
+    width: var(--flow-cover);
+    margin-left: calc(var(--flow-cover) / -2);
+    transform: translateX(calc(var(--side) * (var(--flow-near) + (var(--away) - 1) * var(--flow-step)))) rotateY(calc(var(--side) * -58deg))
+      scale(calc(1 - 0.2 * min(var(--away), 1)));
+    transition:
+      transform 360ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      opacity 220ms;
+  }
+
+  /* A cover that comes in from the edge fades in, where the browser can. */
+  @starting-style {
+    .library-flow-cover {
+      opacity: 0;
+    }
+  }
+
+  .library-flow-cover .library-flow-face {
+    width: 100%;
+    box-shadow:
+      0 0 0 1px var(--cover-edge),
+      0 12px 28px -12px var(--scrim);
+  }
+
+  .library-flow-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  /* One line each, and an empty line keeps its place: the controls under it do not move. */
+  .library-flow-info > * {
+    max-width: 100%;
+    min-height: 1.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .library-flow-position,
+  .library-flow-line {
+    color: var(--secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .library-flow-position {
+    font-size: 13px;
+  }
+
+  .library-flow-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+  }
+
+  .library-flow-title:hover {
+    text-decoration: underline;
+  }
+
+  .library-flow-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .library-flow-controls input {
+    flex: 1;
+    min-width: 0;
+    min-height: var(--row);
+    margin: 0;
+    accent-color: var(--ink);
+  }
+
+  .library-flow-controls .button[aria-disabled='true'] {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .library-flow-cover {
+      transition: none;
+    }
+  }
+
+  @media (min-width: 960px) {
+    .segmented.library-modes {
+      display: inline-flex;
+    }
+
+    /* The toolbar sticks at a height that changes, so the letters do not stick under it. */
+    .library-letter {
+      position: static;
+      padding: 18px 0 8px;
+      background: none;
+      color: var(--ink);
+      font-size: 15px;
+    }
+
+    .library-row {
+      grid-template-columns: 44px minmax(0, 2.4fr) minmax(0, 1.4fr) minmax(0, 1fr);
+      grid-template-areas: 'cover main author status';
+      align-items: center;
+      column-gap: 16px;
+    }
+
+    .library-row-author {
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .library-row-status {
+      font-size: 13px;
+    }
+
+    /* The index is the last row of the toolbar, so it stays in reach while the list scrolls. */
+    .library-index {
+      position: static;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 2px;
+      height: auto;
+      transform: none;
+    }
+
+    .library-index button {
+      flex: none;
+      width: 24px;
+      height: var(--row);
+      border-radius: var(--radius-control);
+      font-size: 13px;
+    }
+
+    .library-index button:hover:not(:disabled) {
+      background: var(--soft);
+    }
+
+    .library-flow {
+      --flow-cover: 240px;
+      --flow-near: 230px;
+      --flow-step: 70px;
+    }
+
+    .library-flow-stage {
+      margin: 0 -24px;
+    }
+
+    .library-flow-title {
+      font-size: 24px;
+    }
+
+    .library-flow-controls {
+      align-self: center;
+      width: 100%;
+      max-width: 560px;
     }
   }
 </style>
