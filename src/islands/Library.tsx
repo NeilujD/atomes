@@ -1,6 +1,8 @@
-// The Library screen in Grid mode, a Preact island (ADR 0014): every book,
-// with the toolbar that List and Cover flow will share (search, Search in,
-// Sort, filters, count, Clear all). On the phone the controls open in a sheet.
+// The Library screen, a Preact island (ADR 0014): every book in Grid, List
+// (LibraryList.tsx) or Cover flow (LibraryCoverFlow.tsx), under one toolbar
+// (search, Search in, Sort, filters, count, Clear all, the Books / Series
+// switch and the mode switch).
+// On the phone the controls open in a sheet.
 // The rules are in src/lib/library/browse.ts; this file only renders them.
 import type { ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -11,7 +13,9 @@ import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
 import { allBooks, browse, clearAll, libraryBooks, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
 import { listLabels, type Label } from '../lib/library/label';
+import { letterGroups } from '../lib/library/letters';
 import { loadLibrary, waitingCount } from '../lib/library/library';
+import { modes, readMode, saveMode, type Mode } from '../lib/library/mode';
 import { bookHref, type Library as LibraryRecords } from '../lib/library/model';
 import type { Saved } from '../lib/library/records';
 import { seriesHref } from '../lib/library/series';
@@ -21,6 +25,8 @@ import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space } from '../lib/space/space';
 import { toast } from '../lib/toast';
 import { Cover } from './Cover';
+import { LibraryCoverFlow } from './LibraryCoverFlow';
+import { LetterIndex, LibraryList } from './LibraryList';
 
 // Where the screen reads from: the reader's Library store and the Catalog.
 export interface Sources {
@@ -47,6 +53,7 @@ export function Library({ sources }: { sources: Sources }) {
   const [message, setMessage] = useState<string>();
   const [query, setQuery] = useState<LibraryQuery>(allBooks);
   const [grouping, setGrouping] = useState<Grouping>(readGrouping);
+  const [mode, setMode] = useState<Mode>(readMode);
   const wide = useMedia(desktop);
   // Catalog answers kept for this visit, so an offline reload keeps the titles.
   const editions = useRef(new Map<string, Edition>());
@@ -120,6 +127,19 @@ export function Library({ sources }: { sources: Sources }) {
   }
 
   const found = browse(books, read.labels, query, pageLanguage());
+  // Grid, List or Cover flow is for Books. Series show as a grid of cards, with
+  // no mode switch and no letter index; the mode is kept for the way back.
+  const byBooks = grouping === 'books';
+  const listed = byBooks && mode === 'list' ? letterGroups(found.books, query.sort, pageLanguage()) : undefined;
+  const modeSwitch = byBooks && (
+    <ModeSwitch
+      mode={mode}
+      onChange={(chosen) => {
+        saveMode(chosen);
+        setMode(chosen);
+      }}
+    />
+  );
   const change = (part: Partial<LibraryQuery>) => setQuery({ ...query, ...part });
   const clear = () => setQuery(clearAll(query));
   const count = (
@@ -153,6 +173,7 @@ export function Library({ sources }: { sources: Sources }) {
     <div class="library">
       <div class="library-toolbar">
         {!wide && groupingSwitch}
+        {!wide && modeSwitch}
         <div class="library-search-row">
           <div class="library-search">
             <label class="visually-hidden" for="library-search">
@@ -173,6 +194,7 @@ export function Library({ sources }: { sources: Sources }) {
               {groupingSwitch}
               {count}
               {clearButton}
+              {modeSwitch}
             </>
           ) : (
             <Sheet query={query} found={found} change={change} />
@@ -186,6 +208,7 @@ export function Library({ sources }: { sources: Sources }) {
             {clearButton}
           </div>
         )}
+        {listed && <LetterIndex index={listed.index} />}
       </div>
 
       {found.books.length === 0 ? (
@@ -199,6 +222,10 @@ export function Library({ sources }: { sources: Sources }) {
         <ul class="library-grid">
           {cards.map((card) => ('series' in card ? <SeriesCard key={`series ${card.series.cover.isbn}`} series={card.series} /> : <Book key={card.book.work} book={card.book} />))}
         </ul>
+      ) : listed ? (
+        <LibraryList groups={listed.groups} />
+      ) : mode === 'flow' ? (
+        <LibraryCoverFlow books={found.books} />
       ) : (
         <ul class="library-grid">
           {found.books.map((book) => (
@@ -321,6 +348,20 @@ function Chip({ name, count, pressed, onClick }: { name: string; count: number; 
       <span>{name}</span>
       <span class="library-chip-count">{count}</span>
     </button>
+  );
+}
+
+// Grid, List or Cover flow: at the right of the toolbar on desktop, a row under Books / Series on the phone.
+function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (mode: Mode) => void }) {
+  return (
+    <div class="segmented library-modes" role="radiogroup" aria-label={t('library.mode')}>
+      {modes.map((each) => (
+        <label key={each} class="segment">
+          <input type="radio" name="library-mode" checked={mode === each} onChange={() => onChange(each)} />
+          <span>{t(`library.mode.${each}`)}</span>
+        </label>
+      ))}
+    </div>
   );
 }
 

@@ -152,14 +152,14 @@ describe('Sort', () => {
     expect(names(find({ sort: 'title' }).books)).toEqual(['Astérix 40', 'Dune', 'Fondation 1', 'La Horde du Contrevent', 'One Piece 9', 'One Piece 105']);
   });
 
-  test('author: the first author, then title', () => {
+  test('author: the surname of the first author, then title', () => {
     expect(names(find({ sort: 'author' }).books)).toEqual([
+      'Fondation 1', // Isaac Asimov
       'La Horde du Contrevent', // Alain Damasio
-      'One Piece 9', // Eiichirō Oda
-      'One Piece 105',
       'Astérix 40', // Fabcaro
       'Dune', // Frank Herbert
-      'Fondation 1', // Isaac Asimov
+      'One Piece 9', // Eiichirō Oda
+      'One Piece 105',
     ]);
   });
 
