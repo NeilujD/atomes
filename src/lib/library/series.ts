@@ -102,6 +102,9 @@ export type SpineState = 'read' | 'owned' | 'not-owned';
 export interface Spine {
   volume: number;
   state: SpineState;
+  // The printing the reader owns, else the one they read, else its single
+  // printing before an omnibus: what the Volume sheet shows and saves.
+  edition: Edition;
 }
 
 export interface SeriesStanding {
@@ -129,11 +132,24 @@ export function seriesStanding(volumes: Edition[], library: Library): SeriesStan
     read: read.length,
     missing: missingVolumes(volumes, library),
     next: numbered.find(([volume]) => volume > latest)?.[0] ?? null,
-    spines: numbered.map(([volume]) => ({
+    spines: numbered.map(([volume, printings]) => ({
       volume,
       state: read.includes(volume) ? 'read' : owned.includes(volume) ? 'owned' : 'not-owned',
+      edition:
+        printings.find((each) => isOwned(each, library)) ??
+        printings.find((each) => currentStatus(each.work.id, library) === 'read') ??
+        printings[0],
     })),
   };
+}
+
+// Series cover rule, shared by the Series page and the Library Series mode:
+// the cover of Volume 1, else of the lowest Volume with a cover, else Volume 1
+// (the lowest Volume), which shows the default cover. A printing with a cover
+// wins, an omnibus too. Undefined when there is no Edition.
+export function seriesCover(volumes: Edition[]): Edition | undefined {
+  const printings = byVolume(volumes).flatMap(([, each]) => each);
+  return printings.find(({ cover }) => cover) ?? printings[0] ?? volumes[0];
 }
 
 // The Missing Volumes (glossary) of a Series: numbered Volumes before the

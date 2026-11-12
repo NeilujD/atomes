@@ -153,7 +153,7 @@ describe('To Buy screen', () => {
     expect(screen.queryByRole('button', { name: /^Show/ })).toBeNull();
   });
 
-  test('a cover pulses until its image has loaded, and shows the default cover if it fails', async () => {
+  test('a cover is loading until its image has loaded, and shows the default cover if it fails', async () => {
     const { space } = memorySpace();
     await saveToBuy(space, { isbn: isbns[0], createdAt: '2026-11-07T10:00:00.000Z' });
     await saveToBuy(space, { isbn: isbns[1], createdAt: '2026-11-06T10:00:00.000Z' });

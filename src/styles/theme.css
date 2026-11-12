@@ -246,10 +246,6 @@ a {
   box-shadow: 0 0 0 1px var(--cover-edge);
 }
 
-.book-cover[data-cover='loading'] {
-  animation: pulse 1.4s ease-in-out infinite;
-}
-
 .book-cover img {
   display: block;
   width: 100%;
@@ -339,10 +335,6 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .book-cover[data-cover='loading'] {
-    animation: none;
-  }
-
   .book-cover img {
     transition: none;
   }

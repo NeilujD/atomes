@@ -109,8 +109,8 @@ function runs(items: ToBuyItem[]): string {
   return found.map(([from, to]) => (from === to ? `${from}` : `${from}–${to}`)).join(', ');
 }
 
-// What to save when the reader says "I bought it": the Copy, and the hand-added record to delete, if any.
-export function bought(item: ToBuyItem, now: Date): { copy: Copy; remove: string | undefined } {
+// What to save when the reader says "I bought it" (To Buy, Series page): the Copy, and the hand-added record to delete, if any.
+export function bought(item: Pick<ToBuyItem, 'isbn' | 'work' | 'byHand'>, now: Date): { copy: Copy; remove: string | undefined } {
   return { copy: { isbn: item.isbn, works: [item.work], createdAt: now.toISOString() }, remove: item.byHand ? item.isbn : undefined };
 }
 

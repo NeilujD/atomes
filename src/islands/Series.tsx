@@ -1,18 +1,33 @@
 // The Series page, a Preact island (ADR 0014): where the reader stands in one
 // Series, and follow, switch Edition Line, stop following (glossary: Followed
-// Series, Dropped Series, Edition Line). The rules are in
-// src/lib/library/series.ts; this file only renders and saves.
+// Series, Dropped Series, Edition Line). Each spine opens a Volume sheet: I
+// bought it, Mark read, Open. The rules are in src/lib/library/series.ts;
+// this file only renders and saves.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import type { Edition } from '../lib/catalog/catalog';
 import { coverUrl, lookupEditions, lookupVolumes } from '../lib/catalog/client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
+import { saveCopy } from '../lib/library/copy';
 import { saveFollow, type Follow } from '../lib/library/follow';
 import { isSeries, readIsbn } from '../lib/library/ids';
-import { loadLibrary, savedText, sendWhenOnline, waitingCount } from '../lib/library/library';
-import { editionLabel, type Library } from '../lib/library/model';
-import { askCollected, collectedVolumes, dropSeries, followSeries, seriesStanding, switchLine, type CatalogAsk } from '../lib/library/series';
+import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
+import { bookHref, editionLabel, statusChange, type Library } from '../lib/library/model';
+import { followOnRead } from '../lib/library/onboarding';
+import { saveReadingStatus } from '../lib/library/reading-status';
+import {
+  askCollected,
+  collectedVolumes,
+  dropSeries,
+  followSeries,
+  seriesCover,
+  seriesStanding,
+  switchLine,
+  type CatalogAsk,
+  type Spine,
+} from '../lib/library/series';
+import { bought, deleteToBuy } from '../lib/library/to-buy';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
@@ -43,6 +58,10 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const [switching, setSwitching] = useState(false);
   const [typed, setTyped] = useState('');
   const [problem, setProblem] = useState<string>();
+  // The Volume whose sheet is open, and the one whose cover shows above its spine (mouse hover).
+  const [chosen, setChosen] = useState<number>();
+  const [peek, setPeek] = useState<{ volume: number; align: PeekAlign }>();
+  const sheet = useRef<HTMLDialogElement>(null);
 
   const space = useRef<Space | undefined>(undefined);
   const listing = useRef<{ refresh: () => Promise<void> } | undefined>(undefined);
@@ -116,8 +135,9 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
     } catch (error) {
       toast(spaceErrorMessage(error), { error: true });
     } finally {
-      setSaving(false);
+      // Busy until the page shows the save: a second tap cannot save twice.
       await listing.current?.refresh();
+      setSaving(false);
     }
   }
 
@@ -139,6 +159,36 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
 
   function saveChange(follow: Follow) {
     void save((own) => saveFollow(own, follow));
+  }
+
+  // The same save as "I bought it" on To Buy: the Copy, and the hand-added record goes.
+  function buy({ edition }: Spine) {
+    const byHand = library?.toBuy.some(({ value }) => value.isbn === edition.isbn) ?? false;
+    void save(async (own) => {
+      const { copy, remove } = bought({ isbn: edition.isbn, work: edition.work.id, byHand }, new Date());
+      const states = [(await saveCopy(own, copy)).state];
+      if (remove) states.push(await deleteToBuy(own, remove));
+      return worstState(states);
+    });
+  }
+
+  // As on the Book page: marking a Volume read follows its Series.
+  function markRead({ edition }: Spine) {
+    if (!library) return;
+    const now = new Date();
+    const change = statusChange(edition.work.id, edition.isbn, 'read', library, now);
+    if (!change) return;
+    const follow = followOnRead(edition, 'read', library, now);
+    void save(async (own) => {
+      const state = await saveReadingStatus(own, change);
+      return follow ? worstState([state, await saveFollow(own, follow)]) : state;
+    });
+  }
+
+  function open(volume: number) {
+    setPeek(undefined);
+    setChosen(volume);
+    sheet.current?.showModal();
   }
 
   async function switchTo(event: Event, follow: Follow) {
@@ -175,20 +225,15 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const standing = seriesStanding(volumes, library);
   const following = follow?.status === 'following';
   const from = Number(follow?.fromVolume);
-  const cover = coverUrl(anchor);
+  const cover = seriesCover(volumes) ?? anchor;
+  const spine = standing.spines.find(({ volume }) => volume === chosen);
+  const seriesTitle = edition.series.title;
   document.title = `${edition.series.title} · Atomes`;
 
   return (
     <div class="series">
       <div class="series-head">
-        <Cover
-          class="series-cover"
-          src={cover}
-          title={anchor.title}
-          series={edition.series.title}
-          volumeTitle={anchor.volumeTitle}
-          volume={anchor.volumes.length > 0 ? t('book.volumes', anchor.volumes) : ''}
-        />
+        <EditionCover class="series-cover" edition={cover} series={seriesTitle} />
         <div class="series-text">
           <p class="series-tags">
             <span class="series-tag" data-following={following ? '' : undefined}>
@@ -285,18 +330,104 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
           {t('series.volumes')}
         </h2>
         <ol class="series-spines">
-          {standing.spines.map(({ volume, state }) => (
+          {standing.spines.map(({ volume, state, edition: printing }) => (
             <li key={volume} class="series-spine" data-state={state}>
-              <span class="series-spine-bar" aria-hidden="true" />
-              <span aria-hidden="true">{volume}</span>
-              <span class="visually-hidden">{t('series.spine', volume, state)}</span>
+              {/* Desktop: the cover above the spine while the mouse is on it. A tap only opens the sheet. */}
+              {peek?.volume === volume && (
+                <div class="series-peek" data-align={peek.align}>
+                  <EditionCover class="series-peek-cover" edition={printing} series={seriesTitle} />
+                </div>
+              )}
+              <button
+                class="series-spine-button"
+                type="button"
+                aria-haspopup="dialog"
+                onClick={() => open(volume)}
+                onPointerEnter={(event) => event.pointerType === 'mouse' && setPeek({ volume, align: peekAlign(event.currentTarget) })}
+                onPointerLeave={() => setPeek(undefined)}
+              >
+                <span class="series-spine-bar" aria-hidden="true" />
+                <span aria-hidden="true">{volume}</span>
+                <span class="visually-hidden">{t('series.spine', volume, state)}</span>
+              </button>
             </li>
           ))}
         </ol>
       </section>
+
+      {/* Escape closes it, as a tap on the backdrop does. */}
+      <dialog
+        ref={sheet}
+        class="series-sheet"
+        aria-labelledby="series-sheet-title"
+        onClose={() => setChosen(undefined)}
+        onClick={(event) => event.target === event.currentTarget && event.currentTarget.close()}
+      >
+        {spine && (
+          // The body fills the sheet: a tap inside never reaches the dialog itself.
+          <div class="series-sheet-body">
+            {/* First, so the sheet opens with focus on Close, not on a save. */}
+            <button class="button button-quiet series-sheet-close" type="button" onClick={() => sheet.current?.close()}>
+              {t('common.close')}
+            </button>
+            <EditionCover class="series-sheet-cover" edition={spine.edition} series={seriesTitle} />
+            <div class="series-sheet-text">
+              <h2 class="series-sheet-title" id="series-sheet-title">
+                {spine.edition.volumeTitle ?? spine.edition.title}
+              </h2>
+              <p>{t('book.volume', spine.volume)}</p>
+              <p class="series-hint">{t('series.state', spine.state)}</p>
+              <div class="series-actions">
+                {spine.state === 'not-owned' && (
+                  <button class="button button-primary" type="button" disabled={saving} aria-busy={saving ? 'true' : undefined} onClick={() => buy(spine)}>
+                    {t('tobuy.bought')}
+                  </button>
+                )}
+                {spine.state !== 'read' && (
+                  <button class="button" type="button" disabled={saving} onClick={() => markRead(spine)}>
+                    {t('series.mark-read')}
+                  </button>
+                )}
+                <a class="button button-quiet" href={bookHref(spine.edition.work.id)}>
+                  {t('series.open-book')}
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+      </dialog>
     </div>
   );
 }
+
+// The cover of one Edition (header, spine hover, Volume sheet); the default cover when it has none.
+function EditionCover({ class: name, edition, series }: { class: string; edition: Edition; series: string }) {
+  return (
+    <Cover
+      class={name}
+      src={coverUrl(edition)}
+      title={edition.title}
+      series={series}
+      volumeTitle={edition.volumeTitle}
+      volume={edition.volumes.length > 0 ? t('book.volumes', edition.volumes) : ''}
+    />
+  );
+}
+
+type PeekAlign = 'start' | 'center' | 'end';
+
+// The cover shows centred above its spine, unless that puts it past an end of
+// the spine row: then it lines up with that end, so the panel never cuts it.
+function peekAlign(spine: HTMLElement): PeekAlign {
+  const row = spine.closest('ol')!.getBoundingClientRect();
+  const { left, right } = spine.getBoundingClientRect();
+  const middle = (left + right) / 2;
+  const half = peekWidth / 2;
+  return middle - half < row.left ? 'start' : middle + half > row.right ? 'end' : 'center';
+}
+
+// The width of `.series-peek` (series.astro).
+const peekWidth = 96;
 
 // The linked Edition, as its Edition Line lists it; undefined until the Catalog answers.
 function linked(lines: Map<string, Edition[]>, isbn: string): Edition | undefined {
