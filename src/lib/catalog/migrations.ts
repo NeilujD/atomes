@@ -5,6 +5,7 @@
 // counts the steps a file has run; each step runs in one transaction.
 import type { DatabaseSync } from 'node:sqlite';
 import { key } from './facts';
+import { bookHeight, placeLine } from './lines';
 
 type Step = (db: DatabaseSync) => void;
 
@@ -127,8 +128,32 @@ const omnibusVolumes: Step = (db) =>
     update edition set fetched_at = '${new Date(0).toISOString()}';
   `);
 
+// CORE-58, book size (ADR 0010, amendment 2026-11-12): the Edition Line key
+// ends with the line's book size, so Editions 2 cm or more apart split. Each
+// old line splits from its oldest Edition, the one a reader looked up before
+// the fill, then Editions with no size join the biggest part. Every line then
+// fills again once: its past fill may hold Volumes of another size.
+const lineSizes: Step = (db) => {
+  type Row = { isbn: string; edition_line: string; format: string | null };
+  const rows = db.prepare('select isbn, edition_line, format from edition where edition_line is not null order by rowid').all() as Row[];
+  const parts = new Map<string, { line: string; editions: number }[]>();
+  const place = (row: Row, height: number | undefined) => {
+    const lines = parts.get(row.edition_line) ?? [];
+    parts.set(row.edition_line, lines);
+    const line = placeLine(row.edition_line, height, lines);
+    const part = lines.find((each) => each.line === line);
+    if (part) part.editions++;
+    else lines.push({ line, editions: 1 });
+    db.prepare('update edition set edition_line = ? where isbn = ?').run(line, row.isbn);
+  };
+  const sized = rows.map((row) => [row, bookHeight(row.format)] as const);
+  for (const [row, height] of sized) if (height !== undefined) place(row, height);
+  for (const [row, height] of sized) if (height === undefined) place(row, undefined);
+  db.exec('delete from line_fill');
+};
+
 // Add a step at the end; never edit or remove one.
-const steps: Step[] = [catalogV0, sameAs, omnibusVolumes];
+const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes];
 
 export function migrate(db: DatabaseSync): void {
   const { user_version: done } = db.prepare('pragma user_version').get() as { user_version: number };

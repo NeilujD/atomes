@@ -71,6 +71,26 @@ bun scripts/record-catalog-answers.ts 9781408730218 9782864976165
 | 9781408730218 | Asterix and the White Iris, Sphere, 2023 | SUDOC's Series is "Aterix" (a typo), with no shared identifier |
 | 9782864976165 | L'Empire du Milieu, album of the film, Albert René | Inventaire gives the Series Astérix, `wd:Q42490` |
 
+Recorded on 2026-11-12 for the Edition Lines by book size (CORE-58, ADR 0010 amendment 2026-11-12):
+
+```sh
+bun scripts/record-catalog-answers.ts --fill 9782723488525
+bun scripts/record-catalog-answers.ts --fill 9782723434621
+bun scripts/record-catalog-answers.ts --fill 9782723467681
+bun scripts/record-catalog-answers.ts --search "One Piece" "Glénat"
+bun scripts/record-catalog-answers.ts --search "Dragon Ball" "Glénat"
+```
+
+| ISBN or file | Answer |
+|---|---|
+| 9782723488525 | One Piece 1, Glénat, 2013 printing, 18 cm: BnF Series record 43702987 (56 names 38888890); Inventaire Series `wd:Q28667972` (56 says `wd:Q673`) |
+| `bnf-search-afb70bc46184-*.xml` (5 pages) | BnF search `bib.title all "One Piece" and bib.publisher all "Glénat"`: 242 records. The run, 18 cm (18 x 11 to 18 x 13 cm, 112 at 19 cm), names 38888890, 43702987 (Volume 1), 46917823 (98 to 100) or no record (105 on); no Volume 13. Same title and size, not the run: "500 quiz book" 2 and 3 (47171632, 18 cm), arc box sets 1 to 6 (46972617, 19 and 20 cm, 12 or 13 Volumes each). Other sizes: 30 cm (40924513), 26 cm magazine, 17 cm Vivre Cards |
+| 9782723434621 | Dragon Ball 1 "Son Goku", Glénat, 18 cm: BnF has no record (0 answers); SUDOC's Series is "Dragonball", with no Series record |
+| 9782723467681 | Dragon Ball 1, Glénat, 21 cm, BnF Series record 41495473 (most likely the Perfect Edition; Inventaire calls it so, a title BnF does not give) |
+| `bnf-search-9324fcaa8026-*.xml` (2 pages) | BnF search `bib.title all "Dragonball" and bib.publisher all "Glénat"`: 98 records. Volumes 1 to 34 at 21 cm (no 14, 17, 21), Dragonball Z and SD lines (other Series titles); no 18 cm "Dragonball" record with a Volume |
+| `bnf-search-6dc7a6c70f8e-1.xml` | BnF search `bib.title all "Dragon Ball" and bib.publisher all "Glénat"`, first page: the 18 cm Volumes are filed as "Dragon Ball" (1993 to 2008 printings, 2026 reprints), not "Dragonball". Not used by a test: a fill from SUDOC's "Dragonball" does not find them |
+| `inventaire-batch-25f9d8a6a929.json`, `inventaire-batch-31ae450786a2.json` | Inventaire, the Works of the listed One Piece and Dragon Ball 21 cm ISBNs |
+
 `catalog-v0.sqlite` is not a source answer: it is a Catalog file made on 2026-11-11 by the Catalog of `main` before `same_as` (commit a3f8d6c), from the recorded answers: One Piece 112, then 56, then the Spy x Family Edition Line with a fill. The migration tests open a copy of it. Never make it again: it stands for the files that real instances hold.
 
 Review the diff before committing: answers change when the sources fix their data.
