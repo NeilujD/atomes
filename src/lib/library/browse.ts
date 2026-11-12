@@ -1,9 +1,8 @@
 // The Library in Grid, List and Cover flow: one book per Work, and the shared
 // toolbar (search, Search in, Sort, filters, count, Clear all). Pure, so the
 // rules are tested in Node; src/islands/Library.tsx only renders them.
-import { compareText, type Language } from '../i18n/i18n';
+import { compareText, t, type Language } from '../i18n/i18n';
 import { labelsAtoZ, type Label } from './label';
-import { sortName } from './letters';
 import { bookPage, type Editions, type Library } from './model';
 import { statuses, type Status } from './reading-status';
 import type { Saved } from './records';
@@ -22,6 +21,11 @@ export interface LibraryBook {
   labels: string[];
   // Its first Copy, else its Reading Status for a Work the reader does not own.
   addedAt: string;
+}
+
+// The Volume of a book as every mode writes it, "Volume 9"; empty for a book with no Volume.
+export function volumeLine({ volume }: Pick<LibraryBook, 'volume'>): string {
+  return volume ? t('book.volume', volume) : '';
 }
 
 // The Library: every Work the reader has a Copy of or a Reading Status for.
@@ -146,6 +150,14 @@ function fold(text: string): string {
     .toLowerCase()
     .replace(/œ/g, 'oe')
     .replace(/æ/g, 'ae');
+}
+
+// An author as the sort reads the name: the surname first, "Herbert Frank".
+// The Catalog gives "Frank Herbert", so the surname is the last word; a
+// particle stays behind ("Antoine de Saint-Exupéry" goes under S).
+export function sortName(author: string): string {
+  const words = author.trim().split(/\s+/);
+  return [words.at(-1), ...words.slice(0, -1)].join(' ');
 }
 
 type Compare = (a: string, b: string) => number;

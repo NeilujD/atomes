@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
-import { allBooks, browse, clearAll, libraryBooks, type LibraryBook, type LibraryQuery } from './browse';
+import { allBooks, browse, clearAll, libraryBooks, volumeLine, type LibraryBook, type LibraryQuery } from './browse';
 import type { Copy } from './copy';
 import type { Label } from './label';
 import type { Library } from './model';
@@ -244,5 +244,12 @@ describe('Count and Clear all', () => {
 
     expect(clearAll(query)).toEqual({ ...allBooks, sort: 'added' });
     expect(find(clearAll(query)).filtered).toBe(false);
+  });
+});
+
+describe('The Volume line of a book', () => {
+  test('names the Volume; a book with no Volume has no line', () => {
+    expect(volumeLine({ volume: '9' })).toBe('Volume 9');
+    expect(volumeLine({ volume: null })).toBe('');
   });
 });

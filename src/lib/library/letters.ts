@@ -1,7 +1,7 @@
 // List mode: the books of the Library under letters taken from the sort
 // field. Pure; src/islands/LibraryList.tsx renders it.
 import type { Language } from '../i18n/i18n';
-import type { LibraryBook, SortBy } from './browse';
+import { sortName, type LibraryBook, type SortBy } from './browse';
 
 export interface LetterGroup {
   // "A" to "Z" or "#"; null for the one group of "Recently added".
@@ -49,14 +49,6 @@ export function letterGroups(books: LibraryBook[], sort: SortBy, language: Langu
     groups: letters.flatMap((each) => (under.has(each) ? { letter: each, target: target(each), books: under.get(each)! } : [])),
     index: letters.map((each) => ({ letter: each, target: under.has(each) ? target(each) : null })),
   };
-}
-
-// An author as the sort reads the name: the surname first, "Herbert Frank".
-// The Catalog gives "Frank Herbert", so the surname is the last word; a
-// particle stays behind ("Antoine de Saint-Exupéry" goes under S).
-export function sortName(author: string): string {
-  const words = author.trim().split(/\s+/);
-  return [words.at(-1), ...words.slice(0, -1)].join(' ');
 }
 
 // The last letter the text does not sort before: "Œ" sorts as "oe", so under O.

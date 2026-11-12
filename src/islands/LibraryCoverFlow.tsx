@@ -1,9 +1,11 @@
 // The Library in Cover flow mode: one book in front, the covers nearby on each
 // side, and Previous, Next and a slider to move. It starts in the middle.
 // Every cover links to its Book page; one on the side comes to the front first.
+// Which book stands in front: src/lib/library/flow.ts.
 import { useState } from 'preact/hooks';
 import { t } from '../lib/i18n/i18n';
-import type { LibraryBook } from '../lib/library/browse';
+import { volumeLine, type LibraryBook } from '../lib/library/browse';
+import { flowMove, flowPosition, type FlowMove } from '../lib/library/flow';
 import { bookHref } from '../lib/library/model';
 import { Cover } from './Cover';
 
@@ -11,20 +13,16 @@ import { Cover } from './Cover';
 const nearby = 4;
 
 export function LibraryCoverFlow({ books }: { books: LibraryBook[] }) {
-  // Where the reader moved to, in which books. Other books (a search, a
-  // filter, another sort): the flow starts again in the middle.
-  const works = books.map(({ work }) => work).join(' ');
-  const [moved, setMoved] = useState<{ to: number; works: string }>();
-  const position = moved?.works === works ? moved.to : Math.floor(books.length / 2);
+  const [moved, setMoved] = useState<FlowMove>();
+  const position = flowPosition(books, moved);
   const book = books.at(position);
   if (!book) return null;
 
   const last = books.length - 1;
-  const move = (to: number) => setMoved({ to: Math.min(Math.max(to, 0), last), works });
+  const move = (to: number) => setMoved(flowMove(books, to));
   const first = Math.max(0, position - nearby);
-  const volume = (each: LibraryBook) => (each.volume ? t('book.volume', each.volume) : '');
   // "One Piece, Volume 9": the Volumes of a Series share its title.
-  const named = (each: LibraryBook) => [each.title, volume(each)].filter(Boolean).join(', ');
+  const named = (each: LibraryBook) => [each.title, volumeLine(each)].filter(Boolean).join(', ');
 
   return (
     <div class="library-flow">
@@ -47,7 +45,7 @@ export function LibraryCoverFlow({ books }: { books: LibraryBook[] }) {
                 move(first + at);
               }}
             >
-              <Cover class="library-flow-face" src={each.cover} title={each.title} series={each.series} volumeTitle={each.volumeTitle} volume={volume(each)} />
+              <Cover class="library-flow-face" src={each.cover} title={each.title} series={each.series} volumeTitle={each.volumeTitle} volume={volumeLine(each)} />
             </a>
           );
         })}
@@ -58,7 +56,7 @@ export function LibraryCoverFlow({ books }: { books: LibraryBook[] }) {
         <a class="library-flow-title" href={bookHref(book.work)}>
           {book.title}
         </a>
-        <span>{[volume(book), book.volumeTitle].filter(Boolean).join(' · ')}</span>
+        <span>{[volumeLine(book), book.volumeTitle].filter(Boolean).join(' · ')}</span>
         <span class="library-flow-line">{[book.authors.join(', '), t(`status.${book.status}`)].filter(Boolean).join(' · ')}</span>
       </div>
 

@@ -11,7 +11,7 @@ import type { Edition } from '../lib/catalog/catalog';
 import { coverUrl, lookupEditions } from '../lib/catalog/client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
-import { allBooks, browse, clearAll, libraryBooks, liveQuery, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
+import { allBooks, browse, clearAll, libraryBooks, liveQuery, volumeLine, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
 import { listLabels, type Label } from '../lib/library/label';
 import { letterGroups } from '../lib/library/letters';
 import { loadLibrary, waitingCount } from '../lib/library/library';
@@ -134,8 +134,12 @@ export function Library({ sources }: { sources: Sources }) {
   const byBooks = grouping === 'books';
   const listed = byBooks && mode === 'list' ? letterGroups(found.books, query.sort, pageLanguage()) : undefined;
   const modeSwitch = byBooks && (
-    <ModeSwitch
-      mode={mode}
+    <Segmented
+      name="library-mode"
+      label={t('library.mode')}
+      choices={modes}
+      chosen={mode}
+      text={(each) => t(`library.mode.${each}`)}
       onChange={(chosen) => {
         saveMode(chosen);
         setMode(chosen);
@@ -159,16 +163,7 @@ export function Library({ sources }: { sources: Sources }) {
     saveGrouping(chosen);
     setGrouping(chosen);
   };
-  const groupingSwitch = (
-    <div class="segmented library-grouping" role="radiogroup" aria-label={t('library.grouping')}>
-      {groupings.map((each) => (
-        <label key={each} class="segment">
-          <input type="radio" name="library-grouping" value={each} checked={grouping === each} onChange={() => group(each)} />
-          <span>{t(`library.grouping.${each}`)}</span>
-        </label>
-      ))}
-    </div>
-  );
+  const groupingSwitch = <Segmented name="library-grouping" label={t('library.grouping')} choices={groupings} chosen={grouping} text={(each) => t(`library.grouping.${each}`)} onChange={group} />;
   const cards = grouping === 'series' && seriesCards(found.books, series, query.sort, pageLanguage());
 
   return (
@@ -353,14 +348,29 @@ function Chip({ name, count, pressed, onClick }: { name: string; count: number; 
   );
 }
 
-// Grid, List or Cover flow: at the right of the toolbar on desktop, a row under Books / Series on the phone.
-function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (mode: Mode) => void }) {
+// One choice among a few: the Books / Series switch and the Grid / List / Cover
+// flow switch. Desktop: in the search row. Phone: each a row of its own.
+function Segmented<Choice extends string>({
+  name,
+  label,
+  choices,
+  chosen,
+  text,
+  onChange,
+}: {
+  name: string;
+  label: string;
+  choices: readonly Choice[];
+  chosen: Choice;
+  text: (choice: Choice) => string;
+  onChange: (choice: Choice) => void;
+}) {
   return (
-    <div class="segmented library-modes" role="radiogroup" aria-label={t('library.mode')}>
-      {modes.map((each) => (
+    <div class="segmented library-switch" role="radiogroup" aria-label={label}>
+      {choices.map((each) => (
         <label key={each} class="segment">
-          <input type="radio" name="library-mode" checked={mode === each} onChange={() => onChange(each)} />
-          <span>{t(`library.mode.${each}`)}</span>
+          <input type="radio" name={name} value={each} checked={chosen === each} onChange={() => onChange(each)} />
+          <span>{text(each)}</span>
         </label>
       ))}
     </div>
@@ -368,18 +378,12 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (mode: Mode) => 
 }
 
 function Book({ book }: { book: LibraryBook }) {
-  const line = [book.volume ? t('book.volume', book.volume) : '', book.authors.join(', ')].filter(Boolean).join(' · ');
+  const volume = volumeLine(book);
+  const line = [volume, book.authors.join(', ')].filter(Boolean).join(' · ');
   return (
     <li>
       <a class="library-book" href={bookHref(book.work)}>
-        <Cover
-          class="library-cover"
-          src={book.cover}
-          title={book.title}
-          series={book.series}
-          volumeTitle={book.volumeTitle}
-          volume={book.volume ? t('book.volume', book.volume) : ''}
-        />
+        <Cover class="library-cover" src={book.cover} title={book.title} series={book.series} volumeTitle={book.volumeTitle} volume={volume} />
         <span class="library-book-title">{book.title}</span>
         {line && <span class="library-book-line">{line}</span>}
       </a>

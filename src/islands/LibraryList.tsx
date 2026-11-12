@@ -1,7 +1,7 @@
 // The Library in List mode: the books under letters, and the A to Z index
 // that jumps to a letter. The rules are in src/lib/library/letters.ts.
 import { t } from '../lib/i18n/i18n';
-import type { LibraryBook } from '../lib/library/browse';
+import { volumeLine, type LibraryBook } from '../lib/library/browse';
 import { otherLetters, type Listed } from '../lib/library/letters';
 import { bookHref } from '../lib/library/model';
 import { Cover } from './Cover';
@@ -57,7 +57,7 @@ export function LibraryList({ groups }: Pick<Listed, 'groups'>) {
 }
 
 function Row({ book }: { book: LibraryBook }) {
-  const volume = book.volume ? t('book.volume', book.volume) : '';
+  const volume = volumeLine(book);
   const line = [volume, book.volumeTitle].filter(Boolean).join(' · ');
   return (
     <li>
