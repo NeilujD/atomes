@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, describe, expect, test } from 'vitest';
 import type { Edition } from '../lib/catalog/catalog';
-import { saveCopy } from '../lib/library/copy';
+import { copyCollection, saveCopy, type Copy } from '../lib/library/copy';
 import { followCollection, saveFollow, type Follow } from '../lib/library/follow';
 import { memorySpace } from '../lib/library/memory-space.fake';
-import { saveReadingStatus } from '../lib/library/reading-status';
+import { bookHref } from '../lib/library/model';
+import { readingStatusCollection, saveReadingStatus, type ReadingStatus } from '../lib/library/reading-status';
 import { Series, type Sources } from './Series';
 
 const blacksad = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
@@ -54,6 +55,8 @@ async function seriesPage(follow?: Follow['status'], editions: Edition[] = all, 
   return {
     follows: () => stored(followCollection).map(({ value }) => value as Follow),
     keys: () => stored(followCollection).map(({ rkey }) => rkey),
+    copies: () => stored(copyCollection).map(({ value }) => value as Copy),
+    statuses: () => stored(readingStatusCollection).map(({ value }) => value as ReadingStatus),
   };
 }
 
@@ -144,5 +147,74 @@ describe('Series page of a follow saved under an older identifier (same_as, ADR 
 
     expect(keys()).toEqual([minted]);
     expect(follows()).toEqual([expect.objectContaining({ series: minted, status: 'dropped' })]);
+  });
+});
+
+describe('Volume sheet', () => {
+  const sheet = () => within(screen.getByRole('dialog'));
+  const spine = (name: string) => screen.getByRole('button', { name });
+
+  test('each spine is a button that opens the Volume sheet: cover, title, Volume number, state, actions', async () => {
+    await seriesPage('following');
+
+    fireEvent.click(spine('Volume 2: not owned'));
+
+    expect(sheet().getByRole('heading', { name: 'Blacksad' })).toBeTruthy();
+    expect(sheet().getByText('Volume 2', { selector: 'p' })).toBeTruthy();
+    expect(sheet().getByText('Not owned')).toBeTruthy();
+    expect(sheet().getByRole('button', { name: 'I bought it' })).toBeTruthy();
+    expect(sheet().getByRole('button', { name: 'Mark read' })).toBeTruthy();
+    expect(sheet().getByRole('link', { name: 'Open' }).getAttribute('href')).toBe(bookHref(lineA[1].work.id));
+  });
+
+  test('"I bought it" saves one Copy of the Volume and the spine turns owned', async () => {
+    const { copies } = await seriesPage('following');
+
+    fireEvent.click(spine('Volume 2: not owned'));
+    fireEvent.click(sheet().getByRole('button', { name: 'I bought it' }));
+
+    await waitFor(() => expect(spine('Volume 2: owned, not read')).toBeTruthy());
+    expect(copies().filter(({ isbn: one }) => one === lineA[1].isbn)).toEqual([expect.objectContaining({ works: [lineA[1].work.id] })]);
+    expect(copies()).toHaveLength(3);
+    // Owned now: no second Copy from the same sheet.
+    expect(sheet().queryByRole('button', { name: 'I bought it' })).toBeNull();
+    expect(sheet().getByText('Owned, not read')).toBeTruthy();
+  });
+
+  test('"Mark read" saves a Reading Status for the Work of the Volume, and the spine turns read', async () => {
+    const { statuses } = await seriesPage('following');
+
+    fireEvent.click(spine('Volume 3: owned, not read'));
+    fireEvent.click(sheet().getByRole('button', { name: 'Mark read' }));
+
+    await waitFor(() => expect(spine('Volume 3: read')).toBeTruthy());
+    expect(statuses()).toContainEqual(expect.objectContaining({ work: lineA[2].work.id, isbn: lineA[2].isbn, status: 'read' }));
+    expect(sheet().queryByRole('button', { name: 'Mark read' })).toBeNull();
+  });
+
+  test('marking a Volume of a Series not followed yet read follows it', async () => {
+    const { follows } = await seriesPage();
+
+    fireEvent.click(spine('Volume 2: not owned'));
+    fireEvent.click(sheet().getByRole('button', { name: 'Mark read' }));
+
+    await screen.findByText('Following');
+    expect(follows()).toEqual([expect.objectContaining({ series: blacksad.id, anchorIsbn: lineA[1].isbn, status: 'following' })]);
+  });
+
+  // A modal <dialog>: the browser closes it on Escape (happy-dom does not; checked in a browser).
+  test('the sheet is modal; Close and a tap on the backdrop close it', async () => {
+    await seriesPage('following');
+    const dialog = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+
+    fireEvent.click(spine('Volume 2: not owned'));
+    expect(dialog.open).toBe(true);
+    fireEvent.click(sheet().getByRole('button', { name: 'Close' }));
+    expect(dialog.open).toBe(false);
+
+    fireEvent.click(spine('Volume 4: not owned'));
+    expect(sheet().getByText('Volume 4', { selector: 'p' })).toBeTruthy();
+    fireEvent.click(dialog);
+    expect(dialog.open).toBe(false);
   });
 });

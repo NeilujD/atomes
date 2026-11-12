@@ -292,6 +292,9 @@ export const fr: typeof en = {
   'series.spine': (volume, state) => `Tome ${volume} : ${state === 'read' ? 'lu' : state === 'owned' ? 'possédé, non lu' : 'non possédé'}`,
   'series.drop-suggest': (series) => `Vous avez abandonné un tome de ${series}. Arrêter de suivre la série ?`,
   'series.open': 'Ouvrir la page de la série',
+  'series.state': (state) => (state === 'read' ? 'Lu' : state === 'owned' ? 'Possédé, non lu' : 'Non possédé'),
+  'series.mark-read': 'Marquer lu',
+  'series.open-book': 'Ouvrir',
 
   // Bibliothèque (src/islands/Library.tsx)
   'library.title': 'Bibliothèque',
