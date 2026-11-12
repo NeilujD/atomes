@@ -174,7 +174,8 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     align-items: center;
     gap: 2px;
     min-width: 24px;
-    padding: 2px 5px;
+    /* 6 px on top: room for the 4 px lift inside the button and its focus ring. */
+    padding: 6px 5px 2px;
     border: 0;
     border-radius: var(--radius-control);
     background: none;
@@ -183,10 +184,6 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     font-size: 10px;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
-  }
-
-  .series-spine-button:hover {
-    background: var(--soft);
   }
 
   /*
@@ -227,7 +224,7 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     transition: transform 0.15s ease-out;
   }
 
-  /* A book pulled a little off the shelf: with a mouse, or with the keyboard. */
+  /* A book pulled a little off the shelf, with a mouse or the keyboard: the only hover sign (no fill). */
   @media (hover: hover) {
     .series-spine-button:hover .series-spine-bar {
       transform: translateY(-4px);
