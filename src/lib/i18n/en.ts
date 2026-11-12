@@ -286,6 +286,9 @@ export const en = {
     `Volume ${volume}: ${state === 'read' ? 'read' : state === 'owned' ? 'owned, not read' : 'not owned'}`,
   'series.drop-suggest': (series: string) => `You abandoned a Volume of ${series}. Stop following the Series?`,
   'series.open': 'Open the Series page',
+  'series.state': (state: 'read' | 'owned' | 'not-owned'): string => (state === 'read' ? 'Read' : state === 'owned' ? 'Owned, not read' : 'Not owned'),
+  'series.mark-read': 'Mark read',
+  'series.open-book': 'Open',
 
   // Library (src/islands/Library.tsx)
   'library.title': 'Library',

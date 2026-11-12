@@ -1,6 +1,6 @@
 ---
 // Series page: where the reader stands in one Series; follow, switch Edition
-// Line, stop following (src/islands/Series.tsx). `?isbn=<an Edition of the
+// Line, stop following; each spine opens a Volume sheet (src/islands/Series.tsx). `?isbn=<an Edition of the
 // Series>` (seriesHref). Rendered on the device: it reads the Library.
 import AppShell from '../layouts/AppShell.astro';
 import Series, { SeriesSkeleton } from '../islands/Series';
@@ -157,20 +157,47 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
   .series-spines {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 4px;
+    gap: 2px 0;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
   .series-spine {
+    position: relative;
+  }
+
+  /* A tap target of at least 24 px wide (WCAG 2.5.8) around the 14 px spine. */
+  .series-spine-button {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 2px;
+    min-width: 24px;
+    padding: 2px 5px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: none;
     color: var(--secondary);
+    font: inherit;
     font-size: 10px;
     font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+
+  .series-spine-button:hover {
+    background: var(--soft);
+  }
+
+  /* Mouse hover only (the island shows it for a mouse pointer): the cover above the spine. */
+  .series-peek {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    z-index: 2;
+    width: 96px;
+    transform: translateX(-50%);
+    pointer-events: none;
   }
 
   .series-spine-bar {
@@ -186,6 +213,68 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
 
   .series-spine[data-state='not-owned'] .series-spine-bar {
     border: 1.5px dashed var(--off);
+  }
+
+  /* The Volume sheet: from the bottom on the phone, a card on desktop. */
+  .series-sheet {
+    inset: auto 0 0;
+    width: 100%;
+    max-width: none;
+    max-height: 85dvh;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  .series-sheet-body {
+    padding: 20px 20px max(20px, env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 16px 20px;
+    align-items: start;
+  }
+
+  .series-sheet::backdrop {
+    background: rgb(0 0 0 / 0.4);
+  }
+
+  .series-sheet-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 14px;
+  }
+
+  .series-sheet-title {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  .series-sheet .series-actions {
+    margin-top: 12px;
+  }
+
+  .series-sheet-close {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  @media (min-width: 960px) {
+    .series-sheet-body {
+      padding: 24px;
+    }
+
+    .series-sheet {
+      inset: 0;
+      width: 440px;
+      margin: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-panel);
+    }
   }
 
   .series-skeleton-title {
