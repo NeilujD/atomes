@@ -5,6 +5,7 @@ import type { Edition } from '../lib/catalog/catalog';
 import { saveCopy } from '../lib/library/copy';
 import { memorySpace } from '../lib/library/memory-space.fake';
 import { saveReadingStatus } from '../lib/library/reading-status';
+import { groupingKey } from '../lib/library/series-mode';
 import { Library, type Sources } from './Library';
 
 const edition = (isbn: string, title: string, authors: string[]): Edition => ({
@@ -30,13 +31,13 @@ const books = [
 ];
 
 // The reader owns the three books and has read Dune.
-async function libraryScreen() {
+async function libraryScreen(owned = books) {
   const { space } = memorySpace();
-  for (const each of books) await saveCopy(space, { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-01T00:00:00.000Z' });
+  for (const each of owned) await saveCopy(space, { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-01T00:00:00.000Z' });
   await saveReadingStatus(space, { work: books[1].work.id, isbn: books[1].isbn, status: 'read', updatedAt: '2026-11-02T00:00:00.000Z' });
   const sources: Sources = {
     open: () => Promise.resolve(space),
-    editions: (isbns) => Promise.resolve(new Map(books.filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
+    editions: (isbns) => Promise.resolve(new Map(owned.filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
   };
   render(<Library sources={sources} />);
   await screen.findByRole('list');
@@ -44,7 +45,10 @@ async function libraryScreen() {
 
 const titles = () => within(screen.getByRole('list')).getAllByRole('link').map((link) => link.querySelector('.library-book-title')?.textContent);
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.removeItem(groupingKey);
+});
 
 describe('Library screen', () => {
   test('shows every book A to Z, each linking to its Book page', async () => {
@@ -73,5 +77,21 @@ describe('Library screen', () => {
     fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'zzz' } });
 
     expect(screen.getByText('No book matches these filters.')).toBeTruthy();
+  });
+
+  test('Series mode shows one card per Series, opening its Series page, and is still on after a reload', async () => {
+    const onePiece = { id: 'wd:Q673', title: 'One Piece', sameAs: [] };
+    const volumes = ['9782723434621', '9782723434638'].map((isbn, index) => ({ ...edition(isbn, 'One Piece', ['Eiichirō Oda']), series: onePiece, volumes: [index + 1], volume: index + 1 }));
+    await libraryScreen([...books, ...volumes]);
+    fireEvent.click(screen.getByRole('radio', { name: 'Series' }));
+
+    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent', 'One Piece']);
+    expect(screen.getByRole('link', { name: /One Piece/ }).getAttribute('href')).toBe('/series?isbn=9782723434621');
+
+    // A reload: the screen starts again, on the same device.
+    cleanup();
+    await libraryScreen([...books, ...volumes]);
+
+    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent', 'One Piece']);
   });
 });

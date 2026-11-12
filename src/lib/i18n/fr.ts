@@ -327,4 +327,9 @@ export const fr: typeof en = {
   'library.filters-on': (count) => `${count} ${count > 1 ? 'filtres actifs' : 'filtre actif'}`,
   'library.show': (count) => `Voir ${count} ${count > 1 ? 'livres' : 'livre'}`,
   'library.no-match': 'Aucun livre ne correspond à ces filtres.',
+  // The Books / Series switch
+  'library.grouping': 'Afficher',
+  'library.grouping.books': 'Livres',
+  'library.grouping.series': 'Séries',
+  'library.series-counts': (owned, read) => `${owned} ${owned > 1 ? 'possédés' : 'possédé'} · ${read} ${read > 1 ? 'lus' : 'lu'}`,
 };
