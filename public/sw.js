@@ -20,6 +20,12 @@ const SHELL = [
   '/apple-touch-icon-180.png',
   '/icons/atomes-icon-192.png',
   '/icons/atomes-icon-512.png',
+  // Outside production, the pages use these (src/lib/environment.ts).
+  '/favicon-staging.svg',
+  '/favicon-staging-32.png',
+  '/apple-touch-icon-staging-180.png',
+  '/icons/atomes-icon-staging-192.png',
+  '/icons/atomes-icon-staging-512.png',
 ];
 
 // Catalog answers and covers (`/api/catalog/...`), network first: offline, a
