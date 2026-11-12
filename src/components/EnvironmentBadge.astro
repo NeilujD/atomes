@@ -1,0 +1,68 @@
+---
+// "Staging", "Preview" or "Local": a grey pill outside production, so the
+// reader never changes production data by mistake (ui-direction: Environment
+// badge). Nothing in production. AppShell puts one next to the wordmark
+// (desktop), one at the top of the phone screen, and one on Flow screens.
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+import { appEnvironment } from '../lib/server/settings';
+
+interface Props {
+  place: 'sidebar' | 'top' | 'flow';
+}
+
+const { place } = Astro.props;
+const appEnv = appEnvironment(process.env);
+const t = translator(requestLanguage(Astro.request));
+---
+
+{
+  appEnv !== 'production' && (
+    <p class:list={['environment', place]}>
+      <span class="pill">{t(`environment.${appEnv}`)}</span>
+    </p>
+  )
+}
+
+<style>
+  /* Grey, not a colour role: caution yellow is for offline, cobalt for New Volumes and links. */
+  .pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--soft);
+    color: var(--secondary);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .sidebar {
+    margin-right: auto;
+    margin-left: 8px;
+  }
+
+  /* Phone: above the large title, in the safe area. Desktop: the sidebar has its own. */
+  .top {
+    display: flex;
+    justify-content: center;
+    padding: max(8px, env(safe-area-inset-top)) 20px 0;
+  }
+
+  @media (min-width: 960px) {
+    .top {
+      display: none;
+    }
+  }
+
+  /* Flow (no chrome, content centred): over the top edge, so the content does not move. */
+  .flow {
+    position: fixed;
+    inset: 0 0 auto;
+    display: flex;
+    justify-content: center;
+    padding-top: max(12px, env(safe-area-inset-top));
+    pointer-events: none;
+  }
+</style>

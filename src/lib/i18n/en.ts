@@ -22,6 +22,9 @@ export const en = {
   'connection.offline': 'Offline',
   'connection.reconnect': 'Reconnect',
   'connection.waiting': (count: number) => `${count} ${count === 1 ? 'save' : 'saves'} waiting`,
+  'environment.staging': 'Staging',
+  'environment.preview': 'Preview',
+  'environment.local': 'Local',
 
   // Shared words and links
   'link.home': 'Go to Home',
