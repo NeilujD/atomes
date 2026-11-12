@@ -6,15 +6,18 @@ export { expect };
 
 export const test = base.extend<{ signIn: () => Promise<void>; devServerPage: void }>({
   // Signs this browser in as the reader of this spec file, with no PDS
-  // (/dev/sign-in-as, CORE-71). Through the context's request client, which
-  // keeps the session cookie for the pages: opening the Library it lands on
-  // would start a session check that the next page.goto cuts, and the cut
-  // check sends WebKit to the sign-in screen.
-  signIn: async ({ page }, use, testInfo) => {
+  // (/dev/sign-in-as, CORE-71). Through a request, not a page: opening the
+  // Library it lands on would start a session check that the next page.goto
+  // cuts, and the cut check sends WebKit to the sign-in screen.
+  signIn: async ({ page, baseURL }, use, testInfo) => {
     await use(async () => {
       const did = readerDid(testInfo.project.name, testInfo.file);
       const answer = await page.request.get(`/dev/sign-in-as?did=${encodeURIComponent(did)}`, { maxRedirects: 0 });
       expect(answer.status(), `sign-in as ${did}`).toBe(303);
+      // The session cookie is Secure. WebKit on Linux (CI) does not send a
+      // Secure cookie to http://127.0.0.1, so the browser gets it without Secure.
+      const [name, value] = answer.headers()['set-cookie'].split(';')[0].split(/=(.*)/);
+      await page.context().addCookies([{ name, value, url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
     });
   },
 
