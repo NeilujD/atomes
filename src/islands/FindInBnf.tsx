@@ -1,7 +1,7 @@
 // Quick Add, for an ISBN no book source knows (CORE-40): find its Series or
 // Work in BnF by the title the reader typed, and the publisher. The reader
 // picks an Edition Line and the Volume, or a book; the Catalog keeps that pick
-// for every reader. Mounted by src/pages/add.astro under the typed details.
+// for every reader. Mounted by src/pages/check.astro under the typed details.
 import { useState } from 'preact/hooks';
 import type { Edition, LineFound, SearchFound, WorkFound } from '../lib/catalog/catalog';
 import { chooseEdition, searchCatalog, type ChooseAnswer, type SearchAnswer } from '../lib/catalog/client';

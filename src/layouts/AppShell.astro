@@ -37,10 +37,10 @@ const t = translator(language);
 // allow the boot script by its hash. No CSP in `astro dev`, so no `Astro.csp`.
 Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(bootScript).digest('base64')}`);
 
+// New & upcoming stays out until its screen exists (CORE-68): no link to a missing page.
 const sidebarItems: { key: Section; href: string; label: string; icon: IconName }[] = [
   { key: 'home', href: '/', label: t('nav.home'), icon: 'house' },
   { key: 'library', href: '/library', label: t('nav.library'), icon: 'library' },
-  { key: 'new', href: '/new', label: t('nav.new'), icon: 'bell' },
   { key: 'to-buy', href: '/to-buy', label: t('nav.to-buy'), icon: 'shopping-bag' },
 ];
 

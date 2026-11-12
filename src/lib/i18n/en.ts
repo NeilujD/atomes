@@ -121,7 +121,6 @@ export const en = {
   'language.en': 'English',
 
   // Quick Add
-  'add.title': 'Add to your Library',
   'add.scan': 'Scan the barcode',
   'add.camera-starting': 'Starting the camera…',
   'add.type-isbn': 'Type the ISBN',
@@ -143,11 +142,18 @@ export const en = {
   'add.lookup-unreachable': 'Could not reach Atomes to look up the book. Check your connection and try again.',
   'add.lookup-failed': 'Could not look up this ISBN. Try again.',
   'add.unknown-isbn': (isbn: string) => `ISBN ${isbn}. No book source knows it yet: type what is on the cover.`,
-  'add.already-have': 'You already have this book. Adding it again adds another Copy.',
   'add.added': (title: string) => `${title} is in your Library.`,
   'add.no-onboarding.followed': (series: string) => `You already follow ${series}, so no question about its other Volumes.`,
   'add.no-onboarding.dropped': (series: string) =>
     `You stopped following ${series}, so no question about its other Volumes.`,
+  'check.title': 'Check a book',
+  'check.owned': 'In your Library',
+  'check.missing': (series: string) => `Missing from ${series}`,
+  'check.missing-text': 'You own later Volumes of this Followed Series.',
+  'check.read': (status: string) => `${status}, but you have no Copy`,
+  'check.new': 'Not in your Library',
+  'check.followed': (series: string) => `You follow ${series}.`,
+  'check.status': (status: string) => `Reading Status: ${status}`,
   'find.title': 'Find it in the BnF catalogue',
   'find.hint': 'Type the title above, and the publisher if you know it. Only these words go to the BnF, never the ISBN.',
   'find.publisher': 'Publisher',

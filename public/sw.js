@@ -9,7 +9,7 @@ const CACHE = `atomes-shell-${BUILD.version}`;
 // the next deploy: the old worker caches it, then the new worker deletes that cache.
 const SHELL = [
   '/',
-  '/add',
+  '/check',
   '/book',
   '/library',
   '/settings',
@@ -64,7 +64,7 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) {
     return;
   } else if (request.mode === 'navigate') {
-    // Kept by path, never with its query (`/book?work=…`, `/add?isbn=…`): the
+    // Kept by path, never with its query (`/book?work=…`, `/check?isbn=…`): the
     // query names the reader's books, and the shell stays after sign-out. A
     // page is the same for every query; its script reads the query.
     event.respondWith(networkFirst(event, CACHE, '/', new URL(url.pathname, self.location.origin).href));
