@@ -1,9 +1,9 @@
 // Empties the SQLite files of an instance in place: every row of every table
 // goes, the tables and the Catalog's schema version stay. The server can keep
 // running: it sees empty stores at its next query, with no restart. Records
-// on the PDS do not change. `scripts/reset-env.ts` runs this file with Node
-// alone (type stripping), on a laptop and in the Docker image, so no import
-// outside `node:` and `./settings.ts`.
+// on the PDS do not change. `scripts/reset-env.ts` runs this file with Bun on
+// a laptop and with Node alone (type stripping) in the Docker image, so no
+// import outside `node:` and `./settings.ts`.
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
