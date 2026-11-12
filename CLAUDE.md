@@ -11,6 +11,7 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 - Hand tests in a browser: on `bun run dev`, open http://127.0.0.1:4321/dev/sign-in-as to sign in with no PDS, as the first DID of `ALLOWED_DIDS` (or `?did=<did>&handle=<handle>`). It lands on the Library. 404 in a built server. It is enough while the Library stays on this server (`library.sqlite`); data on the PDS will need the real sign-in.
 - `bun run reset [--keep-catalog]` — local only: delete the SQLite files in `DATA_DIR` (sessions, Library, Catalog). Stop the dev server first; every browser must sign in again. PDS records do not change.
 - `bun scripts/record-catalog-answers.ts <isbn>…` — ask the real book sources and save their answers in `src/lib/catalog/fixtures/` for the Catalog tests
+- `CATALOG_SOURCES=recorded DATA_DIR=data-e2e bun run dev` — dev server whose Catalog answers from these recorded answers, with no network (E2E and agent tests). Recorded ISBNs: `src/lib/catalog/fixtures/README.md` (9782723478991 is One Piece 56; 9791099999993 is unknown to every source). Any other ISBN is unknown, and there is no cover. Keep the separate `DATA_DIR`: a `catalog.sqlite` filled from recorded answers must not mix with the real local Catalog. A built server ignores the setting.
 
 `jean.json`: in each new worktree, Jean copies the `.env*` files of the base project (`$JEAN_ROOT_PATH`, top level only) and runs `bun install --frozen-lockfile`. Its Run command is `bun run dev`.
 
