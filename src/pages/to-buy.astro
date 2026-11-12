@@ -1,6 +1,7 @@
 ---
-// To Buy: the Missing Volumes of the Followed Series and the Editions added by
-// hand (src/islands/ToBuy.tsx). Rendered on the device: it reads the Library.
+// To Buy: the Volumes of the Followed Series the reader does not own and the
+// Editions added by hand (src/islands/ToBuy.tsx). Rendered on the device: it
+// reads the Library.
 import AppShell from '../layouts/AppShell.astro';
 import ToBuy, { ToBuySkeleton } from '../islands/ToBuy';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
@@ -120,13 +121,64 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   .to-buy-series + .to-buy-series {
-    margin-top: 12px;
+    margin-top: 2px;
   }
 
   .to-buy-series-title {
     font-size: 14px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* One row per Series: a chevron, then "One Piece · 63 Volumes (51–113)". */
+  .to-buy-series-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: var(--row);
+    padding: 0 4px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .to-buy-series-toggle:hover {
+    background: var(--soft);
+  }
+
+  .to-buy-series-toggle::before {
+    content: '';
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 0.15s ease-out;
+  }
+
+  .to-buy-series-toggle[aria-expanded='true']::before {
+    transform: rotate(45deg);
+  }
+
+  .to-buy-series-volumes {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .to-buy-series-volumes[hidden] {
+    display: none;
+  }
+
+  .to-buy-series-link {
+    align-self: flex-start;
+    font-size: 13px;
   }
 
   .to-buy-more {
@@ -138,7 +190,8 @@ const t = translator(requestLanguage(Astro.request));
       animation: none;
     }
 
-    .to-buy-cover img {
+    .to-buy-cover img,
+    .to-buy-series-toggle::before {
       transition: none;
     }
   }

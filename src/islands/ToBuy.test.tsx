@@ -29,11 +29,12 @@ const volume = (n: number): Edition => ({
 const line = [1, 2, 3, 4, 5].map(volume);
 const dune = '9782266320481';
 
-// The reader follows Blacksad and owns Volumes 1 and 3: Volume 2 is missing. Dune was added by hand.
-async function screenWithLibrary() {
+// The reader follows Blacksad and owns Volumes `owned`: by default 1 and 3, so
+// 2, 4 and 5 are to buy. Dune was added by hand.
+async function screenWithLibrary(owned = [1, 3]) {
   const { space, stored } = memorySpace();
   await saveFollow(space, { series: series.id, anchorIsbn: isbns[0], status: 'following', updatedAt: '2026-11-06T11:00:00.000Z' });
-  for (const n of [1, 3]) await saveCopy(space, { isbn: isbns[n - 1], works: [volume(n).work.id], createdAt: '2026-11-06T11:00:00.000Z' });
+  for (const n of owned) await saveCopy(space, { isbn: isbns[n - 1], works: [volume(n).work.id], createdAt: '2026-11-06T11:00:00.000Z' });
   await saveToBuy(space, { isbn: dune, createdAt: '2026-11-07T10:00:00.000Z' });
   const sources: Sources = {
     open: () => Promise.resolve(space),
@@ -45,51 +46,82 @@ async function screenWithLibrary() {
   return { stored };
 }
 
+const followed = 'From the Series you follow';
 const group = (name: string) => within(screen.getByRole('region', { name }));
 // The title of a book the Catalog does not know is its ISBN, as is the line under it: take the first.
 const row = (name: string, text: string) => group(name).getAllByText(text)[0].closest('li')!;
+// Opens the row of a Series, once the screen shows it.
+async function openSeries(name: string) {
+  fireEvent.click(await screen.findByRole('button', { name }));
+}
 
 afterEach(cleanup);
 
 describe('To Buy screen', () => {
-  test('shows the Missing Volume and the Edition added by hand', async () => {
+  test('shows the Volumes the reader does not own in a Followed Series, and the Edition added by hand', async () => {
     await screenWithLibrary();
+    await openSeries('Blacksad · 3 Volumes (2, 4–5)');
 
-    expect(await screen.findByText('Volume 2')).toBeTruthy();
-    expect(group('Missing Volumes').queryByText('Volume 3')).toBeNull();
+    expect(group(followed).getAllByRole('listitem').map((each) => within(each).getByText(/^Volume /).textContent)).toEqual([
+      'Volume 2',
+      'Volume 4',
+      'Volume 5',
+    ]);
     expect(group('Added by hand').getByText(`ISBN ${dune}`, { selector: '.to-buy-title' })).toBeTruthy();
-    // A Missing Volume is computed: it can be bought, not removed.
-    expect(within(row('Missing Volumes', 'Volume 2')).queryByRole('button', { name: 'Remove' })).toBeNull();
+    // A Volume of a Followed Series is computed: it can be bought, not removed.
+    expect(within(row(followed, 'Volume 2')).queryByRole('button', { name: 'Remove' })).toBeNull();
   });
 
-  test('"I bought it" on a Missing Volume adds the Copy, and the Volume leaves the list', async () => {
+  test('a Series group shows its count and range, and opens to its Volumes', async () => {
+    await screenWithLibrary();
+    const toggle = await screen.findByRole('button', { name: 'Blacksad · 3 Volumes (2, 4–5)' });
+
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(group(followed).queryAllByRole('listitem')).toHaveLength(0);
+
+    fireEvent.click(toggle);
+
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(group(followed).getAllByRole('listitem')).toHaveLength(3);
+    expect(group(followed).getByRole('link', { name: 'Open the Series page' }).getAttribute('href')).toBe(`/series?isbn=${isbns[1]}`);
+  });
+
+  test('"I bought it" on a Volume adds the Copy, and the Volume leaves the list', async () => {
     const { stored } = await screenWithLibrary();
-    await screen.findByText('Volume 2');
+    await openSeries('Blacksad · 3 Volumes (2, 4–5)');
 
-    fireEvent.click(within(row('Missing Volumes', 'Volume 2')).getByRole('button', { name: 'I bought it' }));
+    fireEvent.click(within(row(followed, 'Volume 2')).getByRole('button', { name: 'I bought it' }));
 
-    expect(await screen.findByText(/^No Missing Volume\./)).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Blacksad · 2 Volumes (4–5)' })).toBeTruthy();
     expect(stored(copyCollection).map(({ value }) => (value as { isbn: string }).isbn)).toContain(isbns[1]);
+  });
+
+  test('a reader who owns every Volume of the Series they follow is told the rule', async () => {
+    await screenWithLibrary([1, 2, 3, 4, 5]);
+
+    expect(await screen.findByText(/^Nothing to buy in the Series you follow\./)).toBeTruthy();
   });
 
   test('an Edition added by hand appears, and Remove takes it off', async () => {
     const { stored } = await screenWithLibrary();
-    await screen.findByText('Volume 2');
+    await screen.findByRole('button', { name: /^Blacksad/ });
 
-    fireEvent.input(screen.getByLabelText('Add a book by its ISBN'), { target: { value: '979-10-99999-05-4' } });
+    // A book of no Followed Series.
+    const other = '9782505000013';
+    fireEvent.input(screen.getByLabelText('Add a book by its ISBN'), { target: { value: '978-2-505-00001-3' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Add' }).closest('form')!);
-    expect(await group('Added by hand').findAllByText(`ISBN ${isbns[4]}`)).not.toHaveLength(0);
+    expect(await group('Added by hand').findAllByText(`ISBN ${other}`)).not.toHaveLength(0);
     expect(screen.getByLabelText('Add a book by its ISBN')).toHaveProperty('value', '');
 
     fireEvent.click(within(row('Added by hand', `ISBN ${dune}`)).getByRole('button', { name: 'Remove' }));
 
     await waitFor(() => expect(group('Added by hand').queryAllByText(`ISBN ${dune}`)).toHaveLength(0));
-    expect(stored(toBuyCollection).map(({ rkey }) => rkey)).toEqual([isbns[4]]);
+    expect(stored(toBuyCollection).map(({ rkey }) => rkey)).toEqual([other]);
   });
 
   test('a book the reader owns is refused next to the field, and nothing is saved', async () => {
     const { stored } = await screenWithLibrary();
-    await screen.findByText('Volume 2');
+    await screen.findByRole('button', { name: /^Blacksad/ });
 
     fireEvent.input(screen.getByLabelText('Add a book by its ISBN'), { target: { value: isbns[0] } });
     fireEvent.submit(screen.getByRole('button', { name: 'Add' }).closest('form')!);
@@ -99,14 +131,8 @@ describe('To Buy screen', () => {
     expect(stored(toBuyCollection).map(({ rkey }) => rkey)).toEqual([dune]);
   });
 
-  test('Missing Volumes come in one group per Series, with its count', async () => {
-    await screenWithLibrary();
-
-    expect(await screen.findByRole('heading', { name: 'Blacksad · 1 Volume' })).toBeTruthy();
-  });
-
   test('a long Series shows 10 Volumes, then the next ones on demand', async () => {
-    // Volumes 1 to 15, valid ISBN-13s; the reader owns 1 and 15, so 2 to 14 are missing.
+    // Volumes 1 to 15, valid ISBN-13s; the reader owns 1 and 15, so 2 to 14 are to buy.
     const isbnOf = (n: number) => {
       const first12 = `979109998${String(n).padStart(3, '0')}`;
       const sum = [...first12].reduce((total, digit, i) => total + Number(digit) * (i % 2 === 0 ? 1 : 3), 0);
@@ -118,12 +144,12 @@ describe('To Buy screen', () => {
     for (const each of [long[0], long[14]]) await saveCopy(space, { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-06T11:00:00.000Z' });
     render(<ToBuy sources={{ open: () => Promise.resolve(space), volumes: () => Promise.resolve(long), editions: () => Promise.resolve(new Map()) }} />);
 
-    await screen.findByRole('heading', { name: 'Blacksad · 13 Volumes' });
-    expect(group('Missing Volumes').getAllByRole('listitem')).toHaveLength(10);
+    await openSeries('Blacksad · 13 Volumes (2–14)');
+    expect(group(followed).getAllByRole('listitem')).toHaveLength(10);
 
     fireEvent.click(screen.getByRole('button', { name: 'Show 3 more (3 left)' }));
 
-    expect(group('Missing Volumes').getAllByRole('listitem')).toHaveLength(13);
+    expect(group(followed).getAllByRole('listitem')).toHaveLength(13);
     expect(screen.queryByRole('button', { name: /^Show/ })).toBeNull();
   });
 

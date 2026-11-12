@@ -143,11 +143,23 @@ export function seriesStanding(volumes: Edition[], library: Library): SeriesStan
 // ISBN or by Work (isOwned), so a Copy from another Edition Line of the Series
 // counts too.
 export function missingVolumes(volumes: Edition[], library: Library): Edition[] {
+  return notOwned(volumes, library, true);
+}
+
+// The numbered Volumes of an Edition Line that the reader does not own (To
+// Buy): the Missing Volumes and every Volume after the latest one owned. A
+// Volume the Catalog lists counts as in shops: it has no release dates yet.
+// One Edition per Volume, as for missingVolumes.
+export function notOwnedVolumes(volumes: Edition[], library: Library): Edition[] {
+  return notOwned(volumes, library, false);
+}
+
+function notOwned(volumes: Edition[], library: Library, beforeLatest: boolean): Edition[] {
   const numbered = byVolume(volumes);
   const owned = numbered.filter(([, printings]) => printings.some((each) => isOwned(each, library))).map(([volume]) => volume);
-  const latest = Math.max(0, ...owned);
-  const missing = numbered.filter(([volume]) => volume < latest && !owned.includes(volume)).map(([, printings]) => printings[0]);
-  return [...new Set(missing)];
+  const latest = beforeLatest ? Math.max(0, ...owned) : Infinity;
+  const listed = numbered.filter(([volume]) => volume < latest && !owned.includes(volume)).map(([, printings]) => printings[0]);
+  return [...new Set(listed)];
 }
 
 // The printings of each numbered Volume, in Volume order, the ones with the
