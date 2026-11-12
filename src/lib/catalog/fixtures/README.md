@@ -2,6 +2,8 @@
 
 Real answers of BnF, SUDOC, Inventaire and Open Library, recorded on 2026-11-05, used by `src/lib/catalog/catalog.test.ts` through `recorded.fake.ts`. A URL with no file here answers 404, the way the sources say "unknown".
 
+The dev server answers from them too, with no network: `CATALOG_SOURCES=recorded DATA_DIR=data-e2e bun run dev` (`src/lib/catalog/instance.ts`). A built server never holds them.
+
 Record them again, or add ISBNs:
 
 ```sh
