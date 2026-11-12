@@ -25,6 +25,46 @@ jobs:
       - run: bun run test
       - run: bun run build
 
+  # E2E journeys in Chromium and WebKit (CORE-73). Advisory: `protect-main`
+  # requires only `check`. Make this job required once the suite is stable.
+  # Playwright starts the dev server with throwaway settings made at run time
+  # (playwright.config.ts): no secret.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache the Playwright browsers
+        id: browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install the browsers and their system packages
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: bunx playwright install --with-deps chromium webkit
+      # The cache holds the browsers, not the system packages they need.
+      - name: Install the system packages of the browsers
+        if: steps.browsers.outputs.cache-hit == 'true'
+        run: bunx playwright install-deps chromium webkit
+      - run: bun run test:e2e
+      - name: Keep the Playwright traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 14
+
   image:
     runs-on: ubuntu-latest
     steps:

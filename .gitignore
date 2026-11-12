@@ -8,6 +8,10 @@ data/
 data-phone/
 data-e2e/
 
+# Playwright results and traces (bun run test:e2e)
+test-results/
+playwright-report/
+
 # dependencies
 node_modules/
 

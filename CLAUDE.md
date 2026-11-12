@@ -6,6 +6,7 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 - `bun run check` — type check (`astro check`)
 - `bun run lint` — lint (ESLint, type-aware rules, Astro and a11y rules).
 - `bun run test` — run tests (Vitest). Never `bun test`: that starts Bun's own test runner, not Vitest.
+- `bun run test:e2e` — E2E journeys in a browser (Playwright, `e2e/`), in Chromium and WebKit at 390 px wide. Playwright starts its own dev server on http://127.0.0.1:4322 with the recorded Catalog, an empty `data-e2e/` and throwaway settings (`playwright.config.ts`); it never reuses a running server. First time: `bunx playwright install chromium webkit`. On a failure, open the trace: `bunx playwright show-trace test-results/<test>/trace.zip`. Each spec file signs in as its own reader (`e2e/readers.ts`); import `test` from `e2e/test.ts`, which fails a test that calls a host other than the dev server.
 - `bun run build` — build the Node server into `dist/`
 - `bun run dev` — dev server on http://127.0.0.1:4321 (not `localhost`: the OAuth loopback client needs a loopback IP; `localhost` pages move there)
 - Hand tests in a browser: on `bun run dev`, open http://127.0.0.1:4321/dev/sign-in-as to sign in with no PDS, as the first DID of `ALLOWED_DIDS` (or `?did=<did>&handle=<handle>`). It lands on the Library. 404 in a built server. It is enough while the Library stays on this server (`library.sqlite`); data on the PDS will need the real sign-in.
@@ -15,7 +16,7 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 
 `jean.json`: in each new worktree, Jean copies the `.env*` files of the base project (`$JEAN_ROOT_PATH`, top level only) and runs `bun install --frozen-lockfile`. Its Run command is `bun run dev`.
 
-CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Its `image` job builds the `Dockerfile` and waits for the container health check. Tests must never call a real PDS or a real book source (the Catalog tests use recorded answers). The Catalog stores its SQLite file in `DATA_DIR` (`data/` in development).
+CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Its `e2e` job runs `bun run test:e2e` and keeps the traces of failed tests as the `playwright-traces` artifact; it is advisory (not a required check of `protect-main`). Its `image` job builds the `Dockerfile` and waits for the container health check. Tests must never call a real PDS or a real book source (the Catalog tests use recorded answers). The Catalog stores its SQLite file in `DATA_DIR` (`data/` in development).
 
 `main` is protected by the GitHub ruleset `protect-main`: direct pushes, force pushes and deletion are refused, and a pull request merges only when the CI `check` job is green. Never merge without the owner's review.
 
