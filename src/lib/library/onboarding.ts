@@ -1,8 +1,9 @@
 // Series Onboarding (glossary): when a Series first enters the Library, the
 // reader says which of its Volumes they own and have read. Pure, like model.ts.
-// Only the Volumes the Catalog already knows in the Edition Line take part:
-// a Copy needs an ISBN. Onboarding only adds: it never removes a Copy or
-// lowers a Reading Status.
+// There is a tile for every number from 1 to the highest known Volume, but
+// only the Volumes the Catalog already knows in the Edition Line get records:
+// a Copy and a Reading Status need an ISBN (ADR 0010). Onboarding only adds:
+// it never removes a Copy or lowers a Reading Status.
 import type { Edition } from '../catalog/catalog';
 import type { Copy } from './copy';
 import type { Follow } from './follow';
@@ -18,7 +19,7 @@ export interface Onboarding {
   // One Edition per numbered Volume of the Edition Line, by Volume number; `volume`
   // is that Volume, also for an omnibus, which is there once for each of its Volumes.
   volumes: (Edition & { volume: number })[];
-  // The values the two steppers move through: 0 (none), then each known Volume number.
+  // The values the two steppers move through: 0 (none), then each tile number.
   steps: number[];
   start: Choices;
 }
@@ -29,17 +30,25 @@ export interface Choices {
   readUpTo: number;
   // ISBNs of the Volumes the reader tapped: owned is the opposite of the range.
   tapped: ReadonlySet<string>;
+  // The same for read: "read 1 and 3, not 2".
+  readTapped: ReadonlySet<string>;
   // "Tell me when a new Volume is out".
   follow: boolean;
 }
 
+// What a tap or a range changes: "Tap changes: Owned | Read".
+export type TapMode = 'owned' | 'read';
+
 export interface Tile {
-  isbn: string;
+  // Null: the Catalog knows no Edition of this number. The tile cannot change.
+  isbn: string | null;
   volume: number;
   owned: boolean;
   read: boolean;
   // It has a Copy already, so it stays owned whatever the choices.
   kept: boolean;
+  // It is read already, so it stays read whatever the choices.
+  keptRead: boolean;
 }
 
 export interface OnboardingSave {
@@ -90,15 +99,19 @@ export function seriesOnboarding(anchor: Edition, volumes: Edition[], library: L
   }
   const numbered = [...byVolume.values()].sort((a, b) => a.volume - b.volume);
   const highest = (keep: (each: Edition) => boolean) => Math.max(0, ...numbered.filter(keep).map((each) => each.volume));
+  // Every whole number up to the highest known Volume, and the known ones (5.5).
+  const last = highest(() => true);
+  const numbers = new Set([...Array.from({ length: Math.floor(last) }, (_, index) => index + 1), ...byVolume.keys()]);
   return {
     series: anchor.series,
     anchor,
     volumes: numbered,
-    steps: [0, ...new Set(numbered.map((each) => each.volume))],
+    steps: [0, ...[...numbers].sort((a, b) => a - b)],
     start: {
       ownedUpTo: highest((each) => isOwned(each, library)),
       readUpTo: highest((each) => isRead(each, library)),
       tapped: new Set(),
+      readTapped: new Set(),
       follow: true,
     },
   };
@@ -120,16 +133,32 @@ export function typedVolume(steps: number[], typed: string): number | undefined 
   return Math.min(steps.at(-1)!, Math.max(0, value));
 }
 
+// A new value for one range. Taps fixed the old range, so the taps of that kind go.
+export function withRange(choices: Choices, mode: TapMode, value: number): Choices {
+  return mode === 'owned' ? { ...choices, ownedUpTo: value, tapped: new Set() } : { ...choices, readUpTo: value, readTapped: new Set() };
+}
+
+// A tap on a tile: owned or read becomes the opposite of its range.
+export function tapTile(choices: Choices, mode: TapMode, isbn: string): Choices {
+  const key = mode === 'owned' ? 'tapped' : 'readTapped';
+  const tapped = new Set(choices[key]);
+  if (!tapped.delete(isbn)) tapped.add(isbn);
+  return { ...choices, [key]: tapped };
+}
+
 export function volumeTiles(onboarding: Onboarding, library: Library, choices: Choices): Tile[] {
-  return onboarding.volumes.map((each) => {
+  return onboarding.steps.slice(1).map((volume) => {
+    const each = onboarding.volumes.find((known) => known.volume === volume);
+    if (!each) return { isbn: null, volume, owned: false, read: false, kept: false, keptRead: false };
     const kept = isOwned(each, library);
-    const inRange = each.volume <= choices.ownedUpTo;
+    const keptRead = isRead(each, library);
     return {
       isbn: each.isbn,
-      volume: each.volume,
+      volume,
       kept,
-      owned: kept || inRange !== choices.tapped.has(each.isbn),
-      read: isRead(each, library) || each.volume <= choices.readUpTo,
+      keptRead,
+      owned: kept || volume <= choices.ownedUpTo !== choices.tapped.has(each.isbn),
+      read: keptRead || volume <= choices.readUpTo !== choices.readTapped.has(each.isbn),
     };
   });
 }
@@ -140,7 +169,9 @@ export function volumeTiles(onboarding: Onboarding, library: Library, choices: C
 export function onboardingSave(onboarding: Onboarding, library: Library, choices: Choices, now: Date): OnboardingSave {
   const tiles = volumeTiles(onboarding, library, choices);
   const edition = (isbn: string) => onboarding.volumes.find((each) => each.isbn === isbn)!;
-  const isbnsOf = (keep: (tile: Tile) => boolean) => [...new Set(tiles.filter(keep).map(({ isbn }) => isbn))];
+  const isbnsOf = (keep: (tile: Tile) => boolean) => [
+    ...new Set(tiles.filter(keep).flatMap(({ isbn }) => (isbn === null ? [] : [isbn]))),
+  ];
   const copies = isbnsOf(({ owned, kept }) => owned && !kept).map(
     (isbn): Copy => ({ isbn, works: [edition(isbn).work.id], createdAt: now.toISOString() }),
   );
