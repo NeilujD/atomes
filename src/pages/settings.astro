@@ -89,6 +89,7 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
 
 <script>
   import { applyAppearance, parseAppearance, readAppearance, saveAppearance } from '../lib/appearance';
+  import { confirmSignOut } from '../lib/auth/confirm-sign-out';
   import { checkedAccount, signOutHere } from '../lib/auth/server-client';
   import { parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
   import { loadSession, type AuthState } from '../lib/auth/session';
@@ -118,10 +119,13 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
   // Signed out: the sign-in screen, unless something went wrong that the reader must read first.
   signOutButton.addEventListener('click', () => {
     if (state.status !== 'signed-in') return;
-    busy(true);
-    void signOutHere()
-      .then((message) => render({ status: 'signed-out', message }))
-      .finally(() => busy(false));
+    void confirmSignOut().then((confirmed) => {
+      if (!confirmed) return;
+      busy(true);
+      void signOutHere()
+        .then((message) => render({ status: 'signed-out', message }))
+        .finally(() => busy(false));
+    });
   });
 
 

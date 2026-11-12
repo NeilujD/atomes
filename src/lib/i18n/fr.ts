@@ -69,6 +69,9 @@ export const fr: typeof en = {
   'signin.hint': 'Utilisez votre compte AT Protocol. Vous vous connectez sur la page de votre PDS : Atomes ne voit jamais votre mot de passe.',
   'signin.handle': 'Votre identifiant',
   'signin.submit': 'Se connecter',
+  'signout.title': 'Se déconnecter de cet appareil ?',
+  'signout.text': 'Atomes efface votre bibliothèque de cet appareil. Les enregistrements encore en attente sont perdus.',
+  'signout.cancel': 'Annuler',
 
   // ISBN and camera problems (src/lib/library/ids.ts, src/lib/scan/barcode.ts)
   'isbn.not-isbn': 'Ce n’est pas l’ISBN d’un livre. Il a 13 chiffres et commence par 978 ou 979.',

@@ -70,6 +70,9 @@ export const en = {
   'signin.hint': 'Use your AT Protocol account. You sign in on your PDS page: Atomes never sees your password.',
   'signin.handle': 'Your handle',
   'signin.submit': 'Sign in',
+  'signout.title': 'Sign out of this device?',
+  'signout.text': 'Atomes removes your Library from this device. Saves still waiting to be sent are lost.',
+  'signout.cancel': 'Cancel',
 
   // ISBN and camera problems (src/lib/library/ids.ts, src/lib/scan/barcode.ts)
   'isbn.not-isbn': 'This is not a book’s ISBN. It has 13 digits and starts with 978 or 979.',
