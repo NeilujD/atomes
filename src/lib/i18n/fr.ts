@@ -22,6 +22,9 @@ export const fr: typeof en = {
   'connection.offline': 'Hors ligne',
   'connection.reconnect': 'Reconnecter',
   'connection.waiting': (count) => `${count} ${count > 1 ? 'enregistrements' : 'enregistrement'} en attente`,
+  'environment.staging': 'Staging',
+  'environment.preview': 'Aperçu',
+  'environment.local': 'Local',
 
   // Shared words and links
   'link.home': 'Aller à l’accueil',

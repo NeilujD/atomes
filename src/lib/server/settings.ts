@@ -74,6 +74,11 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     }
   }
 
+  const appEnv = env.APP_ENV?.trim();
+  if (appEnv && appEnv !== 'production' && appEnv !== 'staging') {
+    problems.push(`APP_ENV must be production or staging. Found: ${appEnv}`);
+  }
+
   const port = Number(env.PORT ?? 4321);
   if (!Number.isInteger(port) || port <= 0) problems.push(`PORT must be a port number. Found: ${String(env.PORT)}`);
 
@@ -94,8 +99,24 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
 // Coolify puts the URL with its scheme in COOLIFY_URL or COOLIFY_FQDN, by
 // version, and the bare hostname in the other. Several domains: the first.
 function previewUrl(env: Record<string, string | undefined>): string | undefined {
-  if (!/^pull\/\d+\/head$/.test(env.COOLIFY_BRANCH ?? '')) return undefined;
+  if (!isPreview(env)) return undefined;
   return [env.COOLIFY_URL, env.COOLIFY_FQDN].map((value) => value?.split(',')[0]?.trim()).find((value) => value?.includes('://'));
+}
+
+function isPreview(env: Record<string, string | undefined>): boolean {
+  return /^pull\/\d+\/head$/.test(env.COOLIFY_BRANCH ?? '');
+}
+
+// Which instance this is, for the environment badge and the app icons.
+// APP_ENV says production or staging; a Coolify pull request preview (which
+// gets the staging variables) and the dev server name themselves. A built
+// image with no APP_ENV counts as staging, so a missing value shows a badge.
+export type AppEnv = 'production' | 'staging' | 'preview' | 'local';
+
+export function appEnvironment(env: Record<string, string | undefined>): AppEnv {
+  if (env.NODE_ENV === 'development') return 'local';
+  if (isPreview(env)) return 'preview';
+  return env.APP_ENV?.trim() === 'production' ? 'production' : 'staging';
 }
 
 function isHttpsOrigin(value: string): boolean {
