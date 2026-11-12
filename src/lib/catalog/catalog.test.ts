@@ -10,12 +10,15 @@ import { createCatalog } from './catalog';
 import { fixtureDir, recordedFetch } from './recorded.fake';
 import { isCoverUrl, type SourceFetch } from './sources';
 
+const onePiece1 = '9782723488525'; // 2013 printing, in its own BnF Series record (43702987)
 const onePiece56 = '9782723478991';
 const onePiece112 = '9782344068922'; // 2026: no 461 in any source, 19 cm (56 is 18 x 12 cm)
 const spyFamily16 = '9791042021030'; // 2026: BnF has no Series link yet, SUDOC has
 const horde = '9782072927515'; // La Horde du Contrevent, Folio SF (owner's shelf)
 const dragonBallSuper1to2 = '9782344025437'; // omnibus "Tomes 1-2", 461 $v "1-2"
 const spyFamily1to3 = '9782380714487'; // omnibus "Tomes 1 à 3" in its own BnF Series record
+const dragonBall1 = '9782723434621'; // 18 cm, known to SUDOC only: Series "Dragonball"
+const dragonBallPerfect1 = '9782723467681'; // 21 cm line of 34 Volumes, BnF Series record 41495473
 const unknown = '9791099999993'; // valid check digit, no source knows it
 // Owner's shelf (CORE-40): Kaamelott 10, Casterman. No source knows its ISBN; BnF has 1 to 9.
 const kaamelott10 = '9782203255647';
@@ -223,7 +226,7 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
   test('lists the known Volumes of the Edition Line of the anchor ISBN', async () => {
     const { catalog } = setup();
 
-    const response = await answerVolumes(catalog, onePiece56, signedIn);
+    const response = await answerVolumes(catalog, onePiece56, signedOut);
     const body = (await response.json()) as { series: Edition['series']; volumes: Edition[] };
 
     expect(response.status).toBe(200);
@@ -244,7 +247,7 @@ describe('GET /api/catalog/editions/{isbn}/volumes', () => {
     const { catalog } = setup();
     await answerEdition(catalog, onePiece56);
 
-    const body = (await (await answerVolumes(catalog, onePiece112, signedIn)).json()) as { series: Edition['series']; volumes: Edition[] };
+    const body = (await (await answerVolumes(catalog, onePiece112, signedOut)).json()) as { series: Edition['series']; volumes: Edition[] };
 
     // 112 has no Series link in any source: its title finds the Series that 56 brought.
     expect(body.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [] });
@@ -386,6 +389,111 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
     expect(await volumesOf(reopen(recordedFetch(['inventaire.io']).fetch), spyFamily16)).toHaveLength(1);
     expect(await volumesOf(reopen(recordedFetch(['catalogue.bnf.fr']).fetch), spyFamily16)).toHaveLength(1);
     expect(await volumesOf(reopen(), spyFamily16)).toHaveLength(16);
+  });
+});
+
+describe('Edition Lines by book size (ADR 0010, amendment 2026-11-12)', () => {
+  const volumesOf = async (catalog: Catalog, isbn: string, access = signedIn) =>
+    ((await (await answerVolumes(catalog, isbn, access)).json()) as { volumes: Edition[] }).volumes;
+  const heights = (volumes: Edition[]) => new Set(volumes.map((v) => v.format?.match(/^\d+/)?.[0]));
+
+  test('One Piece looked up from Volume 1 or from Volume 56 gives the same Volumes: 1 to 113 but 13', async () => {
+    // Volume 1 names BnF Series record 43702987, 56 names 38888890, 98 to 100
+    // name 46917823 and 105 on name none: one line, four records.
+    const fromVolume1 = await volumesOf(setup().catalog, onePiece1);
+    const fromVolume56 = await volumesOf(setup().catalog, onePiece56);
+
+    const numbers = Array.from({ length: 113 }, (_, i) => i + 1).filter((n) => n !== 13);
+    expect(fromVolume1.map((v) => v.volume)).toEqual(numbers);
+    expect(fromVolume56.map((v) => v.volume)).toEqual(numbers);
+    // Each line keeps the printing the reader looked up; Volume 1 has two.
+    const others = (volumes: Edition[]) => volumes.filter((v) => v.volume !== 1).map((v) => v.isbn);
+    expect(others(fromVolume56)).toEqual(others(fromVolume1));
+    expect(fromVolume1[0].isbn).toBe(onePiece1);
+    expect(fromVolume56[0].isbn).toBe('9782723433358');
+    expect(heights(fromVolume1)).toEqual(new Set(['18', '19']));
+  });
+
+  test('books of the same Series title and size that are not the run lose their Volume number to the run', async () => {
+    const volumes = await volumesOf(setup().catalog, onePiece1);
+    const isbns = volumes.map((v) => v.isbn);
+
+    // "500 quiz book" 2 and 3 (18 cm) and the arc box sets 1 to 6 (19 and 20 cm).
+    for (const other of ['9782344015179', '9782344051993', '9782344050125', '9782344052006', '9782344058336', '9782344062685'])
+      expect(isbns).not.toContain(other);
+    expect(volumes.find((v) => v.volume === 2)?.isbn).toBe('9782723489898');
+  });
+
+  test('Dragon Ball looked up from Volume 1 (18 cm) holds no Volume of the 21 cm line', async () => {
+    const { catalog } = setup();
+
+    const volumes = await volumesOf(catalog, dragonBall1);
+
+    expect(volumes.map((v) => [v.isbn, v.volume, v.format])).toEqual([[dragonBall1, 1, '18 cm']]);
+  });
+
+  test('the 21 cm Volumes form their own Edition Line from a 21 cm anchor, in the same Series', async () => {
+    const { catalog } = setup();
+    await volumesOf(catalog, dragonBall1);
+
+    const perfect = await volumesOf(catalog, dragonBallPerfect1);
+    const standard = await volumesOf(catalog, dragonBall1, signedOut);
+
+    expect(perfect).toHaveLength(31);
+    expect(heights(perfect)).toEqual(new Set(['21']));
+    expect(perfect.map((v) => v.isbn)).not.toContain(dragonBall1);
+    expect(standard.map((v) => v.isbn)).toEqual([dragonBall1]);
+    expect(perfect[0].series?.id).toBe(standard[0].series?.id);
+  });
+});
+
+describe('A Catalog file from before book sizes (migration)', () => {
+  const volumesOf = async (catalog: Catalog, isbn: string, access = signedIn) =>
+    ((await (await answerVolumes(catalog, isbn, access)).json()) as { volumes: Edition[] }).volumes;
+
+  // The file as the Catalog of main left it: Dragon Ball 1 (18 cm) looked up
+  // first, then the 21 cm Volumes in its line, the line filled.
+  async function mixedFile() {
+    const { catalog, file } = setup();
+    await volumesOf(catalog, dragonBall1);
+    await volumesOf(catalog, dragonBallPerfect1);
+    catalog.close();
+    open.splice(open.indexOf(catalog), 1);
+    // Its key had no size: one Series, publisher and language.
+    const old = new DatabaseSync(file);
+    const rows = old.prepare('select isbn, edition_line from edition where edition_line is not null').all() as { isbn: string; edition_line: string }[];
+    for (const row of rows)
+      old.prepare('update edition set edition_line = ? where isbn = ?').run(row.edition_line.split('|').slice(0, 3).join('|'), row.isbn);
+    old.prepare('delete from line_fill').run();
+    old.prepare('insert into line_fill (edition_line, filled_at) values (?, ?)').run(rows[0].edition_line.split('|').slice(0, 3).join('|'), new Date().toISOString());
+    old.exec('pragma user_version = 3');
+    old.close();
+    return file;
+  }
+
+  test('splits a line by book size, from the first Edition looked up', async () => {
+    const file = await mixedFile();
+    const catalog = createCatalog({ file, fetch: recordedFetch().fetch, host: 'catalog.test' });
+    open.push(catalog);
+
+    expect((await volumesOf(catalog, dragonBall1, signedOut)).map((v) => v.isbn)).toEqual([dragonBall1]);
+    expect(await volumesOf(catalog, dragonBallPerfect1, signedOut)).toHaveLength(31);
+  });
+
+  test('every Edition Line filled before fills again at its next ask, once', async () => {
+    const file = await mixedFile();
+    const sources = recordedFetch();
+    const catalog = createCatalog({ file, fetch: sources.fetch, host: 'catalog.test' });
+    open.push(catalog);
+    const searches = () => sources.calls.filter((url) => url.includes('bib.title')).length;
+
+    await volumesOf(catalog, dragonBall1);
+    const asked = searches();
+    await volumesOf(catalog, dragonBall1);
+
+    // Two pages of one BnF search, then none.
+    expect(asked).toBe(2);
+    expect(searches()).toBe(asked);
   });
 });
 
@@ -789,12 +897,13 @@ describe('A Catalog file from before same_as (migration)', () => {
       [onePiece56, onePieceMinted],
       [onePiece112, onePieceMinted],
     ]);
-    // The Spy x Family line was filled: it is not asked for again. The
-    // anchors are asked again for their Volumes (CORE-41), and kept offline.
+    // The Spy x Family line was filled: it fills again once after the book
+    // size step (CORE-58), and keeps its 16 Volumes while the sources are down.
+    // The anchors are asked again for their Volumes (CORE-41), and kept offline.
     const spyFamily = (await (await answerVolumes(catalog, spyFamily16, signedIn)).json()) as { volumes: Edition[] };
     expect(spyFamily.volumes).toHaveLength(16);
     expect(new Set(spyFamily.volumes.map((v) => v.series?.id))).toEqual(new Set([spyFamilyMinted]));
-    expect(sources.calls.filter((url) => !url.includes('isbn'))).toEqual([]);
+    expect(sources.calls.filter((url) => !url.includes('isbn')).map((url) => new URL(url).host)).toEqual(['catalogue.bnf.fr']);
   });
 
   test('links the lost shared identifier when the Edition is fetched again', async () => {
