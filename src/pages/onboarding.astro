@@ -238,8 +238,11 @@ const steppers = [
       setRange(stepper, value);
       render();
     });
-    field.addEventListener('change', () => render());
-    field.addEventListener('blur', () => render());
+    // Only the field, not the tiles: a tap on a tile blurs the field first, and
+    // tiles drawn again under the finger would lose that tap.
+    const showKept = () => (field.value = String(valueOf(stepper)));
+    field.addEventListener('change', showKept);
+    field.addEventListener('blur', showKept);
     // Enter leaves the field; it must not save the whole form.
     field.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
