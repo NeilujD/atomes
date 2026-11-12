@@ -6,7 +6,7 @@
 // Followed Series are never stored. Never Shared.
 import type { Edition } from '../catalog/catalog';
 import { coverUrl } from '../catalog/client';
-import { compareText, type Language } from '../i18n/i18n';
+import { compareText, translator, type Language } from '../i18n/i18n';
 import type { Space, WriteState } from '../space/space';
 import type { Copy } from './copy';
 import { editionWork, isIsbn13, readIsbn, type IsbnProblem } from './ids';
@@ -135,7 +135,7 @@ function item(isbn: string, edition: Edition | undefined, byHand: boolean, langu
   return {
     isbn,
     work: edition?.work.id ?? editionWork(isbn),
-    title: edition?.title ?? `ISBN ${isbn}`,
+    title: edition?.title ?? translator(language)('book.isbn', isbn),
     seriesId: edition?.series?.id ?? null,
     series: edition?.series?.title ?? null,
     volume: edition?.volume ?? null,

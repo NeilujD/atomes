@@ -146,7 +146,7 @@ const choices = [
   import { pageLanguage, t } from '../lib/i18n/i18n';
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
   import { deleteLoan, saveLoan } from '../lib/library/loan';
-  import { bookPage, lend, loansOf, returnLoans, statusChange, type BookPage, type Library } from '../lib/library/model';
+  import { bookIsbns, bookPage, lend, loansOf, returnLoans, statusChange, type BookPage, type Library } from '../lib/library/model';
   import { followOnRead } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses, type ReadingStatus } from '../lib/library/reading-status';
   import { seriesHref, suggestsDrop } from '../lib/library/series';
@@ -428,13 +428,7 @@ const choices = [
     listing = freshListing(
       async () => {
         const loaded = await loadLibrary(space);
-        const isbns = [
-          ...loaded.library.copies.filter(({ value }) => value.works.includes(work)).map(({ value }) => value.isbn),
-          ...loaded.library.readingStatuses.filter(({ rkey }) => rkey === work).map(({ value }) => value.isbn),
-        ];
-        // An `isbn:` Work is a book the Catalog did not know: the page shows what
-        // the reader typed, and asking again only gets a 404 on each load.
-        const missing = isEditionWork(work) ? [] : isbns.filter((isbn) => !editions.has(isbn));
+        const missing = bookIsbns(work, loaded.library).filter((isbn) => !editions.has(isbn));
         for (const [isbn, edition] of await lookupEditions(missing)) editions.set(isbn, edition);
         return { ...loaded, waiting: await waitingCount(space) };
       },
