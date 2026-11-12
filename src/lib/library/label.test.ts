@@ -53,6 +53,10 @@ describe('The Labels of a Work', () => {
     expect([named(carried), named(others)]).toEqual([['Classics', 'Sci-fi'], ['Été']]);
     expect(named(workLabels(dune, mine, 'fr').others)).toEqual(['Classics', 'Été']);
   });
+
+  test('all the reader’s Labels, A to Z, to rename or delete: "Été" goes with the E’s', () => {
+    expect(named(workLabels(dune, mine, 'fr').all)).toEqual(['Classics', 'Été', 'Sci-fi']);
+  });
 });
 
 // Every Label in the Space, as [name, Works], in key order.

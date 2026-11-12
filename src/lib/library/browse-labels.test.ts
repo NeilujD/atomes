@@ -2,7 +2,7 @@
 // the reader has attached, renamed or deleted a Label (src/lib/library/label.ts).
 import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
-import { allBooks, browse, libraryBooks, type LibraryQuery } from './browse';
+import { allBooks, browse, libraryBooks, liveQuery, type LibraryQuery } from './browse';
 import type { Copy } from './copy';
 import { labelFor, renamed, type Label } from './label';
 import type { Library } from './model';
@@ -78,5 +78,12 @@ describe('Labels in the Library', () => {
     const found = find([manga], { label: '3lbsf' });
 
     expect([found.titles, found.filtered]).toEqual([['Dune', 'Fondation', 'One Piece'], false]);
+  });
+
+  test('the query itself drops a Label deleted since, so no filter counts as on; a Label that still exists stays', () => {
+    const asked = { ...allBooks, text: 'dune', label: '3lbsf' };
+
+    expect(liveQuery(asked, [manga])).toEqual({ ...allBooks, text: 'dune' });
+    expect(liveQuery(asked, [sciFi, manga])).toEqual(asked);
   });
 });

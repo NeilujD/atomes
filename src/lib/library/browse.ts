@@ -2,7 +2,7 @@
 // toolbar (search, Search in, Sort, filters, count, Clear all). Pure, so the
 // rules are tested in Node; src/islands/Library.tsx only renders them.
 import { compareText, type Language } from '../i18n/i18n';
-import type { Label } from './label';
+import { labelsAtoZ, type Label } from './label';
 import { sortName } from './letters';
 import { bookPage, type Editions, type Library } from './model';
 import { statuses, type Status } from './reading-status';
@@ -68,6 +68,13 @@ export function clearAll(query: LibraryQuery): LibraryQuery {
   return { ...allBooks, sort: query.sort };
 }
 
+// The query the reader's Labels still allow: a Label deleted since the reader
+// picked it (on this device or another) filters nothing, so it leaves the
+// query. The count of filters on and the chips then read the same query.
+export function liveQuery(query: LibraryQuery, labels: Saved<Label>[]): LibraryQuery {
+  return query.label === null || labels.some(({ rkey }) => rkey === query.label) ? query : { ...query, label: null };
+}
+
 export interface Browsed {
   // The books found, in the order asked.
   books: LibraryBook[];
@@ -82,15 +89,14 @@ export interface Browsed {
   labels: { label: string | null; name: string; count: number }[];
 }
 
-export function browse(books: LibraryBook[], labels: Saved<Label>[], query: LibraryQuery, language: Language): Browsed {
+export function browse(books: LibraryBook[], labels: Saved<Label>[], asked: LibraryQuery, language: Language): Browsed {
+  const query = liveQuery(asked, labels);
   const compare = compareText(language);
   const words = fold(query.text).split(/\s+/).filter(Boolean);
   const searched = (book: LibraryBook) => {
     const found = fold(searchedText(book, query.searchIn));
     return words.every((word) => found.includes(word));
   };
-  // A Label deleted since the reader picked it filters nothing.
-  const label = labels.some(({ rkey }) => rkey === query.label) ? query.label : null;
   // Every filter but `skip`, so a chip can count what choosing it would give.
   const kept = (skip?: 'status' | 'label') =>
     books.filter(
@@ -99,12 +105,12 @@ export function browse(books: LibraryBook[], labels: Saved<Label>[], query: Libr
         (query.author === null || book.authors.includes(query.author)) &&
         (query.series === null || book.series === query.series) &&
         (skip === 'status' || query.status === null || book.status === query.status) &&
-        (skip === 'label' || label === null || book.labels.includes(label)),
+        (skip === 'label' || query.label === null || book.labels.includes(query.label)),
     );
 
   const forStatus = kept('status');
   const forLabel = kept('label');
-  const { text, author, series, status } = query;
+  const { text, author, series, status, label } = query;
   return {
     books: kept().sort(order(query.sort, compare)),
     total: books.length,
@@ -117,9 +123,7 @@ export function browse(books: LibraryBook[], labels: Saved<Label>[], query: Libr
     })),
     labels: [
       { label: null, name: '', count: forLabel.length },
-      ...[...labels]
-        .sort((a, b) => compare(a.value.name, b.value.name))
-        .map(({ rkey, value }) => ({ label: rkey, name: value.name, count: forLabel.filter((book) => book.labels.includes(rkey)).length })),
+      ...labelsAtoZ(labels, language).map(({ rkey, value }) => ({ label: rkey, name: value.name, count: forLabel.filter((book) => book.labels.includes(rkey)).length })),
     ],
   };
 }

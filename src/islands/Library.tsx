@@ -11,7 +11,7 @@ import type { Edition } from '../lib/catalog/catalog';
 import { coverUrl, lookupEditions } from '../lib/catalog/client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
-import { allBooks, browse, clearAll, libraryBooks, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
+import { allBooks, browse, clearAll, libraryBooks, liveQuery, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
 import { listLabels, type Label } from '../lib/library/label';
 import { letterGroups } from '../lib/library/letters';
 import { loadLibrary, waitingCount } from '../lib/library/library';
@@ -51,7 +51,7 @@ export function Library({ sources }: { sources: Sources }) {
   const [read, setRead] = useState<{ library: LibraryRecords; labels: Saved<Label>[] }>();
   // In place of the grid when there is none to show (signed out, or the first read failed).
   const [message, setMessage] = useState<string>();
-  const [query, setQuery] = useState<LibraryQuery>(allBooks);
+  const [asked, setQuery] = useState<LibraryQuery>(allBooks);
   const [grouping, setGrouping] = useState<Grouping>(readGrouping);
   const [mode, setMode] = useState<Mode>(readMode);
   const wide = useMedia(desktop);
@@ -126,6 +126,8 @@ export function Library({ sources }: { sources: Sources }) {
     );
   }
 
+  // What the reader asked for, less a Label deleted since: the badge, the chips and the books read one query.
+  const query = liveQuery(asked, read.labels);
   const found = browse(books, read.labels, query, pageLanguage());
   // Grid, List or Cover flow is for Books. Series show as a grid of cards, with
   // no mode switch and no letter index; the mode is kept for the way back.
@@ -345,7 +347,7 @@ function Select({ id, label, value, onChange, children }: { id: string; label: s
 function Chip({ name, count, pressed, onClick }: { name: string; count: number; pressed: boolean; onClick: () => void }) {
   return (
     <button class="library-chip" type="button" aria-pressed={pressed} onClick={onClick}>
-      <span>{name}</span>
+      <span class="library-chip-name">{name}</span>
       <span class="library-chip-count">{count}</span>
     </button>
   );

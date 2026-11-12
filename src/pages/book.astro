@@ -782,9 +782,12 @@ const choices = [
     font-weight: 600;
   }
 
+  /* A long name with no space wraps inside the chip, clear of its round ends. */
   .labels-chip-name {
     min-width: 0;
+    padding: 4px 0;
     overflow-wrap: anywhere;
+    text-align: left;
   }
 
   /* On this book: the chip ends with its Remove button. */
@@ -888,8 +891,10 @@ const choices = [
     border-bottom: 1px solid var(--line);
   }
 
+  /* It names the Label: a long name with no space wraps, as in the chips. */
   .labels-ask {
     font-size: 14px;
     font-weight: 600;
+    overflow-wrap: anywhere;
   }
 </style>

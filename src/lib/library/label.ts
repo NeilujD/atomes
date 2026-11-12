@@ -33,13 +33,20 @@ export function listLabels(space: Space) {
   return listRecords<Label>(space, labelCollection);
 }
 
-// The Labels of one Work: the ones it carries, then the reader's others to pick from, each A to Z.
-export function workLabels(work: string, labels: Saved<Label>[], language: Language): { carried: Saved<Label>[]; others: Saved<Label>[] } {
+// The reader's Labels in the one order every screen shows them: A to Z by name.
+export function labelsAtoZ(labels: Saved<Label>[], language: Language): Saved<Label>[] {
   const compare = compareText(language);
-  const sorted = [...labels].sort((a, b) => compare(a.value.name, b.value.name));
+  return [...labels].sort((a, b) => compare(a.value.name, b.value.name));
+}
+
+// The Labels of one Work: the ones it carries, then the reader's others to
+// pick from, and all of them (to rename or delete), each A to Z.
+export function workLabels(work: string, labels: Saved<Label>[], language: Language): { carried: Saved<Label>[]; others: Saved<Label>[]; all: Saved<Label>[] } {
+  const all = labelsAtoZ(labels, language);
   return {
-    carried: sorted.filter(({ value }) => value.works.includes(work)),
-    others: sorted.filter(({ value }) => !value.works.includes(work)),
+    carried: all.filter(({ value }) => value.works.includes(work)),
+    others: all.filter(({ value }) => !value.works.includes(work)),
+    all,
   };
 }
 

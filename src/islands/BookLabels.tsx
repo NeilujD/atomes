@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
-import { compareText, pageLanguage, t } from '../lib/i18n/i18n';
+import { pageLanguage, t } from '../lib/i18n/i18n';
 import { isWorkId } from '../lib/library/ids';
 import { attach, deleteLabel, detach, labelFor, listLabels, renamed, saveLabel, workLabels, type Label } from '../lib/library/label';
 import { savedText, sendWhenOnline, waitingCount } from '../lib/library/library';
@@ -33,7 +33,8 @@ export default function BookLabelsIsland() {
 // As the lexicon: 64 UTF-16 units are never more than its 64 graphemes.
 const nameLength = 64;
 
-type Save = (change: (own: Space) => Promise<WriteState>) => void;
+type Change = (own: Space) => Promise<WriteState>;
+type Save = (change: Change) => void;
 
 export function BookLabels({ work, sources }: { work: string; sources: Sources }) {
   const [labels, setLabels] = useState<Saved<Label>[]>();
@@ -79,7 +80,7 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
   // One change at a time; the section shows what is saved once it is done.
   const save: Save = (change) => void saveNow(change);
 
-  async function saveNow(change: (own: Space) => Promise<WriteState>) {
+  async function saveNow(change: Change) {
     const own = space.current;
     if (!own || saving) return;
     setSaving(true);
@@ -128,9 +129,7 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
     save(async (own) => (await saveLabel(own, change.label, change.rkey)).state);
   }
 
-  const { carried, others } = workLabels(work, labels, pageLanguage());
-  const compare = compareText(pageLanguage());
-  const all = [...labels].sort((a, b) => compare(a.value.name, b.value.name));
+  const { carried, others, all } = workLabels(work, labels, pageLanguage());
 
   return (
     <div class="labels">
@@ -203,7 +202,7 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
           <summary class="labels-hint">{t('labels.edit')}</summary>
           <ul class="labels-edit-list">
             {all.map((label) => (
-              <EditRow key={label.rkey} label={label} labels={labels} saving={saving} save={save} />
+              <EditRow key={label.rkey} label={label} labels={labels} saving={saving} save={saveNow} />
             ))}
           </ul>
         </details>
@@ -214,8 +213,12 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
 
 // One of the reader's Labels: a new name, or Delete, which asks first as it
 // takes the Label off every book.
-function EditRow({ label, labels, saving, save }: { label: Saved<Label>; labels: Saved<Label>[]; saving: boolean; save: Save }) {
-  const [name, setName] = useState(label.value.name);
+function EditRow({ label, labels, saving, save }: { label: Saved<Label>; labels: Saved<Label>[]; saving: boolean; save: (change: Change) => Promise<void> }) {
+  const saved = label.value.name;
+  // What the reader typed over the saved name. It lasts while that name is
+  // the saved one: a rename, here or on another device, shows the new name.
+  const [typed, setTyped] = useState<{ name: string; over: string }>();
+  const name = typed?.over === saved ? typed.name : saved;
   const [problem, setProblem] = useState<string>();
   const [asking, setAsking] = useState(false);
   const hint = `labels-problem-${label.rkey}`;
@@ -225,7 +228,9 @@ function EditRow({ label, labels, saving, save }: { label: Saved<Label>; labels:
     const change = renamed(label, name, labels, pageLanguage());
     if ('problem' in change) return setProblem(t(`labels.name-${change.problem}`));
     setProblem(undefined);
-    if (change.label.name !== label.value.name) save(async (own) => (await saveLabel(own, change.label, label.rkey)).state);
+    // The name as it is saved, with no spaces around it; once the save ends, the saved name, even if the save failed.
+    setTyped({ name: change.label.name, over: saved });
+    if (change.label.name !== saved) void save(async (own) => (await saveLabel(own, change.label, label.rkey)).state).then(() => setTyped(undefined));
   }
 
   if (asking) {
@@ -233,7 +238,7 @@ function EditRow({ label, labels, saving, save }: { label: Saved<Label>; labels:
       <li class="labels-edit-row">
         <p class="labels-ask">{t('labels.delete-ask', label.value.name)}</p>
         <div class="labels-row">
-          <button class="button" type="button" disabled={saving} onClick={() => save((own) => deleteLabel(own, label.rkey))}>
+          <button class="button" type="button" disabled={saving} onClick={() => void save((own) => deleteLabel(own, label.rkey))}>
             {t('labels.delete')}
           </button>
           <button class="button button-quiet" type="button" onClick={() => setAsking(false)}>
@@ -255,7 +260,7 @@ function EditRow({ label, labels, saving, save }: { label: Saved<Label>; labels:
           aria-label={t('labels.name', label.value.name)}
           aria-invalid={problem ? 'true' : undefined}
           aria-describedby={problem ? hint : undefined}
-          onInput={(event) => setName(event.currentTarget.value)}
+          onInput={(event) => setTyped({ name: event.currentTarget.value, over: saved })}
         />
         <button class="button" type="submit" disabled={saving}>
           {t('labels.rename')}

@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/preact';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, describe, expect, test } from 'vitest';
 import type { Edition } from '../lib/catalog/catalog';
 import { saveCopy } from '../lib/library/copy';
-import { saveLabel } from '../lib/library/label';
+import { deleteLabel, labelCollection, saveLabel } from '../lib/library/label';
 import { memorySpace } from '../lib/library/memory-space.fake';
 import { saveReadingStatus } from '../lib/library/reading-status';
+import { reconnectEvent } from '../lib/network';
 import { Library, type Sources } from './Library';
 
 const edition = (isbn: string, title: string, authors: string[]): Edition => ({
@@ -46,6 +47,7 @@ async function libraryScreen(owned = books, labelled: Edition[] = []) {
   };
   render(<Library sources={sources} />);
   await screen.findAllByRole('list');
+  return space;
 }
 
 const titles = () => within(screen.getByRole('list')).getAllByRole('link').map((link) => link.querySelector('.library-book-title')?.textContent);
@@ -82,6 +84,24 @@ describe('Library screen', () => {
     fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'zzz' } });
 
     expect(screen.getByText('No book matches these filters.')).toBeTruthy();
+  });
+
+  test('a Label filter whose Label is deleted on another device falls away: every book shows and "All" is the Label chip pressed', async () => {
+    const space = await libraryScreen(books, [books[1]]);
+    const labelChips = () => within(screen.getAllByRole('group', { name: 'Label' })[0]);
+    fireEvent.click(labelChips().getByRole('button', { name: /Sci-fi/ }));
+
+    expect(titles()).toEqual(['Dune']);
+
+    // Another device deletes the Label and makes another; this one reads the Library again.
+    const [{ rkey }] = (await space.list(labelCollection)).records;
+    await deleteLabel(space, rkey);
+    await saveLabel(space, { name: 'Manga', works: [], createdAt: '2026-11-02T00:00:00.000Z' });
+    dispatchEvent(new Event(reconnectEvent));
+
+    await waitFor(() => expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent']));
+    expect(labelChips().getByRole('button', { name: /All/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText('3 books')).toBeTruthy();
   });
 
   test('Series mode shows one card per Series, opening its Series page, and is still on after a reload', async () => {

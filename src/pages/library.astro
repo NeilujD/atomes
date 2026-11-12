@@ -146,6 +146,15 @@ const t = translator(requestLanguage(Astro.request));
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
+    max-width: 100%;
+  }
+
+  /* A long Label name stays on one line and ends with "…": the chip is never wider than its row. */
+  .library-chip-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .library-chip:hover {
@@ -159,6 +168,7 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   .library-chip-count {
+    flex: none;
     opacity: 0.7;
     font-variant-numeric: tabular-nums;
   }

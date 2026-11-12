@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen } from '@testing-library/preact';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { afterEach, describe, expect, test } from 'vitest';
 import { labelCollection, saveLabel, type Label } from '../lib/library/label';
 import { memorySpace } from '../lib/library/memory-space.fake';
+import { reconnectEvent } from '../lib/network';
 import { BookLabels } from './BookLabels';
 
 const dune = 'wd:Q190192';
@@ -15,7 +16,7 @@ async function duneLabels(labels: Label[] = []) {
   for (const each of labels) await saveLabel(space, each);
   render(<BookLabels work={dune} sources={{ open: () => Promise.resolve(space) }} />);
   await screen.findByRole('textbox', { name: 'New Label' });
-  return { saved: () => stored(labelCollection).map(({ value }) => [(value as Label).name, (value as Label).works]) };
+  return { space, saved: () => stored(labelCollection).map(({ value }) => [(value as Label).name, (value as Label).works]) };
 }
 
 afterEach(cleanup);
@@ -77,6 +78,48 @@ describe('Labels on the Book page', () => {
       ['SF', [dune]],
       ['Classics', [fondation]],
     ]);
+  });
+
+  test('after a rename the field shows the saved name, not the spaces typed around it', async () => {
+    const { saved } = await duneLabels([label('Sci-fi', [dune])]);
+    const name = screen.getByRole<HTMLInputElement>('textbox', { name: 'Name of the Label Sci-fi' });
+    const rename = () => fireEvent.submit(name.closest('form')!);
+
+    // Only spaces more: nothing to save.
+    fireEvent.input(name, { target: { value: '  Sci-fi ' } });
+    rename();
+
+    expect(name.value).toBe('Sci-fi');
+
+    fireEvent.input(name, { target: { value: '  SF ' } });
+    rename();
+
+    expect(await screen.findByRole('button', { name: 'Remove the Label SF from this book' })).toBeTruthy();
+    expect(saved()).toEqual([['SF', [dune]]]);
+    expect(name.value).toBe('SF');
+  });
+
+  test('a rename that the store does not save shows the saved name again', async () => {
+    const { space, saved } = await duneLabels([label('Sci-fi', [dune])]);
+    const name = screen.getByRole<HTMLInputElement>('textbox', { name: 'Name of the Label Sci-fi' });
+    space.put = () => Promise.reject(new Error('The store is closed.'));
+
+    fireEvent.input(name, { target: { value: 'SF' } });
+    fireEvent.submit(name.closest('form')!);
+
+    await waitFor(() => expect(name.value).toBe('Sci-fi'));
+    expect(saved()).toEqual([['Sci-fi', [dune]]]);
+  });
+
+  test('a Label renamed on another device shows its new name in its field', async () => {
+    const { space } = await duneLabels([label('Sci-fi', [dune])]);
+    const name = screen.getByRole<HTMLInputElement>('textbox', { name: 'Name of the Label Sci-fi' });
+
+    const [{ rkey }] = (await space.list(labelCollection)).records;
+    await saveLabel(space, label('Anticipation', [dune]), rkey);
+    dispatchEvent(new Event(reconnectEvent));
+
+    await waitFor(() => expect(name.value).toBe('Anticipation'));
   });
 
   test('Delete asks first: Cancel keeps the Label, Delete takes it off every book', async () => {
