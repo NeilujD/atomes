@@ -1,6 +1,8 @@
 // Source answers saved in `fixtures/`, so tests never call a real book
 // database. `scripts/record-catalog-answers.ts` writes them from real calls.
 // A URL with no saved answer gets 404, the way the sources say "unknown".
+// The dev server answers from them too with CATALOG_SOURCES=recorded
+// (`instance.ts`); a built server never holds this file.
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import type { SourceFetch } from './sources';
@@ -32,8 +34,20 @@ export function recordedFetch(down: string[] = []) {
   const fetch: SourceFetch = (url) => {
     calls.push(url);
     if (down.includes(new URL(url).host)) return Promise.resolve(new Response('down', { status: 503 }));
-    const file = new URL(fixtureName(url), fixtureDir);
-    return Promise.resolve(existsSync(file) ? new Response(readFileSync(file, 'utf8')) : new Response('', { status: 404 }));
+    const file = savedAnswer(url);
+    return Promise.resolve(file ? new Response(readFileSync(file, 'utf8')) : new Response('', { status: 404 }));
   };
   return { fetch, calls };
+}
+
+// A URL holds source data (an Inventaire URI, a page number): it never names a
+// file outside `fixtures/`. A host with no saved answer (a cover host) is "unknown".
+function savedAnswer(url: string): URL | undefined {
+  let file: URL;
+  try {
+    file = new URL(fixtureName(url), fixtureDir);
+  } catch {
+    return undefined;
+  }
+  return file.href.startsWith(fixtureDir.href) && existsSync(file) ? file : undefined;
 }
