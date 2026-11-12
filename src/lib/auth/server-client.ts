@@ -112,7 +112,15 @@ export async function signOutHere(): Promise<string | undefined> {
 // signed out: the gate is sending the visitor to the sign-in screen.
 // A change refused because another device changed the record first gets a
 // toast that names the book (ADR 0012).
-export async function openOwnSpace(): Promise<{ account: Account; space: Space } | undefined> {
+// One store per page load: the screens of a page (the Book page and its Labels
+// island) share one write queue, so a waiting save is never sent twice.
+export function openOwnSpace(): Promise<{ account: Account; space: Space } | undefined> {
+  return (own ??= openStore());
+}
+
+let own: Promise<{ account: Account; space: Space } | undefined> | undefined;
+
+async function openStore(): Promise<{ account: Account; space: Space } | undefined> {
   const account = await checkedAccount();
   if (!account) return undefined;
   const space = openInstanceStore(instanceFetch, account.did, indexedDbLocalCopy(), (write) => {

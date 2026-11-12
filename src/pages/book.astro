@@ -2,6 +2,7 @@
 // Book page: one Work of the Library, from the reader's records and the
 // Catalog (src/lib/library/model.ts). `?work=<Catalog identifier>`.
 import Icon from '../components/Icon.astro';
+import BookLabels from '../islands/BookLabels';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
@@ -74,6 +75,12 @@ const choices = [
             <input class="field" id="finished-at" type="date" data-finished-at />
             <span class="hint">{t('book.optional')}</span>
           </div>
+        </section>
+
+        <!-- Labels of this Work (src/islands/BookLabels.tsx). -->
+        <section class="group" aria-labelledby="labels-title">
+          <h2 class="group-title" id="labels-title">{t('labels.title')}</h2>
+          <BookLabels client:only="preact" />
         </section>
 
         <section class="group" aria-labelledby="copies-title">
@@ -737,5 +744,152 @@ const choices = [
     .lend-field {
       flex: 0 1 320px;
     }
+  }
+</style>
+
+<style is:global>
+  /* Global: the Labels island renders on the device, outside this page's scoped styles. */
+  .labels {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .labels-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* A Label chip, as in the Library toolbar: line and ink, never cobalt
+     (cobalt is for New Volumes, links and focus). */
+  .labels-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-height: var(--row);
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: calc(var(--row) / 2);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .labels-chip-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* On this book: the chip ends with its Remove button. */
+  li.labels-chip {
+    padding-right: 0;
+  }
+
+  .labels-chip-remove {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: var(--row);
+    height: var(--row);
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--secondary);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .labels-chip-remove:hover:not(:disabled) {
+    background: var(--soft);
+    color: var(--ink);
+  }
+
+  /* One of the reader's other Labels: a tap puts it on this book. */
+  .labels-chip-add {
+    border-style: dashed;
+    cursor: pointer;
+  }
+
+  .labels-chip-add:hover:not(:disabled) {
+    background: var(--soft);
+  }
+
+  .labels-chip-plus {
+    color: var(--secondary);
+  }
+
+  .labels-chip-add:disabled,
+  .labels-chip-remove:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .labels-new {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .labels-label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .labels-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .labels-row .field {
+    flex: 1 1 160px;
+    max-width: 320px;
+  }
+
+  .labels-hint {
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
+  .labels-hint[data-error] {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .labels-edit summary {
+    cursor: pointer;
+  }
+
+  .labels-edit-list {
+    display: flex;
+    flex-direction: column;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .labels-edit-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .labels-ask {
+    font-size: 14px;
+    font-weight: 600;
   }
 </style>
