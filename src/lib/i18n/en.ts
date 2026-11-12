@@ -145,10 +145,6 @@ export const en = {
   'add.unknown-isbn': (isbn: string) => `ISBN ${isbn}. No book source knows it yet: type what is on the cover.`,
   'add.already-have': 'You already have this book. Adding it again adds another Copy.',
   'add.added': (title: string) => `${title} is in your Library.`,
-  'add.looking-for-volumes': (title: string, series: string) =>
-    `${title} is saved. Looking for the other Volumes of ${series}…`,
-  'add.no-onboarding.in-library': (series: string) =>
-    `${series} was already in your Library, so no question about its other Volumes.`,
   'add.no-onboarding.followed': (series: string) => `You already follow ${series}, so no question about its other Volumes.`,
   'add.no-onboarding.dropped': (series: string) =>
     `You stopped following ${series}, so no question about its other Volumes.`,

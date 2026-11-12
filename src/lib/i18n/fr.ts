@@ -144,9 +144,6 @@ export const fr: typeof en = {
   'add.unknown-isbn': (isbn) => `ISBN ${isbn}. Aucune source de livres ne le connaît encore : saisissez ce qui est sur la couverture.`,
   'add.already-have': 'Vous avez déjà ce livre. L’ajouter encore ajoute un autre exemplaire.',
   'add.added': (title) => `${title} est dans votre bibliothèque.`,
-  'add.looking-for-volumes': (title, series) => `${title} est enregistré. Recherche des autres tomes de ${series}…`,
-  'add.no-onboarding.in-library': (series) =>
-    `${series} était déjà dans votre bibliothèque : pas de question sur ses autres tomes.`,
   'add.no-onboarding.followed': (series) => `Vous suivez déjà ${series} : pas de question sur ses autres tomes.`,
   'add.no-onboarding.dropped': (series) => `Vous ne suivez plus ${series} : pas de question sur ses autres tomes.`,
   'find.title': 'Le trouver dans le catalogue de la BnF',

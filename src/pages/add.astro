@@ -148,7 +148,7 @@ const answers = [
   import { FindInBnf } from '../islands/FindInBnf';
   import { openOwnSpace } from '../lib/auth/server-client';
   import type { Edition } from '../lib/catalog/catalog';
-  import { coverUrl, lookupEdition, lookupVolumes } from '../lib/catalog/client';
+  import { coverUrl, lookupEdition } from '../lib/catalog/client';
   import { saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
   import { editionWork, readIsbn } from '../lib/library/ids';
   import { cameraProblem, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
@@ -157,9 +157,10 @@ const answers = [
   import { saveFollow } from '../lib/library/follow';
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
   import { bookPage, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
-  import { followOnRead, noOnboarding, type NoOnboarding } from '../lib/library/onboarding';
+  import { followOnRead, noOnboarding } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses } from '../lib/library/reading-status';
   import { isNetworkFailure } from '../lib/network';
+  import { lockWhileSaving } from '../lib/save-lock';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
   import { toast } from '../lib/toast';
 
@@ -323,7 +324,9 @@ const answers = [
     return undefined;
   }
 
-  async function add() {
+  // Runs with the screen locked (lockWhileSaving): 'leave' when Series
+  // Onboarding opens, else the element to focus once the screen is back.
+  async function add(): Promise<'leave' | HTMLElement | undefined> {
     const current = book;
     if (!current) return;
     const fields = current.edition ? undefined : typed();
@@ -337,7 +340,6 @@ const answers = [
     const chosen = statuses.find((status) => status === checked);
     const space = await openSpaceOrSay();
     if (!space) return;
-    busy(addButton, true);
     try {
       const now = new Date();
       const { isbn, work } = current;
@@ -352,12 +354,13 @@ const answers = [
       if (state !== 'refused') reportNetwork(state === 'sent');
       reportWaiting(await waitingCount(space));
 
-      // The first Volume of a Series: ask which other Volumes the reader has.
-      // The Copy is saved (or waits on this device) whatever happens next.
-      const why = state === 'refused' ? 'no-series' : await whyNoSeriesOnboarding(current, library);
+      // A Series with no follow: ask which other Volumes the reader has. Series
+      // Onboarding asks the Catalog for them. Only after a sent save: offline
+      // or refused, the Copy is enough.
+      const why = state === 'sent' && current.edition ? noOnboarding(current.edition, library) : 'no-series';
       if (why === undefined) {
         location.assign(`/onboarding?isbn=${isbn}`);
-        return;
+        return 'leave';
       }
       const seriesTitle = current.edition?.series?.title ?? '';
       const note = why === 'no-series' ? '' : t(`add.no-onboarding.${why}`, seriesTitle);
@@ -384,25 +387,10 @@ const answers = [
           (error) => toast(spaceErrorMessage(error), { error: true }),
         );
       }
-      isbnInput.focus();
+      return isbnInput;
     } catch (error) {
       toast(spaceErrorMessage(error), { error: true });
-    } finally {
-      busy(addButton, false);
     }
-  }
-
-  // Undefined: the Series is new in the Library, so the flow starts. `before`:
-  // the Library as it was before this Copy. Offline, or with no answer from
-  // the Catalog, there is no onboarding: the Copy is enough.
-  async function whyNoSeriesOnboarding(added: Book, before: Library): Promise<NoOnboarding | undefined> {
-    const series = added.edition?.series;
-    if (!added.edition || !series || added.edition.volume === null) return 'no-series';
-    // The first time, the Catalog asks BnF for the whole Edition Line: seconds.
-    const close = toast(t('add.looking-for-volumes', added.edition.title, series.title));
-    const answer = await lookupVolumes(added.isbn).catch(() => undefined);
-    close();
-    return answer ? noOnboarding(added.edition, answer.volumes, before) : 'no-series';
   }
 
   const scanButton = document.querySelector<HTMLButtonElement>('[data-scan]')!;
@@ -514,10 +502,7 @@ const answers = [
   details.addEventListener('input', () => {
     detailsProblem.textContent = '';
   });
-  addForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    void add();
-  });
+  lockWhileSaving(addForm, document.querySelector<HTMLElement>('.quick-add')!, add);
 
   // From the Book page ("Add another Copy"): the ISBN is already known.
   const given = new URLSearchParams(location.search).get('isbn');
