@@ -62,7 +62,7 @@ describe('To Buy screen', () => {
     await screenWithLibrary();
     await openSeries('Blacksad · 3 Volumes (2, 4–5)');
 
-    expect(group(followed).getAllByRole('listitem').map((each) => within(each).getByText(/^Volume /).textContent)).toEqual([
+    expect(group(followed).getAllByRole('listitem').map((each) => within(each).getByText(/^Volume /, { selector: '.to-buy-line' }).textContent)).toEqual([
       'Volume 2',
       'Volume 4',
       'Volume 5',
@@ -153,7 +153,7 @@ describe('To Buy screen', () => {
     expect(screen.queryByRole('button', { name: /^Show/ })).toBeNull();
   });
 
-  test('a cover pulses until its image has loaded, and keeps the placeholder if it fails', async () => {
+  test('a cover pulses until its image has loaded, and shows the default cover if it fails', async () => {
     const { space } = memorySpace();
     await saveToBuy(space, { isbn: isbns[0], createdAt: '2026-11-07T10:00:00.000Z' });
     await saveToBuy(space, { isbn: isbns[1], createdAt: '2026-11-06T10:00:00.000Z' });
@@ -169,14 +169,14 @@ describe('To Buy screen', () => {
     );
     await screen.findByText('Volume 1');
     const [first, second] = document.querySelectorAll<HTMLImageElement>('.to-buy-cover img');
-    expect(first.closest('[data-loading]')).toBeTruthy();
+    expect(first.closest('[data-cover="loading"]')).toBeTruthy();
     expect(first.loading).toBe('lazy');
 
     fireEvent.load(first);
     fireEvent.error(second);
 
-    await waitFor(() => expect(first.hasAttribute('data-loaded')).toBe(true));
-    expect(first.closest('[data-loading]')).toBeNull();
+    await waitFor(() => expect(first.closest('[data-cover="loaded"]')).toBeTruthy());
     expect(document.querySelectorAll('.to-buy-cover img')).toHaveLength(1);
+    expect(document.querySelector('.to-buy-cover[data-cover="default"]')?.textContent).toBe('BlacksadVolume 2');
   });
 });

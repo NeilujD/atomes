@@ -279,7 +279,14 @@ function Row({ item, saving, onBuy, onRemove }: { item: ToBuyItem; saving: strin
   const busy = saving === item.isbn ? 'true' : undefined;
   return (
     <li class="to-buy-item">
-      <Cover class="to-buy-cover" src={item.cover} />
+      <Cover
+        class="to-buy-cover"
+        src={item.cover}
+        title={item.title}
+        series={item.series}
+        volumeTitle={null}
+        volume={item.volumes.length > 0 ? t('book.volumes', item.volumes) : ''}
+      />
       {/* The buttons say which book they act on through this text. */}
       <div class="to-buy-text" id={id}>
         <p class="to-buy-title">{item.title}</p>
@@ -306,7 +313,7 @@ export function ToBuySkeleton() {
     <div class="to-buy" aria-busy="true">
       {[0, 1, 2].map((each) => (
         <div key={each} class="to-buy-item" aria-hidden="true">
-          <div class="to-buy-cover skeleton" />
+          <div class="book-cover to-buy-cover skeleton" />
           <div class="to-buy-text">
             <div class="skeleton to-buy-skeleton-title" />
             <div class="skeleton to-buy-skeleton-line" />

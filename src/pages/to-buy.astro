@@ -89,29 +89,6 @@ const t = translator(requestLanguage(Astro.request));
   .to-buy-cover {
     flex: none;
     width: 40px;
-    aspect-ratio: 2 / 3;
-    overflow: hidden;
-    border-radius: var(--radius-cover);
-    background: var(--soft);
-    box-shadow: 0 0 0 1px var(--cover-edge);
-  }
-
-  .to-buy-cover img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0;
-    transition: opacity 0.2s ease-out;
-  }
-
-  /* While its image loads, a cover pulses like a skeleton; then the image fades in. */
-  .to-buy-cover[data-loading] {
-    animation: pulse 1.4s ease-in-out infinite;
-  }
-
-  .to-buy-cover img[data-loaded] {
-    opacity: 1;
   }
 
   .to-buy-series {
@@ -186,11 +163,6 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .to-buy-cover[data-loading] {
-      animation: none;
-    }
-
-    .to-buy-cover img,
     .to-buy-series-toggle::before {
       transition: none;
     }

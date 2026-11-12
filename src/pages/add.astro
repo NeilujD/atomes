@@ -64,7 +64,7 @@ const answers = [
     </form>
 
     <div class="book" data-skeleton hidden aria-hidden="true">
-      <div class="cover skeleton"></div>
+      <div class="cover book-cover skeleton"></div>
       <div class="book-text skeleton-text">
         <div class="skeleton skeleton-title"></div>
         <div class="skeleton skeleton-line"></div>
@@ -74,7 +74,7 @@ const answers = [
 
     <form class="preview" data-add-form hidden>
       <div class="book" data-preview>
-        <div class="cover" data-cover></div>
+        <div class="cover book-cover" data-cover></div>
         <div class="book-text">
           <h2 class="book-title" data-title>{t('add.book')}</h2>
           <p class="book-line" data-authors></p>
@@ -149,6 +149,7 @@ const answers = [
   import { openOwnSpace } from '../lib/auth/server-client';
   import type { Edition } from '../lib/catalog/catalog';
   import { coverUrl, lookupEdition } from '../lib/catalog/client';
+  import { showCover } from '../lib/cover';
   import { saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
   import { editionWork, readIsbn } from '../lib/library/ids';
   import { cameraProblem, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
@@ -237,15 +238,13 @@ const answers = [
   }
 
   async function show(found: Edition) {
-    const cover = addForm.querySelector<HTMLElement>('[data-cover]')!;
-    cover.replaceChildren();
-    const src = coverUrl(found);
-    if (src) {
-      const image = document.createElement('img');
-      image.src = src;
-      image.alt = '';
-      cover.append(image);
-    }
+    showCover(addForm.querySelector<HTMLElement>('[data-cover]')!, {
+      src: coverUrl(found),
+      title: found.title,
+      series: found.series?.title ?? null,
+      volumeTitle: found.volumeTitle,
+      volume: found.volumes.length > 0 ? t('book.volumes', found.volumes) : '',
+    });
     addForm.querySelector('[data-title]')!.textContent = found.title;
     addForm.querySelector('[data-authors]')!.textContent = found.authors.join(', ');
     addForm.querySelector('[data-series]')!.textContent = [
@@ -780,22 +779,6 @@ const answers = [
     flex: none;
     width: 88px;
     align-self: flex-start;
-    overflow: hidden;
-    border-radius: var(--radius-cover);
-    box-shadow: 0 0 0 1px var(--cover-edge);
-  }
-
-  /* No cover: a book-shaped placeholder. */
-  .cover:empty {
-    aspect-ratio: 2 / 3;
-    background: var(--soft);
-  }
-
-  /* The whole cover, at its own ratio: covers are not all 2:3. */
-  .cover :global(img) {
-    display: block;
-    width: 100%;
-    height: auto;
   }
 
   .book-text {
