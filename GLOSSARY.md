@@ -126,7 +126,7 @@ _Avoid_: Import, scan-in
 _French_: Ajout rapide
 
 **Shelf Check**:
-Pointing the phone at a book (usually in a shop) to learn whether the reader already owns it, has read it, or is missing it from a Series. It must work offline.
+Pointing the phone at a book (usually in a shop) to learn whether the reader already owns it, has read it, or is missing it from a Series. It must work offline. When the reader buys the book, a Shelf Check ends in a Quick Add.
 _Avoid_: Lookup, search, in-store mode
 _French_: Vérification en rayon
 
