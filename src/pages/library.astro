@@ -51,6 +51,20 @@ const t = translator(requestLanguage(Astro.request));
     width: 100%;
   }
 
+  /* The Books / Series switch. Phone: a row of its own, as wide as the screen. Desktop: in the search row. */
+  .library-toolbar > .library-grouping {
+    display: flex;
+  }
+
+  .library-toolbar > .library-grouping .segment {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .library-search-row .library-grouping {
+    flex: none;
+  }
+
   .library-count {
     color: var(--secondary);
     font-size: 13px;

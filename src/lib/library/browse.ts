@@ -89,6 +89,8 @@ export function browse(books: LibraryBook[], labels: Saved<Label>[], query: Libr
     const found = fold(searchedText(book, query.searchIn));
     return words.every((word) => found.includes(word));
   };
+  // A Label deleted since the reader picked it filters nothing.
+  const label = labels.some(({ rkey }) => rkey === query.label) ? query.label : null;
   // Every filter but `skip`, so a chip can count what choosing it would give.
   const kept = (skip?: 'status' | 'label') =>
     books.filter(
@@ -97,12 +99,12 @@ export function browse(books: LibraryBook[], labels: Saved<Label>[], query: Libr
         (query.author === null || book.authors.includes(query.author)) &&
         (query.series === null || book.series === query.series) &&
         (skip === 'status' || query.status === null || book.status === query.status) &&
-        (skip === 'label' || query.label === null || book.labels.includes(query.label)),
+        (skip === 'label' || label === null || book.labels.includes(label)),
     );
 
   const forStatus = kept('status');
   const forLabel = kept('label');
-  const { text, author, series, status, label } = query;
+  const { text, author, series, status } = query;
   return {
     books: kept().sort(order(query.sort, compare)),
     total: books.length,

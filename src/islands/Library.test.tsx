@@ -29,14 +29,18 @@ const books = [
   edition('9782070464234', 'La Horde du Contrevent', ['Alain Damasio']),
 ];
 
+// Two Volumes of one Series.
+const onePiece = { id: 'wd:Q673', title: 'One Piece', sameAs: [] };
+const volumes = ['9782723434621', '9782723434638'].map((isbn, index) => ({ ...edition(isbn, 'One Piece', ['Eiichirō Oda']), series: onePiece, volumes: [index + 1], volume: index + 1 }));
+
 // The reader owns the three books and has read Dune.
-async function libraryScreen() {
+async function libraryScreen(owned = books) {
   const { space } = memorySpace();
-  for (const each of books) await saveCopy(space, { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-01T00:00:00.000Z' });
+  for (const each of owned) await saveCopy(space, { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-01T00:00:00.000Z' });
   await saveReadingStatus(space, { work: books[1].work.id, isbn: books[1].isbn, status: 'read', updatedAt: '2026-11-02T00:00:00.000Z' });
   const sources: Sources = {
     open: () => Promise.resolve(space),
-    editions: (isbns) => Promise.resolve(new Map(books.filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
+    editions: (isbns) => Promise.resolve(new Map(owned.filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
   };
   render(<Library sources={sources} />);
   await screen.findAllByRole('list');
@@ -76,6 +80,20 @@ describe('Library screen', () => {
     fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'zzz' } });
 
     expect(screen.getByText('No book matches these filters.')).toBeTruthy();
+  });
+
+  test('Series mode shows one card per Series, opening its Series page, and is still on after a reload', async () => {
+    await libraryScreen([...books, ...volumes]);
+    fireEvent.click(screen.getByRole('radio', { name: 'Series' }));
+
+    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent', 'One Piece']);
+    expect(screen.getByRole('link', { name: /One Piece/ }).getAttribute('href')).toBe('/series?isbn=9782723434621');
+
+    // A reload: the screen starts again, on the same device.
+    cleanup();
+    await libraryScreen([...books, ...volumes]);
+
+    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent', 'One Piece']);
   });
 });
 

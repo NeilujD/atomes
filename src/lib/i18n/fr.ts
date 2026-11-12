@@ -195,6 +195,22 @@ export const fr: typeof en = {
   'book.past-loans': (count) => `Prêts passés (${count})`,
   'book.past-loan': (borrower, from, to) => `${borrower}, du ${from} au ${to}`,
   'book.edition-unknown': 'Édition encore inconnue',
+  'labels.title': 'Étiquettes',
+  'labels.none': 'Aucune étiquette sur ce livre.',
+  'labels.remove': (name) => `Retirer l’étiquette ${name} de ce livre`,
+  'labels.yours': 'Ajouter une de vos étiquettes',
+  'labels.new': 'Nouvelle étiquette',
+  'labels.add': 'Ajouter',
+  'labels.private': 'Les étiquettes sont privées : vous seul les voyez.',
+  'labels.name-empty': 'Tapez un nom pour l’étiquette.',
+  'labels.name-taken': 'Vous avez déjà une étiquette de ce nom.',
+  'labels.edit': 'Renommer ou supprimer vos étiquettes',
+  'labels.name': (name) => `Nom de l’étiquette ${name}`,
+  'labels.rename': 'Renommer',
+  'labels.delete': 'Supprimer',
+  'labels.delete-label': (name) => `Supprimer l’étiquette ${name}`,
+  'labels.delete-ask': (name) => `Supprimer l’étiquette ${name} de tous les livres ?`,
+  'labels.cancel': 'Annuler',
 
   // Series Onboarding
   'onboarding.title': 'Ajout d’une série',
@@ -338,4 +354,9 @@ export const fr: typeof en = {
   'library.filters-on': (count) => `${count} ${count > 1 ? 'filtres actifs' : 'filtre actif'}`,
   'library.show': (count) => `Voir ${count} ${count > 1 ? 'livres' : 'livre'}`,
   'library.no-match': 'Aucun livre ne correspond à ces filtres.',
+  // The Books / Series switch
+  'library.grouping': 'Afficher',
+  'library.grouping.books': 'Livres',
+  'library.grouping.series': 'Séries',
+  'library.series-counts': (owned, read) => `${owned} ${owned > 1 ? 'possédés' : 'possédé'} · ${read} ${read > 1 ? 'lus' : 'lu'}`,
 };

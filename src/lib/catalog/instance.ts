@@ -11,6 +11,13 @@ import type { Catalog } from './catalog';
 import { createCatalog } from './catalog';
 import { politeFetch } from './sources';
 
+// Development only, with CATALOG_SOURCES=recorded: the Catalog answers from the
+// recorded answers of `fixtures/`, with no network. The check is on
+// import.meta.env.DEV, fixed at build time: the build drops this import, so a
+// built server ignores the setting and always asks the real sources.
+const recorded =
+  import.meta.env.DEV && process.env.CATALOG_SOURCES === 'recorded' ? (await import('./recorded.fake')).recordedFetch().fetch : undefined;
+
 let instance: Catalog | undefined;
 let access: Promise<CatalogAccess> | undefined;
 
@@ -31,7 +38,7 @@ export function catalog(): Catalog {
     instance = createCatalog({
       file: join(dir, 'catalog.sqlite'),
       // Sources ask for a contact URL, never an email (spike 0002).
-      fetch: politeFetch(`Atomes/${version} (+${origin ?? 'https://github.com/NeilujD/atomes'})`),
+      fetch: recorded ?? politeFetch(`Atomes/${version} (+${origin ?? 'https://github.com/NeilujD/atomes'})`),
       host: origin ? new URL(origin).host : 'localhost',
     });
   }

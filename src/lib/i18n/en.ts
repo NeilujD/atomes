@@ -197,6 +197,22 @@ export const en = {
   'book.past-loans': (count: number) => `Past Loans (${count})`,
   'book.past-loan': (borrower: string, from: string, to: string) => `${borrower}, ${from} to ${to}`,
   'book.edition-unknown': 'Edition not known yet',
+  'labels.title': 'Labels',
+  'labels.none': 'No Label on this book.',
+  'labels.remove': (name: string) => `Remove the Label ${name} from this book`,
+  'labels.yours': 'Add one of your Labels',
+  'labels.new': 'New Label',
+  'labels.add': 'Add',
+  'labels.private': 'Labels are Private: only you see them.',
+  'labels.name-empty': 'Type a name for the Label.',
+  'labels.name-taken': 'You already have a Label with this name.',
+  'labels.edit': 'Rename or delete your Labels',
+  'labels.name': (name: string) => `Name of the Label ${name}`,
+  'labels.rename': 'Rename',
+  'labels.delete': 'Delete',
+  'labels.delete-label': (name: string) => `Delete the Label ${name}`,
+  'labels.delete-ask': (name: string) => `Delete the Label ${name} from every book?`,
+  'labels.cancel': 'Cancel',
 
   // Series Onboarding
   'onboarding.title': 'Series Onboarding',
@@ -338,4 +354,9 @@ export const en = {
   'library.filters-on': (count: number) => `${count} ${count === 1 ? 'filter' : 'filters'} on`,
   'library.show': (count: number) => `Show ${count} ${count === 1 ? 'book' : 'books'}`,
   'library.no-match': 'No book matches these filters.',
+  // The Books / Series switch
+  'library.grouping': 'Show',
+  'library.grouping.books': 'Books',
+  'library.grouping.series': 'Series',
+  'library.series-counts': (owned: number, read: number) => `${owned} owned · ${read} read`,
 };
