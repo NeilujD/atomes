@@ -121,3 +121,10 @@ Decisions of the owner, 2026-11-12:
 - **Reader records do not change**, because the Edition Line key is internal (see Identifiers). Copies already saved with an ISBN of the wrong line stay until the reader removes them.
 - Rejected: the BnF Series record as the line key. One Piece has two Series records for one line.
 - Rejected: title words ("Perfect Edition", "Deluxe"). No recorded answer shows them yet, and each publisher words them differently. The size is in most BnF and SUDOC records (215 `$d`).
+
+How the Catalog does it (CORE-58, checked against the answers recorded on 2026-11-12):
+
+- The Edition Line key ends with the line's book size: the size of the first Edition in it. An Edition joins the line nearest its size, within 1 cm; an Edition with no size joins the line with the most Editions. A chosen Volume (CORE-40) joins its anchor's line.
+- The BnF Series record counts when the anchor or the listed Edition is an omnibus, so single Volumes stay out of an omnibus line (Dragon Ball Super) as omnibus Editions stay out of a single-Volume line.
+- The line's record is the one most listed Editions of the anchor's kind name (One Piece: 38888890), whatever Volume was looked up first. When two Editions give one Volume number, the one in that record wins, else the latest printing: the One Piece "500 quiz book" (18 cm) and arc box sets (19 cm) have their own records and the same Volume numbers as the run.
+- Recorded and not solved here: BnF files the 18 cm Dragon Ball Volumes as "Dragon Ball", and SUDOC calls Volume 1 "Dragonball", so the 18 cm line fills with Volume 1 only. One Piece 1 and 56 name two Wikidata Series (`wd:Q28667972`, `wd:Q673`).
