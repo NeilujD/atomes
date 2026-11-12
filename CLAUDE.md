@@ -8,6 +8,7 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 - `bun run test` — run tests (Vitest). Never `bun test`: that starts Bun's own test runner, not Vitest.
 - `bun run build` — build the Node server into `dist/`
 - `bun run dev` — dev server on http://127.0.0.1:4321 (not `localhost`: the OAuth loopback client needs a loopback IP; `localhost` pages move there)
+- Hand tests in a browser: on `bun run dev`, open http://127.0.0.1:4321/dev/sign-in-as to sign in with no PDS, as the first DID of `ALLOWED_DIDS` (or `?did=<did>&handle=<handle>`). It lands on the Library. 404 in a built server. It is enough while the Library stays on this server (`library.sqlite`); data on the PDS will need the real sign-in.
 - `bun run reset [--keep-catalog]` — local only: delete the SQLite files in `DATA_DIR` (sessions, Library, Catalog). Stop the dev server first; every browser must sign in again. PDS records do not change.
 - `bun scripts/record-catalog-answers.ts <isbn>…` — ask the real book sources and save their answers in `src/lib/catalog/fixtures/` for the Catalog tests
 

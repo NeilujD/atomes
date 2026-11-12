@@ -109,6 +109,22 @@ export async function callback(request: Request, { oauth, store }: AuthDeps): Pr
   }
 }
 
+// GET /dev/sign-in-as, development only: a browser session for `did` (default:
+// the first allowed DID) with no PDS, so agents can test the app by hand. The
+// Library API reads only the browser session. A DID that is not allowed gets
+// 403 and nothing is written.
+export function signInAs(request: Request, { store }: Pick<AuthDeps, 'store'>, allowedDids: ReadonlySet<string>): Response {
+  const query = new URL(request.url).searchParams;
+  const did = query.get('did') ?? [...allowedDids][0] ?? '';
+  try {
+    const cookie = store.openBrowserSession({ did, handle: query.get('handle') ?? 'test.reader' });
+    return goTo('/library', { 'set-cookie': sessionCookieHeader(cookie, browserSessionLifetimeMs / 1000) });
+  } catch (error) {
+    if (error instanceof NotAllowedError) return new Response(null, { status: 403 });
+    throw error;
+  }
+}
+
 // POST /oauth/sign-out. Ends the browser session and removes the cookie. The
 // OAuth session ends too when no other browser of the reader is signed in.
 export async function signOut(request: Request, { oauth, store }: AuthDeps): Promise<Response> {

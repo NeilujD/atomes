@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { callback, session, sessionCookie, signIn, signOut, type AuthDeps, type OAuthPort } from './auth';
+import { callback, session, sessionCookie, signIn, signInAs, signOut, type AuthDeps, type OAuthPort } from './auth';
 import { createAuthStore, NotAllowedError, type AuthStore } from './auth-store';
 import { secretBox } from './secret-box';
 
@@ -147,6 +147,34 @@ describe('sign-in', () => {
     expect(onDisk).toContain(owner);
     for (const secret of [accessToken, refreshToken, dpopSecret, cookie]) expect(onDisk).not.toContain(secret);
     expect(await store.sessions().get(owner)).toMatchObject({ tokenSet: { access_token: accessToken } });
+  });
+});
+
+describe('sign-in as a test reader (development)', () => {
+  const allowed = new Set([owner]);
+  const signInAsUrl = (query = '') => signInAs(new Request(`${app}/dev/sign-in-as${query}`), { store }, allowed);
+
+  test('opens a browser session for the first allowed DID and sends the reader to the Library', () => {
+    const response = signInAsUrl();
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/library');
+    expect(response.headers.get('set-cookie')).toMatch(/^atomes_session=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=\d+$/);
+    expect(store.browserSession(cookieOf(response)!)).toEqual({ did: owner, handle: 'test.reader' });
+  });
+
+  test('takes the DID and the handle from the query', () => {
+    const response = signInAsUrl(`?did=${encodeURIComponent(owner)}&handle=alice.test`);
+
+    expect(store.browserSession(cookieOf(response)!)).toEqual({ did: owner, handle: 'alice.test' });
+  });
+
+  test('refuses a DID that is not allowed, and writes nothing', () => {
+    const response = signInAsUrl(`?did=${encodeURIComponent(stranger)}`);
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(store.hasBrowserSessions(stranger)).toBe(false);
   });
 });
 
