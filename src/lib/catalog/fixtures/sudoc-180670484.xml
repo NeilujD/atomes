@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record>
+  <leader>     cam0 22        450 </leader>
+  <controlfield tag="001">180670484</controlfield>
+  <controlfield tag="002">4,5,15,36</controlfield>
+  <controlfield tag="003">https://www.sudoc.fr/180670484</controlfield>
+  <controlfield tag="004">20140919</controlfield>
+  <controlfield tag="005">20231127042726.000</controlfield>
+  <controlfield tag="006">870852107</controlfield>
+  <controlfield tag="007">1999</controlfield>
+  <controlfield tag="008">Aax3</controlfield>
+  <datafield tag="010" ind1="#" ind2="#">
+    <subfield code="a">978-2-7234-3462-1</subfield>
+    <subfield code="b">br</subfield>
+    <subfield code="d">7,60 EUR</subfield>
+  </datafield>
+  <datafield tag="034" ind1=" " ind2=" ">
+    <subfield code="a">OCoLC</subfield>
+    <subfield code="0">893789562</subfield>
+  </datafield>
+  <datafield tag="073" ind1="#" ind2="0">
+    <subfield code="a">9782723434621</subfield>
+  </datafield>
+  <datafield tag="100" ind1="#" ind2="#">
+    <subfield code="a">20140919h20032003m  y0frey50      ba</subfield>
+  </datafield>
+  <datafield tag="101" ind1="1" ind2="#">
+    <subfield code="a">fre</subfield>
+    <subfield code="c">jpn</subfield>
+    <subfield code="2">639-2</subfield>
+  </datafield>
+  <datafield tag="102" ind1="#" ind2="#">
+    <subfield code="a">FR</subfield>
+  </datafield>
+  <datafield tag="104" ind1="#" ind2="#">
+    <subfield code="a">m</subfield>
+    <subfield code="b">y</subfield>
+    <subfield code="c">y</subfield>
+    <subfield code="d">ba</subfield>
+    <subfield code="e">0</subfield>
+    <subfield code="f">fre</subfield>
+  </datafield>
+  <datafield tag="105" ind1="#" ind2="#">
+    <subfield code="a">||||t   00|a|</subfield>
+  </datafield>
+  <datafield tag="106" ind1="#" ind2="#">
+    <subfield code="a">r</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="c">txt</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="#">
+    <subfield code="6">z02</subfield>
+    <subfield code="c">sti</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="1">
+    <subfield code="6">z01</subfield>
+    <subfield code="a">i#</subfield>
+    <subfield code="b">xxxe##</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="1">
+    <subfield code="6">z02</subfield>
+    <subfield code="a">b#</subfield>
+    <subfield code="b">xb2e##</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="c">n</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="#">
+    <subfield code="6">z02</subfield>
+    <subfield code="c">n</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="1">
+    <subfield code="6">z01</subfield>
+    <subfield code="a">n</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="1">
+    <subfield code="6">z02</subfield>
+    <subfield code="a">n</subfield>
+  </datafield>
+  <datafield tag="200" ind1="1" ind2="#">
+    <subfield code="a">Dragonball</subfield>
+    <subfield code="h">1</subfield>
+    <subfield code="i">Son Goku</subfield>
+    <subfield code="f">Akira Toriyama</subfield>
+    <subfield code="g">Fedoua Lamodière, traducteur</subfield>
+  </datafield>
+  <datafield tag="210" ind1="#" ind2="#">
+    <subfield code="a">Grenoble</subfield>
+    <subfield code="c">Glénat</subfield>
+    <subfield code="d">DL 2003, cop. 2003</subfield>
+    <subfield code="e">77-Evreux</subfield>
+    <subfield code="g">Impr. Hérissey</subfield>
+  </datafield>
+  <datafield tag="215" ind1="#" ind2="#">
+    <subfield code="a">1 vol. (175 p.)</subfield>
+    <subfield code="c">ill. , couv. ill. en coul.</subfield>
+    <subfield code="d">18 cm</subfield>
+  </datafield>
+  <datafield tag="225" ind1="1" ind2="#">
+    <subfield code="a">Dragonball</subfield>
+    <subfield code="v">1</subfield>
+  </datafield>
+  <datafield tag="225" ind1="1" ind2="#">
+    <subfield code="a">Shonen manga</subfield>
+  </datafield>
+  <datafield tag="410" ind1="#" ind2="#">
+    <subfield code="0">076257894</subfield>
+    <subfield code="t">Shonen manga</subfield>
+    <subfield code="x">1761-2268</subfield>
+  </datafield>
+  <datafield tag="461" ind1="#" ind2="#">
+    <subfield code="t">Dragonball</subfield>
+    <subfield code="v">1</subfield>
+  </datafield>
+  <datafield tag="517" ind1="#" ind2="#">
+    <subfield code="a">Dragonball</subfield>
+    <subfield code="h">1</subfield>
+    <subfield code="i">Son Goku et ses amis</subfield>
+  </datafield>
+  <datafield tag="579" ind1=" " ind2=" ">
+    <subfield code="1">0499</subfield>
+    <subfield code="3">209687886</subfield>
+    <subfield code="t">Dragonball</subfield>
+  </datafield>
+  <datafield tag="608" ind1="#" ind2="#">
+    <subfield code="3">188482822</subfield>
+    <subfield code="a">Shônen</subfield>
+    <subfield code="2">rameau</subfield>
+  </datafield>
+  <datafield tag="686" ind1="#" ind2="#">
+    <subfield code="a">805</subfield>
+    <subfield code="2">Cadre de classement de la Bibliographie nationale française</subfield>
+  </datafield>
+  <datafield tag="700" ind1="#" ind2="1">
+    <subfield code="3">03231647X</subfield>
+    <subfield code="a">Toriyama</subfield>
+    <subfield code="b">Akira</subfield>
+    <subfield code="f">1955-2024</subfield>
+    <subfield code="c">mangaka</subfield>
+    <subfield code="4">070</subfield>
+  </datafield>
+  <datafield tag="702" ind1="#" ind2="1">
+    <subfield code="3">088518736</subfield>
+    <subfield code="a">Lamodière</subfield>
+    <subfield code="b">Fédoua</subfield>
+    <subfield code="f">1980-....</subfield>
+    <subfield code="c">traductrice</subfield>
+    <subfield code="4">730</subfield>
+  </datafield>
+  <datafield tag="712" ind1="0" ind2="2">
+    <subfield code="3">079201369</subfield>
+    <subfield code="a">Glénat</subfield>
+    <subfield code="c">Grenoble, Isère, France</subfield>
+    <subfield code="c">1969-....</subfield>
+    <subfield code="4">650</subfield>
+  </datafield>
+  <datafield tag="801" ind1="#" ind2="3">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">Abes</subfield>
+    <subfield code="c">20231127</subfield>
+    <subfield code="g">AFNOR</subfield>
+  </datafield>
+  <datafield tag="801" ind1="#" ind2="0">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">FR-751131015</subfield>
+    <subfield code="c">20131118</subfield>
+    <subfield code="g">AFNOR</subfield>
+    <subfield code="2">intermrc</subfield>
+  </datafield>
+  <datafield tag="930" ind1="#" ind2="#">
+    <subfield code="5">130552103:725784423</subfield>
+    <subfield code="b">130552103</subfield>
+    <subfield code="j">u</subfield>
+  </datafield>
+  <datafield tag="940" ind1=" " ind2=" ">
+    <subfield code="5">130552103:725784423</subfield>
+    <subfield code="a">20220427</subfield>
+    <subfield code="b">x</subfield>
+  </datafield>
+  <datafield tag="941" ind1=" " ind2=" ">
+    <subfield code="5">130552103:725784423</subfield>
+    <subfield code="a">20220427</subfield>
+    <subfield code="b">12:03:41.000</subfield>
+  </datafield>
+  <datafield tag="930" ind1="#" ind2="#">
+    <subfield code="5">026912101:524667209</subfield>
+    <subfield code="b">026912101</subfield>
+    <subfield code="j">g</subfield>
+  </datafield>
+  <datafield tag="940" ind1=" " ind2=" ">
+    <subfield code="5">026912101:524667209</subfield>
+    <subfield code="a">20150323</subfield>
+    <subfield code="b">x</subfield>
+  </datafield>
+  <datafield tag="941" ind1=" " ind2=" ">
+    <subfield code="5">026912101:524667209</subfield>
+    <subfield code="a">20150323</subfield>
+    <subfield code="b">15:46:02.000</subfield>
+  </datafield>
+  <datafield tag="930" ind1="#" ind2="#">
+    <subfield code="5">600572201:863766005</subfield>
+    <subfield code="b">600572201</subfield>
+    <subfield code="j">g</subfield>
+  </datafield>
+  <datafield tag="940" ind1=" " ind2=" ">
+    <subfield code="5">600572201:863766005</subfield>
+    <subfield code="a">20250917</subfield>
+    <subfield code="b">x</subfield>
+  </datafield>
+  <datafield tag="941" ind1=" " ind2=" ">
+    <subfield code="5">600572201:863766005</subfield>
+    <subfield code="a">20250917</subfield>
+    <subfield code="b">14:47:38.000</subfield>
+  </datafield>
+  <datafield tag="930" ind1="#" ind2="#">
+    <subfield code="5">335222101:533968038</subfield>
+    <subfield code="b">335222101</subfield>
+    <subfield code="a">M DRA-1</subfield>
+    <subfield code="j">g</subfield>
+  </datafield>
+  <datafield tag="940" ind1=" " ind2=" ">
+    <subfield code="5">335222101:533968038</subfield>
+    <subfield code="a">20150703</subfield>
+    <subfield code="b">x</subfield>
+  </datafield>
+  <datafield tag="941" ind1=" " ind2=" ">
+    <subfield code="5">335222101:533968038</subfield>
+    <subfield code="a">20260407</subfield>
+    <subfield code="b">18:27:12.000</subfield>
+  </datafield>
+  <datafield tag="991" ind1="#" ind2="#">
+    <subfield code="5">335222101:533968038</subfield>
+    <subfield code="a">Exemplaire modifié automatiquement le 07-04-2026 18:27</subfield>
+  </datafield>
+  <datafield tag="930" ind1="#" ind2="#">
+    <subfield code="5">870852107:513046631</subfield>
+    <subfield code="b">870852107</subfield>
+    <subfield code="j">g</subfield>
+  </datafield>
+  <datafield tag="940" ind1=" " ind2=" ">
+    <subfield code="5">870852107:513046631</subfield>
+    <subfield code="a">20140919</subfield>
+    <subfield code="b">x</subfield>
+  </datafield>
+  <datafield tag="941" ind1=" " ind2=" ">
+    <subfield code="5">870852107:513046631</subfield>
+    <subfield code="a">20140919</subfield>
+    <subfield code="b">11:11:52.000</subfield>
+  </datafield>
+</record>
