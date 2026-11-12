@@ -1,4 +1,4 @@
-// The Settings sign-in form posts here; the answer sends the reader to their PDS.
+// The sign-in screen posts here; the answer sends the reader to their PDS.
 import type { APIRoute } from 'astro';
 import { signIn } from '../../lib/server/auth';
 import { authDeps } from '../../lib/server/instance';

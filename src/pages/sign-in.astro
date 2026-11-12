@@ -1,0 +1,131 @@
+---
+// The sign-in screen (ADR 0013, amendment 2026-11-12): every other app screen
+// sends a visitor with no session here (the gate in AppShell), with the screen
+// asked as `?next=`. A Flow screen (ui-direction): no sidebar or tab bar.
+// The server sends a failed sign-in back here with `?auth=<result>`. The
+// service worker keeps this page by path: the script reads the query.
+import Mark from '../components/Mark.astro';
+import AppShell from '../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
+---
+
+<AppShell title={t('signin.title')} flow>
+  <section class="card" aria-labelledby="sign-in-title">
+    <Mark size={48} />
+    <h1 class="title" id="sign-in-title">{t('signin.heading')}</h1>
+    <p class="hint">{t('signin.hint')}</p>
+    <form class="sign-in" data-sign-in>
+      <label class="visually-hidden" for="handle">{t('signin.handle')}</label>
+      <input
+        class="field"
+        id="handle"
+        name="handle"
+        type="text"
+        inputmode="url"
+        autocomplete="username"
+        autocapitalize="none"
+        spellcheck="false"
+        enterkeyhint="go"
+        placeholder="alice.bsky.social"
+      />
+      <button class="button button-primary" type="submit">{t('signin.submit')}</button>
+    </form>
+    <p class="error" data-error role="alert" hidden></p>
+  </section>
+</AppShell>
+
+<script>
+  import { returnTarget } from '../lib/auth/return-to';
+  import { createAuthClient } from '../lib/auth/server-client';
+  import { loadSession, signIn, signInResultMessage } from '../lib/auth/session';
+
+  const form = document.querySelector<HTMLFormElement>('[data-sign-in]')!;
+  const handleInput = form.querySelector<HTMLInputElement>('input[name="handle"]')!;
+  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const error = document.querySelector<HTMLElement>('[data-error]')!;
+
+  // `?auth=` is read once, then dropped from the address, so a reload does not show it again.
+  const url = new URL(location.href);
+  const result = url.searchParams.get('auth');
+  const next = returnTarget(url.searchParams.get('next'));
+  url.searchParams.delete('auth');
+  history.replaceState(history.state, '', url);
+
+  function say(message: string | undefined) {
+    error.textContent = message ?? '';
+    error.hidden = !message;
+  }
+
+  function busy(on: boolean) {
+    handleInput.disabled = on;
+    submit.disabled = on;
+    submit.setAttribute('aria-busy', String(on));
+  }
+
+  // Signed in already (on this device, or offline with a saved account): back to the screen asked.
+  void loadSession(createAuthClient()).then((state) => {
+    if (state.status === 'signed-in') return location.replace(next);
+    say(state.message ?? signInResultMessage(result));
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    busy(true);
+    void signIn(createAuthClient(), handleInput.value, next)
+      .then((state) => say(state.status === 'signed-out' ? state.message : undefined))
+      .finally(() => busy(false));
+  });
+</script>
+
+<style>
+  .card {
+    width: min(100%, 400px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .title {
+    margin-top: 8px;
+    font-size: 26px;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  .hint {
+    width: 100%;
+    color: var(--secondary);
+    font-size: 14px;
+    text-wrap: pretty;
+  }
+
+  .sign-in {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .sign-in .field {
+    flex: 1;
+  }
+
+  .error {
+    font-size: 14px;
+    font-weight: 500;
+    text-wrap: pretty;
+  }
+
+  /* Desktop: the screen is a card on the ground colour. */
+  @media (min-width: 960px) {
+    .card {
+      padding: 40px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface);
+    }
+  }
+</style>

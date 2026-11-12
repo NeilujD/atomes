@@ -16,15 +16,21 @@ const app = 'https://atomes.test';
 
 // Stands for `@atproto/oauth-client-node`: the callback saves the OAuth session
 // in the session store before it answers, as the library does, so a store that
-// refuses the DID makes the callback fail. The PDS is never called.
+// refuses the DID makes the callback fail. The PDS is never called. The return
+// target makes the round trip as the library's app state does: kept on the
+// server under the OAuth `state`, given back by the callback.
 function fakeOAuth(store: AuthStore) {
   const revoked: string[] = [];
+  const states = new Map<string, string>();
   const oauth: OAuthPort = {
-    authorize: (handle) => Promise.resolve(new URL(`https://pds.test/oauth/authorize?login_hint=${handle}`)),
+    authorize(handle, returnTo) {
+      states.set('s', returnTo);
+      return Promise.resolve(new URL(`https://pds.test/oauth/authorize?login_hint=${handle}`));
+    },
     async callback(params) {
       const did = params.get('sub')!;
       await store.sessions().set(did, { tokenSet: { access_token: accessToken, refresh_token: refreshToken }, dpopJwk: { d: dpopSecret } });
-      return { did };
+      return { did, returnTo: states.get(params.get('state')!) };
     },
     handleOf: (did) => Promise.resolve(`${did.split(':').at(-1)}.test`),
     async revoke(did) {
@@ -56,6 +62,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const signInForm = (fields: Record<string, string>) =>
+  signIn(new Request(`${app}/oauth/sign-in`, { method: 'POST', body: new URLSearchParams(fields) }), deps);
 const back = (did: string) => callback(new Request(`${app}/oauth/callback?code=c&state=s&sub=${encodeURIComponent(did)}`), deps);
 const cookieOf = (response: Response) => /atomes_session=([^;]*)/.exec(response.headers.get('set-cookie') ?? '')?.[1];
 const withCookie = (path: string, cookie: string | undefined, init: RequestInit = {}) =>
@@ -76,7 +84,7 @@ describe('sign-in', () => {
     const response = await back(owner);
 
     expect(response.status).toBe(303);
-    expect(response.headers.get('location')).toBe('/settings?auth=signed-in');
+    expect(response.headers.get('location')).toBe('/');
     const header = response.headers.get('set-cookie')!;
     expect(header).toMatch(/^atomes_session=[A-Za-z0-9_-]{43}; /);
     expect(header.split('; ')).toEqual(expect.arrayContaining(['Path=/', 'HttpOnly', 'Secure', 'SameSite=Lax']));
@@ -91,7 +99,7 @@ describe('sign-in', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const response = await back(stranger);
 
-    expect(response.headers.get('location')).toBe('/settings?auth=not-allowed');
+    expect(response.headers.get('location')).toBe('/sign-in?auth=not-allowed');
     expect(response.headers.get('set-cookie')).toBeNull();
     expect(await store.sessions().get(stranger)).toBeUndefined();
     expect(store.hasBrowserSessions(stranger)).toBe(false);
@@ -101,12 +109,27 @@ describe('sign-in', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     deps.oauth.authorize = () => Promise.reject(new NotAllowedError(stranger));
 
-    const response = await signIn(
-      new Request(`${app}/oauth/sign-in`, { method: 'POST', body: new URLSearchParams({ handle: 'stranger.test' }) }),
-      deps,
-    );
+    const response = await signInForm({ handle: 'stranger.test', next: '/to-buy' });
 
-    expect(response.headers.get('location')).toBe('/settings?auth=not-allowed');
+    expect(response.headers.get('location')).toBe('/sign-in?auth=not-allowed&next=%2Fto-buy');
+  });
+
+  test('after sign-in, the reader lands on the screen asked first', async () => {
+    await signInForm({ handle: 'owner.test', next: '/book?work=isbn%3A9782723488525' });
+
+    expect((await back(owner)).headers.get('location')).toBe('/book?work=isbn%3A9782723488525');
+  });
+
+  test('a return target on another site lands on Home', async () => {
+    await signInForm({ handle: 'owner.test', next: '//evil.test/library' });
+
+    expect((await back(owner)).headers.get('location')).toBe('/');
+  });
+
+  test('an empty handle goes back to the sign-in screen, with its return target', async () => {
+    const response = await signInForm({ handle: ' ', next: '/library' });
+
+    expect(response.headers.get('location')).toBe('/sign-in?auth=no-account&next=%2Flibrary');
   });
 
   test('a DID taken off the list loses its open browser session', async () => {

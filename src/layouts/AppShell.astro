@@ -117,6 +117,10 @@ const icons = appIcons(appEnvironment(process.env));
                 <Icon name="settings" />
                 <span>{t('nav.settings')}</span>
               </a>
+              <button class="nav-item" type="button" data-nav-sign-out>
+                <Icon name="log-out" />
+                <span>{t('settings.sign-out')}</span>
+              </button>
               <p class="privacy">
                 <Icon name="lock" size={14} />
                 <span>{t('nav.private')}</span>
@@ -158,6 +162,18 @@ const icons = appIcons(appEnvironment(process.env));
         )
       }
 
+      <!-- Asked before every sign-out (src/lib/auth/confirm-sign-out.ts). -->
+      <dialog class="confirm" data-sign-out-dialog aria-labelledby="sign-out-title" aria-describedby="sign-out-text">
+        <form method="dialog">
+          <h2 class="confirm-title" id="sign-out-title">{t('signout.title')}</h2>
+          <p class="confirm-text" id="sign-out-text">{t('signout.text')}</p>
+          <div class="confirm-actions">
+            <button class="button" value="cancel">{t('signout.cancel')}</button>
+            <button class="button button-primary" value="confirm">{t('settings.sign-out')}</button>
+          </div>
+        </form>
+      </dialog>
+
       <!-- Toasts (src/lib/toast.ts): results over the page, so the content does not move. -->
       <div class="toasts" data-toasts role="status" aria-live="polite"></div>
       <template data-toast-template>
@@ -174,7 +190,28 @@ const icons = appIcons(appEnvironment(process.env));
 
 <script>
   import { applyAppearance, readAppearance } from '../lib/appearance';
+  import { signInPath } from '../lib/auth/return-to';
+  import { confirmSignOut } from '../lib/auth/confirm-sign-out';
+  import { gateScreen, signOutHere } from '../lib/auth/server-client';
   import { startConnectionStatus } from '../lib/connection';
+  import { toast } from '../lib/toast';
+
+  // Every screen but the sign-in screen needs a signed-in reader (ADR 0013,
+  // amendment 2026-11-12). Checked here, not on the server: see gate() in
+  // src/lib/auth/session.ts.
+  if (location.pathname !== signInPath) void gateScreen();
+
+  // Sidebar Sign out (desktop; on the phone it is in Settings). A message that
+  // must be read first stays as an error toast; else the sign-in screen opens.
+  const signOutButton = document.querySelector<HTMLButtonElement>('[data-nav-sign-out]');
+  signOutButton?.addEventListener('click', () => {
+    void confirmSignOut().then(async (confirmed) => {
+      if (!confirmed) return;
+      signOutButton.disabled = true;
+      const message = await signOutHere();
+      if (message) toast(message, { error: true });
+    });
+  });
 
   startConnectionStatus();
 
@@ -410,6 +447,14 @@ const icons = appIcons(appEnvironment(process.env));
     text-decoration: none;
   }
 
+  button.nav-item {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
   .nav-item[aria-current='page'] {
     background: var(--soft);
     color: var(--ink);
@@ -437,6 +482,38 @@ const icons = appIcons(appEnvironment(process.env));
     padding: 0 8px;
     color: var(--secondary);
     font-size: 12px;
+  }
+
+  .confirm {
+    width: min(100% - 32px, 400px);
+    padding: 24px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  .confirm::backdrop {
+    background: var(--scrim);
+  }
+
+  .confirm-title {
+    font-size: 18px;
+    letter-spacing: -0.02em;
+  }
+
+  .confirm-text {
+    margin-top: 8px;
+    color: var(--secondary);
+    font-size: 14px;
+    text-wrap: pretty;
+  }
+
+  .confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
   }
 
   /* Phone: centred above the tab bar. Desktop: bottom right of the panel. */

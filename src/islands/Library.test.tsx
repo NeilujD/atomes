@@ -74,10 +74,4 @@ describe('Library screen', () => {
 
     expect(screen.getByText('No book matches these filters.')).toBeTruthy();
   });
-
-  test('signed out: says to sign in', async () => {
-    render(<Library sources={{ open: () => Promise.resolve(undefined), editions: () => Promise.resolve(new Map()) }} />);
-
-    expect(await screen.findByText(/Sign in to see your Library/)).toBeTruthy();
-  });
 });

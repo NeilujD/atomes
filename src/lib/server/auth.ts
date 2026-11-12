@@ -1,27 +1,30 @@
 // Sign-in on the server (ADR 0013): the server holds the reader's OAuth session
 // and gives the browser only its own session cookie. The OAuth client sits
 // behind a small port (oauth.ts), so tests never call a PDS.
+import { returnTarget, signInPath } from '../auth/return-to';
 import { NotAllowedError, type AuthStore, browserSessionLifetimeMs } from './auth-store';
 
 export interface OAuthPort {
   // The PDS page that asks the reader to sign in. Refuses a DID that is not
-  // allowed when the handle resolves, before the reader leaves.
-  authorize(handle: string): Promise<URL>;
-  // Finishes the sign-in that comes back from the PDS. Gives the reader's DID.
-  callback(params: URLSearchParams): Promise<{ did: string }>;
+  // allowed when the handle resolves, before the reader leaves. Keeps
+  // `returnTo` on the server for the callback.
+  authorize(handle: string, returnTo: string): Promise<URL>;
+  // Finishes the sign-in that comes back from the PDS. Gives the reader's DID
+  // and the `returnTo` of its authorize.
+  callback(params: URLSearchParams): Promise<{ did: string; returnTo?: string }>;
   // The handle of the DID, or the DID when it has none.
   handleOf(did: string): Promise<string>;
   // Ends the OAuth session: revokes it on the PDS and deletes it here.
   revoke(did: string): Promise<void>;
 }
 
-// What the Settings page tells after a sign-in (`?auth=` in its URL).
-export type SignInResult = 'signed-in' | 'not-allowed' | 'cancelled' | 'no-account' | 'unreachable' | 'failed';
+// What the sign-in screen tells after a failed sign-in (`?auth=` in its URL).
+export type SignInResult = 'not-allowed' | 'cancelled' | 'no-account' | 'unreachable' | 'failed';
 
 // A sign-in failure the OAuth port could name.
 export class SignInError extends Error {
   constructor(
-    readonly result: Exclude<SignInResult, 'signed-in'>,
+    readonly result: SignInResult,
     options?: ErrorOptions,
   ) {
     super(`Sign-in failed: ${result}`, options);
@@ -37,7 +40,6 @@ export interface AuthDeps {
 }
 
 export const sessionCookie = 'atomes_session';
-export const settingsPath = '/settings';
 
 // HttpOnly: no script reads it. Secure: https only (browsers also send it to
 // http://127.0.0.1). SameSite=Lax: sent when the PDS sends the reader back.
@@ -53,10 +55,17 @@ function cookieOf(request: Request): string | undefined {
   return undefined;
 }
 
-const back = (result: SignInResult, headers: Record<string, string> = {}) =>
-  new Response(null, { status: 303, headers: { location: `${settingsPath}?auth=${result}`, ...headers } });
+const goTo = (location: string, headers: Record<string, string> = {}) =>
+  new Response(null, { status: 303, headers: { location, ...headers } });
 
-function resultOf(error: unknown): Exclude<SignInResult, 'signed-in'> {
+// Back to the sign-in screen, which tells the result and keeps the return target.
+function back(result: SignInResult, returnTo = '/') {
+  const query = new URLSearchParams({ auth: result });
+  if (returnTo !== '/') query.set('next', returnTo);
+  return goTo(`${signInPath}?${query}`);
+}
+
+function resultOf(error: unknown): SignInResult {
   for (let cause = error; cause instanceof Error; cause = cause.cause) {
     if (cause instanceof NotAllowedError) return 'not-allowed';
     if (cause instanceof SignInError) return cause.result;
@@ -70,25 +79,30 @@ function logFailure(step: string, error: unknown) {
   console.warn(`Sign-in ${step} failed: ${name}`);
 }
 
-// POST /oauth/sign-in, from the Settings form.
+// POST /oauth/sign-in, from the sign-in screen: `handle`, and `next`, the
+// screen to land on after the sign-in.
 export async function signIn(request: Request, { oauth }: AuthDeps): Promise<Response> {
-  const field = (await request.formData().catch(() => undefined))?.get('handle');
+  const form = await request.formData().catch(() => undefined);
+  const field = form?.get('handle');
   const handle = typeof field === 'string' ? field.trim().replace(/^@/, '') : '';
-  if (!handle) return back('no-account');
+  const returnTo = returnTarget(form?.get('next'));
+  if (!handle) return back('no-account', returnTo);
   try {
-    return new Response(null, { status: 303, headers: { location: (await oauth.authorize(handle)).href } });
+    return goTo((await oauth.authorize(handle, returnTo)).href);
   } catch (error) {
     logFailure('start', error);
-    return back(resultOf(error));
+    return back(resultOf(error), returnTo);
   }
 }
 
-// GET /oauth/callback: the PDS sends the reader back here.
+// GET /oauth/callback: the PDS sends the reader back here. Signed in, the
+// reader lands on the screen asked first. A failure goes back to the sign-in
+// screen, with no return target.
 export async function callback(request: Request, { oauth, store }: AuthDeps): Promise<Response> {
   try {
-    const { did } = await oauth.callback(new URL(request.url).searchParams);
+    const { did, returnTo } = await oauth.callback(new URL(request.url).searchParams);
     const cookie = store.openBrowserSession({ did, handle: await oauth.handleOf(did) });
-    return back('signed-in', { 'set-cookie': sessionCookieHeader(cookie, browserSessionLifetimeMs / 1000) });
+    return goTo(returnTarget(returnTo), { 'set-cookie': sessionCookieHeader(cookie, browserSessionLifetimeMs / 1000) });
   } catch (error) {
     logFailure('callback', error);
     return back(resultOf(error));

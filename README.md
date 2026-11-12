@@ -39,7 +39,7 @@ SESSION_ENCRYPTION_KEY=<openssl rand -base64 32>
 
 - Find your DID: `curl -s 'https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=<handle>'`.
 - Do not set `PUBLIC_APP_ORIGIN` in `.env.local`: with it, the server is the confidential client of that origin and sign-in on `127.0.0.1` fails.
-- Open `http://127.0.0.1:4321/settings`, not `localhost` (the server moves `localhost` pages to `127.0.0.1`). Sign in, add a book, reload: the book is there, read from `data/library.sqlite`.
+- Open `http://127.0.0.1:4321/`, not `localhost` (the server moves `localhost` pages to `127.0.0.1`). The app sends you to the sign-in screen. Sign in, add a book, reload: the book is there, read from `data/library.sqlite`.
 - Check the settings without the server: `node --env-file=.env.local scripts/check-settings.ts`.
 
 ## Run with Docker
