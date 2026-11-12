@@ -99,6 +99,14 @@ describe('the Library API', () => {
     expect(store.list(owner, collection)).toEqual([]);
   });
 
+  test('refuses a Label whose name is longer than the 64 characters of its lexicon', async () => {
+    const response = await call(owner, 'PUT', 'app.atomes.label/a', { $type: 'app.atomes.label', name: 'x'.repeat(65), works: [], createdAt });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: 'InvalidRecord' });
+    expect(store.list(owner, 'app.atomes.label')).toEqual([]);
+  });
+
   test.each([
     ['an unknown collection', 'PUT', 'app.bsky.feed.post/a', { $type: 'app.bsky.feed.post', text: 'x' }, 'InvalidCollection'],
     ['a record of another type', 'PUT', `${collection}/a`, { ...status('read'), $type: 'app.atomes.copy' }, 'InvalidRecord'],
