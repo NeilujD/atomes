@@ -51,14 +51,16 @@ export interface OnboardingSave {
 
 // Why Quick Add does not start the flow, or undefined when it does. `before`
 // is the Library before the Copy of `added` was saved: the flow is for a
-// Series new in the Library, never followed or dropped.
-export type NoOnboarding = 'no-series' | 'in-library' | 'followed' | 'dropped';
+// Series with no follow record (following or dropped) under any of its
+// identifiers. Its Volumes already in the Library show as kept in the flow.
+export type NoOnboarding = 'no-series' | 'followed' | 'dropped';
 
-export function noOnboarding(added: Edition, volumes: Edition[], before: Library): NoOnboarding | undefined {
-  if (!added.series || added.volume === null) return 'no-series';
-  const found = seriesRecords(added.series, [added, ...volumes], before);
-  if (found.follow) return found.follow.value.status === 'dropped' ? 'dropped' : 'followed';
-  return found.copies.length > 0 || found.readingStatuses.length > 0 ? 'in-library' : undefined;
+export function noOnboarding(added: Edition, before: Library): NoOnboarding | undefined {
+  const series = added.series;
+  if (!series || added.volume === null) return 'no-series';
+  const follow = before.follows.find(({ rkey }) => isSeries(series, rkey));
+  if (follow) return follow.value.status === 'dropped' ? 'dropped' : 'followed';
+  return undefined;
 }
 
 // The records of one Series in the Library: Copies and Reading Statuses of its

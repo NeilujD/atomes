@@ -131,6 +131,6 @@ _Avoid_: Lookup, search, in-store mode
 _French_: Vérification en rayon
 
 **Series Onboarding**:
-The moment a Series first enters the Library, when the app asks which of its Volumes the reader already owns.
+The step after Quick Add of a Volume whose Series the reader neither follows nor dropped, when the app asks which of its Volumes the reader already owns. Volumes already in the Library show as kept.
 _Avoid_: Series import, bulk add
 _French_: Ajout d'une série
