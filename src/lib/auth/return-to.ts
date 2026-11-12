@@ -11,7 +11,8 @@ const base = 'http://atomes.invalid';
 export function returnTarget(value: unknown): string {
   if (typeof value !== 'string' || !value.startsWith('/')) return '/';
   const url = new URL(value, base);
-  if (url.origin !== base) return '/';
+  // `/.//evil.test` parses on this origin, but its path `//evil.test` names another site.
+  if (url.origin !== base || url.pathname.startsWith('//')) return '/';
   if (url.pathname === signInPath || url.pathname.startsWith('/oauth/') || url.pathname.startsWith('/api/')) return '/';
   return url.pathname + url.search + url.hash;
 }
