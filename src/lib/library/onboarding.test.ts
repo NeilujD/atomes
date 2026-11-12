@@ -47,30 +47,29 @@ const library = (change: Partial<Library> = {}): Library => ({ copies: [], readi
 
 describe('When Series Onboarding starts', () => {
   test('the first Volume of a Series enters the Library: the flow starts', () => {
-    expect(noOnboarding(volume(1), volumes, library())).toBeUndefined();
+    expect(noOnboarding(volume(1), library())).toBeUndefined();
   });
 
-  test.each<[string, Partial<Library>, string]>([
-    ['another Volume has a Copy', { copies: [copyOf(3)] }, 'in-library'],
-    ['another Volume has a Reading Status (borrowed)', { readingStatuses: [readOf(2)] }, 'in-library'],
-    ['the same Volume has a Copy already (a second Copy)', { copies: [copyOf(1)] }, 'in-library'],
-    ['the Series is followed', { follows: [followOf('following')] }, 'followed'],
-    ['the Series was dropped', { follows: [followOf('dropped')] }, 'dropped'],
-  ])('no flow when %s, and Quick Add can say why', (_, before, why) => {
-    expect(noOnboarding(volume(1), volumes, library(before))).toBe(why);
+  test.each<[string, Partial<Library>]>([
+    ['another Volume has a Copy', { copies: [copyOf(3)] }],
+    ['another Volume has a Reading Status (borrowed)', { readingStatuses: [readOf(2)] }],
+    ['the same Volume has a Copy already (a second Copy)', { copies: [copyOf(1)] }],
+  ])('the flow starts when %s but the Series has no follow: those Volumes show as kept', (_, before) => {
+    expect(noOnboarding(volume(1), library(before))).toBeUndefined();
   });
 
-  test('a Copy that only shares the ISBN of a Volume counts too (a Work the Catalog identified later)', () => {
-    const typed: Saved<Copy> = { rkey: 'a', value: { isbn: isbns[2], works: [`isbn:${isbns[2]}`], createdAt: '2026-11-01T00:00:00.000Z' } };
-
-    expect(noOnboarding(volume(1), volumes, library({ copies: [typed] }))).toBe('in-library');
+  test.each<[string, Follow['status'], string]>([
+    ['followed', 'following', 'followed'],
+    ['dropped', 'dropped', 'dropped'],
+  ])('no flow when the Series is %s, and Quick Add can say why', (_, status, why) => {
+    expect(noOnboarding(volume(1), library({ follows: [followOf(status)] }))).toBe(why);
   });
 
   test.each<[string, Partial<Edition>]>([
     ['no Series', { series: null }],
     ['no Volume number', { volumes: [], volume: null }],
   ])('an Edition with %s: no flow, nothing to say', (_, change) => {
-    expect(noOnboarding(volume(1, change), [volume(1, change)], library())).toBe('no-series');
+    expect(noOnboarding(volume(1, change), library())).toBe('no-series');
   });
 });
 
@@ -295,8 +294,8 @@ describe('A follow saved under an older identifier of the Series (same_as, ADR 0
   });
 
   test('Quick Add sees the Series is followed or dropped', () => {
-    expect(noOnboarding(linkedVolumes[0], linkedVolumes, library({ follows: [oldFollow('following')] }))).toBe('followed');
-    expect(noOnboarding(linkedVolumes[0], linkedVolumes, library({ follows: [oldFollow('dropped')] }))).toBe('dropped');
+    expect(noOnboarding(linkedVolumes[0], library({ follows: [oldFollow('following')] }))).toBe('followed');
+    expect(noOnboarding(linkedVolumes[0], library({ follows: [oldFollow('dropped')] }))).toBe('dropped');
   });
 
   test('reading a Volume writes no second follow', () => {
