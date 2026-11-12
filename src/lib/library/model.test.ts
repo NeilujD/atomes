@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
 import type { Copy } from './copy';
 import type { Loan } from './loan';
-import { bookPage, isOwned, lend, returnLoans, statusChange, type Library } from './model';
+import { bookIsbns, bookPage, isOwned, lend, returnLoans, statusChange, type Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -109,6 +109,13 @@ describe('Book page', () => {
     expect(bookPage(work, library({ copies: [copy('3m2a')] }), new Map())?.title).toBe('ISBN 9782723478991');
   });
 
+  test('in French, the Edition of each Copy and the fallback title are in French', () => {
+    const page = bookPage(work, library({ copies: [copy('3m2a'), copy('3m2b', { isbn: '9782344025437' })] }), catalog, 'fr');
+
+    expect([page?.title, page?.copies.map(({ edition }) => edition)]).toEqual(['One Piece', ['Glénat · français · 18 x 12 cm', '']]);
+    expect(bookPage(work, library({ copies: [copy('3m2a')] }), new Map(), 'fr')?.title).toBe('ISBN 9782723478991');
+  });
+
   test('a book typed by hand shows like a Catalog book: its details, its Reading Status, its Copies', () => {
     const isbn = '9791032722077';
     const typedWork = `isbn:${isbn}`;
@@ -143,6 +150,49 @@ describe('Book page', () => {
       finishedAt: '2026-11-06T00:00:00.000Z',
       copies: [{ rkey: '3m2a', isbn, edition: '', loan: undefined, pastLoans: [] }],
     });
+  });
+
+  // Regression (CORE-59): the Catalog gives an `isbn:` Work to a Volume it knows
+  // only from BnF, and the Book page used to never ask for it.
+  test('an `isbn:` Work the Catalog knows: the page asks for its ISBN and shows its title, Edition and Series', () => {
+    const dragonBall3: Edition = {
+      ...onePiece56,
+      isbn: '9782723467759',
+      title: 'Dragonball',
+      volumeTitle: null,
+      authors: ['Akira Toriyama'],
+      cover: null,
+      work: { id: 'isbn:9782723467759', title: 'Dragonball' },
+      series: { id: 'bnf:dragonball', title: 'Dragonball', sameAs: [] },
+      volumes: [3],
+      volume: 3,
+      sources: ['BnF'],
+    };
+    const isbnWork = dragonBall3.work.id;
+    const saved = library({ copies: [copy('3m2a', { isbn: dragonBall3.isbn, works: [isbnWork] })] });
+
+    expect(bookIsbns(isbnWork, saved)).toEqual([dragonBall3.isbn]);
+    expect(bookPage(isbnWork, saved, new Map([[dragonBall3.isbn, dragonBall3]]))).toMatchObject({
+      title: 'Dragonball',
+      series: 'Dragonball',
+      volume: '3',
+      copies: [{ edition: 'Glénat · French · 18 x 12 cm' }],
+    });
+  });
+
+  test('typed details keep the title of a book the Catalog learns later', () => {
+    const typed = copy('3m2a', { details: { title: 'One Piece, mon tome préféré', authors: [] } });
+
+    expect(bookPage(work, library({ copies: [typed] }), catalog)).toMatchObject({ title: 'One Piece, mon tome préféré', series: 'One Piece' });
+  });
+
+  test('the ISBNs to ask the Catalog: those of the Copies and the Reading Status of the Work, once each', () => {
+    const saved = library({
+      copies: [copy('3m2a'), copy('3m2b'), copy('3m2c', { isbn: '9782266320542', works: ['wd:Q1', work] }), copy('3m2d', { works: ['wd:Q1'], isbn: '9782344025437' })],
+      readingStatuses: [{ rkey: work, value: { work, isbn: '9782723488525', status: 'read', updatedAt: '2026-11-06T00:00:00.000Z' } }],
+    });
+
+    expect(bookIsbns(work, saved)).toEqual([onePiece56.isbn, '9782266320542', '9782723488525']);
   });
 
   test('a Work with no Copy and no Reading Status is not in the Library', () => {
