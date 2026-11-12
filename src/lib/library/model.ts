@@ -2,7 +2,7 @@
 // shows out. Pure: no Space, no network, so every rule here is tested alone.
 import type { Edition } from '../catalog/catalog';
 import { coverUrl } from '../catalog/client';
-import { pageLanguage, type Language } from '../i18n/i18n';
+import { pageLanguage, translator, type Language } from '../i18n/i18n';
 import type { Copy } from './copy';
 import type { Follow } from './follow';
 import type { Loan } from './loan';
@@ -56,8 +56,19 @@ export function bookHref(work: string): string {
   return `/book?work=${encodeURIComponent(work)}`;
 }
 
+// The ISBNs the Book page asks the Catalog for: those of the Work's Copies and
+// Reading Status. An `isbn:` Work too: the Catalog gives it to a Volume it
+// knows only from BnF, and it remembers the ISBNs it does not know.
+export function bookIsbns(work: string, library: Library): string[] {
+  const isbns = [
+    ...library.copies.filter(({ value }) => value.works.includes(work)).map(({ value }) => value.isbn),
+    ...library.readingStatuses.filter(({ rkey }) => rkey === work).map(({ value }) => value.isbn),
+  ];
+  return [...new Set(isbns)];
+}
+
 // Undefined when the Work is not in the Library: no Copy and no Reading Status.
-export function bookPage(work: string, library: Library, editions: Editions): BookPage | undefined {
+export function bookPage(work: string, library: Library, editions: Editions, language: Language = pageLanguage()): BookPage | undefined {
   const copies = library.copies
     .filter(({ value }) => value.works.includes(work))
     .sort((a, b) => a.value.createdAt.localeCompare(b.value.createdAt) || a.rkey.localeCompare(b.rkey));
@@ -67,7 +78,7 @@ export function bookPage(work: string, library: Library, editions: Editions): Bo
 
   // The Catalog's Edition of this Work, else any Edition it knows of these
   // ISBNs (an omnibus, or a Work the Catalog identified later), else what the
-  // reader typed on a Copy.
+  // reader typed on a Copy. A typed title wins: it is the reader's own.
   const known = [isbn, ...copies.map(({ value }) => value.isbn)].flatMap((each) => editions.get(each) ?? []);
   const edition = known.find((each) => each.work.id === work) ?? known[0];
   const details = copies.find(({ value }) => value.details)?.value.details;
@@ -75,7 +86,7 @@ export function bookPage(work: string, library: Library, editions: Editions): Bo
   return {
     work,
     isbn,
-    title: edition?.title ?? details?.title ?? `ISBN ${isbn}`,
+    title: details?.title ?? edition?.title ?? translator(language)('book.isbn', isbn),
     volumeTitle: edition?.volumeTitle ?? null,
     authors: edition?.authors ?? details?.authors ?? [],
     series: edition?.series?.title ?? details?.series ?? null,
@@ -90,7 +101,7 @@ export function bookPage(work: string, library: Library, editions: Editions): Bo
       return {
         rkey,
         isbn: value.isbn,
-        edition: editionLabel(editions.get(value.isbn)),
+        edition: editionLabel(editions.get(value.isbn), language),
         loan: open && { rkey: open.rkey, borrower: open.value.borrower, lentAt: open.value.lentAt },
         pastLoans: loans.flatMap(({ value: { borrower, lentAt, returnedAt } }) => (returnedAt ? [{ borrower, lentAt, returnedAt }] : [])),
       };
