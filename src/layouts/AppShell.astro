@@ -6,11 +6,14 @@ import { createHash } from 'node:crypto';
 import '@fontsource-variable/schibsted-grotesk';
 import '../styles/theme.css';
 import ConnectionStatus from '../components/ConnectionStatus.astro';
+import EnvironmentBadge from '../components/EnvironmentBadge.astro';
 import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import type { IconName } from '../components/icons';
 import { bootScript } from '../lib/appearance';
+import { appIcons } from '../lib/environment';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
+import { appEnvironment } from '../lib/server/settings';
 
 type Section = 'home' | 'library' | 'new' | 'to-buy' | 'check' | 'settings';
 
@@ -50,6 +53,8 @@ const tabItems: { key: Section; href: string; label: string; icon: IconName }[] 
 ];
 
 const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
+// Outside production, the favicon and home screen icon are orange (src/lib/environment.ts).
+const icons = appIcons(appEnvironment(process.env));
 ---
 
 <html lang={language}>
@@ -60,9 +65,9 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
     <meta name="theme-color" data-theme="dark" media="(prefers-color-scheme: dark)" content="#121317" />
     <script is:inline set:html={bootScript} />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon-180.png" />
+    <link rel="icon" type="image/svg+xml" href={icons.favicon} />
+    <link rel="icon" type="image/png" sizes="32x32" href={icons.favicon32} />
+    <link rel="apple-touch-icon" href={icons.appleTouch} />
     <meta name="generator" content={Astro.generator} />
     <title>{title} · Atomes</title>
   </head>
@@ -71,6 +76,7 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
       {
         flow ? (
           <main class="flow">
+            <EnvironmentBadge place="flow" />
             <slot />
           </main>
         ) : (
@@ -81,6 +87,7 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
                 <Mark size={18} />
                 <span>Atomes</span>
               </a>
+              <EnvironmentBadge place="sidebar" />
               <a class="icon-button" href="/library" aria-label={t('nav.search')}>
                 <Icon name="search" />
               </a>
@@ -118,6 +125,7 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
           </nav>
 
           <main class="panel">
+            <EnvironmentBadge place="top" />
             <header class:list={['view-header', { detail }]}>
               <h1 class="view-title" data-view-title>{title}</h1>
               <slot name="actions" />
@@ -236,6 +244,13 @@ const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
 
   .view-body {
     padding: 0 20px calc(96px + env(safe-area-inset-bottom));
+  }
+
+  /* Phone: the environment pill already takes the safe area. */
+  @media (max-width: 959.98px) {
+    :global(.environment.top) + .view-header {
+      padding-top: 12px;
+    }
   }
 
   /* Phone: the connection strip (when offline) and the tab bar, fixed under the thumb. */
