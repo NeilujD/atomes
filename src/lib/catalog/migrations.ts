@@ -152,8 +152,20 @@ const lineSizes: Step = (db) => {
   db.exec('delete from line_fill');
 };
 
+// Series title keys ignore spaces, so "Dragonball" finds "Dragon Ball" (ADR
+// 0010 amendment, CORE-70). Two Series that now share a key stay two: the owner
+// links them (scripts/link-series.ts). Every Edition Line fills again, with
+// the BnF search by each spelling.
+const titleKeysWithoutSpaces: Step = (db) => {
+  db.exec(`
+    insert or ignore into series_title (title_key, series) select replace(title_key, ' ', ''), series from series_title;
+    delete from series_title where title_key like '% %';
+    delete from line_fill;
+  `);
+};
+
 // Add a step at the end; never edit or remove one.
-const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes];
+const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes, titleKeysWithoutSpaces];
 
 export function migrate(db: DatabaseSync): void {
   const { user_version: done } = db.prepare('pragma user_version').get() as { user_version: number };
