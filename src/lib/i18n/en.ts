@@ -199,7 +199,7 @@ export const en = {
     `${series}, ${volumes.length > 1 ? `Volumes ${volumes[0]}–${volumes.at(-1)} are` : `Volume ${volumes[0]} is`} in your Library. Set the range, then tap a Volume to fix a gap.`,
   'onboarding.own-up-to': 'I own Volumes 1 to',
   'onboarding.all': 'All',
-  'onboarding.all-count': (last: number) => `All (${last})`,
+  'onboarding.up-to': (last: number) => `Up to ${last}`,
   'onboarding.read-up-to': 'I’ve read up to',
   'onboarding.same-as-owned': 'Same as owned',
   'onboarding.one-less': 'One less',
@@ -211,8 +211,8 @@ export const en = {
   'onboarding.legend-owned': 'Owned, not read',
   'onboarding.legend-missing': 'Missing',
   'onboarding.legend-read-not-owned': 'Read, not owned',
-  'onboarding.known': (volumes: number[]) =>
-    `The Catalog knows ${volumes.length} ${volumes.length === 1 ? 'Volume' : 'Volumes'} of this edition yet: ${volumes.join(', ')}. Only these get a Copy. Add the others with Quick Add.`,
+  'onboarding.unknown': (count: number) =>
+    `${count} ${count === 1 ? 'Volume is' : 'Volumes are'} not in the Catalog yet (hatched): no Copy for ${count === 1 ? 'it' : 'them'}. Tap one to scan it.`,
   'onboarding.follow': 'Tell me when a new Volume is out',
   'onboarding.in-edition': (line: string) => `In this edition: ${line}`,
   'onboarding.in-added-edition': 'In the edition you just added',
@@ -222,6 +222,15 @@ export const en = {
   'onboarding.added': (count: number) => `${count} more ${count === 1 ? 'Volume is' : 'Volumes are'} in your Library.`,
   'onboarding.volumes-failed': 'Could not get the Volumes of this Series. Your book is saved; try again from Quick Add later.',
   'onboarding.no-series': 'The Catalog knows no Series for this book.',
+  'onboarding.tap-changes': 'Tap changes',
+  'onboarding.tap-owned': 'Owned',
+  'onboarding.tap-read': 'Read',
+  'onboarding.tiles-read': 'Volumes: tap one to say you read it or not',
+  'onboarding.tile-unknown': (volume: number) => `Volume ${volume}, not in the Catalog yet`,
+  'onboarding.legend-unknown': 'Not in the Catalog',
+  'onboarding.unknown-volume': (volume: number) =>
+    `The Catalog does not know Volume ${volume} yet, so it gets no Copy here. Save the Series first, then scan it with Quick Add.`,
+  'onboarding.scan-it': 'Scan it',
 
   // To Buy (src/islands/ToBuy.tsx)
   'tobuy.title': 'To Buy',

@@ -67,12 +67,30 @@ const steppers = [
       </div>
 
       <div class="volumes">
+        <div class="tap-mode">
+          <span class="tap-mode-label" id="tap-mode-label">{t('onboarding.tap-changes')}</span>
+          <div class="segmented" role="radiogroup" aria-labelledby="tap-mode-label" data-tap-mode>
+            <label class="segment">
+              <input type="radio" name="tap" value="owned" checked />
+              <span>{t('onboarding.tap-owned')}</span>
+            </label>
+            <label class="segment">
+              <input type="radio" name="tap" value="read" />
+              <span>{t('onboarding.tap-read')}</span>
+            </label>
+          </div>
+        </div>
         <div class="tiles" role="group" aria-label={t('onboarding.tiles')} data-tiles></div>
+        <p class="hint" aria-live="polite" data-unknown-note hidden>
+          <span data-unknown-text></span>
+          <a href="/add">{t('onboarding.scan-it')}</a>
+        </p>
         <ul class="legend" aria-hidden="true">
           <li><span class="tile tile-sample read owned"></span>{t('onboarding.legend-read')}</li>
           <li><span class="tile tile-sample owned"></span>{t('onboarding.legend-owned')}</li>
           <li><span class="tile tile-sample"></span>{t('onboarding.legend-missing')}</li>
           <li><span class="tile tile-sample read"></span>{t('onboarding.legend-read-not-owned')}</li>
+          <li><span class="tile tile-sample unknown"></span>{t('onboarding.legend-unknown')}</li>
         </ul>
         <p class="hint" data-known></p>
       </div>
@@ -106,7 +124,18 @@ const steppers = [
   import { t } from '../lib/i18n/i18n';
   import { loadLibrary, savedText, waitingCount, worstState } from '../lib/library/library';
   import { editionLabel, type Library } from '../lib/library/model';
-  import { onboardingSave, seriesOnboarding, step, typedVolume, volumeTiles, type Choices, type Onboarding } from '../lib/library/onboarding';
+  import {
+    onboardingSave,
+    seriesOnboarding,
+    step,
+    tapTile,
+    typedVolume,
+    volumeTiles,
+    withRange,
+    type Choices,
+    type Onboarding,
+    type TapMode,
+  } from '../lib/library/onboarding';
   import { saveReadingStatus } from '../lib/library/reading-status';
   import { isNetworkFailure } from '../lib/network';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
@@ -118,6 +147,7 @@ const steppers = [
   const progressLink = progress.querySelector<HTMLAnchorElement>('[data-progress-link]')!;
   const form = card.querySelector<HTMLFormElement>('[data-form]')!;
   const tileBox = form.querySelector<HTMLElement>('[data-tiles]')!;
+  const unknownNote = form.querySelector<HTMLElement>('[data-unknown-note]')!;
   const followSwitch = form.querySelector<HTMLInputElement>('input[name="follow"]')!;
   const saveButton = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const skip = form.querySelector<HTMLAnchorElement>('[data-skip]')!;
@@ -131,6 +161,8 @@ const steppers = [
   let library: Library;
   let onboarding: Onboarding;
   let choices: Choices;
+  // What a tap on a tile changes: "Tap changes: Owned | Read".
+  let mode: TapMode = 'owned';
 
   // The flow cannot go on: say why, with a way out.
   function stop(text: string, link = { href: '/', label: t('link.home') }) {
@@ -146,11 +178,8 @@ const steppers = [
   const steppers = [...form.querySelectorAll<HTMLElement>('[data-stepper]')];
   const valueOf = (stepper: HTMLElement) => (stepper.dataset.stepper === 'owned' ? choices.ownedUpTo : choices.readUpTo);
 
-  // A new value for one range. The owned range sets the Volumes again: taps
-  // fixed the old range, so they go.
   function setRange(stepper: HTMLElement, value: number) {
-    choices =
-      stepper.dataset.stepper === 'owned' ? { ...choices, ownedUpTo: value, tapped: new Set() } : { ...choices, readUpTo: value };
+    choices = withRange(choices, stepper.dataset.stepper as TapMode, value);
   }
 
   function render() {
@@ -163,20 +192,28 @@ const steppers = [
       less.disabled = value <= onboarding.steps[0];
       more.disabled = value >= onboarding.steps.at(-1)!;
     }
+    tileBox.setAttribute('aria-label', t(mode === 'owned' ? 'onboarding.tiles' : 'onboarding.tiles-read'));
     tileBox.replaceChildren(
       ...volumeTiles(onboarding, library, choices).map((tile) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'tile';
+        button.textContent = String(tile.volume);
+        button.dataset.volume = String(tile.volume);
+        // No Catalog Edition: no ISBN, so no record. A tap says why, with Scan it.
+        if (tile.isbn === null) {
+          button.classList.add('unknown');
+          button.setAttribute('aria-label', t('onboarding.tile-unknown', tile.volume));
+          return button;
+        }
         button.classList.toggle('owned', tile.owned);
         button.classList.toggle('read', tile.read);
-        button.textContent = String(tile.volume);
         button.dataset.isbn = tile.isbn;
         const state = tile.read ? (tile.owned ? 'read' : 'read-not-owned') : tile.owned ? 'owned' : 'missing';
         button.setAttribute('aria-label', t('onboarding.tile', tile.volume, state, tile.kept));
-        button.setAttribute('aria-pressed', String(tile.owned));
-        // A Copy already saved stays: onboarding only adds.
-        if (tile.kept) button.setAttribute('aria-disabled', 'true');
+        button.setAttribute('aria-pressed', String(mode === 'owned' ? tile.owned : tile.read));
+        // A Copy or a read Reading Status already saved stays: onboarding only adds.
+        if (mode === 'owned' ? tile.kept : tile.keptRead) button.setAttribute('aria-disabled', 'true');
         return button;
       }),
     );
@@ -213,12 +250,21 @@ const steppers = [
 
   tileBox.addEventListener('click', (event) => {
     const tile = (event.target as Element).closest<HTMLButtonElement>('button.tile');
-    if (!tile?.dataset.isbn || tile.getAttribute('aria-disabled') === 'true') return;
-    const tapped = new Set(choices.tapped);
-    if (!tapped.delete(tile.dataset.isbn)) tapped.add(tile.dataset.isbn);
-    choices = { ...choices, tapped };
+    if (!tile) return;
+    if (tile.classList.contains('unknown')) {
+      unknownNote.querySelector('[data-unknown-text]')!.textContent = t('onboarding.unknown-volume', Number(tile.dataset.volume));
+      unknownNote.hidden = false;
+      return;
+    }
+    if (!tile.dataset.isbn || tile.getAttribute('aria-disabled') === 'true') return;
+    choices = tapTile(choices, mode, tile.dataset.isbn);
     render();
-    tileBox.querySelector<HTMLButtonElement>(`[data-isbn="${tile.dataset.isbn}"]`)?.focus();
+    tileBox.querySelector<HTMLButtonElement>(`[data-volume="${tile.dataset.volume}"]`)?.focus();
+  });
+
+  form.querySelector('[data-tap-mode]')!.addEventListener('change', (event) => {
+    mode = (event.target as HTMLInputElement).value as TapMode;
+    render();
   });
 
   followSwitch.addEventListener('change', () => {
@@ -295,14 +341,12 @@ const steppers = [
     form.querySelector('[data-edition-line]')!.textContent = line
       ? t('onboarding.in-edition', line)
       : t('onboarding.in-added-edition');
-    // The Catalog knows only the Volumes someone looked up: say which, so
-    // "1 to N" does not read as N Volumes.
-    form.querySelector('[data-known]')!.textContent = t(
-      'onboarding.known',
-      onboarding.volumes.map((each) => each.volume),
-    );
+    // The Catalog knows only the Volumes someone looked up: say how many
+    // numbers get no Copy.
+    const unknown = volumeTiles(onboarding, library, choices).filter(({ isbn }) => isbn === null).length;
+    form.querySelector('[data-known]')!.textContent = unknown > 0 ? t('onboarding.unknown', unknown) : '';
     const all = form.querySelector<HTMLButtonElement>('[data-stepper="owned"] [data-shortcut]')!;
-    all.textContent = t('onboarding.all-count', onboarding.steps.at(-1)!);
+    all.textContent = t('onboarding.up-to', onboarding.steps.at(-1)!);
     followSwitch.checked = choices.follow;
     skip.href = bookHref(anchor.work.id);
     render();
@@ -331,7 +375,8 @@ const steppers = [
   }
 
   .progress[hidden],
-  .onboarding[hidden] {
+  .onboarding[hidden],
+  .volumes .hint[hidden] {
     display: none;
   }
 
@@ -451,6 +496,18 @@ const steppers = [
     gap: 14px;
   }
 
+  .tap-mode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  .tap-mode-label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
   .tiles {
     display: flex;
     flex-wrap: wrap;
@@ -492,6 +549,15 @@ const steppers = [
   .tile-sample.read:not(.owned) {
     border: 1.5px dashed var(--surface);
     box-shadow: 0 0 0 1.5px var(--ink);
+  }
+
+  /* No Catalog Edition for this number: hatched, it cannot change. */
+  .tiles :global(.tile.unknown),
+  .tile-sample.unknown {
+    border-color: var(--line);
+    background: repeating-linear-gradient(135deg, transparent 0 5px, var(--soft) 5px 7px);
+    color: var(--secondary);
+    cursor: help;
   }
 
   .tiles :global(.tile[aria-disabled='true']) {
