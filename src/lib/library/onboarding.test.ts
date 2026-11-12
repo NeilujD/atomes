@@ -296,6 +296,12 @@ describe('Every Volume number from 1 to the highest known', () => {
     expect(onboarding.steps).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
+  test('a Volume number of 1000 or more (a year read as a Volume) gets its own tile but fills no gap', () => {
+    const odd = seriesOnboarding(volume(1), [volume(1), volume(3, { volumes: [2019], volume: 2019 })], afterQuickAdd);
+
+    expect(odd.steps).toEqual([0, 1, 2019]);
+  });
+
   test('Save writes records for known Volumes only: an unknown number has no ISBN (ADR 0010)', () => {
     const saved = onboardingSave(onboarding, afterQuickAdd, { ...onboarding.start, ownedUpTo: 5, readUpTo: 5 }, now);
 

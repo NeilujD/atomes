@@ -98,9 +98,10 @@ export function seriesOnboarding(anchor: Edition, volumes: Edition[], library: L
     }
   }
   const numbered = [...byVolume.values()].sort((a, b) => a.volume - b.volume);
-  const highest = (keep: (each: Edition) => boolean) => Math.max(0, ...numbered.filter(keep).map((each) => each.volume));
+  const highest = (keep: (each: (typeof numbered)[number]) => boolean) => Math.max(0, ...numbered.filter(keep).map((each) => each.volume));
   // Every whole number up to the highest known Volume, and the known ones (5.5).
-  const last = highest(() => true);
+  // A number from 1000 is likely a year read as a Volume: it fills no gap.
+  const last = highest(({ volume }) => volume < 1000);
   const numbers = new Set([...Array.from({ length: Math.floor(last) }, (_, index) => index + 1), ...byVolume.keys()]);
   return {
     series: anchor.series,
