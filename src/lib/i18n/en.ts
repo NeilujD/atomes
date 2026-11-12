@@ -343,4 +343,9 @@ export const en = {
   'library.filters-on': (count: number) => `${count} ${count === 1 ? 'filter' : 'filters'} on`,
   'library.show': (count: number) => `Show ${count} ${count === 1 ? 'book' : 'books'}`,
   'library.no-match': 'No book matches these filters.',
+  // The Books / Series switch
+  'library.grouping': 'Show',
+  'library.grouping.books': 'Books',
+  'library.grouping.series': 'Series',
+  'library.series-counts': (owned: number, read: number) => `${owned} owned · ${read} read`,
 };

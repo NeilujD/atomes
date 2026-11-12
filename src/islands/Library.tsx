@@ -6,7 +6,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import type { Edition } from '../lib/catalog/catalog';
-import { lookupEditions } from '../lib/catalog/client';
+import { coverUrl, lookupEditions } from '../lib/catalog/client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
 import { allBooks, browse, clearAll, libraryBooks, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
@@ -14,6 +14,8 @@ import { listLabels, type Label } from '../lib/library/label';
 import { loadLibrary, waitingCount } from '../lib/library/library';
 import { bookHref, type Library as LibraryRecords } from '../lib/library/model';
 import type { Saved } from '../lib/library/records';
+import { seriesHref } from '../lib/library/series';
+import { groupings, librarySeries, readGrouping, saveGrouping, seriesCards, type Grouping, type LibrarySeries } from '../lib/library/series-mode';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space } from '../lib/space/space';
@@ -44,6 +46,7 @@ export function Library({ sources }: { sources: Sources }) {
   // In place of the grid when there is none to show (signed out, or the first read failed).
   const [message, setMessage] = useState<string>();
   const [query, setQuery] = useState<LibraryQuery>(allBooks);
+  const [grouping, setGrouping] = useState<Grouping>(readGrouping);
   const wide = useMedia(desktop);
   // Catalog answers kept for this visit, so an offline reload keeps the titles.
   const editions = useRef(new Map<string, Edition>());
@@ -93,6 +96,7 @@ export function Library({ sources }: { sources: Sources }) {
   }, [sources]);
 
   const books = useMemo(() => read && libraryBooks(read.library, editions.current, read.labels), [read]);
+  const series = useMemo(() => read && books && librarySeries(books, read.library, editions.current), [read, books]);
 
   if (message) {
     return (
@@ -103,7 +107,7 @@ export function Library({ sources }: { sources: Sources }) {
       </div>
     );
   }
-  if (!read || !books) return <LibrarySkeleton />;
+  if (!read || !books || !series) return <LibrarySkeleton />;
   if (books.length === 0) {
     return (
       <div class="library">
@@ -128,10 +132,27 @@ export function Library({ sources }: { sources: Sources }) {
       {t('library.clear-all')}
     </button>
   );
+  // Books / Series: kept on the device, so the Library opens the way the reader left it.
+  const group = (chosen: Grouping) => {
+    saveGrouping(chosen);
+    setGrouping(chosen);
+  };
+  const groupingSwitch = (
+    <div class="segmented library-grouping" role="radiogroup" aria-label={t('library.grouping')}>
+      {groupings.map((each) => (
+        <label key={each} class="segment">
+          <input type="radio" name="library-grouping" value={each} checked={grouping === each} onChange={() => group(each)} />
+          <span>{t(`library.grouping.${each}`)}</span>
+        </label>
+      ))}
+    </div>
+  );
+  const cards = grouping === 'series' && seriesCards(found.books, series);
 
   return (
     <div class="library">
       <div class="library-toolbar">
+        {!wide && groupingSwitch}
         <div class="library-search-row">
           <div class="library-search">
             <label class="visually-hidden" for="library-search">
@@ -149,6 +170,7 @@ export function Library({ sources }: { sources: Sources }) {
           </div>
           {wide ? (
             <>
+              {groupingSwitch}
               {count}
               {clearButton}
             </>
@@ -173,6 +195,10 @@ export function Library({ sources }: { sources: Sources }) {
             {t('library.clear-all')}
           </button>
         </div>
+      ) : cards ? (
+        <ul class="library-grid">
+          {cards.map((card) => ('series' in card ? <SeriesCard key={`series ${card.series.cover.isbn}`} series={card.series} /> : <Book key={card.book.work} book={card.book} />))}
+        </ul>
       ) : (
         <ul class="library-grid">
           {found.books.map((book) => (
@@ -313,6 +339,27 @@ function Book({ book }: { book: LibraryBook }) {
         />
         <span class="library-book-title">{book.title}</span>
         {line && <span class="library-book-line">{line}</span>}
+      </a>
+    </li>
+  );
+}
+
+// Series mode: the Series in place of its books; it opens the Series page.
+function SeriesCard({ series }: { series: LibrarySeries }) {
+  const { cover } = series;
+  return (
+    <li>
+      <a class="library-book" href={seriesHref(cover.isbn)}>
+        <Cover
+          class="library-cover"
+          src={coverUrl(cover)}
+          title={cover.title}
+          series={series.title}
+          volumeTitle={cover.volumeTitle}
+          volume={cover.volumes.length > 0 ? t('book.volumes', cover.volumes) : ''}
+        />
+        <span class="library-book-title">{series.title}</span>
+        <span class="library-book-line">{t('library.series-counts', series.owned, series.read)}</span>
       </a>
     </li>
   );
