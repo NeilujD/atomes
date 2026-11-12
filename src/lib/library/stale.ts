@@ -32,5 +32,5 @@ export async function staleNotice(
   }
   if (!isbn) return t('saved.stale', rkey);
   const answer = await lookup(isbn).catch((): Lookup => ({ unavailable: true }));
-  return t('saved.stale', 'found' in answer ? answer.found.title : `ISBN ${isbn}`);
+  return t('saved.stale', 'found' in answer ? answer.found.title : t('book.isbn', isbn));
 }
