@@ -60,7 +60,7 @@ Mix in `oklab`, not `oklch`: Chrome gives an `oklch` mix of near-greys the hue `
 
 **Breakpoint.** Desktop frame from 960 px wide. Under 960 px, phone frame. Row height follows the input type: 32 px with a fine pointer, 44 px with a coarse pointer.
 
-**Sidebar (desktop).** 232 px, fixed. Top row: mark and "Atomes" (links to Home), Search icon button (goes to Library search). Under it: "Check a book". Then Home, Library, New & upcoming, To Buy. Bottom: Settings, Sign out and the line "Private by default". On the phone, Sign out is in Settings (the You tab). The active item has a soft fill and ink text; the others have secondary text. Hover gives the soft fill. No accent colour. New & upcoming may show a count of New Volumes, in tabular figures, never a coloured dot.
+**Sidebar (desktop).** 232 px, fixed. Top row: mark and "Atomes" (links to Home), Search icon button (goes to Library search). Under it: "Check a book". Then Home, Library, New & upcoming (hidden until its screen exists), To Buy. Bottom: Settings, Sign out and the line "Private by default". On the phone, Sign out is in Settings (the You tab). The active item has a soft fill and ink text; the others have secondary text. Hover gives the soft fill. No accent colour. New & upcoming may show a count of New Volumes, in tabular figures, never a coloured dot.
 
 **Panel (desktop).** One surface panel, 8 px from the window edges. Only the panel scrolls; the sidebar stays.
 
@@ -90,7 +90,7 @@ Before a screen is built, check that its view type works in the frame, in light,
 | List with groups | Library (List), New & upcoming, To Buy | Letter headers as list groups; A to Z index fits the panel edge. |
 | Cover flow | Library (Cover flow) | Full panel width; toolbar stays visible. |
 | Detail | Book, Series | Large title in content; spine row legible in high contrast. |
-| Camera | Shelf Check, Quick Add (scan built: modal `<dialog>` in `src/pages/add.astro`, reader in `src/lib/scan/barcode.ts`) | Full screen on the phone (no tab bar); a card on desktop; colours not themed (`--camera`, `--camera-ink`); Close and "Type the ISBN" always reachable. The frame shows the reader's state: starting (dim), looking (a line sweeps; after 8 s a distance and light tip), wrong barcode (dashed, one shake, the reason), found (check mark and the ISBN for 0.6 s, a short vibration where supported). No motion with reduced motion. |
+| Camera | Shelf Check, Quick Add (scan built: modal `<dialog>` in `src/pages/check.astro`, reader in `src/lib/scan/barcode.ts`) | Full screen on the phone (no tab bar); a card on desktop; colours not themed (`--camera`, `--camera-ink`); Close and "Type the ISBN" always reachable. The frame shows the reader's state: starting (dim), looking (a line sweeps; after 8 s a distance and light tip), wrong barcode (dashed, one shake, the reason), found (check mark and the ISBN for 0.6 s, a short vibration where supported). No motion with reduced motion. |
 | Flow | Sign in (`AppShell flow`, `src/pages/sign-in.astro`), Series Onboarding | No sidebar or tab bar; one action per step; content centred (a card on desktop). The mark is the progress: books lift while working, a book lands in the empty slot when done; no motion with reduced motion. |
 | Settings | Settings & privacy | Appearance and contrast controls. |
 
