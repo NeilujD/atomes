@@ -189,7 +189,11 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     background: var(--soft);
   }
 
-  /* Mouse hover only (the island shows it for a mouse pointer): the cover above the spine. */
+  /*
+   * Mouse hover only (the island shows it for a mouse pointer): the cover just
+   * above the lifted spine, over the row above. Centred, or lined up with the
+   * end of the spine row it would pass (data-align, Series.tsx).
+   */
   .series-peek {
     position: absolute;
     bottom: calc(100% + 6px);
@@ -198,6 +202,21 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     width: 96px;
     transform: translateX(-50%);
     pointer-events: none;
+  }
+
+  .series-peek[data-align='start'] {
+    left: 0;
+    transform: none;
+  }
+
+  .series-peek[data-align='end'] {
+    left: auto;
+    right: 0;
+    transform: none;
+  }
+
+  .series-peek-cover {
+    width: 100%;
   }
 
   .series-spine-bar {

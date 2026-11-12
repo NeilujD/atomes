@@ -60,7 +60,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const [problem, setProblem] = useState<string>();
   // The Volume whose sheet is open, and the one whose cover shows above its spine (mouse hover).
   const [chosen, setChosen] = useState<number>();
-  const [peek, setPeek] = useState<number>();
+  const [peek, setPeek] = useState<{ volume: number; align: PeekAlign }>();
   const sheet = useRef<HTMLDialogElement>(null);
 
   const space = useRef<Space | undefined>(undefined);
@@ -333,13 +333,17 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
           {standing.spines.map(({ volume, state, edition: printing }) => (
             <li key={volume} class="series-spine" data-state={state}>
               {/* Desktop: the cover above the spine while the mouse is on it. A tap only opens the sheet. */}
-              {peek === volume && <EditionCover class="series-peek" edition={printing} series={seriesTitle} />}
+              {peek?.volume === volume && (
+                <div class="series-peek" data-align={peek.align}>
+                  <EditionCover class="series-peek-cover" edition={printing} series={seriesTitle} />
+                </div>
+              )}
               <button
                 class="series-spine-button"
                 type="button"
                 aria-haspopup="dialog"
                 onClick={() => open(volume)}
-                onPointerEnter={(event) => event.pointerType === 'mouse' && setPeek(volume)}
+                onPointerEnter={(event) => event.pointerType === 'mouse' && setPeek({ volume, align: peekAlign(event.currentTarget) })}
                 onPointerLeave={() => setPeek(undefined)}
               >
                 <span class="series-spine-bar" aria-hidden="true" />
@@ -409,6 +413,21 @@ function EditionCover({ class: name, edition, series }: { class: string; edition
     />
   );
 }
+
+type PeekAlign = 'start' | 'center' | 'end';
+
+// The cover shows centred above its spine, unless that puts it past an end of
+// the spine row: then it lines up with that end, so the panel never cuts it.
+function peekAlign(spine: HTMLElement): PeekAlign {
+  const row = spine.closest('ol')!.getBoundingClientRect();
+  const { left, right } = spine.getBoundingClientRect();
+  const middle = (left + right) / 2;
+  const half = peekWidth / 2;
+  return middle - half < row.left ? 'start' : middle + half > row.right ? 'end' : 'center';
+}
+
+// The width of `.series-peek` (series.astro).
+const peekWidth = 96;
 
 // The linked Edition, as its Edition Line lists it; undefined until the Catalog answers.
 function linked(lines: Map<string, Edition[]>, isbn: string): Edition | undefined {
