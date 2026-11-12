@@ -113,10 +113,12 @@ The server signs readers in as an OAuth confidential client and keeps their Priv
 | `ALLOWED_DIDS` | The DIDs that may sign in, separated by commas: `did:plc:…,did:plc:…` |
 | `SESSION_ENCRYPTION_KEY` | The `openssl` output |
 | `OAUTH_PRIVATE_KEY` | The `node` output (one line, starts with `{"kty":"EC"`) |
+| `APP_ENV` | `staging` (`production` in the production app) |
 
 - `PUBLIC_APP_ORIGIN` is the origin only: `https://`, the hostname, no path, no final `/`.
 - A DID that is not on `ALLOWED_DIDS` sees "This account may not sign in to this Atomes server" and the instance keeps nothing for it.
 - A new `SESSION_ENCRYPTION_KEY` signs every reader out: the stored sessions can no longer be read. A new `OAUTH_PRIVATE_KEY` makes the PDS refuse the old sessions at their next refresh. Change them only after a leak.
+- `APP_ENV` names the instance: outside `production`, every screen shows a grey Staging pill and the app has an orange icon and the name "Atomes Staging". A pull request preview shows Preview by itself. With no value, the app counts as staging; any other value stops the start.
 - Do not set `DATA_DIR`, `PORT` or `HOST`: the image defaults (`/data`, `4321`, `0.0.0.0`) are the right values.
 - After a change of settings only, **Restart** is enough. The PDS can keep the old client metadata for about 30 minutes.
 

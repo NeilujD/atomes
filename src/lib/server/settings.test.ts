@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { readSettings, SettingsError } from './settings';
+import { appEnvironment, readSettings, SettingsError } from './settings';
 
 const sessionKey = Buffer.alloc(32, 7).toString('base64');
 const privateJwk = JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'x', y: 'y', d: 'private-part-of-the-key', kid: 'key-1' });
@@ -108,5 +108,27 @@ describe('readSettings', () => {
     expect(message).toContain('SESSION_ENCRYPTION_KEY');
     expect(message).not.toContain(secrets.SESSION_ENCRYPTION_KEY);
     expect(message).not.toContain('private-part-of-the-key');
+  });
+});
+
+describe('appEnvironment', () => {
+  const preview = { COOLIFY_BRANCH: 'pull/34/head', COOLIFY_URL: 'https://34.staging.atomes.example' };
+
+  test.each([
+    ['production', { APP_ENV: 'production' }, 'production'],
+    ['staging', { APP_ENV: 'staging' }, 'staging'],
+    // A preview gets the staging variables (docs/staging-coolify.md).
+    ['a pull request preview', { APP_ENV: 'staging', ...preview }, 'preview'],
+    ['the dev server', { NODE_ENV: 'development' }, 'local'],
+    // A built image with no value: a badge shows, so the mistake is seen.
+    ['a missing value', { NODE_ENV: 'production' }, 'staging'],
+  ])('%s', (_, env, name) => {
+    expect(appEnvironment(env)).toBe(name);
+  });
+
+  test('a start refuses a value that is not production or staging', () => {
+    expect(problemsOf({ ...local, APP_ENV: 'prod' })).toEqual([expect.stringMatching(/^APP_ENV must be production or staging/)]);
+    expect(problemsOf({ ...local, APP_ENV: 'production' })).toEqual([]);
+    expect(problemsOf(local)).toEqual([]);
   });
 });
