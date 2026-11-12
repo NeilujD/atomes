@@ -3,6 +3,7 @@
 // rules are tested in Node; src/islands/Library.tsx only renders them.
 import { compareText, type Language } from '../i18n/i18n';
 import type { Label } from './label';
+import { sortName } from './letters';
 import { bookPage, type Editions, type Library } from './model';
 import { statuses, type Status } from './reading-status';
 import type { Saved } from './records';
@@ -148,9 +149,9 @@ function order(sort: SortBy, compare: Compare): (a: LibraryBook, b: LibraryBook)
   switch (sort) {
     case 'title':
       return byTitle;
-    // A book with no author goes last.
+    // By surname. A book with no author goes last.
     case 'author':
-      return (a, b) => missingLast(a.authors[0], b.authors[0], compare) || byTitle(a, b);
+      return (a, b) => missingLast(a.authors[0], b.authors[0], (first, second) => compare(sortName(first), sortName(second))) || byTitle(a, b);
     case 'series':
       return (a, b) => compare(a.series ?? a.title, b.series ?? b.title) || compare(a.volume ?? '', b.volume ?? '') || byTitle(a, b);
     case 'added':
