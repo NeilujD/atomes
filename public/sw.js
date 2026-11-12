@@ -11,6 +11,7 @@ const SHELL = [
   '/',
   '/add',
   '/book',
+  '/library',
   '/settings',
   '/manifest.webmanifest',
   '/favicon.svg',

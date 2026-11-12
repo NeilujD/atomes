@@ -18,6 +18,7 @@ import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
 import { toast } from '../lib/toast';
+import { Cover } from './Cover';
 
 // Where the screen reads from: the reader's Library store and the Catalog.
 export interface Sources extends CatalogAsk {
@@ -269,28 +270,6 @@ function Paged({ items, row }: { items: ToBuyItem[]; row: (item: ToBuyItem) => J
   );
 }
 
-// A cover pulses until its image is there, then fades in, so a list of covers
-// does not flash in one by one. A cover that fails to load keeps the placeholder.
-function Cover({ src }: { src: string | null }) {
-  const [state, setState] = useState<'loading' | 'loaded' | 'failed'>('loading');
-  const shown = src !== null && state !== 'failed';
-  return (
-    <div class="to-buy-cover" data-loading={shown && state === 'loading' ? '' : undefined}>
-      {shown && (
-        <img
-          src={src}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          data-loaded={state === 'loaded' ? '' : undefined}
-          onLoad={() => setState('loaded')}
-          onError={() => setState('failed')}
-        />
-      )}
-    </div>
-  );
-}
-
 function Row({ item, saving, onBuy, onRemove }: { item: ToBuyItem; saving: string | undefined; onBuy: () => void; onRemove: () => void }) {
   const id = `to-buy-${item.isbn}`;
   const series = [item.series && item.series !== item.title ? item.series : '', item.volumes.length > 0 ? t('book.volumes', item.volumes) : '']
@@ -299,7 +278,7 @@ function Row({ item, saving, onBuy, onRemove }: { item: ToBuyItem; saving: strin
   const busy = saving === item.isbn ? 'true' : undefined;
   return (
     <li class="to-buy-item">
-      <Cover src={item.cover} />
+      <Cover class="to-buy-cover" src={item.cover} />
       {/* The buttons say which book they act on through this text. */}
       <div class="to-buy-text" id={id}>
         <p class="to-buy-title">{item.title}</p>

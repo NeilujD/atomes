@@ -52,6 +52,10 @@ export interface BookCopy {
   pastLoans: { borrower: string; lentAt: string; returnedAt: string }[];
 }
 
+export function bookHref(work: string): string {
+  return `/book?work=${encodeURIComponent(work)}`;
+}
+
 // Undefined when the Work is not in the Library: no Copy and no Reading Status.
 export function bookPage(work: string, library: Library, editions: Editions): BookPage | undefined {
   const copies = library.copies
