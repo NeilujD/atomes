@@ -200,7 +200,7 @@ export const fr: typeof en = {
     `${series}, ${volumes.length > 1 ? `tomes ${volumes[0]} à ${volumes.at(-1)}, sont` : `tome ${volumes[0]}, est`} dans votre bibliothèque. Réglez la plage, puis touchez un tome pour combler un trou.`,
   'onboarding.own-up-to': 'J’ai les tomes 1 à',
   'onboarding.all': 'Tous',
-  'onboarding.all-count': (last) => `Tous (${last})`,
+  'onboarding.up-to': (last) => `Jusqu’au ${last}`,
   'onboarding.read-up-to': 'J’ai lu jusqu’au',
   'onboarding.same-as-owned': 'Comme possédés',
   'onboarding.one-less': 'Un de moins',
@@ -212,8 +212,10 @@ export const fr: typeof en = {
   'onboarding.legend-owned': 'Possédé, non lu',
   'onboarding.legend-missing': 'Manquant',
   'onboarding.legend-read-not-owned': 'Lu, non possédé',
-  'onboarding.known': (volumes) =>
-    `Le catalogue ne connaît encore que ${volumes.length} ${volumes.length > 1 ? 'tomes' : 'tome'} de cette édition :${volumes.join(', ')}. Seuls ceux-ci reçoivent un exemplaire. Ajoutez les autres avec l’ajout rapide.`,
+  'onboarding.unknown': (count) =>
+    count > 1
+      ? `${count} tomes ne sont pas encore dans le catalogue (hachurés) : pas d’exemplaire pour eux. Touchez-en un pour le scanner.`
+      : `${count} tome n’est pas encore dans le catalogue (hachuré) : pas d’exemplaire pour lui. Touchez-le pour le scanner.`,
   'onboarding.follow': 'Me prévenir quand un nouveau tome sort',
   'onboarding.in-edition': (line) => `Dans cette édition :${line}`,
   'onboarding.in-added-edition': 'Dans l’édition que vous venez d’ajouter',
@@ -225,6 +227,15 @@ export const fr: typeof en = {
   'onboarding.volumes-failed':
     'Impossible d’obtenir les tomes de cette série. Votre livre est enregistré ; réessayez plus tard depuis l’ajout rapide.',
   'onboarding.no-series': 'Le catalogue ne connaît aucune série pour ce livre.',
+  'onboarding.tap-changes': 'Toucher change',
+  'onboarding.tap-owned': 'Possédé',
+  'onboarding.tap-read': 'Lu',
+  'onboarding.tiles-read': 'Tomes : touchez-en un pour dire si vous l’avez lu ou non',
+  'onboarding.tile-unknown': (volume) => `Tome ${volume}, pas encore dans le catalogue`,
+  'onboarding.legend-unknown': 'Pas dans le catalogue',
+  'onboarding.unknown-volume': (volume) =>
+    `Le catalogue ne connaît pas encore le tome ${volume} : pas d’exemplaire ici. Enregistrez d’abord la série, puis scannez-le avec l’ajout rapide.`,
+  'onboarding.scan-it': 'Le scanner',
 
   // À acheter (src/islands/ToBuy.tsx)
   'tobuy.title': 'À acheter',
