@@ -4,7 +4,7 @@
 // books only: no reader identity, no Library data.
 import { DatabaseSync } from 'node:sqlite';
 import { editionWork, seriesIdRank } from '../library/ids';
-import { key, type Facts, type SourceName } from './facts';
+import { key, seriesKey, type Facts, type SourceName } from './facts';
 import { bookHeight, lineHeight, lineKey, linePrefix, placeLine, sameSize } from './lines';
 import { inTransaction, migrate } from './migrations';
 import type { SourceFetch } from './sources';
@@ -179,7 +179,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     db.prepare(`${selectSeries} where ${where} order by series.n`).all(value) as SeriesRow[];
   const byIdentifier = (id: string) => seriesRow('series.n = (select series from series_link where id = ?)', id);
   const addTitleKey = (n: number, title: string) =>
-    db.prepare('insert or ignore into series_title (title_key, series) values (?, ?)').run(key(title), n);
+    db.prepare('insert or ignore into series_title (title_key, series) values (?, ?)').run(seriesKey(title), n);
 
   // The Series of these facts, made or found, then linked (ADR 0010): an
   // identifier never changes once a record uses it, so a shared identifier
@@ -200,7 +200,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       const other =
         (bnfId ? seriesRows('series.bnf_id = ?', bnfId) : []).find(joinable) ??
         [title, ...titles]
-          .flatMap((each) => seriesRows('series.n in (select series from series_title where title_key = ?)', key(each)))
+          .flatMap((each) => seriesRows('series.n in (select series from series_title where title_key = ?)', seriesKey(each)))
           .find(joinable);
 
       let n: number;
@@ -399,7 +399,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const known = (db.prepare(`${selectEdition} where edition.edition_line = ?`).all(line) as EditionRow[]).map(toEdition);
     let listed: Listed[];
     try {
-      listed = await bnfSearch(options.fetch, anchor.series.title, anchor.publisher);
+      listed = await bnfSearchEverySpelling(options.fetch, anchor.series.title, anchor.publisher);
     } catch (error) {
       return fail(error);
     }
@@ -407,7 +407,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const inSeries = listed.filter(
       ({ facts }) =>
         facts.volumes?.length &&
-        key(facts.series?.title ?? '') === key(anchor.series.title) &&
+        seriesKey(facts.series?.title ?? '') === seriesKey(anchor.series.title) &&
         key(facts.publisher ?? '') === key(anchor.publisher ?? '') &&
         facts.language === anchor.language &&
         sameSize(bookHeight(facts.format), height),
@@ -480,7 +480,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   async function search(title: string, publisher?: string): Promise<SearchFound | { unavailable: true }> {
     let listed: Listed[];
     try {
-      listed = await bnfSearch(options.fetch, title, publisher, 50);
+      ({ listed } = await bnfSearch(options.fetch, title, publisher, 50));
     } catch (error) {
       console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
       return { unavailable: true };
@@ -601,6 +601,21 @@ function toEdition(row: EditionRow): Edition {
 }
 
 const isReader = (edition: Pick<Edition, 'sources'>) => edition.sources.includes('reader');
+
+// BnF files one Series under several spellings: SUDOC's "Dragonball" finds
+// BnF's Series records titled "Dragon Ball", and only "Dragon Ball" finds the
+// 18 cm Volumes. Each title of the first answer that differs from `title` only
+// by spaces is searched once more, with no further round (CORE-70). An ISBN
+// both answers list is harmless: the fill keeps one Edition per Volume.
+async function bnfSearchEverySpelling(fetch: SourceFetch, title: string, publisher: string): Promise<Listed[]> {
+  const first = await bnfSearch(fetch, title, publisher);
+  const spellings = new Map<string, string>();
+  for (const each of first.titles)
+    if (seriesKey(each) === seriesKey(title) && key(each) !== key(title)) spellings.set(key(each), each);
+  const listed = first.listed;
+  for (const spelling of spellings.values()) listed.push(...(await bnfSearch(fetch, spelling, publisher)).listed);
+  return listed;
+}
 
 // Two titles name the same book when every word of the shorter one is in the
 // longer one: "One Piece" and "One Piece 56", "Spy x family" and "Spy x Family - Tome 16".
