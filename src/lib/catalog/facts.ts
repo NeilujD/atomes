@@ -74,3 +74,8 @@ export function key(value: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
 }
+
+// Compares Series titles: `key()` without spaces, so "Dragonball" (SUDOC) =
+// "Dragon Ball" (BnF). Not fuzzy: every letter and digit counts, so "Dragon
+// Ball Z" and "Dragon Ball Super" stay other Series (ADR 0010, CORE-70).
+export const seriesKey = (title: string) => key(title).replaceAll(' ', '');

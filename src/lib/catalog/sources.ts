@@ -64,21 +64,31 @@ function bnfTitleQuery(title: string, publisher: string | undefined): string {
 }
 
 // Every Edition BnF lists under this title (and publisher), at most `max`
-// (spike 0002: BnF is the best source of Series and Volumes). Only the title
-// and the publisher leave the server, never an ISBN a reader asked about.
-export async function bnfSearch(fetch: SourceFetch, title: string, publisher: string | undefined, max = 500): Promise<Listed[]> {
+// (spike 0002: BnF is the best source of Series and Volumes), and the title
+// (200 `$a`) of every record, with an ISBN or not: BnF's Series records name
+// the spelling BnF files the Volumes under (CORE-70). Only the title and the
+// publisher leave the server, never an ISBN a reader asked about.
+export async function bnfSearch(
+  fetch: SourceFetch,
+  title: string,
+  publisher: string | undefined,
+  max = 500,
+): Promise<{ listed: Listed[]; titles: string[] }> {
   const listed: Listed[] = [];
+  const titles: string[] = [];
   for (let start = 1; start <= max - 49; start += 50) {
     const response = await read(fetch, sourceUrls.bnfSearch(title, publisher, start));
     if (!response) break;
     const xml = await response.text();
     for (const record of unimarcRecords(xml)) {
+      const facts = unimarcFacts(record, 'BnF');
+      if (facts.title) titles.push(facts.title);
       const isbn = isbns(record).find(isIsbn13);
-      if (isbn) listed.push({ isbn, facts: unimarcFacts(record, 'BnF'), year: publishedYear(record) });
+      if (isbn) listed.push({ isbn, facts, year: publishedYear(record) });
     }
     if (start + 50 > Number(/numberOfRecords>(\d+)/.exec(xml)?.[1] ?? 0)) break;
   }
-  return listed;
+  return { listed, titles };
 }
 
 type Entity = { uri?: string; labels?: Record<string, string>; claims?: Record<string, unknown[]>; image?: { url?: string } };

@@ -19,6 +19,7 @@ const dragonBallSuper1to2 = '9782344025437'; // omnibus "Tomes 1-2", 461 $v "1-2
 const spyFamily1to3 = '9782380714487'; // omnibus "Tomes 1 à 3" in its own BnF Series record
 const dragonBall1 = '9782723434621'; // 18 cm, known to SUDOC only: Series "Dragonball"
 const dragonBallPerfect1 = '9782723467681'; // 21 cm line of 34 Volumes, BnF Series record 41495473
+const dragonBall42 = '9782723449397'; // 18 cm, BnF Series "Dragon Ball." (two words)
 const unknown = '9791099999993'; // valid check digit, no source knows it
 // Owner's shelf (CORE-40): Kaamelott 10, Casterman. No source knows its ISBN; BnF has 1 to 9.
 const kaamelott10 = '9782203255647';
@@ -301,6 +302,17 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
     expect(new Set(volumes.map((v) => v.series?.id)).size).toBe(1);
   });
 
+  test('a fill that finds no other spelling of the Series title searches BnF by that title only (CORE-70)', async () => {
+    for (const anchor of [spyFamily16, onePiece56]) {
+      const { catalog, calls } = setup();
+
+      await volumesOf(catalog, anchor);
+
+      const searched = new Set(calls.filter((url) => url.includes('bib.title')).map((url) => new URL(url).searchParams.get('query')));
+      expect(searched.size).toBe(1);
+    }
+  });
+
   test('an omnibus looked up enters the Edition Line once, next to its single Volumes', async () => {
     const { catalog } = setup();
     await volumesOf(catalog, spyFamily16);
@@ -424,25 +436,51 @@ describe('Edition Lines by book size (ADR 0010, amendment 2026-11-12)', () => {
     expect(volumes.find((v) => v.volume === 2)?.isbn).toBe('9782723489898');
   });
 
-  test('Dragon Ball looked up from Volume 1 (18 cm) holds no Volume of the 21 cm line', async () => {
-    const { catalog } = setup();
+  test('Dragon Ball looked up from Volume 1 (18 cm, "Dragonball") gives the 18 cm Volumes BnF files as "Dragon Ball"', async () => {
+    const { catalog, calls } = setup();
 
     const volumes = await volumesOf(catalog, dragonBall1);
 
-    expect(volumes.map((v) => [v.isbn, v.volume, v.format])).toEqual([[dragonBall1, 1, '18 cm']]);
+    // BnF lists no Volume 24 to 26 of the 18 cm Glénat line.
+    const numbers = Array.from({ length: 42 }, (_, i) => i + 1).filter((n) => n < 24 || n > 26);
+    expect(volumes.map((v) => v.volume)).toEqual(numbers);
+    expect(volumes[0].isbn).toBe(dragonBall1);
+    expect(heights(volumes)).toEqual(new Set(['18']));
+    expect(new Set(volumes.map((v) => v.publisher))).toEqual(new Set(['Glénat']));
+    expect(new Set(volumes.map((v) => v.series?.id))).toEqual(new Set([volumes[0].series?.id]));
+    // The search by "Dragonball" finds BnF's Series records titled "Dragon
+    // Ball"; that spelling is searched once more, and no other.
+    const searched = new Set(calls.filter((url) => url.includes('bib.title')).map((url) => new URL(url).searchParams.get('query')));
+    expect(searched).toEqual(new Set(['bib.title all "Dragonball" and bib.publisher all "Glénat"', 'bib.title all "Dragon Ball" and bib.publisher all "Glénat"']));
+  });
+
+  test('Dragon Ball SD, Super, Z and the Comics-USA printings stay out of the Dragon Ball line', async () => {
+    const isbns = (await volumesOf(setup().catalog, dragonBall1)).map((v) => v.isbn);
+
+    // SD 12, Super 1, Z 7th part 1 (all Glénat, 18 cm), and Volume 7 by Comics-USA.
+    for (const other of ['9782344076446', '9782344019887', '9782344005378', '9782876952171']) expect(isbns).not.toContain(other);
+  });
+
+  test('a Volume BnF files as "Dragon Ball" joins the Series SUDOC names "Dragonball"', async () => {
+    const { catalog } = setup();
+    const first = await edition(await answerEdition(catalog, dragonBall1));
+
+    const later = await edition(await answerEdition(catalog, dragonBall42));
+
+    expect(later.series?.id).toBe(first.series?.id);
   });
 
   test('the 21 cm Volumes form their own Edition Line from a 21 cm anchor, in the same Series', async () => {
     const { catalog } = setup();
-    await volumesOf(catalog, dragonBall1);
+    const standard = await volumesOf(catalog, dragonBall1);
 
     const perfect = await volumesOf(catalog, dragonBallPerfect1);
-    const standard = await volumesOf(catalog, dragonBall1, signedOut);
 
-    expect(perfect).toHaveLength(31);
+    // 31 Volumes BnF files as "Dragonball", and Volume 21 it files as "Dragon Ball perfect edition".
+    expect(perfect).toHaveLength(32);
+    expect(perfect.find((v) => v.volume === 21)?.isbn).toBe('9782723486729');
     expect(heights(perfect)).toEqual(new Set(['21']));
     expect(perfect.map((v) => v.isbn)).not.toContain(dragonBall1);
-    expect(standard.map((v) => v.isbn)).toEqual([dragonBall1]);
     expect(perfect[0].series?.id).toBe(standard[0].series?.id);
   });
 });
@@ -452,10 +490,11 @@ describe('A Catalog file from before book sizes (migration)', () => {
     ((await (await answerVolumes(catalog, isbn, access)).json()) as { volumes: Edition[] }).volumes;
 
   // The file as the Catalog of main left it: Dragon Ball 1 (18 cm) looked up
-  // first, then the 21 cm Volumes in its line, the line filled.
+  // first (its fill found no 18 cm Volume before CORE-70), then the 21 cm
+  // Volumes in its line, the line filled.
   async function mixedFile() {
     const { catalog, file } = setup();
-    await volumesOf(catalog, dragonBall1);
+    await volumesOf(catalog, dragonBall1, signedOut);
     await volumesOf(catalog, dragonBallPerfect1);
     catalog.close();
     open.splice(open.indexOf(catalog), 1);
@@ -477,7 +516,7 @@ describe('A Catalog file from before book sizes (migration)', () => {
     open.push(catalog);
 
     expect((await volumesOf(catalog, dragonBall1, signedOut)).map((v) => v.isbn)).toEqual([dragonBall1]);
-    expect(await volumesOf(catalog, dragonBallPerfect1, signedOut)).toHaveLength(31);
+    expect(await volumesOf(catalog, dragonBallPerfect1, signedOut)).toHaveLength(32);
   });
 
   test('every Edition Line filled before fills again at its next ask, once', async () => {
@@ -491,8 +530,8 @@ describe('A Catalog file from before book sizes (migration)', () => {
     const asked = searches();
     await volumesOf(catalog, dragonBall1);
 
-    // Two pages of one BnF search, then none.
-    expect(asked).toBe(2);
+    // Two pages of the BnF search by "Dragonball", four by "Dragon Ball", then none.
+    expect(asked).toBe(6);
     expect(searches()).toBe(asked);
   });
 });
@@ -913,6 +952,19 @@ describe('A Catalog file from before same_as (migration)', () => {
 
     expect(found.series).toEqual({ id: 'wd:Q673', title: 'One Piece', sameAs: [onePieceMinted] });
     expect(catalog.series(onePieceMinted)).toEqual(found.series);
+  });
+
+  test('the Series title keys lose their spaces, and each Series is still found by its title (CORE-70)', async () => {
+    const catalog = openV0(recordedFetch().fetch, new Date('2026-12-12T12:00:00.000Z'));
+    const file = join(dirs.at(-1)!, 'catalog.sqlite');
+    const db = new DatabaseSync(file, { readOnly: true });
+    const keys = (db.prepare('select title_key from series_title order by title_key').all() as { title_key: string }[]).map((row) => row.title_key);
+    db.close();
+
+    expect(keys).toEqual(['onepiece', 'spyxfamily']);
+    // One Piece 1 names no Series identifier this file knows: it joins by title.
+    const series = (await edition(await answerEdition(catalog, onePiece1))).series;
+    expect([series?.id, ...(series?.sameAs ?? [])]).toContain(onePieceMinted);
   });
 
   test('a migrated file opens again with no change', async () => {
