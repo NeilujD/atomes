@@ -24,7 +24,7 @@ describe('showCover', () => {
     expect(defaultCover(element)).toEqual(['One Piece', 'Volume 1']);
   });
 
-  test('pulses while the image loads, then shows it', () => {
+  test('is loading while the image loads, then shows it', () => {
     const element = box();
     showCover(element, content);
     const image = element.querySelector('img')!;

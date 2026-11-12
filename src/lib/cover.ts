@@ -1,7 +1,7 @@
 // One cover for every screen (islands through `Cover.tsx`, page scripts
 // directly). The box is a 2:3 `.book-cover` styled in `theme.css`: it keeps
-// its place while the image loads, pulses (`data-cover="loading"`), fades the
-// image in (`loaded`), and shows the default cover (`default`) when there is
+// its place while the image loads (`data-cover="loading"`: the plain soft box,
+// no pulse), fades the image in (`loaded`), and shows the default cover (`default`) when there is
 // no image or it fails to load: a plain book with the Series name on top, a
 // grey picture, the name of the book under it and three grey lines.
 
@@ -29,7 +29,7 @@ const shown = new WeakMap<HTMLElement, CoverContent>();
 export function showCover(box: HTMLElement, content: CoverContent): void {
   const before = shown.get(box);
   shown.set(box, content);
-  // Same image: no new load and no new pulse. A default cover takes the new text.
+  // Same image: no new load. A default cover takes the new text.
   if (before?.src === content.src && box.dataset.cover !== 'default') return;
   if (!content.src || before?.src === content.src) return showDefault(box);
 

@@ -6,7 +6,7 @@ import { memorySpace } from './memory-space.fake';
 import type { Library } from './model';
 import type { ReadingStatus } from './reading-status';
 import { lexicons, type Saved } from './records';
-import { askCollected, collectedVolumes, dropSeries, followSeries, missingVolumes, seriesStanding, suggestsDrop, switchLine } from './series';
+import { askCollected, collectedVolumes, dropSeries, followSeries, missingVolumes, seriesCover, seriesStanding, suggestsDrop, switchLine } from './series';
 
 const blacksad = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
 
@@ -318,5 +318,57 @@ describe('A follow saved under an older identifier of the Series (same_as, ADR 0
 
   test('abandoning a Volume suggests dropping the Series', () => {
     expect(suggestsDrop(linkedA[2], 'abandoned', library({ follows: [{ rkey: minted, value: old() }] }))).toBe(true);
+  });
+});
+
+describe('Each spine carries its Edition', () => {
+  const omnibus = volume(1, 'A', { isbn: isbn('979109999097'), volumes: [1, 2], work: { id: 'wd:Q2999999', title: 'Blacksad 1-2' } });
+
+  test('a Volume of one printing: that Edition', () => {
+    expect(seriesStanding(lineA, library()).spines.map(({ edition }) => edition.isbn)).toEqual(lineA.map(({ isbn: one }) => one));
+  });
+
+  test('a Volume not owned: its single printing before the omnibus', () => {
+    expect(seriesStanding([omnibus, ...lineA], library()).spines[0].edition.isbn).toBe(lineA[0].isbn);
+  });
+
+  test('a Volume owned in one printing: that printing; else the one read', () => {
+    const reprint = volume(3, 'A', { isbn: isbn('979109999099'), work: { id: 'wd:Q2999998', title: 'Blacksad 3' } });
+
+    const standing = seriesStanding([omnibus, ...lineA, reprint], library({ copies: [copy(omnibus)], readingStatuses: [status(reprint, 'read')] }));
+
+    expect(standing.spines.slice(0, 3).map(({ edition }) => edition.isbn)).toEqual([omnibus.isbn, omnibus.isbn, reprint.isbn]);
+  });
+});
+
+describe('Series cover rule', () => {
+  const covered = (n: number) => volume(n, 'A', { cover: `https://covers.test/${n}.jpg` });
+
+  test('the cover of Volume 1', () => {
+    expect(seriesCover([covered(3), covered(1), covered(2)])?.isbn).toBe(lineA[0].isbn);
+  });
+
+  test('Volume 1 with no cover: the lowest Volume with a cover', () => {
+    expect(seriesCover([lineA[0], lineA[1], covered(4), covered(3)])?.isbn).toBe(lineA[2].isbn);
+  });
+
+  test('no Volume with a cover: Volume 1, which shows the default cover', () => {
+    const cover = seriesCover([lineA[2], lineA[0], lineA[1]]);
+
+    expect(cover?.isbn).toBe(lineA[0].isbn);
+    expect(cover?.cover).toBeNull();
+  });
+
+  test('a Series whose Volumes have no number: the first Edition; no Edition: none', () => {
+    const special = volume(0, 'A', { volumes: [], volume: null });
+
+    expect(seriesCover([special])?.isbn).toBe(special.isbn);
+    expect(seriesCover([])).toBeUndefined();
+  });
+
+  test('an omnibus of Volumes 1 and 2 with a cover is the cover of Volume 1', () => {
+    const omnibus = volume(1, 'A', { isbn: isbn('979109999097'), volumes: [1, 2], cover: 'https://covers.test/1-2.jpg' });
+
+    expect(seriesCover([lineA[0], omnibus, covered(2)])?.isbn).toBe(omnibus.isbn);
   });
 });
