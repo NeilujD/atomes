@@ -1,14 +1,16 @@
 // What this device keeps from the reader's use of Atomes. Sign-out clears all
 // of it, so the next person on the device sees nothing of this Library:
 // - the local copy of the Library (records and waiting writes);
-// - the Catalog answers and covers the service worker kept: the books looked up;
+// - the Catalog answers and covers the service worker kept, and those Check a
+//   book keeps for Shelf Check offline (src/lib/catalog/device.ts): the books looked up;
 // - the OAuth metadata that older versions of the service worker kept: it names
 //   the reader's PDS.
 // The app shell stays: its pages are kept by path, with no query (public/sw.js).
+import { catalogCacheName, stopKeeping } from '../catalog/device';
 import type { LocalCopy } from '../space/local-copy';
 
-// CATALOG_CACHE in public/sw.js, and the OAuth cache of older versions.
-export const catalogCacheName = 'atomes-catalog';
+export { catalogCacheName };
+// The OAuth cache of older versions.
 export const oauthCacheName = 'atomes-oauth';
 
 // `caches` is undefined outside a secure origin. Every part is cleared even
@@ -19,6 +21,8 @@ export function deviceData(
 ): { clear(): Promise<void> } {
   return {
     async clear() {
+      // A keep still running must not write the Catalog cache back.
+      stopKeeping();
       const results = await Promise.allSettled([
         localCopy.clear(),
         cacheStorage?.delete(catalogCacheName),

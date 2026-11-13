@@ -7,16 +7,26 @@ import type { Choice, Edition, Lookup, SearchFound } from './catalog';
 // The cover of an Edition, served by the Atomes server (api.ts): the browser
 // never asks a book source, which would learn who looks at which book.
 export function coverUrl(edition: Pick<Edition, 'isbn' | 'cover'>): string | null {
-  return edition.cover ? `/api/catalog/editions/${edition.isbn}/cover` : null;
+  return edition.cover ? coverPath(edition.isbn) : null;
 }
+
+export const coverPath = (isbn: string) => `/api/catalog/editions/${isbn}/cover`;
+
+// The paths of an ISBN lookup and of its Edition Line (api.ts). The service
+// worker and the device Catalog (device.ts) keep the answers under them.
+export const editionPath = (isbn: string) => `/api/catalog/editions/${encodeURIComponent(isbn)}`;
+export const volumesPath = (isbn: string) => `${editionPath(isbn)}/volumes`;
 
 // An answer the service worker kept from before omnibus Volumes (CORE-41) has
 // no `volumes`: its one Volume is all it has.
-type Answered = Omit<Edition, 'volumes'> & { volumes?: number[] };
-const withVolumes = (edition: Answered): Edition => ({ ...edition, volumes: edition.volumes ?? (edition.volume === null ? [] : [edition.volume]) });
+export type Answered = Omit<Edition, 'volumes'> & { volumes?: number[] };
+export const withVolumes = (edition: Answered): Edition => ({
+  ...edition,
+  volumes: edition.volumes ?? (edition.volume === null ? [] : [edition.volume]),
+});
 
 export async function lookupEdition(isbn: string): Promise<Lookup> {
-  const response = await fetch(`/api/catalog/editions/${encodeURIComponent(isbn)}`);
+  const response = await fetch(editionPath(isbn));
   if (response.ok) return { found: withVolumes((await response.json()) as Answered) };
   if (response.status === 404) return { notFound: true };
   return { unavailable: true };
@@ -34,7 +44,7 @@ export async function lookupEditions(isbns: string[]): Promise<Map<string, Editi
 // Edition first looked up), by Volume number. Undefined when the Catalog does
 // not know the ISBN or cannot answer.
 export async function lookupVolumes(isbn: string): Promise<{ series: Edition['series']; volumes: Edition[] } | undefined> {
-  const response = await fetch(`/api/catalog/editions/${encodeURIComponent(isbn)}/volumes`);
+  const response = await fetch(volumesPath(isbn));
   if (!response.ok) return undefined;
   const answer = (await response.json()) as { series: Edition['series']; volumes: Answered[] };
   return { series: answer.series, volumes: answer.volumes.map(withVolumes) };

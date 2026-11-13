@@ -8,10 +8,16 @@ import { listFollows } from './follow';
 import { listLoans } from './loan';
 import type { Library } from './model';
 import { listReadingStatuses } from './reading-status';
+import { keepOnDevice } from './shelf-check';
 import { listToBuy } from './to-buy';
 
 // stale: the PDS could not be reached; this is the copy on this device.
-export async function loadLibrary(space: Space): Promise<{ library: Library; stale: boolean }> {
+// A fresh read also hands the Library to `keep`, in the background: by
+// default the Catalog data Shelf Check needs offline (keepOnDevice).
+export async function loadLibrary(
+  space: Space,
+  keep: (library: Library) => unknown = keepOnDevice,
+): Promise<{ library: Library; stale: boolean }> {
   const [copies, readingStatuses, follows, loans, toBuy] = await Promise.all([
     listCopies(space),
     listReadingStatuses(space),
@@ -19,16 +25,16 @@ export async function loadLibrary(space: Space): Promise<{ library: Library; sta
     listLoans(space),
     listToBuy(space),
   ]);
-  return {
-    library: {
-      copies: copies.records,
-      readingStatuses: readingStatuses.records,
-      follows: follows.records,
-      loans: loans.records,
-      toBuy: toBuy.records,
-    },
-    stale: copies.stale || readingStatuses.stale || follows.stale || loans.stale || toBuy.stale,
+  const library: Library = {
+    copies: copies.records,
+    readingStatuses: readingStatuses.records,
+    follows: follows.records,
+    loans: loans.records,
+    toBuy: toBuy.records,
   };
+  const stale = copies.stale || readingStatuses.stale || follows.stale || loans.stale || toBuy.stale;
+  if (!stale) void keep(library);
+  return { library, stale };
 }
 
 // What to tell about several saves at once: refused wins, then waiting.

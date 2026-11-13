@@ -2,9 +2,10 @@
 // Check a book: scan the barcode or type the ISBN, see the Shelf Check answer
 // (owned, read, missing from a Followed Series, or not in the Library), then
 // Quick Add: say if it is read, add it. The barcode is read on the device
-// (ADR 0003). Online only: the offline answer is CORE-37. The Copy
-// and the Reading Status go to the reader's Space from the browser; the Atomes
-// server only gets the ISBN to look up (ADR 0001).
+// (ADR 0003). Offline (CORE-37), the answer comes from this device only: the
+// Library copy and the Catalog data kept for it (src/lib/catalog/device.ts);
+// no ISBN is sent, and a Copy added waits in the write queue. The Atomes
+// server only gets the ISBN to look up, never the answer (ADR 0001).
 import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
@@ -63,6 +64,8 @@ const answers = [
       </div>
       <!-- The hint line also says what is wrong with the ISBN: the page does not move. -->
       <p class="hint" id="isbn-hint" data-hint aria-live="polite">{t('add.isbn-hint')}</p>
+      <!-- Shown once the Catalog data for Shelf Check offline is on this device. -->
+      <p class="hint" data-kept hidden>{t('check.kept')}</p>
     </form>
 
     <div class="book" data-skeleton hidden aria-hidden="true">
@@ -115,40 +118,39 @@ const answers = [
         <div data-find></div>
       </fieldset>
 
-      <!-- The Shelf Check answer (src/lib/library/shelf-check.ts), once the Library is read. -->
-      <div class="answer" data-answer hidden>
-        <p class="answer-title" data-answer-title></p>
-        <p class="hint" data-answer-text></p>
-        <a class="answer-link" href="/library" data-answer-link hidden>{t('link.book-page')}</a>
-      </div>
+      <!-- The Shelf Check answer (src/islands/ShelfCheckAnswer.tsx), once the Library is read. -->
+      <div class="answer" data-answer hidden></div>
 
-      <fieldset class="question">
-        <legend class="label">{t('add.read-question')}</legend>
-        <div class="segmented">
-          {
-            answers.map((answer) => (
-              <label class="segment">
-                <input type="radio" name="status" value={answer.value} checked={answer.value === 'unread'} />
-                <span>{answer.label}</span>
-              </label>
-            ))
-          }
+      <!-- Hidden offline for a book this device has no Catalog data for: check online later. -->
+      <div class="add-actions" data-add-actions>
+        <fieldset class="question">
+          <legend class="label">{t('add.read-question')}</legend>
+          <div class="segmented">
+            {
+              answers.map((answer) => (
+                <label class="segment">
+                  <input type="radio" name="status" value={answer.value} checked={answer.value === 'unread'} />
+                  <span>{answer.label}</span>
+                </label>
+              ))
+            }
+          </div>
+        </fieldset>
+
+        <div class="private">
+          <Icon name="lock" size={18} />
+          <div>
+            <p class="private-title">{t('add.private')}</p>
+            <p class="hint">{t('add.private-hint')}</p>
+          </div>
         </div>
-      </fieldset>
 
-      <div class="private">
-        <Icon name="lock" size={18} />
-        <div>
-          <p class="private-title">{t('add.private')}</p>
-          <p class="hint">{t('add.private-hint')}</p>
-        </div>
+        <!-- Main action when the reader does not own the book; Add another Copy when they do. -->
+        <button class="button button-primary add" type="submit">
+          <Icon name="book-plus" />
+          <span data-add-label>{t('add.submit')}</span>
+        </button>
       </div>
-
-      <!-- Main action when the reader does not own the book; Add another Copy when they do. -->
-      <button class="button button-primary add" type="submit">
-        <Icon name="book-plus" />
-        <span data-add-label>{t('add.submit')}</span>
-      </button>
     </form>
   </div>
 </AppShell>
@@ -156,9 +158,11 @@ const answers = [
 <script>
   import { h, render } from 'preact';
   import { FindInBnf } from '../islands/FindInBnf';
+  import { ShelfCheckAnswer } from '../islands/ShelfCheckAnswer';
   import { openOwnSpace } from '../lib/auth/server-client';
   import type { Edition } from '../lib/catalog/catalog';
   import { coverUrl, lookupEdition, lookupVolumes } from '../lib/catalog/client';
+  import { deviceCatalog } from '../lib/catalog/device';
   import { showCover } from '../lib/cover';
   import { saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
   import { editionWork, readIsbn } from '../lib/library/ids';
@@ -170,8 +174,8 @@ const answers = [
   import { bookHref, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
   import { followOnRead, noOnboarding } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses } from '../lib/library/reading-status';
-  import { followedLine, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
-  import { isNetworkFailure } from '../lib/network';
+  import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
+  import { latestOnly } from '../lib/latest';
   import { lockWhileSaving } from '../lib/save-lock';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
   import { toast } from '../lib/toast';
@@ -185,6 +189,8 @@ const answers = [
   const addForm = document.querySelector<HTMLFormElement>('[data-add-form]')!;
   const addButton = addForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const answer = addForm.querySelector<HTMLElement>('[data-answer]')!;
+  const addActions = addForm.querySelector<HTMLElement>('[data-add-actions]')!;
+  const kept = isbnForm.querySelector<HTMLElement>('[data-kept]')!;
   const radios = addForm.querySelectorAll<HTMLInputElement>('input[name="status"]');
   const preview = addForm.querySelector<HTMLElement>('[data-preview]')!;
   const details = addForm.querySelector<HTMLFieldSetElement>('[data-details]')!;
@@ -196,6 +202,10 @@ const answers = [
 
   // The Space opens once; undefined when signed out.
   const own = openOwnSpace();
+  // The Catalog data this device keeps for Shelf Check offline.
+  const device = deviceCatalog({});
+  // Lookups can answer out of order (offline ones too): only the latest shows.
+  const startLookUp = latestOnly();
   // The book on the form: a Catalog Edition, or an ISBN the Catalog does not
   // know, which the reader types (its Work is then `isbn:<isbn>`, ADR 0010).
   interface Book {
@@ -204,6 +214,11 @@ const answers = [
     edition?: Edition;
   }
   let book: Book | undefined;
+  // An answer made offline from this device, and the Library it read.
+  interface OnDevice {
+    check: ShelfCheck;
+    library: Library;
+  }
   let library: Library = { copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] };
   let sending = false;
 
@@ -222,6 +237,7 @@ const answers = [
   }
 
   async function lookUp() {
+    const current = startLookUp();
     const read = readIsbn(isbnInput.value);
     addForm.hidden = true;
     book = undefined;
@@ -230,44 +246,82 @@ const answers = [
     problem();
     busy(lookUpButton, true);
     skeleton.hidden = false;
-    // Undefined: no book source knows this ISBN, so the reader types the book.
-    let found: Edition | undefined;
+    let asked: Awaited<ReturnType<typeof catalogAnswer>>;
     try {
-      const answer = await lookupEdition(isbn);
-      if ('unavailable' in answer) return problem(t('add.sources-down'));
-      if ('found' in answer) found = answer.found;
-      reportNetwork(true);
-    } catch (error) {
-      if (isNetworkFailure(error)) reportNetwork(false);
-      return problem(t(isNetworkFailure(error) ? 'add.lookup-unreachable' : 'add.lookup-failed'));
+      // Offline, the Catalog is not asked: the ISBN stays on this device.
+      asked = await catalogAnswer(isbn, navigator.onLine, lookupEdition);
+    } catch {
+      return problem(t('add.lookup-failed'));
     } finally {
       busy(lookUpButton, false);
       skeleton.hidden = true;
     }
-    await (found ? show(found) : showUnknown(isbn));
+    // Another ISBN was looked up meanwhile: its answer is the one to show.
+    if (!current()) return;
+    if ('offline' in asked) {
+      reportNetwork(false);
+      return lookUpOnDevice(isbn, current);
+    }
+    if ('unavailable' in asked) return problem(t('add.sources-down'));
+    reportNetwork(true);
+    // notFound: no book source knows this ISBN, so the reader types the book.
+    await ('found' in asked ? show(asked.found) : showUnknown(isbn));
   }
 
-  async function show(found: Edition) {
+  // The Shelf Check with no network, from this device only (shelf-check.ts).
+  async function lookUpOnDevice(isbn: string, current: () => boolean) {
+    const space = await openSpaceOrSay();
+    if (!space) return;
+    let onDevice: Library;
+    try {
+      onDevice = (await loadLibrary(space)).library;
+    } catch {
+      // No copy of the Library on this device: nothing to answer from.
+      if (current()) problem(t('check.no-library'));
+      return;
+    }
+    const { check, edition } = await deviceShelfCheck(isbn, onDevice, device);
+    if (!current()) return;
+    const given = { check, library: onDevice };
+    if (edition) return show(edition, given, current);
+    // No Catalog data for this ISBN here: the answer only, with what the reader typed on a Copy, if any.
+    const title = onDevice.copies.find(({ value }) => value.isbn === isbn && value.details)?.value.details?.title ?? t('book.isbn', isbn);
+    showCover(addForm.querySelector<HTMLElement>('[data-cover]')!, { src: null, title, series: null, volumeTitle: null, volume: '' });
+    fillPreview(title, '', '', '');
+    await ready({ isbn, work: editionWork(isbn) }, given);
+  }
+
+  function fillPreview(title: string, authors: string, series: string, edition: string) {
+    addForm.querySelector('[data-title]')!.textContent = title;
+    addForm.querySelector('[data-authors]')!.textContent = authors;
+    addForm.querySelector('[data-series]')!.textContent = series;
+    addForm.querySelector('[data-edition]')!.textContent = edition;
+  }
+
+  async function show(found: Edition, onDevice?: OnDevice, current = () => true) {
+    // Offline, only a cover this device has: asking for another would send the ISBN.
+    const cover = !onDevice || (await device.hasCover(found.isbn));
+    if (!current()) return;
     showCover(addForm.querySelector<HTMLElement>('[data-cover]')!, {
-      src: coverUrl(found),
+      src: cover ? coverUrl(found) : null,
       title: found.title,
       series: found.series?.title ?? null,
       volumeTitle: found.volumeTitle,
       volume: found.volumes.length > 0 ? t('book.volumes', found.volumes) : '',
     });
-    addForm.querySelector('[data-title]')!.textContent = found.title;
-    addForm.querySelector('[data-authors]')!.textContent = found.authors.join(', ');
-    addForm.querySelector('[data-series]')!.textContent = [
-      found.series && found.series.title !== found.title ? found.series.title : '',
-      found.volumes.length > 0 ? t('book.volumes', found.volumes) : '',
-      found.volumeTitle ?? '',
-    ]
-      .filter(Boolean)
-      .join(' · ');
-    addForm.querySelector('[data-edition]')!.textContent = [editionLabel(found), t('book.isbn', found.isbn)]
-      .filter(Boolean)
-      .join(' · ');
-    await ready({ isbn: found.isbn, work: found.work.id, edition: found });
+    fillPreview(
+      found.title,
+      found.authors.join(', '),
+      [
+        found.series && found.series.title !== found.title ? found.series.title : '',
+        found.volumes.length > 0 ? t('book.volumes', found.volumes) : '',
+        found.volumeTitle ?? '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      [editionLabel(found), t('book.isbn', found.isbn)].filter(Boolean).join(' · '),
+    );
+    await ready({ isbn: found.isbn, work: found.work.id, edition: found }, onDevice);
   }
 
   async function showUnknown(isbn: string) {
@@ -287,40 +341,51 @@ const answers = [
     detailsProblem.textContent = '';
   }
 
-  // Shows the form for this book, then starts from what the Library already has.
-  async function ready(next: Book) {
+  // Shows the form for this book, then starts from what the Library already
+  // has. `onDevice`: the answer offline, already made from this device.
+  async function ready(next: Book, onDevice?: OnDevice) {
     book = next;
-    const typing = !next.edition;
+    // Offline with no Catalog data: the answer only, nothing to type or add.
+    const answerOnly = !next.edition && onDevice !== undefined;
+    const typing = !next.edition && !answerOnly;
     if (!typing) render(null, find);
     preview.hidden = typing;
     details.hidden = !typing;
     details.disabled = !typing;
+    addActions.hidden = answerOnly;
     for (const radio of radios) radio.checked = radio.value === 'unread';
     answer.hidden = true;
     showAction(false);
     addForm.hidden = false;
-    (typing ? detail('title') : addButton).focus();
+    if (!answerOnly) (typing ? detail('title') : addButton).focus();
 
-    // Already in the Library: start from its Reading Status, and say so.
-    const space = await openSpaceOrSay();
-    if (!space) return;
-    let line: Edition[] | undefined;
-    try {
-      const loaded = await loadLibrary(space);
-      library = loaded.library;
-      reportNetwork(!loaded.stale);
-      reportWaiting(await waitingCount(space));
-      // A Followed Series: its Edition Line tells whether this Volume is missing.
-      const anchor = followedLine(next.edition, library);
-      line = anchor ? (await lookupVolumes(anchor).catch(() => undefined))?.volumes : undefined;
-    } catch {
-      // No copy on this device and no network: the status starts at "Not yet",
-      // and no answer (CORE-37 answers offline).
-      library = { copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] };
-      return;
+    let check: ShelfCheck;
+    if (onDevice) {
+      library = onDevice.library;
+      check = onDevice.check;
+    } else {
+      // Already in the Library: start from its Reading Status, and say so.
+      const space = await openSpaceOrSay();
+      if (!space) return;
+      let line: Edition[] | undefined;
+      try {
+        const loaded = await loadLibrary(space);
+        library = loaded.library;
+        reportNetwork(!loaded.stale);
+        reportWaiting(await waitingCount(space));
+        // A Followed Series: its Edition Line tells whether this Volume is
+        // missing; the one kept on this device when the Catalog cannot say now.
+        const anchor = followedLine(next.edition, library);
+        line = anchor ? ((await lookupVolumes(anchor).catch(() => undefined))?.volumes ?? (await device.line(anchor))) : undefined;
+      } catch {
+        // No copy on this device and no network: the status starts at "Not yet", and no answer.
+        library = { copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] };
+        return;
+      }
+      if (book !== next) return;
+      check = shelfCheck(next.isbn, next.edition, library, line);
     }
-    if (book !== next) return;
-    showAnswer(shelfCheck(next.isbn, next.edition, library, line), next.work);
+    showAnswer(check, next);
     // Abandoned is not an answer here: no choice keeps it.
     const status = currentStatus(next.work, library);
     for (const radio of radios) radio.checked = radio.value === status;
@@ -330,21 +395,9 @@ const answers = [
   }
 
   // The Shelf Check answer, and the action that fits it.
-  function showAnswer(check: ShelfCheck, work: string) {
-    const status = t(`status.${check.status}`);
-    const series = check.followed?.title ?? '';
-    const [title, text] = {
-      owned: [t('check.owned'), t('check.status', status)],
-      missing: [t('check.missing', series), [t('check.missing-text'), check.status === 'unread' ? '' : t('check.status', status)].filter(Boolean).join(' ')],
-      read: [t('check.read', status), ''],
-      new: [t('check.new'), check.followed ? t('check.followed', series) : ''],
-    }[check.kind];
+  function showAnswer(check: ShelfCheck, shown: Book) {
     answer.dataset.kind = check.kind;
-    answer.querySelector('[data-answer-title]')!.textContent = title;
-    answer.querySelector('[data-answer-text]')!.textContent = text;
-    const link = answer.querySelector<HTMLAnchorElement>('[data-answer-link]')!;
-    link.href = bookHref(work);
-    link.hidden = check.kind !== 'owned' && check.kind !== 'read';
+    render(h(ShelfCheckAnswer, { check, work: shown.work, volumes: shown.edition?.volumes ?? [] }), answer);
     answer.hidden = false;
     showAction(check.kind === 'owned');
   }
@@ -544,6 +597,26 @@ const answers = [
     detailsProblem.textContent = '';
   });
   lockWhileSaving(addForm, document.querySelector<HTMLElement>('.quick-add')!, add);
+
+  // Online, keeps on this device the Catalog data Shelf Check needs offline
+  // (keptOnDevice), and asks the Edition Lines again: they grow. Every screen
+  // that reads the Library keeps what is not kept yet (loadLibrary). Only
+  // ISBNs go to the Atomes server, never the Library.
+  async function keepForOffline() {
+    if (!navigator.onLine) return;
+    const space = await openSpaceOrSay();
+    if (!space) return;
+    try {
+      // This keep, not the one every Library read starts.
+      const loaded = await loadLibrary(space, () => undefined);
+      if (loaded.stale) return;
+      const { isbns, anchors } = keptOnDevice(loaded.library);
+      kept.hidden = !(await device.keep(isbns, anchors, { refreshLines: true }));
+    } catch {
+      // Offline after all: the device keeps what it had.
+    }
+  }
+  void keepForOffline();
 
   // From the Book page ("Add another Copy") or an old Quick Add link (/add): the ISBN is already known.
   const given = new URLSearchParams(location.search).get('isbn');
@@ -919,17 +992,13 @@ const answers = [
     border: 1px solid var(--line);
   }
 
-  .answer-title {
-    font-size: 17px;
-    font-weight: 700;
+  /* The question, Private and the add button, as if not wrapped. */
+  .add-actions {
+    display: contents;
   }
 
-  .answer .hint:empty {
+  .add-actions[hidden] {
     display: none;
-  }
-
-  .answer-link {
-    font-size: 14px;
   }
 
   /* Desktop: one narrow column in the middle of the panel. */
@@ -953,6 +1022,66 @@ const answers = [
 </style>
 
 <style is:global>
+  /* Global: ShelfCheckAnswer renders on the device, outside this page's scoped styles. */
+  .answer-title {
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .answer-text {
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
+  .answer-link {
+    font-size: 14px;
+  }
+
+  /* The spine row of a Missing Volume (as on the Series page): filled = read,
+     outlined = owned not read, dashed grey = not owned. */
+  .answer-spines {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 0;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .answer-spine {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 20px;
+    color: var(--secondary);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .answer-spine-bar {
+    width: 10px;
+    height: 32px;
+    border-radius: 2px;
+    border: 1.5px solid var(--ink);
+  }
+
+  .answer-spine[data-state='read'] .answer-spine-bar {
+    background: var(--ink);
+  }
+
+  .answer-spine[data-state='not-owned'] .answer-spine-bar {
+    border: 1.5px dashed var(--off);
+  }
+
+  /* This book: its number in ink, underlined. */
+  .answer-spine[aria-current='true'] {
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
   /* Global: FindInBnf renders on the device, outside this page's scoped styles. */
   .find {
     display: flex;
