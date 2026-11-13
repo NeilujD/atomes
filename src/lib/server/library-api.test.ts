@@ -238,3 +238,24 @@ describe('sync', () => {
     expect(await changes(owner, last)).toMatchObject({ all: false, records: [], deleted: [] });
   });
 });
+
+describe('after a write', () => {
+  test('tells which record changed, only when the write was stored', async () => {
+    const changed: string[] = [];
+    const write = (method: string, path: string, body?: unknown) =>
+      handleLibraryRequest(new Request(`https://atomes.test/api/library/${path}`, body === undefined ? { method } : { method, body: JSON.stringify(body) }), {
+        did: owner,
+        store,
+        rules: lexiconRules,
+        onWrite: (collection, rkey) => changed.push(`${collection}/${rkey}`),
+      });
+
+    const { rev } = (await (await write('PUT', `${collection}/a`, status('read'))).json()) as { rev: number };
+    await write('GET', `${collection}/a`);
+    await write('PUT', `${collection}/a`, { $type: collection, work });
+    await write('PUT', `${collection}/a?rev=${rev - 1}`, status('reading'));
+    await write('DELETE', `${collection}/a`);
+
+    expect(changed).toEqual([`${collection}/a`, `${collection}/a`]);
+  });
+});

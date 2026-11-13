@@ -1,7 +1,7 @@
 import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import { expect, test } from 'vitest';
 import { createAuthStore } from './auth-store';
-import { createOAuthClient } from './oauth';
+import { createOAuthClient, repoAccess } from './oauth';
 import { secretBox } from './secret-box';
 import { readSettings } from './settings';
 
@@ -38,4 +38,12 @@ test('the confidential client signs its assertions with private_key_jwt', async 
     token_endpoint_auth_method: 'private_key_jwt',
     jwks_uri: 'https://atomes.test/oauth/jwks.json',
   });
+});
+
+// A browser signed in with /dev/sign-in-as, or whose OAuth session ended, has
+// no session to write with: the reader signs in again to share. No PDS is called.
+test('a reader with no OAuth session may not share yet', async () => {
+  const { client } = await confidentialClient();
+
+  expect(await repoAccess(client).repoOf('did:plc:abcdefghijklmnopqrstuvwx')).toBeUndefined();
 });

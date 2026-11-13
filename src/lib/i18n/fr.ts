@@ -72,6 +72,8 @@ export const fr: typeof en = {
   'signin.title': 'Connexion',
   'signin.heading': 'Se connecter à Atomes',
   'signin.hint': 'Utilisez votre compte AT Protocol. Vous vous connectez sur la page de votre PDS : Atomes ne voit jamais votre mot de passe.',
+  'signin.sharing':
+    "Atomes demande aussi à votre PDS l'autorisation d'écrire ce que vous choisissez de partager : statuts de lecture, séries suivies, étiquettes. Rien n'est partagé tant que vous ne l'activez pas dans les Réglages.",
   'signin.handle': 'Votre identifiant',
   'signin.submit': 'Se connecter',
   'signout.title': 'Se déconnecter de cet appareil ?',
@@ -114,6 +116,27 @@ export const fr: typeof en = {
   'settings.appearance': 'Apparence',
   'settings.language': 'Langue',
   'settings.on-this-device': 'Gardé sur cet appareil.',
+
+  // Partage (Réglages, page d'un livre ; glossaire : Shared, Private)
+  'sharing.title': 'Partage',
+  'sharing.hint': "Tout est privé tant que vous ne le partagez pas. Ce qui est partagé va sur votre compte AT Protocol, où tout le monde peut le lire. Les exemplaires, les prêts et la liste À acheter ne sont jamais partagés.",
+  'sharing.readingStatuses': 'Statuts de lecture',
+  'sharing.follows': 'Séries suivies',
+  'sharing.labels': 'Étiquettes',
+  'sharing.shared': 'Partagé : tout le monde peut les lire.',
+  'sharing.private': 'Privé : vous seul les voyez.',
+  'sharing.consent':
+    "Pour partager, Atomes a besoin de l'autorisation d'écrire sur votre compte AT Protocol : statuts de lecture, séries suivies et étiquettes seulement. Votre PDS vous la demande une fois, quand vous vous reconnectez.",
+  'sharing.sign-in-again': 'Se reconnecter',
+  'sharing.pending': 'Certains changements ne sont pas encore sur votre PDS.',
+  'sharing.retry': 'Réessayer',
+  'sharing.unreachable': "Impossible de joindre le serveur ou votre PDS. Rien n'a changé.",
+  'sharing.failed': "Le partage n'a pas pu être modifié. Réessayez.",
+  'sharing.private-works': (count) =>
+    `${count} ${count === 1 ? 'œuvre gardée privée' : 'œuvres gardées privées'}, depuis la page du livre.`,
+  'sharing.visibility': 'Visibilité',
+  'sharing.keep-private': 'Garder cette œuvre privée',
+  'sharing.keep-private-hint': 'Son statut de lecture reste privé, et les étiquettes partagées ne la citent pas.',
   'appearance.system': 'Système',
   'appearance.light': 'Clair',
   'appearance.dark': 'Sombre',

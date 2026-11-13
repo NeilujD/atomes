@@ -3,6 +3,7 @@
 // Catalog (src/lib/library/model.ts). `?work=<Catalog identifier>`.
 import Icon from '../components/Icon.astro';
 import BookLabels from '../islands/BookLabels';
+import WorkPrivacy from '../islands/WorkPrivacy';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
@@ -82,6 +83,9 @@ const choices = [
           <h2 class="group-title" id="labels-title">{t('labels.title')}</h2>
           <BookLabels client:only="preact" />
         </section>
+
+        <!-- Keep this Work Private inside a Shared category (src/islands/WorkPrivacy.tsx). -->
+        <WorkPrivacy client:only="preact" />
 
         <section class="group" aria-labelledby="copies-title">
           <h2 class="group-title" id="copies-title">{t('book.copies')}</h2>
@@ -748,7 +752,35 @@ const choices = [
 </style>
 
 <style is:global>
-  /* Global: the Labels island renders on the device, outside this page's scoped styles. */
+  /* Global: the Labels and Visibility islands render on the device, outside this page's scoped styles. */
+  .work-privacy {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .work-privacy-title {
+    font-size: 16px;
+  }
+
+  .work-privacy-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .work-privacy-label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .work-privacy-hint {
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
   .labels {
     align-self: stretch;
     display: flex;

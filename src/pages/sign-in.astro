@@ -16,6 +16,8 @@ const t = translator(requestLanguage(Astro.request));
     <Mark size={48} />
     <h1 class="title" id="sign-in-title">{t('signin.heading')}</h1>
     <p class="hint">{t('signin.hint')}</p>
+    <!-- The reason for the permission the PDS asks for (CORE-38). -->
+    <p class="hint">{t('signin.sharing')}</p>
     <form class="sign-in" data-sign-in>
       <label class="visually-hidden" for="handle">{t('signin.handle')}</label>
       <input
