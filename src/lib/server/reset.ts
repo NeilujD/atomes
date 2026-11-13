@@ -31,6 +31,9 @@ function emptyDatabase(file: string): number {
   try {
     // Wait for a write of the running server rather than fail.
     db.exec('pragma busy_timeout = 5000');
+    // Every table is emptied, so a parent may go before its children. Node
+    // checks foreign keys by default, Bun does not.
+    db.exec('pragma foreign_keys = off');
     const tables = db.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%'").all() as {
       name: string;
     }[];

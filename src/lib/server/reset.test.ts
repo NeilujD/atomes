@@ -54,6 +54,19 @@ describe('emptyDatabases', () => {
     expect(state('catalog.sqlite').rows).toBe(4);
   });
 
+  test('empties a parent table before its children, as Node checks foreign keys', () => {
+    const db = new DatabaseSync(join(dir, 'catalog.sqlite'));
+    db.exec(`
+      create table series (n integer primary key);
+      create table volume (series integer not null references series (n));
+      insert into series values (1);
+      insert into volume values (1);
+    `);
+    db.close();
+
+    expect(emptyDatabases(dir, { keepCatalog: false })).toEqual([{ file: join(dir, 'catalog.sqlite'), rows: 2 }]);
+  });
+
   test('an open connection of the server sees the empty store', () => {
     fill('library.sqlite', 2);
     const server = new DatabaseSync(join(dir, 'library.sqlite'));
