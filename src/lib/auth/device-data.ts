@@ -1,7 +1,8 @@
 // What this device keeps from the reader's use of Atomes. Sign-out clears all
 // of it, so the next person on the device sees nothing of this Library:
 // - the local copy of the Library (records and waiting writes);
-// - the Catalog answers and covers the service worker kept: the books looked up;
+// - the Catalog answers and covers the service worker kept, and those Check a
+//   book keeps for Shelf Check offline (src/lib/catalog/device.ts): the books looked up;
 // - the OAuth metadata that older versions of the service worker kept: it names
 //   the reader's PDS.
 // The app shell stays: its pages are kept by path, with no query (public/sw.js).
