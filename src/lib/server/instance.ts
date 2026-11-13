@@ -9,7 +9,7 @@ import { createLibraryStore, type LibraryStore } from './library-store';
 import { createOAuthClient, oauthPort, repoAccess } from './oauth';
 import { secretBox } from './secret-box';
 import { settings } from './settings';
-import { createSharing, type Sharing } from './sharing';
+import { createSharing, logFailure, type Sharing } from './sharing';
 
 let library: LibraryStore | undefined;
 let sharing: Promise<Sharing> | undefined;
@@ -31,7 +31,12 @@ export function authDeps(): Promise<AuthDeps & { client: NodeOAuthClient }> {
     const { allowedDids, appOrigin, sessionKey } = settings();
     const store = createAuthStore({ file: join(dataDir(), 'auth.sqlite'), box: secretBox(sessionKey), allowedDids });
     const client = await createOAuthClient(settings(), store);
-    return { oauth: oauthPort(client, allowedDids), store, appOrigin, client };
+    // Signed in again: send what waited for the session (sharing.ts).
+    const onSignedIn = (did: string) =>
+      sharingService()
+        .then((sharing) => sharing.signedIn(did))
+        .catch((error: unknown) => logFailure('after sign-in', error));
+    return { oauth: oauthPort(client, allowedDids), store, appOrigin, client, onSignedIn };
   })();
   return auth;
 }

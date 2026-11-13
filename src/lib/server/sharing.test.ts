@@ -227,3 +227,82 @@ describe('each reader', () => {
     expect(await sharing.state(other)).toMatchObject({ shared: { readingStatuses: false }, privateWorks: [] });
   });
 });
+
+describe('what a Shared record may reveal', () => {
+  test('a Reading Status whose record key is a Private Work stays off the PDS, whatever its work field says', async () => {
+    library.put(owner, 'app.atomes.readingStatus', secret, status(onePiece));
+    await sharing.setPrivate(owner, secret, true);
+
+    await sharing.setShared(owner, 'readingStatuses', true);
+    library.put(owner, 'app.atomes.readingStatus', secret, status(onePiece, 'reading'));
+    await sharing.recordChanged(owner, 'app.atomes.readingStatus', secret);
+
+    expect(publicKeys()).toEqual([]);
+  });
+
+  test('a Label whose Works are all Private is not Shared, and leaves the PDS', async () => {
+    library.put(owner, 'app.atomes.label', '3l2secret', label('Secret Santa', [secret]));
+    library.put(owner, 'app.atomes.label', '3l2empty', label('To sort', []));
+    await sharing.setShared(owner, 'labels', true);
+    expect(publicKeys()).toEqual(['app.atomes.label/3l2empty', 'app.atomes.label/3l2secret']);
+
+    await sharing.setPrivate(owner, secret, true);
+    expect(publicKeys()).toEqual(['app.atomes.label/3l2empty']);
+
+    library.put(owner, 'app.atomes.label', '3l2secret', label('Secret Santa 2', [secret]));
+    await sharing.recordChanged(owner, 'app.atomes.label', '3l2secret');
+    expect(publicKeys()).toEqual(['app.atomes.label/3l2empty']);
+    expect(JSON.stringify([...pds.get(owner)!.records.values()])).not.toContain('Secret Santa');
+  });
+});
+
+describe('a change the PDS did not get', () => {
+  test('keeping a Work Private says it is still on the PDS, and the next look at the state removes it', async () => {
+    fillLibrary();
+    await sharing.setShared(owner, 'readingStatuses', true);
+    pds.get(owner)!.network.online = false;
+
+    expect(await sharing.setPrivate(owner, secret, true)).toMatchObject({ privateWorks: [secret], pending: true });
+    expect(publicKeys()).toContain(`app.atomes.readingStatus/${secret}`);
+
+    pds.get(owner)!.network.online = true;
+    expect(await sharing.state(owner)).toMatchObject({ pending: false });
+    expect(publicKeys()).toEqual([`app.atomes.readingStatus/${onePiece}`]);
+  });
+
+  test('the state of a reader with nothing pending calls no PDS write', async () => {
+    fillLibrary();
+    await sharing.setShared(owner, 'readingStatuses', true);
+    const writes = () => pds.get(owner)!.calls.filter((call) => call.startsWith('POST') || call.endsWith('listRecords')).length;
+    const before = writes();
+
+    await sharing.state(owner);
+
+    expect(writes()).toBe(before);
+  });
+});
+
+test('a record change never rejects, even when the sharing tables fail', async () => {
+  const broken = createSharing({ file: ':memory:', library, access: { repoOf: () => Promise.resolve(undefined) } });
+  broken.close();
+
+  await expect(broken.recordChanged(owner, 'app.atomes.readingStatus', onePiece)).resolves.toBeUndefined();
+});
+
+describe('signing in again', () => {
+  test('sends what waited for the permission, and calls no PDS when nothing waits', async () => {
+    fillLibrary();
+    await sharing.setShared(owner, 'readingStatuses', true);
+    noConsent.add(owner);
+    await sharing.setShared(owner, 'readingStatuses', false);
+    expect(publicKeys()).toHaveLength(2);
+
+    noConsent.delete(owner);
+    await sharing.signedIn(owner);
+    expect(publicKeys()).toEqual([]);
+
+    const calls = pds.get(owner)!.calls.length;
+    await sharing.signedIn(owner);
+    expect(pds.get(owner)!.calls.length).toBe(calls);
+  });
+});

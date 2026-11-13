@@ -208,3 +208,31 @@ describe('sign-out', () => {
     expect(revoked).toEqual([]);
   });
 });
+describe('after a sign-in', () => {
+  test('tells the DID that signed in, so what waited for the PDS is sent', async () => {
+    const signedIn: string[] = [];
+    deps = { ...deps, onSignedIn: (did) => void signedIn.push(did) };
+
+    expect((await back(owner)).status).toBe(303);
+    expect(signedIn).toEqual([owner]);
+  });
+
+  test('a failure after the sign-in never fails the sign-in', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    deps = { ...deps, onSignedIn: () => Promise.reject(new Error('PDS down')) };
+
+    const response = await back(owner);
+
+    expect(response.status).toBe(303);
+    expect(cookieOf(response)).toBeTruthy();
+  });
+
+  test('a failed sign-in tells no one', async () => {
+    const signedIn: string[] = [];
+    deps = { ...deps, onSignedIn: (did) => void signedIn.push(did) };
+
+    await back(stranger);
+
+    expect(signedIn).toEqual([]);
+  });
+});

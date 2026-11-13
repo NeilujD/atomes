@@ -75,6 +75,20 @@ describe('the sharing API', () => {
     expect(await freed.json()).toMatchObject({ privateWorks: [] });
   });
 
+  test('a Work kept Private while the PDS is down: the answer says pending, and the next GET removes it', async () => {
+    await call(owner, 'PUT', '/categories/readingStatuses', { shared: true });
+    pds.get(owner)!.network.online = false;
+
+    const kept = await call(owner, 'PUT', `/private-works/${encodeURIComponent('wd:Q1')}`, { private: true });
+    expect(kept.status).toBe(200);
+    expect(await kept.json()).toMatchObject({ privateWorks: ['wd:Q1'], pending: true });
+    expect([...pds.get(owner)!.records.keys()]).toEqual(['app.atomes.readingStatus/wd:Q1']);
+
+    pds.get(owner)!.network.online = true;
+    expect(await (await call(owner, 'GET', '')).json()).toMatchObject({ pending: false });
+    expect([...pds.get(owner)!.records.keys()]).toEqual([]);
+  });
+
   test('acts only for the DID of the session, whatever the request names', async () => {
     await call(owner, 'PUT', '/categories/readingStatuses', { shared: true, did: other, repo: other });
 

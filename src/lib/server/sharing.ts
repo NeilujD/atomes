@@ -7,7 +7,11 @@
 // record that should be public, as it should read, and deletes every other
 // record of the Shared collections. So it is safe to run again after a
 // partial failure, and `pending` says that it must. A change to one record
-// (`recordChanged`) puts or deletes that record only.
+// (`recordChanged`) puts or deletes that record only. Atomes owns the
+// `app.atomes.*` namespace (ADR 0004), so the sync deletes any record of the
+// three Shared collections that the instance does not want, whoever wrote it.
+// A pending reader is tried again at the next record change, the next look at
+// Settings (`state`) and the next sign-in (`signedIn`).
 //
 // What the reader chose is kept in `library.sqlite`, beside the records:
 // the Shared categories and the Works kept Private inside them. Each call is
@@ -34,6 +38,7 @@ export class NeedsConsentError extends Error {
 }
 
 export interface Sharing {
+  // Tries the PDS again first when something is pending.
   state(did: string): Promise<SharingState>;
   // Turning a category on throws NeedsConsentError, and saves nothing, when
   // the session may not write Shared records. Turning one off always saves.
@@ -41,7 +46,10 @@ export interface Sharing {
   setPrivate(did: string, work: string, kept: boolean): Promise<SharingState>;
   // Brings the public repo in line with the instance.
   sync(did: string): Promise<SharingState>;
-  // A record of the instance changed (Library API): mirror it if its category is Shared.
+  // The reader signed in again: their session may now write what waited.
+  signedIn(did: string): Promise<void>;
+  // A record of the instance changed (Library API): mirror it if its category
+  // is Shared. Never rejects: a failure leaves the reader pending.
   recordChanged(did: string, collection: string, rkey: string): Promise<void>;
   close(): void;
 }
@@ -64,15 +72,21 @@ const schema = `
 
 const categoryOf = (collection: string) => categoryNames.find((category) => categories[category] === collection);
 
-// The record as anyone may read it, or undefined when it stays Private.
-function publicValue(collection: string, value: unknown, privateWorks: ReadonlySet<string>): object | undefined {
+// The record as anyone may read it, or undefined when it stays Private. A
+// Reading Status is keyed by its Work (ADR 0010): the key and the `work` field
+// both count. A Label with Works, all of them Private, stays Private: its name
+// could tell the Work. A Label with no Work at all is Shared.
+function publicValue(collection: string, rkey: string, value: unknown, privateWorks: ReadonlySet<string>): object | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const record = value as Record<string, unknown>;
   switch (collection) {
     case categories.readingStatuses:
-      return privateWorks.has(String(record.work)) ? undefined : record;
-    case categories.labels:
-      return { ...record, works: (Array.isArray(record.works) ? record.works : []).filter((work) => !privateWorks.has(String(work))) };
+      return privateWorks.has(rkey) || privateWorks.has(String(record.work)) ? undefined : record;
+    case categories.labels: {
+      const works = Array.isArray(record.works) ? record.works : [];
+      const shared = works.filter((work) => !privateWorks.has(String(work)));
+      return works.length > 0 && shared.length === 0 ? undefined : { ...record, works: shared };
+    }
     case categories.follows:
       return record;
     default:
@@ -90,7 +104,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function logFailure(step: string, error: unknown) {
+export function logFailure(step: string, error: unknown) {
   const name = error instanceof Error ? `${error.name}: ${error.message}` : 'unknown error';
   console.warn(`Sharing ${step} failed: ${name}`);
 }
@@ -132,7 +146,7 @@ export function createSharing({ file, library, access }: { file: string; library
       const wanted = new Map<string, object>();
       if (shared[category]) {
         for (const { rkey, value } of library.list(did, collection)) {
-          const record = publicValue(collection, value, privateWorks);
+          const record = publicValue(collection, rkey, value, privateWorks);
           if (record) wanted.set(rkey, record);
         }
       }
@@ -169,7 +183,11 @@ export function createSharing({ file, library, access }: { file: string; library
   }
 
   return {
-    state: (did) => serial(did, () => state(did)),
+    state: (did) =>
+      serial(did, async () => {
+        if (isPending(did)) await trySync(did);
+        return state(did);
+      }),
     setShared: (did, category, shared) =>
       serial(did, async () => {
         const repo = await access.repoOf(did).catch((error: unknown) => {
@@ -195,21 +213,29 @@ export function createSharing({ file, library, access }: { file: string; library
         await trySync(did);
         return state(did);
       }),
+    signedIn: (did) =>
+      serial(did, async () => {
+        if (isPending(did)) await trySync(did);
+      }),
     recordChanged: (did, collection, rkey) =>
       serial(did, async () => {
-        const category = categoryOf(collection);
-        if (!category) return;
-        if (isPending(did)) return trySync(did);
-        if (!sharedOf(did)[category]) return;
         try {
+          const category = categoryOf(collection);
+          if (!category) return;
+          if (isPending(did)) return await trySync(did);
+          if (!sharedOf(did)[category]) return;
           const repo = await access.repoOf(did);
           if (!repo) return setPending(did, true);
-          const record = publicValue(collection, library.get(did, collection, rkey), privateWorksOf(did));
+          const record = publicValue(collection, rkey, library.get(did, collection, rkey), privateWorksOf(did));
           if (record) await repo.put(collection, rkey, record);
           else await repo.delete(collection, rkey);
         } catch (error) {
-          setPending(did, true);
           logFailure('mirror', error);
+          try {
+            setPending(did, true);
+          } catch (stored) {
+            logFailure('mirror', stored);
+          }
         }
       }),
     close: () => db.close(),

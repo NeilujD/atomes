@@ -5,6 +5,7 @@ import type { APIRoute } from 'astro';
 import { readerOf, signedOut } from '../../../lib/server/auth';
 import { authDeps, libraryStore, sharingService } from '../../../lib/server/instance';
 import { handleLibraryRequest, lexiconRules } from '../../../lib/server/library-api';
+import { logFailure } from '../../../lib/server/sharing';
 
 export const ALL: APIRoute = async ({ request }) => {
   const reader = readerOf(request, await authDeps());
@@ -14,6 +15,8 @@ export const ALL: APIRoute = async ({ request }) => {
     did: reader.did,
     store: libraryStore(),
     rules: lexiconRules,
-    onWrite: (collection, rkey) => void sharing.recordChanged(reader.did, collection, rkey),
+    onWrite: (collection, rkey) => {
+      sharing.recordChanged(reader.did, collection, rkey).catch((error: unknown) => logFailure('mirror', error));
+    },
   });
 };

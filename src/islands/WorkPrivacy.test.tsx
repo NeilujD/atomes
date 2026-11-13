@@ -69,3 +69,14 @@ test('says when the change could not be made, and keeps the switch as it was', a
   expect(await screen.findByText('Could not reach the server or your PDS. Nothing changed.')).toBeTruthy();
   expect(keep.checked).toBe(false);
 });
+
+test('kept Private while the PDS cannot be reached, says the Work is still on the account', async () => {
+  const server = fakeServer({ ...nothingShared, shared: { ...nothingShared.shared, readingStatuses: true } });
+  const keep = input(await screen.findByRole('switch', { name: 'Keep this Work Private' }));
+
+  server.next = { state: { ...nothingShared, shared: { ...nothingShared.shared, readingStatuses: true }, privateWorks: [work], pending: true } };
+  fireEvent.click(keep);
+
+  expect(await screen.findByText('Still on your AT Protocol account: Atomes tries again.')).toBeTruthy();
+  expect(keep.checked).toBe(true);
+});

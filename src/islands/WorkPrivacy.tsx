@@ -72,7 +72,9 @@ export function WorkPrivacy({ work, client }: { work: string; client: SharingCli
       </div>
       {state.pending && (
         <div class="work-privacy-row">
-          <p class="work-privacy-hint">{t('sharing.pending')}</p>
+          <p class="work-privacy-hint" role="status">
+            {t(kept ? 'sharing.still-shared' : 'sharing.pending')}
+          </p>
           <button class="button" type="button" disabled={busy} onClick={() => void run(() => client.sync())}>
             {t('sharing.retry')}
           </button>

@@ -127,6 +127,7 @@ export const fr: typeof en = {
   'sharing.private': 'Privé : vous seul les voyez.',
   'sharing.consent':
     "Pour partager, Atomes a besoin de l'autorisation d'écrire sur votre compte AT Protocol : statuts de lecture, séries suivies et étiquettes seulement. Votre PDS vous la demande une fois, quand vous vous reconnectez.",
+  'sharing.still-shared': 'Encore sur votre compte AT Protocol : Atomes réessaie.',
   'sharing.sign-in-again': 'Se reconnecter',
   'sharing.pending': 'Certains changements ne sont pas encore sur votre PDS.',
   'sharing.retry': 'Réessayer',

@@ -126,6 +126,7 @@ export const en = {
   'sharing.private': 'Private: only you see them.',
   'sharing.consent':
     'To share, Atomes needs permission to write on your AT Protocol account: Reading Statuses, Followed Series and Labels only. Your PDS asks you once, when you sign in again.',
+  'sharing.still-shared': 'Still on your AT Protocol account: Atomes tries again.',
   'sharing.sign-in-again': 'Sign in again',
   'sharing.pending': 'Some changes have not reached your PDS yet.',
   'sharing.retry': 'Try again',

@@ -111,3 +111,12 @@ describe('Sharing in Settings', () => {
     expect(await screen.findByText('2 Works kept Private, from their book page.')).toBeTruthy();
   });
 });
+
+test('an unshared category whose records the PDS still holds says so next to its switch', async () => {
+  fakeServer({ ...allPrivate, shared: { ...allPrivate.shared, labels: true }, pending: true });
+
+  const statuses = await screen.findByRole('switch', { name: 'Reading Statuses' });
+  expect(statuses.getAttribute('aria-describedby')).toBe('sharing-readingStatuses-state');
+  expect(document.getElementById('sharing-readingStatuses-state')!.textContent).toBe('Still on your AT Protocol account: Atomes tries again.');
+  expect(document.getElementById('sharing-labels-state')!.textContent).toBe('Shared: anyone can read them.');
+});

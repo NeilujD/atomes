@@ -14,6 +14,12 @@ async function signInAgain() {
   if (account) await createAuthClient().signIn(account.handle, '/settings');
 }
 
+// An unshared category may still be on the PDS while a change is pending.
+function rowState(state: SharingState, category: Category) {
+  if (state.shared[category]) return 'sharing.shared';
+  return state.pending ? 'sharing.still-shared' : 'sharing.private';
+}
+
 export default function SharingIsland() {
   return <Sharing client={sharingClient()} signInAgain={() => void signInAgain()} />;
 }
@@ -69,7 +75,7 @@ export function Sharing({ client, signInAgain }: { client: SharingClient; signIn
                 {t(`sharing.${category}`)}
               </p>
               <p class="row-hint" id={`sharing-${category}-state`}>
-                {t(state.shared[category] ? 'sharing.shared' : 'sharing.private')}
+                {t(rowState(state, category))}
               </p>
             </div>
             <input
