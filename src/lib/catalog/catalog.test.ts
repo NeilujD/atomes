@@ -21,6 +21,8 @@ const dragonBall1 = '9782723434621'; // 18 cm, known to SUDOC only: Series "Drag
 const dragonBallPerfect1 = '9782723467681'; // 21 cm line of 34 Volumes, BnF Series record 41495473
 const dragonBall42 = '9782723449397'; // 18 cm, BnF Series "Dragon Ball." (two words)
 const unknown = '9791099999993'; // valid check digit, no source knows it
+const naruto1 = '9782871294146'; // publisher "Dargaud Bénélux-Kana" (1 to 22); BnF's ISBN search misses it
+const naruto50 = '9782505009566'; // publisher "Kana" (23 on), same BnF Series record 38914962
 // Owner's shelf (CORE-40): Kaamelott 10, Casterman. No source knows its ISBN; BnF has 1 to 9.
 const kaamelott10 = '9782203255647';
 const kaamelott9 = '9782203085053';
@@ -482,6 +484,29 @@ describe('Edition Lines by book size (ADR 0010, amendment 2026-11-12)', () => {
     expect(heights(perfect)).toEqual(new Set(['21']));
     expect(perfect.map((v) => v.isbn)).not.toContain(dragonBall1);
     expect(perfect[0].series?.id).toBe(standard[0].series?.id);
+  });
+});
+
+describe('One Edition Line under two publisher names (ADR 0010, amendment 2026-11-13)', () => {
+  const volumesOf = async (catalog: Catalog, isbn: string, access = signedIn) =>
+    ((await (await answerVolumes(catalog, isbn, access)).json()) as { volumes: Edition[] }).volumes;
+
+  test('Naruto looked up from Volume 1 ("Dargaud Bénélux-Kana") gives the Volumes BnF files under "Kana": 1 to 72 but 20', async () => {
+    const volumes = await volumesOf(setup().catalog, naruto1);
+
+    // BnF has no record of Volume 20 in this line.
+    expect(volumes.map((v) => v.volume)).toEqual(Array.from({ length: 72 }, (_, i) => i + 1).filter((n) => n !== 20));
+    expect(volumes[0].isbn).toBe(naruto1);
+    expect(volumes.find((v) => v.volume === 50)?.isbn).toBe(naruto50);
+    expect(new Set(volumes.map((v) => v.publisher))).toEqual(new Set(['Dargaud Bénélux-Kana', 'Kana']));
+  });
+
+  test('a Volume looked up under the other name joins the same Edition Line', async () => {
+    const { catalog } = setup();
+    await answerEdition(catalog, naruto50);
+    await answerEdition(catalog, naruto1);
+
+    expect((await volumesOf(catalog, naruto1, signedOut)).map((v) => v.isbn)).toEqual([naruto1, naruto50]);
   });
 });
 

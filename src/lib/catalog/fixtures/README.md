@@ -93,6 +93,20 @@ bun scripts/record-catalog-answers.ts --search "Dragon Ball" "Glénat"
 | `bnf-search-6dc7a6c70f8e-1.xml` | BnF search `bib.title all "Dragon Ball" and bib.publisher all "Glénat"`, first page: the 18 cm Volumes are filed as "Dragon Ball" (1993 to 2008 printings, 2026 reprints), not "Dragonball". Not used by a test: a fill from SUDOC's "Dragonball" does not find them |
 | `inventaire-batch-25f9d8a6a929.json`, `inventaire-batch-31ae450786a2.json` | Inventaire, the Works of the listed One Piece and Dragon Ball 21 cm ISBNs |
 
+Naruto (Kana, 18 cm), for one Edition Line under two publisher names (ADR 0010 amendment 2026-11-13), recorded on 2026-11-13:
+
+```sh
+bun scripts/record-catalog-answers.ts --fill 9782871294146
+bun scripts/record-catalog-answers.ts 9782505009566
+```
+
+| ISBN or file | Answer |
+|---|---|
+| 9782871294146 | Naruto 1, publisher "Dargaud Bénélux-Kana", 2002: BnF finds no record by ISBN (0 answers); SUDOC gives the Series, Inventaire `wd:Q26971382` |
+| 9782505009566 | Naruto 50, publisher "Kana", 2010: BnF Series record 38914962, as Volume 1 |
+| `bnf-search-fe6c8f77dbc7-*.xml` (4 pages) | BnF search `bib.title all "Naruto" and bib.publisher any "dargaud benelux kana"`: 187 records. Volumes 1 to 22 as "Dargaud Bénélux-Kana", 23 to 72 as "Kana" (no Volume 20), the 22 cm Hokage edition, Boruto, Konoha shinden, novels |
+| `inventaire-batch-02b8557b771b.json`, `inventaire-batch-4644dffc1872.json` | Inventaire, the Works of the listed Volumes |
+
 `catalog-v0.sqlite` is not a source answer: it is a Catalog file made on 2026-11-11 by the Catalog of `main` before `same_as` (commit a3f8d6c), from the recorded answers: One Piece 112, then 56, then the Spy x Family Edition Line with a fill. The migration tests open a copy of it. Never make it again: it stands for the files that real instances hold.
 
 Review the diff before committing: answers change when the sources fix their data.

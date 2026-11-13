@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { bookHeight, placeLine } from './lines';
+import { bookHeight, placeLine, samePublisher } from './lines';
 
 test.each([
   ['18 cm', 18],
@@ -10,6 +10,18 @@ test.each([
   [null, undefined],
 ])('book size %s reads as %s cm', (format, height) => {
   expect(bookHeight(format)).toBe(height);
+});
+
+test.each([
+  ['Dargaud Bénélux-Kana', 'Kana', true],
+  ['Kana', 'Dargaud Bénélux-Kana', true],
+  ['Pika édition', 'Pika', true],
+  ['Glénat', 'glenat', true],
+  ['Kana', 'Glénat', false],
+  ['Dargaud Bénélux-Kana', 'Dupuis Benelux', false],
+  ['', 'Kana', false],
+])('publishers %s and %s are the same: %s', (a, b, same) => {
+  expect(samePublisher(a, b)).toBe(same);
 });
 
 describe('the Edition Line an Edition joins (ADR 0010, amendment 2026-11-12)', () => {
