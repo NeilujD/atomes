@@ -154,6 +154,34 @@ describe('the Catalog data this device keeps', () => {
     expect(caches.get(catalogCacheName)?.size ?? 0).toBe(0);
   });
 
+  test('asks nothing once sign-out happens while it looks at what is kept', async () => {
+    const { storage } = memoryCaches();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const slowCaches = {
+      async open(name: string) {
+        const cache = await storage.open(name);
+        return {
+          match: async (path: string) => {
+            await gate;
+            return cache.match(path);
+          },
+          put: (path: string, response: Response) => cache.put(path, response),
+        };
+      },
+    };
+    const online = server({ [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56) });
+    const signOut = new AbortController();
+    const keeping = catalog({ caches: slowCaches, fetch: online.fetch, stop: signOut.signal }).keep([onePiece56], []);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    signOut.abort();
+    release();
+
+    expect(await keeping).toBe(false);
+    expect(online.asked).toEqual([]);
+  });
+
   test('writes nothing when the reader signed out in another tab', async () => {
     const { caches, storage } = memoryCaches();
     const online = server({ [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56) });

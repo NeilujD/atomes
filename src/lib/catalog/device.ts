@@ -53,7 +53,8 @@ type CacheCalls = Pick<Cache, 'match' | 'put'>;
 
 export function deviceCatalog({
   caches = globalThis.caches,
-  fetch = (path) => globalThis.fetch(path),
+  // Sign-out cancels a request still on its way.
+  fetch = (path) => globalThis.fetch(path, { signal: signOut.signal }),
   stop = signOut.signal,
   signedIn = savedAccount,
 }: {
@@ -77,6 +78,7 @@ export function deviceCatalog({
   }
 
   async function ask(cache: CacheCalls, path: string): Promise<boolean> {
+    if (stopped()) return false;
     try {
       const response = await fetch(path);
       if (stopped()) return false;
