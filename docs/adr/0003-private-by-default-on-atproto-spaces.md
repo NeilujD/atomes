@@ -18,3 +18,7 @@ The Library is Private by default; the reader chooses what to share, by category
 ## Amendment 2026-11-09: Spaces deferred
 
 Private records go to a Space only after Spaces is generally released (trigger in ADR 0012). Until then they are stored by the Atomes instance. Private by default, sharing by category and Shared records as public PDS records are unchanged. The alpha work (`src/lib/space/`, spikes 0001 and 0002) stays as the reference for the move.
+
+## Amendment 2026-11-13: no Space
+
+Private records stay on the Atomes instance with no end date, and the alpha Space store is deleted (ADR 0016). Private by default, sharing by category and Shared records as public PDS records are unchanged. Sharing needs an Account with a linked AT Protocol Account.

@@ -1,6 +1,6 @@
 # Private records live on the Atomes instance until atproto Spaces is released
 
-Status: accepted (2026-11-09). Amends ADR 0001; defers ADR 0003.
+Status: accepted (2026-11-09). Amends ADR 0001; defers ADR 0003. Amended by ADR 0016 (2026-11-13).
 
 Real use must not wait for atproto Spaces, which is still alpha and may break or wipe data (ADR 0003). Until Spaces is generally released, the reader's **Private** records are stored by the Atomes instance that the reader signs in to, in its own SQLite file. **Shared** records stay ordinary public records on the reader's PDS, as ADR 0003 says. Both use the same lexicons and record keys (ADR 0010), so a record does not change shape when it moves between the instance, the PDS and, later, a Space.
 
@@ -35,3 +35,7 @@ Trigger: Spaces is generally released on the PDSes readers use, and the PDS can 
 - Encrypt records on the instance so that it cannot read them: rejected, for the reason ADR 0003 rejected encryption: sharing keys across the reader's devices is hard.
 - One table per record type: rejected. Each lexicon change would need a DB migration, the move to Spaces would need mapping code, and the server needs no queries inside records.
 - Keep old row versions as history: rejected, see Consequences.
+
+## Amendment 2026-11-13: the instance is the permanent store
+
+ADR 0016 drops "Moving to Spaces": there is no trigger any more, and the records stay in `library.sqlite`. The owner key of the store becomes the Account ID instead of the reader DID, and the file gets versioned migration steps. The store, the sync and the promise above are unchanged. History is still modelled as records, because the export must hold it.

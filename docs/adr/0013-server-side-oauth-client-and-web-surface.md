@@ -1,6 +1,6 @@
 # The server signs readers in as an OAuth confidential client
 
-Status: accepted (2026-11-09). Supersedes ADR 0009.
+Status: accepted (2026-11-09). Supersedes ADR 0009. Amended by ADR 0016 (2026-11-13).
 
 ADR 0009 kept tokens out of the server because the server held no Library data. Since ADR 0012 the instance stores Private records, so that reason is gone, and the server must know which reader calls it. The server is now an AT Protocol OAuth **confidential client** (backend-for-frontend) with `@atproto/oauth-client-node`, the library's recommended design. It holds each reader's OAuth session and gives the browser its own session cookie. The browser calls only the Atomes server: the server stores Private records (ADR 0012) and writes Shared records to the reader's PDS for them.
 
@@ -33,3 +33,12 @@ This ADR said the device copy works while signed out. The code never did: when t
 - **Every screen of the app needs a signed-in reader.** A visitor with no session goes to a sign-in screen. Only the sign-in screen, the OAuth routes and `/health` answer without a session.
 - **Offline is unchanged.** On a device where the reader signed in before, the device copy and the write queue work offline, as ADR 0002 says.
 - Rejected: a signed-out mode with a Library kept only on the device. The instance lets only allow-listed DIDs sign in, so that mode would serve no reader. It would also need a device store with no DID and a merge at the first sign-in.
+
+## Amendment 2026-11-13: Accounts and Invites
+
+ADR 0016 changes two points of this ADR, when milestone "M9 · Accounts" is built:
+
+- **Who may sign in**: the DID allow-list goes. A new Account needs an Invite (`SIGN_UP=invite`), and later sign-up can open to anyone (`SIGN_UP=open`).
+- **The session**: the browser session belongs to an Account, not to a DID. It opens after an email Sign-in Code or after the OAuth flow of this ADR, which becomes the second sign-in method.
+
+The confidential client, the cookie, the CSRF check, the security headers and the scopes are unchanged. Sign-in is still required on every screen.
