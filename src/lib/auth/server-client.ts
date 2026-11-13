@@ -9,10 +9,14 @@ import { indexedDbLocalCopy } from '../space/local-copy';
 import { instanceFetch, openInstanceStore } from '../space/instance-store';
 import type { Space } from '../space/space';
 import { deviceData } from './device-data';
+import { accountKey } from './gate-boot';
 import { signInPath } from './return-to';
 import { gate, signOut, type Account, type AuthClient } from './session';
 
-const accountKey = 'atomes-account';
+// The session check gives up after this: with no saved account, the gate then
+// opens the sign-in screen, which says it needs the network. The screen stays
+// hidden until then (gate-boot.ts).
+const sessionTimeoutMs = 5_000;
 
 export interface ServerClientDeps {
   fetch: (input: string, init?: RequestInit) => Promise<Response>;
@@ -30,9 +34,13 @@ export function serverAuthClient(deps: ServerClientDeps): AuthClient {
   return {
     async init() {
       let response: Response;
+      const timeout = AbortSignal.timeout(sessionTimeoutMs);
       try {
-        response = await deps.fetch('/api/session', { cache: 'no-store', credentials: 'same-origin' });
-      } catch (error) {
+        response = await deps.fetch('/api/session', { cache: 'no-store', credentials: 'same-origin', signal: timeout });
+      } catch (caught) {
+        // A server that does not answer is out of reach, as with no network.
+        // Read the signal, not the error: WebKit rejects with AbortError, not TimeoutError.
+        const error = timeout.aborted ? new TypeError('No answer from /api/session', { cause: caught }) : caught;
         if (!isNetworkFailure(error)) throw error;
         // Offline: the device copy and the write queue still work (ADR 0013).
         const account = saved();
@@ -98,10 +106,12 @@ export function checkedAccount(): Promise<Account | undefined> {
 }
 
 // The gate of every app screen: a visitor with no session goes to the sign-in
-// screen, which sends them back here after the sign-in.
+// screen, which sends them back here after the sign-in. A screen that stays
+// shows if gateBootScript hid it.
 export async function gateScreen(): Promise<void> {
   const href = await gate({ init: checkedAccount }, location.pathname + location.search + location.hash);
   if (href) location.replace(href);
+  else delete document.documentElement.dataset.gate;
 }
 
 // Signs the reader out of this device and the server (Settings, sidebar), then
