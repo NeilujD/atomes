@@ -6,10 +6,11 @@
 // - the OAuth metadata that older versions of the service worker kept: it names
 //   the reader's PDS.
 // The app shell stays: its pages are kept by path, with no query (public/sw.js).
+import { catalogCacheName, stopKeeping } from '../catalog/device';
 import type { LocalCopy } from '../space/local-copy';
 
-// CATALOG_CACHE in public/sw.js, and the OAuth cache of older versions.
-export const catalogCacheName = 'atomes-catalog';
+export { catalogCacheName };
+// The OAuth cache of older versions.
 export const oauthCacheName = 'atomes-oauth';
 
 // `caches` is undefined outside a secure origin. Every part is cleared even
@@ -20,6 +21,8 @@ export function deviceData(
 ): { clear(): Promise<void> } {
   return {
     async clear() {
+      // A keep still running must not write the Catalog cache back.
+      stopKeeping();
       const results = await Promise.allSettled([
         localCopy.clear(),
         cacheStorage?.delete(catalogCacheName),

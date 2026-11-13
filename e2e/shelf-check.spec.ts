@@ -11,14 +11,24 @@ async function check(page: Page, isbn: string) {
   await page.getByRole('button', { name: 'Look up' }).click();
 }
 
-test('Shelf Check offline: owned, missing and unknown books, and no ISBN leaves the device', async ({ page, context, signIn }) => {
+test('Shelf Check offline: owned, missing and unknown books, and no ISBN leaves the device', async ({ page, context, browser, baseURL, signIn }) => {
   await signIn();
-  await quickAdd(page, spyFamily16);
-  // The reader owns every Volume but 3, and follows the Series.
-  await expect(page.getByRole('heading', { name: /Which Volumes of Spy x Family/i })).toBeVisible();
-  await page.getByRole('button', { name: /^Volume 3, owned/ }).click();
-  await page.getByRole('button', { name: 'Save series' }).click();
-  await expect(page).toHaveURL(/\/book/);
+  // The reader owns every Volume but 3, and follows the Series: set up on
+  // another device (browser context). Playwright's WebKit keeps Cache Storage
+  // in an ephemeral store that drops, some time after a navigation, what the
+  // pages before wrote: on one device, the Catalog data the Book page kept
+  // could take with it what Check a book keeps next (e2e/kept.spec.ts).
+  const other = await browser.newContext({ baseURL });
+  await other.addCookies(await context.cookies());
+  const origin = new URL(baseURL!).origin;
+  await other.route((url) => url.origin !== origin, (route) => route.abort('blockedbyclient'));
+  const setUp = await other.newPage();
+  await quickAdd(setUp, spyFamily16);
+  await expect(setUp.getByRole('heading', { name: /Which Volumes of Spy x Family/i })).toBeVisible();
+  await setUp.getByRole('button', { name: /^Volume 3, owned/ }).click();
+  await setUp.getByRole('button', { name: 'Save series' }).click();
+  await expect(setUp).toHaveURL(/\/book/);
+  await other.close();
 
   const line = (await (await page.request.get(`/api/catalog/editions/${spyFamily16}/volumes`)).json()) as { volumes: { isbn: string; volume: number }[] };
   const volume = (n: number) => line.volumes.find((each) => each.volume === n)!.isbn;

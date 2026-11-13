@@ -59,6 +59,9 @@ function server(answers: Record<string, unknown>) {
 
 const offline = () => Promise.reject(new TypeError('Failed to fetch'));
 
+// A device where the reader is signed in, unless the test says otherwise.
+const catalog = (deps: Parameters<typeof deviceCatalog>[0]) => deviceCatalog({ signedIn: () => true, stop: new AbortController().signal, ...deps });
+
 describe('the Catalog data this device keeps', () => {
   test('keeps the Editions and the Edition Lines it is given, and reads them with no network', async () => {
     const { caches, storage } = memoryCaches();
@@ -66,9 +69,9 @@ describe('the Catalog data this device keeps', () => {
       [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56),
       [`/api/catalog/editions/${onePiece56}/volumes`]: { series: null, volumes: [edition(onePiece56, 56), edition(onePiece112, 112)] },
     });
-    await deviceCatalog({ caches: storage, fetch: online.fetch }).keep([onePiece56], [onePiece56]);
+    await catalog({ caches: storage, fetch: online.fetch }).keep([onePiece56], [onePiece56]);
 
-    const device = deviceCatalog({ caches: storage, fetch: offline });
+    const device = catalog({ caches: storage, fetch: offline });
 
     expect((await device.edition(onePiece56))?.work.id).toBe('wd:Q56');
     expect((await device.line(onePiece56))?.map(({ volume }) => volume)).toEqual([56, 112]);
@@ -76,7 +79,7 @@ describe('the Catalog data this device keeps', () => {
   });
 
   test('nothing kept: no Edition and no Edition Line, never a guess', async () => {
-    const device = deviceCatalog({ caches: memoryCaches().storage, fetch: offline });
+    const device = catalog({ caches: memoryCaches().storage, fetch: offline });
 
     expect(await device.edition(unknown)).toBeUndefined();
     expect(await device.line(unknown)).toBeUndefined();
@@ -85,7 +88,7 @@ describe('the Catalog data this device keeps', () => {
   test('asks the Atomes server only for ISBNs, with a plain GET: no Library record goes with them', async () => {
     const online = server({ [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56) });
 
-    await deviceCatalog({ caches: memoryCaches().storage, fetch: online.fetch }).keep([onePiece56, unknown], [onePiece56]);
+    await catalog({ caches: memoryCaches().storage, fetch: online.fetch }).keep([onePiece56, unknown], [onePiece56]);
 
     expect(online.asked.sort((a, b) => a.path.localeCompare(b.path))).toEqual([
       { path: `/api/catalog/editions/${onePiece56}`, init: undefined },
@@ -94,26 +97,78 @@ describe('the Catalog data this device keeps', () => {
     ]);
   });
 
-  test('an Edition already kept is not asked again; an Edition Line is, as it grows', async () => {
+  test('asks only what is not kept yet: an Edition, and an Edition Line', async () => {
     const { storage } = memoryCaches();
     const answers = {
       [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56),
       [`/api/catalog/editions/${onePiece56}/volumes`]: { series: null, volumes: [edition(onePiece56, 56)] },
     };
-    await deviceCatalog({ caches: storage, fetch: server(answers).fetch }).keep([onePiece56], [onePiece56]);
+    await catalog({ caches: storage, fetch: server(answers).fetch }).keep([onePiece56], [onePiece56]);
     const again = server(answers);
 
-    await deviceCatalog({ caches: storage, fetch: again.fetch }).keep([onePiece56], [onePiece56]);
+    expect(await catalog({ caches: storage, fetch: again.fetch }).keep([onePiece56], [onePiece56, onePiece112])).toBe(true);
+
+    expect(again.asked.map(({ path }) => path)).toEqual([`/api/catalog/editions/${onePiece112}/volumes`]);
+  });
+
+  test('refreshLines asks every Edition Line again, as it grows; never a kept Edition', async () => {
+    const { storage } = memoryCaches();
+    const answers = {
+      [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56),
+      [`/api/catalog/editions/${onePiece56}/volumes`]: { series: null, volumes: [edition(onePiece56, 56)] },
+    };
+    await catalog({ caches: storage, fetch: server(answers).fetch }).keep([onePiece56], [onePiece56]);
+    const again = server({ ...answers, [`/api/catalog/editions/${onePiece56}/volumes`]: { series: null, volumes: [edition(onePiece56, 56), edition(onePiece112, 112)] } });
+
+    await catalog({ caches: storage, fetch: again.fetch }).keep([onePiece56], [onePiece56], { refreshLines: true });
 
     expect(again.asked.map(({ path }) => path)).toEqual([`/api/catalog/editions/${onePiece56}/volumes`]);
+    expect((await catalog({ caches: storage, fetch: offline }).line(onePiece56))?.length).toBe(2);
+  });
+
+  test('an unreadable kept answer counts as not kept', async () => {
+    const { storage } = memoryCaches();
+    const cache = await storage.open(catalogCacheName);
+    await cache.put(`/api/catalog/editions/${onePiece56}`, new Response('{not json'));
+    await cache.put(`/api/catalog/editions/${onePiece56}/volumes`, new Response('{not json'));
+    await cache.put(`/api/catalog/editions/${onePiece112}/volumes`, Response.json({ volumes: 'none' }));
+    const device = catalog({ caches: storage, fetch: offline });
+
+    expect(await device.edition(onePiece56)).toBeUndefined();
+    expect(await device.line(onePiece56)).toBeUndefined();
+    expect(await device.line(onePiece112)).toBeUndefined();
+  });
+
+  test('writes nothing once sign-out clears the device, even for an answer already on its way', async () => {
+    const { caches, storage } = memoryCaches();
+    let answer: (response: Response) => void = () => undefined;
+    const slow = () => new Promise<Response>((resolve) => (answer = resolve));
+    const signOut = new AbortController();
+    const keeping = catalog({ caches: storage, fetch: slow, stop: signOut.signal }).keep([onePiece56], []);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    signOut.abort();
+    answer(Response.json(edition(onePiece56, 56)));
+
+    expect(await keeping).toBe(false);
+    expect(caches.get(catalogCacheName)?.size ?? 0).toBe(0);
+  });
+
+  test('writes nothing when the reader signed out in another tab', async () => {
+    const { caches, storage } = memoryCaches();
+    const online = server({ [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56) });
+
+    await catalog({ caches: storage, fetch: online.fetch, signedIn: () => false }).keep([onePiece56], []);
+
+    expect(caches.get(catalogCacheName)?.size ?? 0).toBe(0);
   });
 
   test('says whether everything was asked: false when the network failed, and keeps what it has', async () => {
     const { storage } = memoryCaches();
-    const first = deviceCatalog({ caches: storage, fetch: server({ [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56) }).fetch });
+    const first = catalog({ caches: storage, fetch: server({ [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56) }).fetch });
     expect(await first.keep([onePiece56, unknown], [])).toBe(true);
 
-    const device = deviceCatalog({ caches: storage, fetch: offline });
+    const device = catalog({ caches: storage, fetch: offline });
 
     expect(await device.keep([onePiece112], [onePiece56])).toBe(false);
     expect((await device.edition(onePiece56))?.volume).toBe(56);
@@ -125,13 +180,13 @@ describe('the Catalog data this device keeps', () => {
     delete old.volumes;
     await (await storage.open(catalogCacheName)).put(`/api/catalog/editions/${onePiece56}`, Response.json(old));
 
-    expect((await deviceCatalog({ caches: storage, fetch: offline }).edition(onePiece56))?.volumes).toEqual([56]);
+    expect((await catalog({ caches: storage, fetch: offline }).edition(onePiece56))?.volumes).toEqual([56]);
   });
 
   test('knows the covers this device has seen, to show none it would have to ask for', async () => {
     const { storage } = memoryCaches();
     await (await storage.open(catalogCacheName)).put(`/api/catalog/editions/${onePiece56}/cover`, new Response('jpeg'));
-    const device = deviceCatalog({ caches: storage, fetch: offline });
+    const device = catalog({ caches: storage, fetch: offline });
 
     expect(await device.hasCover(onePiece56)).toBe(true);
     expect(await device.hasCover(onePiece112)).toBe(false);
@@ -139,7 +194,7 @@ describe('the Catalog data this device keeps', () => {
 
   test('with no Cache Storage (not a secure origin), it keeps nothing and knows nothing', async () => {
     const online = server({});
-    const device = deviceCatalog({ caches: undefined, fetch: online.fetch });
+    const device = catalog({ caches: undefined, fetch: online.fetch });
 
     expect(await device.keep([onePiece56], [onePiece56])).toBe(false);
     expect(await device.edition(onePiece56)).toBeUndefined();

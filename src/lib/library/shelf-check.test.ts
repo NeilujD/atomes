@@ -230,6 +230,14 @@ describe('deviceShelfCheck: the answer with no network, from this device only', 
     ]);
   });
 
+  test('the Volume in a kept Edition Line wins over an older kept answer for its ISBN (no Series then)', async () => {
+    const older = { ...line[2], series: null };
+    const answer = await deviceShelfCheck(line[2].isbn, library({ copies: [copy(line[0]), copy(line[3])], follows: [follow()] }), device([older], { [line[0].isbn]: line }));
+
+    expect(answer.check.kind).toBe('missing');
+    expect(answer.edition).toEqual(line[2]);
+  });
+
   test('a Volume after the latest one owned: not in the Library, and names the Followed Series', async () => {
     const answer = await deviceShelfCheck(line[5].isbn, library({ copies: [copy(line[0]), copy(line[3])], follows: [follow()] }), kept);
 

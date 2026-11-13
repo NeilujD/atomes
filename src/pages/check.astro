@@ -175,6 +175,7 @@ const answers = [
   import { followOnRead, noOnboarding } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses } from '../lib/library/reading-status';
   import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
+  import { latestOnly } from '../lib/latest';
   import { lockWhileSaving } from '../lib/save-lock';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
   import { toast } from '../lib/toast';
@@ -203,6 +204,8 @@ const answers = [
   const own = openOwnSpace();
   // The Catalog data this device keeps for Shelf Check offline.
   const device = deviceCatalog({});
+  // Lookups can answer out of order (offline ones too): only the latest shows.
+  const startLookUp = latestOnly();
   // The book on the form: a Catalog Edition, or an ISBN the Catalog does not
   // know, which the reader types (its Work is then `isbn:<isbn>`, ADR 0010).
   interface Book {
@@ -234,6 +237,7 @@ const answers = [
   }
 
   async function lookUp() {
+    const current = startLookUp();
     const read = readIsbn(isbnInput.value);
     addForm.hidden = true;
     book = undefined;
@@ -252,9 +256,11 @@ const answers = [
       busy(lookUpButton, false);
       skeleton.hidden = true;
     }
+    // Another ISBN was looked up meanwhile: its answer is the one to show.
+    if (!current()) return;
     if ('offline' in asked) {
       reportNetwork(false);
-      return lookUpOnDevice(isbn);
+      return lookUpOnDevice(isbn, current);
     }
     if ('unavailable' in asked) return problem(t('add.sources-down'));
     reportNetwork(true);
@@ -263,7 +269,7 @@ const answers = [
   }
 
   // The Shelf Check with no network, from this device only (shelf-check.ts).
-  async function lookUpOnDevice(isbn: string) {
+  async function lookUpOnDevice(isbn: string, current: () => boolean) {
     const space = await openSpaceOrSay();
     if (!space) return;
     let onDevice: Library;
@@ -271,11 +277,13 @@ const answers = [
       onDevice = (await loadLibrary(space)).library;
     } catch {
       // No copy of the Library on this device: nothing to answer from.
-      return problem(t('check.no-library'));
+      if (current()) problem(t('check.no-library'));
+      return;
     }
     const { check, edition } = await deviceShelfCheck(isbn, onDevice, device);
+    if (!current()) return;
     const given = { check, library: onDevice };
-    if (edition) return show(edition, given);
+    if (edition) return show(edition, given, current);
     // No Catalog data for this ISBN here: the answer only, with what the reader typed on a Copy, if any.
     const title = onDevice.copies.find(({ value }) => value.isbn === isbn && value.details)?.value.details?.title ?? t('book.isbn', isbn);
     showCover(addForm.querySelector<HTMLElement>('[data-cover]')!, { src: null, title, series: null, volumeTitle: null, volume: '' });
@@ -290,9 +298,10 @@ const answers = [
     addForm.querySelector('[data-edition]')!.textContent = edition;
   }
 
-  async function show(found: Edition, onDevice?: OnDevice) {
+  async function show(found: Edition, onDevice?: OnDevice, current = () => true) {
     // Offline, only a cover this device has: asking for another would send the ISBN.
     const cover = !onDevice || (await device.hasCover(found.isbn));
+    if (!current()) return;
     showCover(addForm.querySelector<HTMLElement>('[data-cover]')!, {
       src: cover ? coverUrl(found) : null,
       title: found.title,
@@ -590,16 +599,19 @@ const answers = [
   lockWhileSaving(addForm, document.querySelector<HTMLElement>('.quick-add')!, add);
 
   // Online, keeps on this device the Catalog data Shelf Check needs offline
-  // (keptOnDevice): only ISBNs go to the Atomes server, never the Library.
+  // (keptOnDevice), and asks the Edition Lines again: they grow. Every screen
+  // that reads the Library keeps what is not kept yet (loadLibrary). Only
+  // ISBNs go to the Atomes server, never the Library.
   async function keepForOffline() {
     if (!navigator.onLine) return;
     const space = await openSpaceOrSay();
     if (!space) return;
     try {
-      const loaded = await loadLibrary(space);
+      // This keep, not the one every Library read starts.
+      const loaded = await loadLibrary(space, () => undefined);
       if (loaded.stale) return;
       const { isbns, anchors } = keptOnDevice(loaded.library);
-      kept.hidden = !(await device.keep(isbns, anchors));
+      kept.hidden = !(await device.keep(isbns, anchors, { refreshLines: true }));
     } catch {
       // Offline after all: the device keeps what it had.
     }

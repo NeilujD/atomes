@@ -2,7 +2,7 @@
 // missing it from a Followed Series. Pure, so the online answer of Check a
 // book and the offline one (CORE-37) are the same rule.
 import type { Edition, Lookup, Series } from '../catalog/catalog';
-import type { DeviceCatalog } from '../catalog/device';
+import { deviceCatalog, type DeviceCatalog, type KeptCatalog } from '../catalog/device';
 import { isNetworkFailure } from '../network';
 import { editionWork, isSeries } from './ids';
 import { currentStatus, isOwned, type Library } from './model';
@@ -53,17 +53,18 @@ export function shelfCheck(isbn: string, edition: Checked | undefined, library: 
 
 // The Shelf Check with no network: from the Library on this device and the
 // Catalog data it keeps (keptOnDevice), never asking anything. The Edition is
-// the kept answer for the ISBN, else its Volume in a kept Edition Line of a
-// Followed Series. When the device lacks what the answer needs, it is
-// `unknown`: a book it does not know, or a Volume of a Followed Series whose
-// Edition Line it does not have (it could be missing).
+// its Volume in a kept Edition Line of a Followed Series, else the kept answer
+// for the ISBN: an Edition is kept once, a line is asked again as it grows, so
+// the line's copy is the newer one. When the device lacks what the answer
+// needs, it is `unknown`: a book it does not know, or a Volume of a Followed
+// Series whose Edition Line it does not have (it could be missing).
 export async function deviceShelfCheck(
   isbn: string,
   library: Library,
   device: DeviceCatalog,
 ): Promise<{ check: ShelfCheck; edition: Edition | undefined }> {
   const lines = new Map(await Promise.all(followedAnchors(library).map(async (anchor) => [anchor, await device.line(anchor)] as const)));
-  const edition = (await device.edition(isbn)) ?? [...lines.values()].flatMap((each) => each ?? []).find((each) => each.isbn === isbn);
+  const edition = [...lines.values()].flatMap((each) => each ?? []).find((each) => each.isbn === isbn) ?? (await device.edition(isbn));
   if (!edition) {
     // A record of exactly this ISBN still tells: owned or read.
     const work =
@@ -84,6 +85,31 @@ export async function deviceShelfCheck(
 export function keptOnDevice(library: Library): { isbns: string[]; anchors: string[] } {
   const isbns = [...library.copies, ...library.readingStatuses].map(({ value }) => value.isbn);
   return { isbns: [...new Set(isbns)], anchors: followedAnchors(library) };
+}
+
+// Keeps on this device what Shelf Check needs offline, from every screen that
+// reads the Library (loadLibrary), so a book added or a Series followed
+// anywhere is kept before the reader goes to a shop. Only what is not kept
+// yet is asked (Check a book also asks the Edition Lines again). A call while
+// a keep runs waits for it, then keeps the latest Library.
+let latest: Library | undefined;
+let running: Promise<void> | undefined;
+let shared: KeptCatalog | undefined;
+
+export function keepOnDevice(library: Library, catalog: KeptCatalog = (shared ??= deviceCatalog({}))): Promise<void> {
+  latest = library;
+  return (running ??= (async () => {
+    try {
+      let next: Library | undefined;
+      while ((next = latest)) {
+        latest = undefined;
+        const { isbns, anchors } = keptOnDevice(next);
+        await catalog.keep(isbns, anchors).catch(() => false);
+      }
+    } finally {
+      running = undefined;
+    }
+  })());
 }
 
 // Check a book asks the Catalog only while the browser is online. Offline, or
