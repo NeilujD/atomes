@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
+import { deviceCatalog } from '../catalog/device';
 import { memoryLocalCopy } from '../space/local-copy.fake';
 import { catalogCacheName, deviceData, oauthCacheName } from './device-data';
 
@@ -41,5 +42,22 @@ describe('data this device keeps for the reader', () => {
     expect(worker).toContain(`const CATALOG_CACHE = '${catalogCacheName}';`);
     // The OAuth cache of older versions is only cleared now.
     expect(worker).not.toContain(oauthCacheName);
+  });
+
+  test('clearing it stops a keep of Shelf Check data still running on the page: the Catalog cache does not come back', async () => {
+    const puts: string[] = [];
+    const caches = {
+      delete: () => Promise.resolve(true),
+      open: () => Promise.resolve({ match: () => Promise.resolve(undefined), put: (path: string) => (puts.push(path), Promise.resolve()) }),
+    };
+    let answer: (response: Response) => void = () => undefined;
+    const keeping = deviceCatalog({ caches, signedIn: () => true, fetch: () => new Promise((resolve) => (answer = resolve)) }).keep(['9782723478991'], []);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await deviceData(memoryLocalCopy(), caches).clear();
+    answer(Response.json({ isbn: '9782723478991' }));
+
+    expect(await keeping).toBe(false);
+    expect(puts).toEqual([]);
   });
 });

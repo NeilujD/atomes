@@ -32,6 +32,9 @@ const SHELL = [
 // Book page still shows a book looked up before. Book data only, never Library
 // data, but it tells which books were looked up: sign-out deletes this cache
 // (src/lib/auth/device-data.ts). Its own cache, so a new worker keeps it.
+// Check a book also keeps there, under the same paths, the Editions of the
+// Library and the Edition Lines of the Followed Series for Shelf Check offline
+// (src/lib/catalog/device.ts).
 // Nothing else under /api/ or /oauth/ is cached: the Library and the session
 // stay on the device only in the local copy (src/lib/space/local-copy.ts).
 const CATALOG_CACHE = 'atomes-catalog';

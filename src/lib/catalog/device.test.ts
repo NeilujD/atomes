@@ -1,0 +1,232 @@
+import { describe, expect, test } from 'vitest';
+import { catalogCacheName } from '../auth/device-data';
+import type { Edition } from './catalog';
+import { deviceCatalog } from './device';
+
+const onePiece56 = '9782723478991';
+const onePiece112 = '9782344068922';
+const unknown = '9791099999993';
+
+const edition = (isbn: string, volume: number): Edition => ({
+  isbn,
+  title: 'One Piece',
+  volumeTitle: null,
+  authors: ['Eiichiro Oda'],
+  publisher: 'Glénat',
+  language: 'fre',
+  format: null,
+  cover: null,
+  work: { id: `wd:Q${volume}`, title: `One Piece ${volume}` },
+  series: { id: 'wd:Q673', title: 'One Piece', sameAs: [] },
+  volumes: [volume],
+  volume,
+  sources: ['BnF'],
+  fetchedAt: '2026-11-13T10:00:00.000Z',
+});
+
+// The Cache Storage calls the device Catalog uses, in memory.
+function memoryCaches() {
+  const caches = new Map<string, Map<string, Response>>();
+  return {
+    caches,
+    storage: {
+      open: (name: string) => {
+        const cache = caches.get(name) ?? new Map<string, Response>();
+        caches.set(name, cache);
+        return Promise.resolve({
+          match: (path: string) => Promise.resolve(cache.get(path)?.clone()),
+          put: (path: string, response: Response) => {
+            cache.set(path, response);
+            return Promise.resolve();
+          },
+        });
+      },
+    },
+  };
+}
+
+// The Atomes server: the Catalog answers of these paths; any other path is 404.
+function server(answers: Record<string, unknown>) {
+  const asked: { path: string; init: unknown }[] = [];
+  return {
+    asked,
+    fetch: (path: string, init?: unknown) => {
+      asked.push({ path, init });
+      return Promise.resolve(path in answers ? Response.json(answers[path]) : new Response('{}', { status: 404 }));
+    },
+  };
+}
+
+const offline = () => Promise.reject(new TypeError('Failed to fetch'));
+
+// A device where the reader is signed in, unless the test says otherwise.
+const catalog = (deps: Parameters<typeof deviceCatalog>[0]) => deviceCatalog({ signedIn: () => true, stop: new AbortController().signal, ...deps });
+
+describe('the Catalog data this device keeps', () => {
+  test('keeps the Editions and the Edition Lines it is given, and reads them with no network', async () => {
+    const { caches, storage } = memoryCaches();
+    const online = server({
+      [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56),
+      [`/api/catalog/editions/${onePiece56}/volumes`]: { series: null, volumes: [edition(onePiece56, 56), edition(onePiece112, 112)] },
+    });
+    await catalog({ caches: storage, fetch: online.fetch }).keep([onePiece56], [onePiece56]);
+
+    const device = catalog({ caches: storage, fetch: offline });
+
+    expect((await device.edition(onePiece56))?.work.id).toBe('wd:Q56');
+    expect((await device.line(onePiece56))?.map(({ volume }) => volume)).toEqual([56, 112]);
+    expect([...caches.keys()]).toEqual([catalogCacheName]);
+  });
+
+  test('nothing kept: no Edition and no Edition Line, never a guess', async () => {
+    const device = catalog({ caches: memoryCaches().storage, fetch: offline });
+
+    expect(await device.edition(unknown)).toBeUndefined();
+    expect(await device.line(unknown)).toBeUndefined();
+  });
+
+  test('asks the Atomes server only for ISBNs, with a plain GET: no Library record goes with them', async () => {
+    const online = server({ [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56) });
+
+    await catalog({ caches: memoryCaches().storage, fetch: online.fetch }).keep([onePiece56, unknown], [onePiece56]);
+
+    expect(online.asked.sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { path: `/api/catalog/editions/${onePiece56}`, init: undefined },
+      { path: `/api/catalog/editions/${onePiece56}/volumes`, init: undefined },
+      { path: `/api/catalog/editions/${unknown}`, init: undefined },
+    ]);
+  });
+
+  test('asks only what is not kept yet: an Edition, and an Edition Line', async () => {
+    const { storage } = memoryCaches();
+    const answers = {
+      [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56),
+      [`/api/catalog/editions/${onePiece56}/volumes`]: { series: null, volumes: [edition(onePiece56, 56)] },
+    };
+    await catalog({ caches: storage, fetch: server(answers).fetch }).keep([onePiece56], [onePiece56]);
+    const again = server(answers);
+
+    expect(await catalog({ caches: storage, fetch: again.fetch }).keep([onePiece56], [onePiece56, onePiece112])).toBe(true);
+
+    expect(again.asked.map(({ path }) => path)).toEqual([`/api/catalog/editions/${onePiece112}/volumes`]);
+  });
+
+  test('refreshLines asks every Edition Line again, as it grows; never a kept Edition', async () => {
+    const { storage } = memoryCaches();
+    const answers = {
+      [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56),
+      [`/api/catalog/editions/${onePiece56}/volumes`]: { series: null, volumes: [edition(onePiece56, 56)] },
+    };
+    await catalog({ caches: storage, fetch: server(answers).fetch }).keep([onePiece56], [onePiece56]);
+    const again = server({ ...answers, [`/api/catalog/editions/${onePiece56}/volumes`]: { series: null, volumes: [edition(onePiece56, 56), edition(onePiece112, 112)] } });
+
+    await catalog({ caches: storage, fetch: again.fetch }).keep([onePiece56], [onePiece56], { refreshLines: true });
+
+    expect(again.asked.map(({ path }) => path)).toEqual([`/api/catalog/editions/${onePiece56}/volumes`]);
+    expect((await catalog({ caches: storage, fetch: offline }).line(onePiece56))?.length).toBe(2);
+  });
+
+  test('an unreadable kept answer counts as not kept', async () => {
+    const { storage } = memoryCaches();
+    const cache = await storage.open(catalogCacheName);
+    await cache.put(`/api/catalog/editions/${onePiece56}`, new Response('{not json'));
+    await cache.put(`/api/catalog/editions/${onePiece56}/volumes`, new Response('{not json'));
+    await cache.put(`/api/catalog/editions/${onePiece112}/volumes`, Response.json({ volumes: 'none' }));
+    const device = catalog({ caches: storage, fetch: offline });
+
+    expect(await device.edition(onePiece56)).toBeUndefined();
+    expect(await device.line(onePiece56)).toBeUndefined();
+    expect(await device.line(onePiece112)).toBeUndefined();
+  });
+
+  test('writes nothing once sign-out clears the device, even for an answer already on its way', async () => {
+    const { caches, storage } = memoryCaches();
+    let answer: (response: Response) => void = () => undefined;
+    const slow = () => new Promise<Response>((resolve) => (answer = resolve));
+    const signOut = new AbortController();
+    const keeping = catalog({ caches: storage, fetch: slow, stop: signOut.signal }).keep([onePiece56], []);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    signOut.abort();
+    answer(Response.json(edition(onePiece56, 56)));
+
+    expect(await keeping).toBe(false);
+    expect(caches.get(catalogCacheName)?.size ?? 0).toBe(0);
+  });
+
+  test('asks nothing once sign-out happens while it looks at what is kept', async () => {
+    const { storage } = memoryCaches();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const slowCaches = {
+      async open(name: string) {
+        const cache = await storage.open(name);
+        return {
+          match: async (path: string) => {
+            await gate;
+            return cache.match(path);
+          },
+          put: (path: string, response: Response) => cache.put(path, response),
+        };
+      },
+    };
+    const online = server({ [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56) });
+    const signOut = new AbortController();
+    const keeping = catalog({ caches: slowCaches, fetch: online.fetch, stop: signOut.signal }).keep([onePiece56], []);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    signOut.abort();
+    release();
+
+    expect(await keeping).toBe(false);
+    expect(online.asked).toEqual([]);
+  });
+
+  test('writes nothing when the reader signed out in another tab', async () => {
+    const { caches, storage } = memoryCaches();
+    const online = server({ [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56) });
+
+    await catalog({ caches: storage, fetch: online.fetch, signedIn: () => false }).keep([onePiece56], []);
+
+    expect(caches.get(catalogCacheName)?.size ?? 0).toBe(0);
+  });
+
+  test('says whether everything was asked: false when the network failed, and keeps what it has', async () => {
+    const { storage } = memoryCaches();
+    const first = catalog({ caches: storage, fetch: server({ [`/api/catalog/editions/${onePiece56}`]: edition(onePiece56, 56) }).fetch });
+    expect(await first.keep([onePiece56, unknown], [])).toBe(true);
+
+    const device = catalog({ caches: storage, fetch: offline });
+
+    expect(await device.keep([onePiece112], [onePiece56])).toBe(false);
+    expect((await device.edition(onePiece56))?.volume).toBe(56);
+  });
+
+  test('an answer kept by an older service worker, with no `volumes`, has its one Volume', async () => {
+    const { storage } = memoryCaches();
+    const old: Partial<Edition> = edition(onePiece56, 56);
+    delete old.volumes;
+    await (await storage.open(catalogCacheName)).put(`/api/catalog/editions/${onePiece56}`, Response.json(old));
+
+    expect((await catalog({ caches: storage, fetch: offline }).edition(onePiece56))?.volumes).toEqual([56]);
+  });
+
+  test('knows the covers this device has seen, to show none it would have to ask for', async () => {
+    const { storage } = memoryCaches();
+    await (await storage.open(catalogCacheName)).put(`/api/catalog/editions/${onePiece56}/cover`, new Response('jpeg'));
+    const device = catalog({ caches: storage, fetch: offline });
+
+    expect(await device.hasCover(onePiece56)).toBe(true);
+    expect(await device.hasCover(onePiece112)).toBe(false);
+  });
+
+  test('with no Cache Storage (not a secure origin), it keeps nothing and knows nothing', async () => {
+    const online = server({});
+    const device = catalog({ caches: undefined, fetch: online.fetch });
+
+    expect(await device.keep([onePiece56], [onePiece56])).toBe(false);
+    expect(await device.edition(onePiece56)).toBeUndefined();
+    expect(await device.hasCover(onePiece56)).toBe(false);
+    expect(online.asked).toEqual([]);
+  });
+});
