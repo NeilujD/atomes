@@ -35,7 +35,18 @@ const fail = (status: number, error: string, message: string) => reply(status, {
 
 export async function handleLibraryRequest(
   request: Request,
-  { did, store, rules }: { did: string; store: LibraryStore; rules: RecordRules },
+  {
+    did,
+    store,
+    rules,
+    onWrite,
+  }: {
+    did: string;
+    store: LibraryStore;
+    rules: RecordRules;
+    // A put or a delete was stored (sharing mirrors it to the PDS, sharing.ts).
+    onWrite?: (collection: string, rkey: string) => void;
+  },
 ): Promise<Response> {
   const { pathname, searchParams } = new URL(request.url);
   let parts: string[];
@@ -79,10 +90,10 @@ export async function handleLibraryRequest(
         const reason = error instanceof Error ? `: ${error.message}` : '';
         return fail(400, 'InvalidRecord', `The record does not match the ${collection} lexicon${reason}`);
       }
-      return unlessStale(() => ({ rev: store.put(did, collection, rkey, record, base) }));
+      return unlessStale(() => ({ rev: store.put(did, collection, rkey, record, base) }), () => onWrite?.(collection, rkey));
     }
     case 'DELETE':
-      return unlessStale(() => ({ rev: store.delete(did, collection, rkey, base) }));
+      return unlessStale(() => ({ rev: store.delete(did, collection, rkey, base) }), () => onWrite?.(collection, rkey));
     default:
       return fail(405, 'MethodNotAllowed', 'Use GET, PUT or DELETE');
   }
@@ -96,9 +107,11 @@ function revParam(value: string | null): number | undefined | null {
 
 // Another device changed the record since this write was made: the device
 // takes the server's record (ADR 0012).
-function unlessStale(write: () => { rev: number | undefined }): Response {
+function unlessStale(write: () => { rev: number | undefined }, written: () => void): Response {
   try {
-    return reply(200, write());
+    const answer = write();
+    written();
+    return reply(200, answer);
   } catch (error) {
     if (error instanceof StaleRecordError) return fail(409, 'StaleRecord', error.message);
     throw error;

@@ -1,8 +1,9 @@
 // The Labels section of the Book page, a Preact island (ADR 0014): the Labels
 // this Work carries, the reader's others to add in one tap, a field for a new
-// one, and where every Label is renamed or deleted. Labels are Private: they are saved in the reader's Library store, never
-// in a Shared record. The rules are in src/lib/library/label.ts; this file
-// only renders and saves.
+// one, and where every Label is renamed or deleted. Labels are saved in the
+// reader's Library store, Private unless the reader shares them in Settings
+// (src/islands/Sharing.tsx). The rules are in src/lib/library/label.ts; this
+// file only renders and saves.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import { reportNetwork, reportWaiting } from '../lib/connection';

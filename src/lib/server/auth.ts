@@ -37,6 +37,9 @@ export interface AuthDeps {
   store: AuthStore;
   // PUBLIC_APP_ORIGIN; undefined in local development.
   appOrigin?: string;
+  // After a sign-in: sharing sends what waited for the reader's session
+  // (sharing.ts). Not awaited; a failure is logged and the sign-in goes on.
+  onSignedIn?: (did: string) => Promise<void> | void;
 }
 
 export const sessionCookie = 'atomes_session';
@@ -98,10 +101,13 @@ export async function signIn(request: Request, { oauth }: AuthDeps): Promise<Res
 // GET /oauth/callback: the PDS sends the reader back here. Signed in, the
 // reader lands on the screen asked first. A failure goes back to the sign-in
 // screen, with no return target.
-export async function callback(request: Request, { oauth, store }: AuthDeps): Promise<Response> {
+export async function callback(request: Request, { oauth, store, onSignedIn }: AuthDeps): Promise<Response> {
   try {
     const { did, returnTo } = await oauth.callback(new URL(request.url).searchParams);
     const cookie = store.openBrowserSession({ did, handle: await oauth.handleOf(did) });
+    void Promise.resolve()
+      .then(() => onSignedIn?.(did))
+      .catch((error: unknown) => logFailure('follow-up', error));
     return goTo(returnTarget(returnTo), { 'set-cookie': sessionCookieHeader(cookie, browserSessionLifetimeMs / 1000) });
   } catch (error) {
     logFailure('callback', error);

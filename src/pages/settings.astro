@@ -1,6 +1,7 @@
 ---
 import Icon from '../components/Icon.astro';
 import type { IconName } from '../components/icons';
+import Sharing from '../islands/Sharing';
 import AppShell from '../layouts/AppShell.astro';
 import type { Appearance } from '../lib/appearance';
 import { languageCookie, parseLanguage, requestLanguage, translator, type Language } from '../lib/i18n/i18n';
@@ -34,6 +35,12 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
         <button class="button" type="button" data-sign-out hidden>{t('settings.sign-out')}</button>
       </div>
       <p class="row-error" data-auth-error role="alert" hidden></p>
+    </section>
+
+    <!-- Sharing by category (src/islands/Sharing.tsx). -->
+    <section class="group" aria-labelledby="sharing-title">
+      <h2 class="group-title" id="sharing-title">{t('sharing.title')}</h2>
+      <Sharing client:only="preact" />
     </section>
 
     <section class="group">
@@ -167,26 +174,51 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
     font-size: 18px;
   }
 
-  .row {
+  .settings :global(.row) {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
   }
 
-  .row-label {
+  .settings :global(.row-label) {
     font-size: 14px;
     font-weight: 600;
   }
 
-  .row-hint {
+  .settings :global(.row-hint) {
     color: var(--secondary);
     font-size: 13px;
   }
 
-  .row-error {
+  .settings :global(.row-error) {
     color: var(--ink);
     font-size: 13px;
+  }
+
+  /* The Sharing island renders on the device: its rows reach here with :global. */
+  .group :global(.sharing) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .group :global(.sharing-note) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+    border-radius: var(--radius-control);
+    background: var(--soft);
+  }
+
+  /* On the phone too, a category and its switch share a line. */
+  .group :global(.sharing-row) {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
   }
 
   /* Desktop: list group on a hairline, label left and control right. */
@@ -205,7 +237,7 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
       letter-spacing: 0;
     }
 
-    .row {
+    .settings :global(.row) {
       flex-direction: row;
       align-items: center;
       justify-content: space-between;

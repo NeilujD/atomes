@@ -8,15 +8,20 @@ import {
   NodeOAuthClient,
   OAuthCallbackError,
   OAuthResolverError,
+  TokenInvalidError,
+  TokenRefreshError,
+  TokenRevokedError,
   buildAtprotoLoopbackClientMetadata,
   requestLocalLock,
   type NodeSavedSession,
   type NodeSavedState,
 } from '@atproto/oauth-client-node';
-import { callbackPath, confidentialClientMetadata, oauthScope } from '../auth/client-config';
+import { callbackPath, confidentialClientMetadata, grantsSharing, oauthScope } from '../auth/client-config';
 import { isNetworkFailure } from '../network';
 import { NotAllowedError, type AuthStore } from './auth-store';
 import { SignInError, type OAuthPort } from './auth';
+import { publicRepo } from './public-repo';
+import type { RepoAccess } from './sharing';
 import type { Settings } from './settings';
 
 export async function createOAuthClient(settings: Settings, store: AuthStore): Promise<NodeOAuthClient> {
@@ -93,5 +98,26 @@ export function oauthPort(client: NodeOAuthClient, allowedDids: ReadonlySet<stri
       return did;
     },
     revoke: (did) => client.revoke(did),
+  };
+}
+
+// The reader's public repo, written with their OAuth session (ADR 0013), for
+// sharing (sharing.ts). Undefined when the session cannot share: there is
+// none (a /dev/sign-in-as browser), it ended, or its granted scope lacks the
+// Shared collections. A network failure is thrown: it says nothing about the
+// permission.
+export function repoAccess(client: NodeOAuthClient): RepoAccess {
+  return {
+    async repoOf(did) {
+      try {
+        const session = await client.restore(did);
+        const { scope } = await session.getTokenInfo();
+        if (!grantsSharing(scope)) return undefined;
+        return publicRepo((pathname, init) => session.fetchHandler(pathname, init), did);
+      } catch (error) {
+        if (error instanceof TokenRefreshError || error instanceof TokenRevokedError || error instanceof TokenInvalidError) return undefined;
+        throw error;
+      }
+    },
   };
 }

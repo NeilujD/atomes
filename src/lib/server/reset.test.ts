@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { createLibraryStore } from './library-store';
+import { publicRepo } from './public-repo';
+import { fakePublicRepo } from './public-repo.fake';
 import { emptyDatabases, resetRefusal } from './reset';
+import { createSharing } from './sharing';
 
 describe('emptyDatabases', () => {
   let dir: string;
@@ -44,6 +48,30 @@ describe('emptyDatabases', () => {
     ]);
     expect(state('library.sqlite')).toEqual({ rows: 0, version: 3 });
     expect(state('catalog.sqlite')).toEqual({ rows: 0, version: 3 });
+  });
+
+  test("empties the reader's sharing choices with the Library: Shared categories, Private Works, pending", async () => {
+    const file = join(dir, 'library.sqlite');
+    const did = 'did:plc:owner';
+    const library = createLibraryStore(file);
+    const pds = fakePublicRepo(did);
+    const sharing = createSharing({ file, library, access: { repoOf: () => Promise.resolve(publicRepo(pds.handler, did)) } });
+    await sharing.setShared(did, 'labels', true);
+    pds.network.online = false;
+    await sharing.setPrivate(did, 'wd:Q1', true);
+    const db = new DatabaseSync(file);
+    const counts = () =>
+      ['shared_category', 'private_work', 'sharing_pending'].map(
+        (table) => (db.prepare(`select count(*) as n from ${table}`).get() as { n: number }).n,
+      );
+    expect(counts()).toEqual([1, 1, 1]);
+
+    emptyDatabases(dir, { keepCatalog: true });
+
+    expect(counts()).toEqual([0, 0, 0]);
+    db.close();
+    sharing.close();
+    library.close();
   });
 
   test('--keep-catalog keeps the Catalog; a missing file is skipped', () => {
