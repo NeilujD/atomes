@@ -144,3 +144,15 @@ Decisions of the owner, 2026-11-12:
 Checked against the answers recorded on 2026-11-12: from Volume 1, the 18 cm line has Volumes 1 to 23 and 27 to 42, all Glénat 18 cm (BnF lists no Volume 24 to 26). The 21 cm line gains Volume 21, which BnF files as "Dragon Ball perfect edition". Volume 42, looked up alone ("Dragon Ball."), joins the Series of Volume 1.
 
 Recorded and not solved here: BnF finds no record by ISBN for some 18 cm Volumes that its search lists with that ISBN (9782723434560, 9782723448437).
+
+## Amendment 2026-11-13: one publisher under two names
+
+Naruto (Kana, 18 cm) looked up from Volume 1 (9782871294146) gave Volumes 1 to 22, but the run has 72. BnF and SUDOC name the publisher of Volumes 1 to 22 (2002 to 2006) "Dargaud Bénélux-Kana", and of Volumes 23 to 72 "Kana", all in one BnF Series record (38914962). The fill searched BnF with `bib.publisher all "Dargaud Bénélux-Kana"` and kept only that exact name, and a lookup of a "Kana" Volume made a second Edition Line.
+
+- **One publisher, two names.** Two publisher names are the same publisher when every word of the shorter name is in the longer one ("Kana" and "Dargaud Bénélux-Kana", "Pika" and "Pika édition"). Words of two letters or fewer and "édition(s)" do not count. The fill's publisher check, the placement of a looked-up Edition, and the fill's check before it stores an Edition use this rule. The Edition Line key keeps the name of the first Edition in the line.
+- **The fill searches by each word of a name of several words.** `bib.publisher any "dargaud benelux kana"`: 187 records, 4 pages. A name of one word is searched as before, so the BnF search URLs of every other fill stay the same.
+- **Every Edition Line fills again once** (migration step), so lines cut by a rename get their missing Volumes.
+- Rejected: search BnF by the line's Series record (461 `$0`). The BnF SRU has no index on it (`bib.anywhere all "38914962"` finds the Series record only).
+- Rejected: search by title only, with no publisher. Naruto gives 216 records, One Piece more than the 500 the fill reads.
+
+Checked against the answers recorded on 2026-11-13: from Volume 1, the line has Volumes 1 to 72 but 20. BnF has no record of Volume 20 in this line (only the Hachette jeunesse Volume 20, another publisher), so the onboarding tile 20 says "Not in the Catalog" until the reader scans it. BnF also finds no record by ISBN for Volume 1, which its search lists with that ISBN (as in the amendment above).

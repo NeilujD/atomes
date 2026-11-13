@@ -5,9 +5,9 @@
 import { DatabaseSync } from 'node:sqlite';
 import { editionWork, seriesIdRank } from '../library/ids';
 import { key, seriesKey, type Facts, type SourceName } from './facts';
-import { bookHeight, lineHeight, lineKey, linePrefix, placeLine, sameSize } from './lines';
+import { bookHeight, lineHeight, linePrefix, placeLine, publisherWords, samePrefix, samePublisher, sameSize } from './lines';
 import { inTransaction, migrate } from './migrations';
-import type { SourceFetch } from './sources';
+import type { Publisher, SourceFetch } from './sources';
 import { bnfSearch, fetchFacts, inventaireEditions, isCoverUrl, type Listed } from './sources';
 
 // `id` is the best identifier the Catalog knows (ADR 0010 order); `sameAs`
@@ -237,16 +237,11 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     );
     db.prepare('delete from series_title where series = ?').run(drop.n);
     db.prepare('update series set bnf_id = ? where n = ? and bnf_id is null').run(drop.bnf_id, keep.n);
-    // Its Editions move to the kept Series' Edition Lines; their old fills are forgotten.
-    const editions = db.prepare('select isbn, publisher, language, edition_line from edition where series = ?').all(drop.n) as {
-      isbn: string;
-      publisher: string | null;
-      language: string | null;
-      edition_line: string;
-    }[];
+    // Its Edition Lines move to the kept Series; their old fills are forgotten.
+    const editions = db.prepare('select isbn, edition_line from edition where series = ?').all(drop.n) as { isbn: string; edition_line: string }[];
     for (const each of editions) {
       db.prepare('delete from line_fill where edition_line = ?').run(each.edition_line);
-      const line = lineKey(linePrefix(keep.n, each), lineHeight(each.edition_line));
+      const line = `${keep.n}${each.edition_line.slice(each.edition_line.indexOf('|'))}`;
       db.prepare('update edition set series = ?, edition_line = ? where isbn = ?').run(keep.n, line, each.isbn);
     }
     db.prepare('delete from series where n = ?').run(drop.n);
@@ -269,17 +264,18 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     (db.prepare('select edition_line from edition where isbn = ?').get(isbn) as { edition_line: string | null } | undefined)?.edition_line ?? null;
 
   // An Edition stays in its line while its Series and size fit it; else it
-  // joins the line of its size (lines.ts).
+  // joins the line of its size (lines.ts), under either name of its publisher.
   function lineOf(edition: Edition): string | null {
     const prefix = prefixOf(edition);
     if (!prefix) return null;
     const height = bookHeight(edition.format);
     const current = lineAt(edition.isbn);
-    if (current?.startsWith(`${prefix}|`) && sameSize(height, lineHeight(current))) return current;
+    if (current && samePrefix(current, prefix) && sameSize(height, lineHeight(current))) return current;
+    const series = prefix.slice(0, prefix.indexOf('|') + 1);
     const lines = db
       .prepare('select edition_line as line, count(*) as editions from edition where substr(edition_line, 1, ?) = ? group by edition_line')
-      .all(prefix.length + 1, `${prefix}|`) as { line: string; editions: number }[];
-    return placeLine(prefix, height, lines);
+      .all(series.length, series) as { line: string; editions: number }[];
+    return placeLine(prefix, height, lines.filter(({ line }) => samePrefix(line, prefix)));
   }
 
   // One Edition from the facts of every source, best source first. Sources
@@ -369,8 +365,9 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   // Adds the Volumes BnF lists for the Edition Line of `anchor` (CORE-31). A
   // BnF search by Series title and publisher also finds other books (One Piece
   // Color Walk, magazines, quiz books): an Edition counts when it has a Volume
-  // number, the Series title, the publisher, the language and the book size of
-  // the line (ADR 0010, amendment 2026-11-12). The BnF Series record of the
+  // number, the Series title, the publisher (under either name, amendment
+  // 2026-11-13), the language and the book size of the line (ADR 0010,
+  // amendment 2026-11-12). The BnF Series record of the
   // line counts only when the anchor or the Edition is an omnibus: One Piece's
   // single Volumes name four records. One Edition per Volume or omnibus range
   // ("1-2" next to Volumes 1 and 2): one the Catalog has already, else one in
@@ -399,7 +396,9 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const known = (db.prepare(`${selectEdition} where edition.edition_line = ?`).all(line) as EditionRow[]).map(toEdition);
     let listed: Listed[];
     try {
-      listed = await bnfSearchEverySpelling(options.fetch, anchor.series.title, anchor.publisher);
+      // A name of several words may be a joint imprint whose later Volumes name one of them.
+      const words = publisherWords(anchor.publisher);
+      listed = await bnfSearchEverySpelling(options.fetch, anchor.series.title, words.length > 1 ? words : anchor.publisher);
     } catch (error) {
       return fail(error);
     }
@@ -408,7 +407,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       ({ facts }) =>
         facts.volumes?.length &&
         seriesKey(facts.series?.title ?? '') === seriesKey(anchor.series.title) &&
-        key(facts.publisher ?? '') === key(anchor.publisher ?? '') &&
+        samePublisher(facts.publisher ?? '', anchor.publisher ?? '') &&
         facts.language === anchor.language &&
         sameSize(bookHeight(facts.format), height),
     );
@@ -445,7 +444,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       const edition = merge(isbn, [facts, ...(fromInventaire.get(isbn) ? [fromInventaire.get(isbn)!] : [])]);
       // The Series this Catalog gives it must be the line's; the size was checked above.
       const prefix = edition && prefixOf(edition);
-      if (edition && prefix && line.startsWith(`${prefix}|`)) store(edition, line);
+      if (edition && prefix && samePrefix(line, prefix)) store(edition, line);
     }
     db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(line, now().toISOString());
     failedAt.delete(line);
@@ -607,7 +606,7 @@ const isReader = (edition: Pick<Edition, 'sources'>) => edition.sources.includes
 // 18 cm Volumes. Each title of the first answer that differs from `title` only
 // by spaces is searched once more, with no further round (CORE-70). An ISBN
 // both answers list is harmless: the fill keeps one Edition per Volume.
-async function bnfSearchEverySpelling(fetch: SourceFetch, title: string, publisher: string): Promise<Listed[]> {
+async function bnfSearchEverySpelling(fetch: SourceFetch, title: string, publisher: Publisher): Promise<Listed[]> {
   const first = await bnfSearch(fetch, title, publisher);
   const spellings = new Map<string, string>();
   for (const each of first.titles)
