@@ -66,6 +66,8 @@ export const en = {
   'auth.no-account': 'No account found for this handle. Check the spelling.',
   'auth.pds-unreachable': 'Could not reach your PDS. Try again later.',
   'auth.failed': 'Sign-in failed. Try again.',
+  // Shown while an app screen waits for the session check (AppShell)
+  'gate.waiting': 'Checking your sign-in…',
   // Sign-in screen (src/pages/sign-in.astro)
   'auth.needs-network': 'Signing in needs the network. Connect this device, then try again.',
   'signin.title': 'Sign in',

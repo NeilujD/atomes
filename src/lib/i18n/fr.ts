@@ -65,6 +65,8 @@ export const fr: typeof en = {
   'auth.no-account': 'Aucun compte trouvé pour cet identifiant. Vérifiez l’orthographe.',
   'auth.pds-unreachable': 'Impossible de joindre votre PDS. Réessayez plus tard.',
   'auth.failed': 'La connexion a échoué. Réessayez.',
+  // Shown while an app screen waits for the session check (AppShell)
+  'gate.waiting': 'Vérification de la connexion…',
   // Sign-in screen (src/pages/sign-in.astro)
   'auth.needs-network': 'La connexion a besoin du réseau. Connectez cet appareil, puis réessayez.',
   'signin.title': 'Connexion',

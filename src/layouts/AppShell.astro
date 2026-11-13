@@ -11,6 +11,7 @@ import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import type { IconName } from '../components/icons';
 import { bootScript } from '../lib/appearance';
+import { gateBootScript } from '../lib/auth/gate-boot';
 import { appIcons } from '../lib/environment';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 import { appEnvironment } from '../lib/server/settings';
@@ -33,9 +34,12 @@ const { title, current, detail = false, flow = false } = Astro.props;
 // <html lang> tells the page scripts which language to use (src/lib/i18n).
 const language = requestLanguage(Astro.request);
 const t = translator(language);
+// Before first paint: the forced theme, and on every screen but the sign-in
+// screen, the screen hidden until the gate answers (src/lib/auth/gate-boot.ts).
+const boot = flow ? bootScript : bootScript + gateBootScript;
 // Astro hashes its own scripts, not `is:inline` ones: the CSP (ADR 0013) must
 // allow the boot script by its hash. No CSP in `astro dev`, so no `Astro.csp`.
-Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(bootScript).digest('base64')}`);
+Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(boot).digest('base64')}`);
 
 // New & upcoming stays out until its screen exists (CORE-68): no link to a missing page.
 const sidebarItems: { key: Section; href: string; label: string; icon: IconName }[] = [
@@ -63,7 +67,7 @@ const icons = appIcons(appEnvironment(process.env));
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" data-theme="light" media="(prefers-color-scheme: light)" content="#f6f6f3" />
     <meta name="theme-color" data-theme="dark" media="(prefers-color-scheme: dark)" content="#121317" />
-    <script is:inline set:html={bootScript} />
+    <script is:inline set:html={boot} />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href={icons.favicon} />
     <link rel="icon" type="image/png" sizes="32x32" href={icons.favicon32} />
@@ -72,6 +76,14 @@ const icons = appIcons(appEnvironment(process.env));
     <title>{title} · Atomes</title>
   </head>
   <body>
+    {
+      !flow && (
+        <div class="gate-wait" data-state="working" role="status">
+          <Mark size={48} animated />
+          <span class="visually-hidden">{t('gate.waiting')}</span>
+        </div>
+      )
+    }
     <div class="app">
       {
         flow ? (
@@ -236,6 +248,32 @@ const icons = appIcons(appEnvironment(process.env));
 </script>
 
 <style>
+  /* Hidden until the gate answers (src/lib/auth/gate-boot.ts): a signed-out
+     visitor goes to the sign-in screen without seeing this one. */
+  :global(:root[data-gate='pending']) .app {
+    visibility: hidden;
+  }
+
+  /* The mark working in its place. It fades in only after 500 ms, so a fast
+     answer never flickers. */
+  .gate-wait {
+    display: none;
+  }
+
+  :global(:root[data-gate='pending']) .gate-wait {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    animation: gate-wait-in 200ms ease-out 500ms both;
+  }
+
+  @keyframes gate-wait-in {
+    from {
+      opacity: 0;
+    }
+  }
+
   /* Flow (sign-in): no chrome; the content in the middle of the window. */
   .flow {
     grid-column: 1 / -1;
