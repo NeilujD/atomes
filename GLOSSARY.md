@@ -114,9 +114,31 @@ _Avoid_: Hidden, secret
 _French_: Privé
 
 **Shared**:
-Deliberately made visible to anyone. The reader shares by category (for example Reading Statuses) and can keep individual Works Private inside a Shared category. Copies, Loans and To Buy are never Shared.
+Deliberately made visible to anyone. The reader shares by category (for example Reading Statuses) and can keep individual Works Private inside a Shared category. Copies, Loans and To Buy are never Shared. Sharing needs a linked AT Protocol Account.
 _Avoid_: Public, published
 _French_: Partagé
+
+## Account
+
+**Account**:
+What a reader signs in to on an Atomes instance. It holds the reader's Library, and the reader reaches it with an email address, a linked AT Protocol Account, or both.
+_Avoid_: User, profile, member
+_French_: Compte
+
+**Sign-in Code**:
+A short number sent to the reader's email address, which proves that the address is theirs. It works once and for a few minutes.
+_Avoid_: Password, OTP, verification code, magic link
+_French_: Code de connexion
+
+**AT Protocol Account**:
+An account on the AT Protocol network (for example a Bluesky account) that a reader may link to their Account. It is a second way to sign in, and it is where Shared records are published.
+_Avoid_: PDS, DID, handle (in text shown to the reader)
+_French_: Compte AT Protocol
+
+**Invite**:
+A link, made by the owner of an Atomes instance, that lets one person create an Account. It works once.
+_Avoid_: Allow-list, access code, referral
+_French_: Invitation
 
 ## Capture
 
