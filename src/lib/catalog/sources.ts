@@ -14,7 +14,7 @@ export const sourceUrls = {
   bnf: (isbn: string) =>
     `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(`bib.isbn adj "${isbn}"`)}&recordSchema=unimarcxchange&maximumRecords=10`,
   // The Editions BnF lists under a title and a publisher, 50 at a time.
-  bnfSearch: (title: string, publisher: string | undefined, start: number) =>
+  bnfSearch: (title: string, publisher: Publisher, start: number) =>
     `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(bnfTitleQuery(title, publisher))}&recordSchema=unimarcxchange&maximumRecords=50&startRecord=${start}`,
   sudocPpns: (isbn: string) => `https://www.sudoc.fr/services/isbn2ppn/${isbn}&format=text/json`,
   sudocRecord: (ppn: string) => `https://www.sudoc.fr/${ppn}.xml`,
@@ -56,10 +56,14 @@ export interface Listed {
   year: number | undefined;
 }
 
+// A publisher name, or a list of words: an Edition under any of them.
+export type Publisher = string | string[] | undefined;
+
 // A title, or a publisher, with a double quote would end the CQL string early.
-function bnfTitleQuery(title: string, publisher: string | undefined): string {
+function bnfTitleQuery(title: string, publisher: Publisher): string {
   const clean = (text: string) => text.replace(/["\\]/g, ' ').trim();
   const byTitle = `bib.title all "${clean(title)}"`;
+  if (Array.isArray(publisher)) return `${byTitle} and bib.publisher any "${clean(publisher.join(' '))}"`;
   return publisher ? `${byTitle} and bib.publisher all "${clean(publisher)}"` : byTitle;
 }
 
@@ -71,7 +75,7 @@ function bnfTitleQuery(title: string, publisher: string | undefined): string {
 export async function bnfSearch(
   fetch: SourceFetch,
   title: string,
-  publisher: string | undefined,
+  publisher: Publisher,
   max = 500,
 ): Promise<{ listed: Listed[]; titles: string[] }> {
   const listed: Listed[] = [];

@@ -16,9 +16,29 @@ export function bookHeight(format: string | null | undefined): number | undefine
 // An Edition with no size stays in the line, and a line with no size takes any Edition.
 export const sameSize = (a: number | undefined, b: number | undefined) => a === undefined || b === undefined || Math.abs(a - b) < lineGapCm;
 
+// The words that name a publisher: "Pika édition" is "pika"; short words and "édition(s)" name none.
+export const publisherWords = (publisher: string) => key(publisher).split(' ').filter((word) => word.length > 2 && !/^editions?$/.test(word));
+
+// One publisher under two names when every word of the shorter name is in the
+// longer one (ADR 0010, amendment 2026-11-13): Kana published Naruto 1 to 22
+// as "Dargaud Bénélux-Kana", then as "Kana".
+export function samePublisher(a: string, b: string): boolean {
+  const [shorter, longer] = [publisherWords(a), publisherWords(b)].sort((x, y) => x.length - y.length);
+  return shorter.length > 0 ? shorter.every((word) => longer.includes(word)) : key(a) === key(b);
+}
+
 // `<Series n>|<publisher>|<language>`: the part of the key every size of the line shares.
 export const linePrefix = (n: number, edition: { publisher: string | null; language: string | null }) =>
   [String(n), edition.publisher, edition.language].map((v) => key(v ?? '')).join('|');
+
+// A line key, or a prefix, fits a prefix when the Series and language are the
+// same and the publisher is the same under either name. The key keeps the name
+// of the first Edition in the line.
+export function samePrefix(line: string, prefix: string): boolean {
+  const [n, publisher, language] = line.split('|');
+  const [otherN, otherPublisher, otherLanguage] = prefix.split('|');
+  return n === otherN && language === otherLanguage && samePublisher(publisher, otherPublisher);
+}
 
 // The key ends with the line's book size: the size of the first Edition in it, empty when unknown.
 export const lineKey = (prefix: string, height: number | undefined) => `${prefix}|${height ?? ''}`;

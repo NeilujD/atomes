@@ -164,8 +164,13 @@ const titleKeysWithoutSpaces: Step = (db) => {
   `);
 };
 
+// One publisher under two names is one Edition Line (ADR 0010 amendment
+// 2026-11-13): every Edition Line fills again, with the BnF search by each word
+// of a joint publisher name ("Dargaud Bénélux-Kana", then "Kana").
+const forgetFills: Step = (db) => db.exec('delete from line_fill');
+
 // Add a step at the end; never edit or remove one.
-const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes, titleKeysWithoutSpaces];
+const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes, titleKeysWithoutSpaces, forgetFills];
 
 export function migrate(db: DatabaseSync): void {
   const { user_version: done } = db.prepare('pragma user_version').get() as { user_version: number };
