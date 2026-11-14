@@ -107,6 +107,20 @@ bun scripts/record-catalog-answers.ts 9782505009566
 | `bnf-search-fe6c8f77dbc7-*.xml` (4 pages) | BnF search `bib.title all "Naruto" and bib.publisher any "dargaud benelux kana"`: 187 records. Volumes 1 to 22 as "Dargaud Bénélux-Kana", 23 to 72 as "Kana" (no Volume 20), the 22 cm Hokage edition, Boruto, Konoha shinden, novels |
 | `inventaire-batch-02b8557b771b.json`, `inventaire-batch-4644dffc1872.json` | Inventaire, the Works of the listed Volumes |
 
+Dragon Ball, Glénat, 18 cm, 1993 edition (BnF Series record 34338439), for one Work per Volume number (ADR 0010 amendment 2026-11-14, CORE-92), recorded on 2026-11-14:
+
+```sh
+bun scripts/record-catalog-answers.ts --fill 9782876952065
+bun scripts/record-catalog-answers.ts 9782876952058 9782876952072 9782876952188 9782876952201 9782876952218
+```
+
+| ISBN or file | Answer |
+|---|---|
+| 9782876952058 | Dragon Ball 1, 1993: Inventaire Work `inv:31cee958a93ba50697a3fec2a32fc0c0` ("Sangoku"), its own |
+| 9782876952065, 9782876952072 | Dragon Ball 2 (1993) and 3 (1996): Inventaire gives both the Work `inv:91e782c2fc0f67739836a22c452f3623` ("Dragon Ball, tome 2") |
+| 9782876952188, 9782876952201, 9782876952218 | Dragon Ball 8 (1994), 10 and 11 (1996): the same Work again |
+| `inventaire-batch-58b945484109.json` | Inventaire, the Volumes of the 1993 line the fill adds: the same Work for 4, 12 to 15, 20 to 23, 27 and 36. The `bnf-search-6dc7a6c70f8e-*.xml` pages are the "Dragon Ball" search above, recorded again with no change |
+
 `catalog-v0.sqlite` is not a source answer: it is a Catalog file made on 2026-11-11 by the Catalog of `main` before `same_as` (commit a3f8d6c), from the recorded answers: One Piece 112, then 56, then the Spy x Family Edition Line with a fill. The migration tests open a copy of it. Never make it again: it stands for the files that real instances hold.
 
 Review the diff before committing: answers change when the sources fix their data.

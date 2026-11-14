@@ -7,6 +7,7 @@ import { editionWork, seriesIdRank } from '../library/ids';
 import { key, seriesKey, type Facts, type SourceName } from './facts';
 import { bookHeight, lineHeight, linePrefix, placeLine, publisherWords, samePrefix, samePublisher, sameSize } from './lines';
 import { inTransaction, migrate } from './migrations';
+import { dropSharedWorks, losesWork } from './shared-works';
 import type { Publisher, SourceFetch } from './sources';
 import { bnfSearch, fetchFacts, inventaireEditions, isCoverUrl, type Listed } from './sources';
 
@@ -244,7 +245,11 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       const line = `${keep.n}${each.edition_line.slice(each.edition_line.indexOf('|'))}`;
       db.prepare('update edition set series = ?, edition_line = ? where isbn = ?').run(keep.n, line, each.isbn);
     }
+    db.prepare('insert or ignore into dropped_work (work_id, series) select work_id, ? from dropped_work where series = ?').run(keep.n, drop.n);
+    db.prepare('delete from dropped_work where series = ?').run(drop.n);
     db.prepare('delete from series where n = ?').run(drop.n);
+    // Two Volumes of the two Series may share a Work.
+    dropSharedWorks(db, keep.n);
     return keep.n;
   }
 
@@ -313,7 +318,8 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     return edition;
   }
 
-  function store(edition: Edition, line = lineOf(edition)): void {
+  // Gives the Edition as stored: its Work may be dropped (shared-works.ts).
+  function store(edition: Edition, line = lineOf(edition)): Edition {
     const series = edition.series && byIdentifier(edition.series.id);
     db.prepare(
       `insert or replace into edition (isbn, title, volume_title, authors, publisher, language, format, cover, work_id,
@@ -337,6 +343,14 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       edition.fetchedAt,
     );
     db.prepare('delete from miss where isbn = ?').run(edition.isbn);
+    if (series) dropSharedWorks(db, series.n);
+    return toEdition(editionRow(edition.isbn)!);
+  }
+
+  // The Work of an Edition that is not stored, with the rule of `store`.
+  function ownWork(edition: Edition): Edition {
+    const series = edition.series && byIdentifier(edition.series.id);
+    return series && losesWork(db, series.n, edition) ? { ...edition, work: { id: editionWork(edition.isbn), title: edition.title } } : edition;
   }
 
   // A reader's choice (CORE-40) stands for an ISBN the sources still miss: they
@@ -358,8 +372,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       return row ? { found: toEdition(row) } : { notFound: true };
     }
     // An answer missing a source is not stored: the next lookup asks again.
-    if (!failed) store(edition);
-    return { found: edition };
+    return { found: failed ? ownWork(edition) : store(edition) };
   }
 
   // Adds the Volumes BnF lists for the Edition Line of `anchor` (CORE-31). A

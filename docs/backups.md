@@ -104,6 +104,10 @@ After a real loss, restore into the app's own volume instead:
 3. Run steps 3 and 4 with `-v "$VOLUME":/data` instead of `-v atomes-restore:/data`.
 4. **Start** the app. The server opens the restored files and makes new `-wal` and `-shm` files.
 
+## Before a one-off repair
+
+A script that rewrites reader records, like `scripts/repair-shared-works.ts` (`docs/staging-coolify.md`, "Repair records on shared Works"), runs only after a fresh backup: run `node dist/backup.mjs backup` in the app Terminal and check that it prints `backup <stamp>: library.sqlite, catalog.sqlite`. If the repair goes wrong, restore that stamp into the app's own volume (above).
+
 ## Restore log
 
 A restore into a fresh volume is done once before the first real record (ADR 0011). After each test, add a line here.

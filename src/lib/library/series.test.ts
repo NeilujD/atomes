@@ -95,6 +95,26 @@ describe('Where the reader stands in a Series', () => {
     expect(standing).toMatchObject({ owned: 0, read: 0, missing: [], next: 1 });
   });
 
+  test('one Work per Volume number (ADR 0010, amendment 2026-11-14): a Copy and a Reading Status of Volume 2 change Volume 2 only', () => {
+    // The Catalog dropped the Work a source gave Volumes 2 to 6: each has its own `isbn:` Work.
+    const dropped = 'inv:91e782c2fc0f67739836a22c452f3623';
+    const line = lineA.map((each) => (each.volume === 1 ? each : { ...each, work: { id: `isbn:${each.isbn}`, title: each.title } }));
+    // A Copy saved before the repair still names the dropped Work: it owns its own Edition only.
+    const oldCopy: Saved<Copy> = { rkey: 'copy-old', value: { isbn: line[1].isbn, works: [dropped], createdAt: '2026-11-06T11:00:00.000Z' } };
+
+    const standing = seriesStanding(line, library({ copies: [oldCopy], readingStatuses: [status(line[1], 'read')] }));
+
+    expect(standing.spines.map(({ volume: n, state }) => `${n} ${state}`)).toEqual([
+      '1 not-owned',
+      '2 read',
+      '3 not-owned',
+      '4 not-owned',
+      '5 not-owned',
+      '6 not-owned',
+    ]);
+    expect(standing).toMatchObject({ owned: 1, read: 1 });
+  });
+
   test('every Volume owned: no next Volume', () => {
     expect(seriesStanding(lineA, library({ copies: owns(lineA, 1, 2, 3, 4, 5, 6) })).next).toBeNull();
   });

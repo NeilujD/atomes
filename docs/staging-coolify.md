@@ -208,6 +208,32 @@ To reset: open the staging app, **Scheduled Tasks**, **Reset the data**, then **
 
 The command refuses production without `--production`, and refuses an image with no `APP_ENV`: such an instance may be production with a missing setting.
 
+## Repair records on shared Works (once, CORE-93)
+
+Inventaire gave one Work to 19 Volumes of Dragon Ball, so one Copy owned them all and one Reading Status changed them all (ADR 0010, amendment 2026-11-14). The server now drops such a Work: when it starts, the Catalog step does it for the Editions it holds. Reader records saved before still name the dropped Work. `scripts/repair-shared-works.ts` repairs them once:
+
+- A Reading Status moves to the Work of the Edition read (`isbn:<isbn>`): the new record is put, the old one deleted. If a newer Reading Status is already there, it stays.
+- A Copy's dropped Work becomes the Work of the Copy's Edition.
+- A Label that names a dropped Work is **listed, not changed**: change it by hand in the app.
+- A Work kept Private that was dropped is listed too. Each Reading Status moved from it stays Private on its new Work.
+
+Devices get the changes at their next sync. A reader with a Shared category is marked pending: the public repo follows at their next record change, Settings visit or sign-in, and the old Reading Status is deleted there.
+
+1. Deploy the version with the rule, and wait for the health check: the Catalog step runs when the server starts.
+2. Take a backup first: `node dist/backup.mjs backup` (`docs/backups.md`).
+3. In the app, open **Terminal**, pick the app container, and run:
+
+   ```sh
+   node scripts/repair-shared-works.ts --dry-run   # prints what it would do, writes nothing
+   node scripts/repair-shared-works.ts             # writes
+   ```
+
+4. Read the output: for each reader (DID), the counts per record type, then each Label and Private Work listed. Fix the listed Labels in the app.
+
+Run it when nobody is using the app: it writes `library.sqlite` beside the running server. It is safe to run again: a second run changes nothing and lists the same Labels.
+
+Devices keep Catalog answers offline (`src/lib/catalog/device.ts`): Shelf Check offline may show the old Work until the device keeps fresh answers, which it does online.
+
 ## Rules and pitfalls
 
 - If production shows the grey Staging pill, the orange icon or the name "Atomes Staging", its `APP_ENV` is not `production` in the container. In the **production** app, **Environment Variables**, set `APP_ENV` = `production` with **Available in the container** on, then **Restart**. The start log says which instance it is: `Atomes settings are fine: production, …`.
