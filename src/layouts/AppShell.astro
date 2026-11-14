@@ -210,6 +210,7 @@ const icons = appIcons(appEnvironment(process.env));
       <template data-toast-template>
         <div class="toast" data-toast>
           <p class="toast-text" data-toast-text></p>
+          <button class="toast-action" type="button" data-toast-action hidden></button>
           <button class="toast-close" type="button" aria-label={t('common.close')} data-toast-close>
             <Icon name="x" />
           </button>
@@ -640,6 +641,26 @@ const icons = appIcons(appEnvironment(process.env));
   .toast-text :global(a) {
     color: var(--accent);
     font-weight: 600;
+  }
+
+  /* Undo and the like: a text button, the one action of the toast. */
+  .toast-action {
+    flex: none;
+    align-self: center;
+    min-height: var(--row);
+    margin: -6px 0;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .toast-action:hover {
+    background: var(--soft);
   }
 
   .toast-close {

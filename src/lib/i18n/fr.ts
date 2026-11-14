@@ -20,6 +20,7 @@ export const fr: typeof en = {
   'nav.private': 'Privé par défaut',
   'nav.back': 'Retour',
   'common.close': 'Fermer',
+  'common.undo': 'Annuler',
   'connection.offline': 'Hors ligne',
   'connection.reconnect': 'Reconnecter',
   'connection.waiting': (count) => `${count} ${count > 1 ? 'enregistrements' : 'enregistrement'} en attente`,
@@ -246,10 +247,16 @@ export const fr: typeof en = {
   'onboarding.heading-series': (series) => `Quels tomes de ${series} avez-vous ?`,
   'onboarding.intro': (series, volumes) =>
     `${series}, ${volumes.length > 1 ? `tomes ${volumes[0]} à ${volumes.at(-1)}, sont` : `tome ${volumes[0]}, est`} dans votre bibliothèque. Réglez la plage, puis touchez un tome pour combler un trou.`,
+  'onboarding.ask': (upTo) => (upTo === 1 ? 'Avez-vous le tome 1 ?' : `Avez-vous les tomes 1 à ${upTo} ?`),
+  'onboarding.ask-yes': 'Oui',
+  'onboarding.ask-some': 'Certains',
+  'onboarding.ask-no': 'Non',
   'onboarding.own-up-to': 'J’ai les tomes 1 à',
+  'onboarding.own-none': 'Aucun tome possédé',
   'onboarding.all': 'Tous',
   'onboarding.up-to': (last) => `Jusqu’au ${last}`,
   'onboarding.read-up-to': 'J’ai lu jusqu’au',
+  'onboarding.read-none': 'Aucun tome lu',
   'onboarding.same-as-owned': 'Comme possédés',
   'onboarding.one-less': 'Un de moins',
   'onboarding.one-more': 'Un de plus',
@@ -260,22 +267,27 @@ export const fr: typeof en = {
   'onboarding.legend-owned': 'Possédé, non lu',
   'onboarding.legend-missing': 'Manquant',
   'onboarding.legend-read-not-owned': 'Lu, non possédé',
+  'onboarding.legend-kept': 'Dans la bibliothèque',
+  'onboarding.locked': (volume) =>
+    `Le tome ${volume} est déjà dans votre bibliothèque : il reste possédé ici. Pour retirer son exemplaire, ouvrez sa fiche.`,
+  'onboarding.locked-read': (volume) => `Le tome ${volume} est déjà lu : il reste lu ici. Pour changer cela, ouvrez sa fiche.`,
+  'onboarding.range': (first, last) => `Tomes ${first} à ${last}`,
+  'onboarding.range-count': (owned, read) => `${owned} possédé${owned > 1 ? 's' : ''} · ${read} lu${read > 1 ? 's' : ''}`,
   'onboarding.unknown': (count) =>
     count > 1
-      ? `${count} tomes ne sont pas encore dans le catalogue (hachurés) : pas d’exemplaire pour eux. Touchez-en un pour le scanner.`
-      : `${count} tome n’est pas encore dans le catalogue (hachuré) : pas d’exemplaire pour lui. Touchez-le pour le scanner.`,
+      ? `${count} tomes ne sont pas encore dans le catalogue (hachurés) : pas d’exemplaire pour eux.`
+      : `${count} tome n’est pas encore dans le catalogue (hachuré) : pas d’exemplaire pour lui.`,
   'onboarding.follow': 'Me prévenir quand un nouveau tome sort',
   'onboarding.in-edition': (line) => `Dans cette édition :${line}`,
   'onboarding.in-added-edition': 'Dans l’édition que vous venez d’ajouter',
   'onboarding.skip': 'Passer',
-  'onboarding.save': 'Enregistrer la série',
+  'onboarding.save': 'Enregistrer',
   'onboarding.saved': 'Enregistré.',
-  'onboarding.added': (count) =>
-    count > 1 ? `${count} tomes de plus sont dans votre bibliothèque.` : `${count} tome de plus est dans votre bibliothèque.`,
+  'onboarding.added': (count) => (count > 1 ? `${count} exemplaires ajoutés.` : `${count} exemplaire ajouté.`),
   'onboarding.volumes-failed':
     'Impossible d’obtenir les tomes de cette série. Votre livre est enregistré ; réessayez plus tard depuis l’ajout rapide.',
   'onboarding.no-series': 'Le catalogue ne connaît aucune série pour ce livre.',
-  'onboarding.tap-changes': 'Toucher change',
+  'onboarding.tap-changes': 'Toucher marque',
   'onboarding.tap-owned': 'Possédé',
   'onboarding.tap-read': 'Lu',
   'onboarding.tiles-read': 'Tomes : touchez-en un pour dire si vous l’avez lu ou non',
@@ -283,7 +295,6 @@ export const fr: typeof en = {
   'onboarding.legend-unknown': 'Pas dans le catalogue',
   'onboarding.unknown-volume': (volume) =>
     `Le catalogue ne connaît pas encore le tome ${volume} : pas d’exemplaire ici. Enregistrez d’abord la série, puis scannez-le avec l’ajout rapide.`,
-  'onboarding.scan-it': 'Le scanner',
 
   // À acheter (src/islands/ToBuy.tsx)
   'tobuy.title': 'À acheter',

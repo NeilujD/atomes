@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, describe, expect, test } from 'vitest';
 import type { Edition } from '../lib/catalog/catalog';
+import { handOverAddedCopies, takeAddedCopies } from '../lib/library/added-copies';
 import { copyCollection, saveCopy, type Copy } from '../lib/library/copy';
 import { followCollection, saveFollow, type Follow } from '../lib/library/follow';
 import { memorySpace } from '../lib/library/memory-space.fake';
@@ -216,5 +217,35 @@ describe('Volume sheet', () => {
     expect(sheet().getByText('Volume 4', { selector: 'p' })).toBeTruthy();
     fireEvent.click(dialog);
     expect(dialog.open).toBe(false);
+  });
+});
+
+describe('Series page after Series Onboarding', () => {
+  test('a toast says how many Copies were added, and Undo removes exactly those, once', async () => {
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div data-toasts></div>
+      <template data-toast-template>
+        <div data-toast><p data-toast-text></p><button type="button" data-toast-action hidden></button><button type="button" data-toast-close></button></div>
+      </template>`,
+    );
+    const { space, stored } = memorySpace();
+    const copy = (n: number): Copy => ({ isbn: lineA[n - 1].isbn, works: [lineA[n - 1].work.id], createdAt: '2026-11-14T11:00:00.000Z' });
+    // Quick Add saved Volume 3; Series Onboarding added Volumes 1 and 2.
+    const quickAdd = await saveCopy(space, copy(3));
+    const added = [await saveCopy(space, copy(1)), await saveCopy(space, copy(2))];
+    handOverAddedCopies(sessionStorage, { rkeys: added.map(({ rkey }) => rkey), text: '2 Copies added.' });
+    const sources: Sources = {
+      open: () => Promise.resolve(space),
+      volumes: () => Promise.resolve(lineA),
+      editions: () => Promise.resolve(new Map()),
+    };
+    render(<Series isbn={lineA[2].isbn} sources={sources} />);
+
+    expect(await screen.findByText('2 Copies added.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+    await waitFor(() => expect(stored(copyCollection).map(({ rkey }) => rkey)).toEqual([quickAdd.rkey]));
+    expect(takeAddedCopies(sessionStorage)).toBeUndefined();
   });
 });

@@ -44,9 +44,10 @@ test('Shelf Check offline: owned, missing and unknown books, and no ISBN leaves 
   const setUp = await other.newPage();
   await quickAdd(setUp, spyFamily16);
   await expect(setUp.getByRole('heading', { name: /Which Volumes of Spy x Family/i })).toBeVisible();
+  await setUp.getByRole('button', { name: 'Yes' }).click();
   await setUp.getByRole('button', { name: /^Volume 3, owned/ }).click();
-  await setUp.getByRole('button', { name: 'Save series' }).click();
-  await expect(setUp).toHaveURL(/\/book/);
+  await setUp.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(setUp).toHaveURL(/\/series/);
   await other.close();
 
   const line = (await (await page.request.get(`/api/catalog/editions/${spyFamily16}/volumes`)).json()) as { volumes: { isbn: string; volume: number }[] };

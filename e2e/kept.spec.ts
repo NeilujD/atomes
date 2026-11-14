@@ -14,11 +14,12 @@ test('A Series followed elsewhere is kept on the device for Shelf Check offline,
   await quickAdd(page, spyFamily16);
   // Followed in Series Onboarding, after the visit of Check a book: every Volume but 3.
   await expect(page.getByRole('heading', { name: /Which Volumes of Spy x Family/i })).toBeVisible();
+  await page.getByRole('button', { name: 'Yes' }).click();
   await page.getByRole('button', { name: /^Volume 3, owned/ }).click();
-  await page.getByRole('button', { name: 'Save series' }).click();
-  await expect(page).toHaveURL(/\/book/);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(/\/series/);
 
-  // The Book page read the Library: its Edition Line is now on the device.
+  // The Series page read the Library: its Edition Line is now on the device.
   await expect
     .poll(() => page.evaluate(async (anchor) => Boolean(await caches.match(`/api/catalog/editions/${anchor}/volumes`)), spyFamily16))
     .toBe(true);

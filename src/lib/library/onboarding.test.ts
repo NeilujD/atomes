@@ -4,9 +4,11 @@ import { copyCollection, type Copy } from './copy';
 import { followCollection, type Follow } from './follow';
 import type { Library } from './model';
 import {
+  answer,
   followOnRead,
   noOnboarding,
   onboardingSave,
+  sameAsOwned,
   seriesOnboarding,
   seriesRecords,
   step,
@@ -15,6 +17,7 @@ import {
   volumeTiles,
   withRange,
   type Choices,
+  type TapMode,
 } from './onboarding';
 import { readingStatusCollection, type ReadingStatus } from './reading-status';
 import { lexicons, type Saved } from './records';
@@ -137,7 +140,7 @@ describe('Series Onboarding choices', () => {
   const choose = (change: Partial<Choices>): Choices => ({ ...onboarding.start, ...change });
 
   test('it starts from the Library: owned up to the added Volume, read as said in Quick Add, follow on', () => {
-    expect(onboarding.start).toEqual({ ownedUpTo: 1, readUpTo: 1, tapped: new Set(), readTapped: new Set(), follow: true });
+    expect(onboarding.start).toEqual({ ownedUpTo: 1, readUpTo: 1, tapped: new Map(), readTapped: new Map(), follow: true });
     expect(onboarding.steps).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
@@ -190,7 +193,7 @@ describe('Series Onboarding choices', () => {
   });
 
   test('"I own 1 to 5", "read up to 3", Volume 4 tapped as a gap: Copies, Reading Statuses and the follow', () => {
-    const choices = choose({ ownedUpTo: 5, readUpTo: 3, tapped: new Set([isbns[3]]) });
+    const choices = choose({ ownedUpTo: 5, readUpTo: 3, tapped: new Map([[isbns[3], false]]) });
 
     expect(volumeTiles(onboarding, afterQuickAdd, choices).map(({ volume, owned, read }) => [volume, owned, read])).toEqual([
       [1, true, true],
@@ -222,22 +225,26 @@ describe('Series Onboarding choices', () => {
   });
 
   test('tapping a Volume out of the range adds it: a lone Volume owned', () => {
-    const tiles = volumeTiles(onboarding, afterQuickAdd, choose({ tapped: new Set([isbns[3]]) }));
+    const tiles = volumeTiles(onboarding, afterQuickAdd, choose({ tapped: new Map([[isbns[3], true]]) }));
 
     expect(tiles.filter(({ owned }) => owned).map(({ volume }) => volume)).toEqual([1, 4]);
   });
 
-  test('read beyond what is owned gives Reading Statuses with no Copy (borrowed)', () => {
-    const saved = onboardingSave(onboarding, afterQuickAdd, choose({ readUpTo: 3 }), now);
+  test('read is capped at owned: a read range past the owned Volumes reads nothing more', () => {
+    expect(onboardingSave(onboarding, afterQuickAdd, choose({ readUpTo: 3 }), now)).toMatchObject({ copies: [], readingStatuses: [] });
+  });
+
+  test('a tap in Read mode marks a Volume read, not owned (borrowed): a Reading Status with no Copy', () => {
+    const saved = onboardingSave(onboarding, afterQuickAdd, tapTile(onboarding, afterQuickAdd, onboarding.start, 'read', isbns[2]), now);
 
     expect(saved.copies).toEqual([]);
-    expect(saved.readingStatuses.map(({ isbn }) => isbn)).toEqual([isbns[1], isbns[2]]);
+    expect(saved.readingStatuses.map(({ isbn }) => isbn)).toEqual([isbns[2]]);
   });
 
   test('onboarding never takes anything away: a Volume with a Copy stays owned, a read Volume stays read', () => {
     const before = library({ copies: [copyOf(1), copyOf(3)], readingStatuses: [readOf(3)] });
     const some = seriesOnboarding(volume(1), volumes, before);
-    const choices = { ...some.start, ownedUpTo: 0, readUpTo: 0, tapped: new Set([isbns[0], isbns[2]]) };
+    const choices = { ...some.start, ownedUpTo: 0, readUpTo: 0, tapped: new Map([[isbns[0], false], [isbns[2], false]]) };
 
     const tiles = volumeTiles(some, before, choices);
     expect(tiles.filter(({ owned }) => owned).map(({ volume }) => volume)).toEqual([1, 3]);
@@ -251,7 +258,7 @@ describe('Series Onboarding choices', () => {
     const some = seriesOnboarding(volume(1), volumes, before);
 
     expect(some.start.readUpTo).toBe(0);
-    expect(onboardingSave(some, before, { ...some.start, readUpTo: 2 }, now).readingStatuses.map(({ isbn }) => isbn)).toEqual([
+    expect(onboardingSave(some, before, { ...some.start, ownedUpTo: 2, readUpTo: 2 }, now).readingStatuses.map(({ isbn }) => isbn)).toEqual([
       isbns[0],
       isbns[1],
     ]);
@@ -316,44 +323,65 @@ describe('Tap changes Owned or Read', () => {
   const tilesOf = (choices: Choices) => volumeTiles(onboarding, afterQuickAdd, choices);
   const readOnes = (choices: Choices) => tilesOf(choices).filter(({ read }) => read).map(({ volume }) => volume);
   const ownedOnes = (choices: Choices) => tilesOf(choices).filter(({ owned }) => owned).map(({ volume }) => volume);
+  const tap = (choices: Choices, mode: TapMode, one: string) => tapTile(onboarding, afterQuickAdd, choices, mode, one);
 
   test('in Read mode a tap toggles read for that one tile, and owned does not change', () => {
-    const once = tapTile(onboarding.start, 'read', isbns[2]);
+    const once = tap(onboarding.start, 'read', isbns[2]);
 
     expect(readOnes(once)).toEqual([3]);
     expect(ownedOnes(once)).toEqual(ownedOnes(onboarding.start));
-    expect(readOnes(tapTile(once, 'read', isbns[2]))).toEqual([]);
+    expect(readOnes(tap(once, 'read', isbns[2]))).toEqual([]);
   });
 
   test('in Owned mode a tap toggles owned only', () => {
-    const once = tapTile(onboarding.start, 'owned', isbns[3]);
+    const once = tap(onboarding.start, 'owned', isbns[3]);
 
     expect(ownedOnes(once)).toEqual([1, 4]);
     expect(readOnes(once)).toEqual([]);
   });
 
   test('read 1 and 3, not 2: Save writes Reading Statuses for 1 and 3 only', () => {
-    const choices = tapTile(withRange(onboarding.start, 'read', 3), 'read', isbns[1]);
+    const choices = tap(withRange(withRange(onboarding.start, 'owned', 3), 'read', 3), 'read', isbns[1]);
 
     expect(readOnes(choices)).toEqual([1, 3]);
     expect(onboardingSave(onboarding, afterQuickAdd, choices, now).readingStatuses.map(({ isbn }) => isbn)).toEqual([isbns[0], isbns[2]]);
   });
 
-  test('changing a range clears the taps of that kind only', () => {
-    const tapped = tapTile(tapTile(onboarding.start, 'owned', isbns[3]), 'read', isbns[4]);
+  test('the stepper keeps the gaps the reader tapped: Volume 3 off stays off when the range moves', () => {
+    const gap = tap(withRange(onboarding.start, 'owned', 5), 'owned', isbns[2]);
+    expect(ownedOnes(gap)).toEqual([1, 2, 4, 5]);
 
-    const owned = withRange(tapped, 'owned', 2);
-    expect(owned).toMatchObject({ ownedUpTo: 2, tapped: new Set(), readTapped: new Set([isbns[4]]) });
+    expect(ownedOnes(withRange(gap, 'owned', 4))).toEqual([1, 2, 4]);
+    expect(ownedOnes(withRange(withRange(gap, 'owned', 1), 'owned', 5))).toEqual([1, 2, 4, 5]);
+  });
 
-    const read = withRange(tapped, 'read', 2);
-    expect(read).toMatchObject({ readUpTo: 2, tapped: new Set([isbns[3]]), readTapped: new Set() });
+  test('a Volume tapped on past the range stays owned when the range moves', () => {
+    const lone = tap(onboarding.start, 'owned', isbns[3]);
+
+    expect(ownedOnes(withRange(lone, 'owned', 2))).toEqual([1, 2, 4]);
+    expect(ownedOnes(withRange(lone, 'owned', 5))).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  test('a second tap undoes the first: the tile follows the range again', () => {
+    const twice = tap(tap(withRange(onboarding.start, 'owned', 5), 'owned', isbns[2]), 'owned', isbns[2]);
+
+    expect(ownedOnes(withRange(twice, 'owned', 2))).toEqual([1, 2]);
+  });
+
+  test('"Same as owned" reads exactly the owned Volumes, gaps too', () => {
+    const owned = tap(tap(withRange(onboarding.start, 'owned', 3), 'owned', isbns[1]), 'owned', isbns[4]);
+
+    const same = sameAsOwned(onboarding, afterQuickAdd, tap(owned, 'read', isbns[3]));
+
+    expect(readOnes(same)).toEqual([1, 3, 5]);
+    expect(readOnes(same)).toEqual(ownedOnes(same));
   });
 
   test('a Volume read already stays read: onboarding never lowers a Reading Status', () => {
     const before = library({ copies: [copyOf(1)], readingStatuses: [readOf(2)] });
     const some = seriesOnboarding(volume(1), volumes, before);
     // Read range none, and a tap on Volume 2 that would make it not read.
-    const choices = tapTile(withRange(some.start, 'read', 0), 'read', isbns[1]);
+    const choices = tapTile(some, before, withRange(some.start, 'read', 0), 'read', isbns[1]);
 
     const tile = volumeTiles(some, before, choices).find(({ volume }) => volume === 2)!;
     expect(tile).toMatchObject({ read: true, keptRead: true });
@@ -407,5 +435,55 @@ describe('A follow saved under an older identifier of the Series (same_as, ADR 0
     const saved = onboardingSave(onboarding, before, { ...onboarding.start, follow: false }, now);
 
     expect(saved.follow).toEqual({ series: minted, anchorIsbn: isbns[0], status: 'dropped', updatedAt: now.toISOString() });
+  });
+});
+
+describe('Series Onboarding from a later Volume', () => {
+  // Quick Add just saved Volume 4: the reader has no other Volume of the Series.
+  const afterQuickAdd = library({ copies: [copyOf(4)] });
+  const onboarding = seriesOnboarding(volume(4), volumes, afterQuickAdd);
+  const ownedOnes = (choices: Choices) =>
+    volumeTiles(onboarding, afterQuickAdd, choices)
+      .filter(({ owned }) => owned)
+      .map(({ volume: n }) => n);
+
+  test('only the scanned Volume is owned, and Save with no tap adds no Copy', () => {
+    expect(ownedOnes(onboarding.start)).toEqual([4]);
+    expect(onboarding.start.ownedUpTo).toBe(0);
+    expect(onboardingSave(onboarding, afterQuickAdd, onboarding.start, now).copies).toEqual([]);
+  });
+
+  test('it asks first whether the reader owns the Volumes before it', () => {
+    expect(onboarding.ask).toEqual({ upTo: 3 });
+  });
+
+  test('"Yes" ticks the Volumes before it, and Save adds their Copies', () => {
+    const yes = answer(onboarding, onboarding.start, 'yes');
+
+    expect(ownedOnes(yes)).toEqual([1, 2, 3, 4]);
+    expect(onboardingSave(onboarding, afterQuickAdd, yes, now).copies.map(({ isbn }) => isbn)).toEqual(isbns.slice(0, 3));
+  });
+
+  test.each(['some', 'no'] as const)('"%s" ticks nothing more', (said) => {
+    expect(ownedOnes(answer(onboarding, onboarding.start, said))).toEqual([4]);
+  });
+
+  test('One Piece 56 for a reader with no One Piece: Save adds nothing more; "Yes" then Save adds Volumes 1 to 55', () => {
+    const onePiece = Array.from({ length: 56 }, (_, index) =>
+      volume(1, { isbn: `97820000${String(index + 1).padStart(5, '0')}`, volumes: [index + 1], volume: index + 1, work: { id: `wd:Q30${index + 1}`, title: `One Piece ${index + 1}` } }),
+    );
+    const added: Saved<Copy> = { rkey: 'c56', value: { isbn: onePiece[55].isbn, works: [onePiece[55].work.id], createdAt: now.toISOString() } };
+    const before = library({ copies: [added] });
+    const long = seriesOnboarding(onePiece[55], onePiece, before);
+
+    expect(long.ask).toEqual({ upTo: 55 });
+    expect(onboardingSave(long, before, long.start, now).copies).toHaveLength(0);
+    expect(onboardingSave(long, before, answer(long, long.start, 'yes'), now).copies).toHaveLength(55);
+  });
+
+  test('no question when the reader owns the Volumes before it, or when it is the first', () => {
+    const owned = library({ copies: [copyOf(1), copyOf(2), copyOf(3), copyOf(4)] });
+    expect(seriesOnboarding(volume(4), volumes, owned).ask).toBeUndefined();
+    expect(seriesOnboarding(volume(1), volumes, library({ copies: [copyOf(1)] })).ask).toBeUndefined();
   });
 });

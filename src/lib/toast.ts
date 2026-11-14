@@ -1,15 +1,22 @@
 // Toasts: short notices over the page, so a result never moves the content.
 // The region and the template are in AppShell. A toast closes after a few
 // seconds, but not while the pointer or the focus is on it; an error stays
-// until the reader closes it.
+// until the reader closes it. An action (Undo) is a button in the toast: it
+// runs once and closes the toast.
 
 export interface ToastLink {
   href: string;
   label: string;
 }
 
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
 export interface ToastOptions {
   link?: ToastLink;
+  action?: ToastAction;
   error?: boolean;
 }
 
@@ -18,7 +25,7 @@ const linkMs = 9_000;
 const most = 3;
 
 // Returns a function that closes the toast (for a notice that a later one replaces).
-export function toast(text: string, { link, error = false }: ToastOptions = {}): () => void {
+export function toast(text: string, { link, action, error = false }: ToastOptions = {}): () => void {
   const region = document.querySelector<HTMLElement>('[data-toasts]');
   const template = document.querySelector<HTMLTemplateElement>('[data-toast-template]');
   if (!region || !template) return () => undefined;
@@ -45,9 +52,19 @@ export function toast(text: string, { link, error = false }: ToastOptions = {}):
 
   const close = () => item.remove();
   item.querySelector('[data-toast-close]')!.addEventListener('click', close);
+  if (action) {
+    const button = item.querySelector<HTMLButtonElement>('[data-toast-action]')!;
+    button.textContent = action.label;
+    button.hidden = false;
+    button.addEventListener('click', () => {
+      close();
+      action.run();
+    });
+  }
 
   if (!error) {
-    let timer = setTimeout(close, link ? linkMs : plainMs);
+    // A link or an action needs time to reach.
+    let timer = setTimeout(close, link || action ? linkMs : plainMs);
     const pause = () => clearTimeout(timer);
     const resume = () => {
       clearTimeout(timer);

@@ -22,21 +22,26 @@ export interface Onboarding {
   // The values the two steppers move through: 0 (none), then each tile number.
   steps: number[];
   start: Choices;
+  // When the added Volume is not the first: "Do you own Volumes 1–upTo?", asked
+  // before the tiles. Undefined when the reader owns them all already.
+  ask?: { upTo: number };
 }
 
 export interface Choices {
   // "I own Volumes 1 to N" and "I've read up to N"; 0 is none.
   ownedUpTo: number;
   readUpTo: number;
-  // ISBNs of the Volumes the reader tapped: owned is the opposite of the range.
-  tapped: ReadonlySet<string>;
-  // The same for read: "read 1 and 3, not 2".
-  readTapped: ReadonlySet<string>;
+  // What the reader tapped, by ISBN: owned or not, whatever the range. A tap
+  // stays when the range moves: the gaps the reader made stay gaps.
+  tapped: ReadonlyMap<string, boolean>;
+  // The same for read: "read 1 and 3, not 2". The read range reads owned
+  // Volumes only; a tap can mark a Volume read and not owned (borrowed).
+  readTapped: ReadonlyMap<string, boolean>;
   // "Tell me when a new Volume is out".
   follow: boolean;
 }
 
-// What a tap or a range changes: "Tap changes: Owned | Read".
+// What a tap or a range marks: "Tapping marks: Owned | Read".
 export type TapMode = 'owned' | 'read';
 
 export interface Tile {
@@ -100,24 +105,44 @@ export function seriesOnboarding(anchor: Edition, volumes: Edition[], library: L
     }
   }
   const numbered = [...byVolume.values()].sort((a, b) => a.volume - b.volume);
-  const highest = (keep: (each: (typeof numbered)[number]) => boolean) => Math.max(0, ...numbered.filter(keep).map((each) => each.volume));
   // Every whole number up to the highest known Volume, and the known ones (5.5).
   // A number from 1000 is likely a year read as a Volume: it fills no gap.
-  const last = highest(({ volume }) => volume < 1000);
+  const last = Math.max(0, ...numbered.filter(({ volume }) => volume < 1000).map(({ volume }) => volume));
   const numbers = new Set([...Array.from({ length: Math.floor(last) }, (_, index) => index + 1), ...byVolume.keys()]);
+  const steps = [0, ...[...numbers].sort((a, b) => a - b)];
+  // The range starts where the Library says, from Volume 1 with no gap: never
+  // from the highest Volume owned, which would tick Volumes the reader may not have.
+  const fromOne = (keep: (each: Edition) => boolean) => {
+    const gap = steps.slice(1).findIndex((n) => {
+      const each = byVolume.get(n);
+      return !each || !keep(each);
+    });
+    return gap === -1 ? steps.at(-1)! : steps[gap];
+  };
+  const ownedUpTo = fromOne((each) => isOwned(each, library));
+  const before = steps.findLast((n) => n < Math.min(...anchor.volumes)) ?? 0;
   return {
     series: anchor.series,
     anchor,
     volumes: numbered,
-    steps: [0, ...[...numbers].sort((a, b) => a - b)],
+    steps,
     start: {
-      ownedUpTo: highest((each) => isOwned(each, library)),
-      readUpTo: highest((each) => isRead(each, library)),
-      tapped: new Set(),
-      readTapped: new Set(),
+      ownedUpTo,
+      readUpTo: fromOne((each) => isRead(each, library)),
+      tapped: new Map(),
+      readTapped: new Map(),
       follow: true,
     },
+    ...(before > ownedUpTo && { ask: { upTo: before } }),
   };
+}
+
+// The answer to "Do you own Volumes 1–N?": Yes ticks them; Some (the reader
+// taps them) and No tick nothing.
+export type Answer = 'yes' | 'some' | 'no';
+
+export function answer(onboarding: Onboarding, choices: Choices, said: Answer): Choices {
+  return said === 'yes' && onboarding.ask ? { ...choices, ownedUpTo: Math.max(choices.ownedUpTo, onboarding.ask.upTo) } : choices;
 }
 
 // The next stepper value up (+1) or down (-1); it stays at either end.
@@ -136,17 +161,28 @@ export function typedVolume(steps: number[], typed: string): number | undefined 
   return Math.min(steps.at(-1)!, Math.max(0, value));
 }
 
-// A new value for one range. Taps fixed the old range, so the taps of that kind go.
+// A new value for one range. The taps stay.
 export function withRange(choices: Choices, mode: TapMode, value: number): Choices {
-  return mode === 'owned' ? { ...choices, ownedUpTo: value, tapped: new Set() } : { ...choices, readUpTo: value, readTapped: new Set() };
+  return mode === 'owned' ? { ...choices, ownedUpTo: value } : { ...choices, readUpTo: value };
 }
 
-// A tap on a tile: owned or read becomes the opposite of its range.
-export function tapTile(choices: Choices, mode: TapMode, isbn: string): Choices {
+// A tap on a tile: owned or read becomes the opposite of what it shows. A tap
+// back to what the range says is no tap: the tile follows the range again.
+export function tapTile(onboarding: Onboarding, library: Library, choices: Choices, mode: TapMode, isbn: string): Choices {
   const key = mode === 'owned' ? 'tapped' : 'readTapped';
-  const tapped = new Set(choices[key]);
-  if (!tapped.delete(isbn)) tapped.add(isbn);
+  const tile = volumeTiles(onboarding, library, choices).find((each) => each.isbn === isbn);
+  if (!tile) return choices;
+  const shown = mode === 'owned' ? tile.owned : tile.read;
+  const tapped = new Map(choices[key]);
+  if (!shown === inRange(tile, choices, mode)) tapped.delete(isbn);
+  else tapped.set(isbn, !shown);
   return { ...choices, [key]: tapped };
+}
+
+// "Same as owned": read is what owned is, Volume by Volume, gaps too.
+export function sameAsOwned(onboarding: Onboarding, library: Library, choices: Choices): Choices {
+  const owned = volumeTiles(onboarding, library, choices).filter((tile) => tile.owned);
+  return { ...choices, readUpTo: Math.max(0, ...owned.map(({ volume }) => volume)), readTapped: new Map() };
 }
 
 export function volumeTiles(onboarding: Onboarding, library: Library, choices: Choices): Tile[] {
@@ -155,15 +191,15 @@ export function volumeTiles(onboarding: Onboarding, library: Library, choices: C
     if (!each) return { isbn: null, volume, owned: false, read: false, kept: false, keptRead: false };
     const kept = isOwned(each, library);
     const keptRead = isRead(each, library);
-    return {
-      isbn: each.isbn,
-      volume,
-      kept,
-      keptRead,
-      owned: kept || volume <= choices.ownedUpTo !== choices.tapped.has(each.isbn),
-      read: keptRead || volume <= choices.readUpTo !== choices.readTapped.has(each.isbn),
-    };
+    const owned = kept || (choices.tapped.get(each.isbn) ?? inRange({ volume, owned: false }, choices, 'owned'));
+    const read = keptRead || (choices.readTapped.get(each.isbn) ?? inRange({ volume, owned }, choices, 'read'));
+    return { isbn: each.isbn, volume, kept, keptRead, owned, read };
   });
+}
+
+// What the range alone says of a tile. Read is capped at owned.
+function inRange({ volume, owned }: Pick<Tile, 'volume' | 'owned'>, choices: Choices, mode: TapMode): boolean {
+  return mode === 'owned' ? volume <= choices.ownedUpTo : owned && volume <= choices.readUpTo;
 }
 
 // What Save writes: a Copy for each owned Volume that has none, a Reading
