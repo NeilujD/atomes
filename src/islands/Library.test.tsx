@@ -55,6 +55,7 @@ const titles = () => within(screen.getByRole('list')).getAllByRole('link').map((
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  history.replaceState(null, '');
 });
 
 describe('Library screen', () => {
@@ -260,5 +261,41 @@ describe('Cover flow', () => {
 
     expect(current()).toBe('La Horde du Contrevent');
     expect(screen.getByText('2 of 2')).toBeTruthy();
+  });
+});
+
+describe('Library state in its history entry', () => {
+  test('back from a Book, the Library opens with the search and filters saved in its history entry', async () => {
+    history.replaceState({ library: { query: { text: 'du', status: 'read' } } }, '');
+    await libraryScreen();
+
+    expect(titles()).toEqual(['Dune']);
+    expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('du');
+  });
+
+  test('a search is saved in the history entry, so the same entry opens with it again', async () => {
+    await libraryScreen();
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'asterix' } });
+
+    // The way back to this entry: the screen starts again.
+    cleanup();
+    await libraryScreen();
+
+    expect(titles()).toEqual(['Astérix']);
+  });
+
+  test('the Cover flow move is saved too: the same entry opens on the same book', async () => {
+    await libraryScreen();
+    choose('Cover flow');
+    fireEvent.input(screen.getByRole('slider', { name: 'Browse your Library' }), { target: { value: '3' } });
+    // Left in Grid, so the next screen draws its list first.
+    choose('Grid');
+
+    cleanup();
+    await libraryScreen();
+    choose('Cover flow');
+
+    expect(screen.getByRole('link', { current: true }).getAttribute('aria-label')).toBe('La Horde du Contrevent');
+    expect(screen.getByText('3 of 3')).toBeTruthy();
   });
 });

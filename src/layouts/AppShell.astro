@@ -149,7 +149,16 @@ const icons = appIcons(appEnvironment(process.env));
           <main class="panel" data-frame="panel">
             <EnvironmentBadge place="top" />
             <header class:list={['view-header', { detail }]}>
-              <h1 class="view-title" data-view-title>{title}</h1>
+              <div class="view-heading">
+                {
+                  detail && (
+                    <a class="icon-button back" href="/library" aria-label={t('nav.back')} data-back>
+                      <Icon name="arrow-left" />
+                    </a>
+                  )
+                }
+                <h1 class="view-title" data-view-title>{title}</h1>
+              </div>
               <slot name="actions" />
             </header>
             <div class="view-body">
@@ -212,6 +221,7 @@ const icons = appIcons(appEnvironment(process.env));
   import { signInPath } from '../lib/auth/return-to';
   import { confirmSignOut } from '../lib/auth/confirm-sign-out';
   import { gateScreen, signOutHere } from '../lib/auth/server-client';
+  import { startBackArrow } from '../lib/back';
   import { startConnectionStatus } from '../lib/connection';
   import { toast } from '../lib/toast';
 
@@ -233,6 +243,7 @@ const icons = appIcons(appEnvironment(process.env));
   });
 
   startConnectionStatus();
+  startBackArrow();
 
   // Keep the theme-color metas right, follow the system while open, and follow
   // a change made in Settings in another tab.
@@ -302,6 +313,19 @@ const icons = appIcons(appEnvironment(process.env));
     gap: 12px;
     padding: 28px 20px 24px;
     padding-top: max(28px, env(safe-area-inset-top));
+  }
+
+  .view-heading {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  /* Detail pages: before the title, and still there on the phone, where the
+     title is hidden. The arrow, not its hit area, lines up with the content. */
+  .back {
+    margin-left: calc((16px - var(--row)) / 2);
   }
 
   .view-title {

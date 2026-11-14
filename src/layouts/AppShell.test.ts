@@ -27,3 +27,18 @@ test.each(Object.entries(screens))('the %s screen links to Check a book, and no 
   expect(links).toContain('/check');
   for (const href of links) expect(hasPage(href), href).toBe(true);
 });
+
+// The back arrow of a detail page (ui-direction: View header): a link to the
+// Library, which a script turns into a step back in history after an Atomes page.
+const backLinks = (html: string) => [...html.matchAll(/<a\b[^>]*aria-label="Back"[^>]*>/g)].map(([link]) => link.match(/href="([^"]*)"/)?.[1]);
+
+test.each([
+  ['Book', Book, ['/library']],
+  ['Series', Series, ['/library']],
+  ['Library', Library, []],
+  ['To Buy', ToBuy, []],
+])('the %s screen has a back arrow only if it is a detail page', async (_, screen, expected) => {
+  const container = await AstroContainer.create({ renderers: await loadRenderers([getContainerRenderer()]) });
+
+  expect(backLinks(await container.renderToString(screen))).toEqual(expected);
+});

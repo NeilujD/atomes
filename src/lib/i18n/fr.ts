@@ -18,6 +18,7 @@ export const fr: typeof en = {
   'nav.settings': 'Réglages',
   'nav.you': 'Vous',
   'nav.private': 'Privé par défaut',
+  'nav.back': 'Retour',
   'common.close': 'Fermer',
   'connection.offline': 'Hors ligne',
   'connection.reconnect': 'Reconnecter',
