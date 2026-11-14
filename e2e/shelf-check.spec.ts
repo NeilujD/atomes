@@ -88,6 +88,45 @@ test('Shelf Check offline: owned, missing and unknown books, and no ISBN leaves 
   await expect(page.getByText(/Waiting: saved on this device/)).toBeVisible();
 });
 
+test('Shelf Check: the Series line and Follow for a Series not followed; offline, the same line', async ({ page, context, browser, baseURL, signIn }) => {
+  await signIn();
+  // One Piece 56, Glénat: the Catalog lists Volumes 1 to 113 of its Edition Line, but 13.
+  const onePiece56 = '9782723478991';
+  // The reader owns 56 and skipped Series Onboarding: the Series is not
+  // followed. Set up on another device, as in the offline test above.
+  const other = await browser.newContext({ baseURL });
+  await other.addCookies(await context.cookies());
+  const origin = new URL(baseURL!).origin;
+  await other.route((url) => url.origin !== origin, (route) => route.abort('blockedbyclient'));
+  const setUp = await other.newPage();
+  await quickAdd(setUp, onePiece56);
+  await expect(setUp.getByRole('heading', { name: /Which Volumes of One Piece/ })).toBeVisible();
+  await setUp.getByRole('link', { name: 'Skip' }).click();
+  await expect(setUp).toHaveURL(/\/book/);
+  await other.close();
+
+  await page.goto('/check');
+  await check(page, onePiece56);
+  await expect(page.getByText('In your Library', { exact: true })).toBeVisible();
+  await expect(page.getByText('You have 1 of 113 · 54 missing')).toBeVisible();
+
+  // Follow: the Series is followed in this Edition Line, so the device keeps
+  // its line for Shelf Check offline. The line stays, Follow goes.
+  await page.getByRole('button', { name: 'Follow' }).click();
+  await expect(page.getByRole('button', { name: 'Follow' })).toBeHidden();
+  await expect(page.getByText('You have 1 of 113 · 54 missing')).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(async (isbn) => Boolean(await caches.match(`/api/catalog/editions/${isbn}/volumes`)), onePiece56))
+    .toBe(true);
+
+  // Airplane mode: the same line, from this device.
+  await context.setOffline(true);
+  await check(page, onePiece56);
+  await expect(page.getByText('Reading Status: Not yet')).toBeVisible();
+  await expect(page.getByText('You have 1 of 113 · 54 missing')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Follow' })).toBeHidden();
+});
+
 test('the Check tab opens the camera at once; with no camera, the ISBN field and the reason', async ({ page, signIn }) => {
   await signIn();
   await page.goto('/library');

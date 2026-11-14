@@ -1,6 +1,7 @@
 // The Shelf Check answer on Check a book (src/pages/check.astro), a Preact
 // island (ADR 0014): owned, missing with the spine row, read, not in the
-// Library, or unknown on this device. The rule is src/lib/library/shelf-check.ts;
+// Library, or unknown on this device; for a Volume of a Series, the Series
+// line and Follow. The rule is src/lib/library/shelf-check.ts;
 // online and offline answers render here the same way.
 import { t } from '../lib/i18n/i18n';
 import { bookHref } from '../lib/library/model';
@@ -12,9 +13,13 @@ export interface AnswerProps {
   work: string;
   // The Volumes of the book, marked on the spine row.
   volumes: number[];
+  // Follows the Series in the Edition Line of this book (Series line, followable).
+  onFollow?: () => void;
+  // While the follow saves: a second tap cannot save twice.
+  following?: boolean;
 }
 
-export function ShelfCheckAnswer({ check, work, volumes }: AnswerProps) {
+export function ShelfCheckAnswer({ check, work, volumes, onFollow, following = false }: AnswerProps) {
   const status = t(`status.${check.status}`);
   const series = check.followed?.title ?? '';
   const [title, text] = {
@@ -38,6 +43,16 @@ export function ShelfCheckAnswer({ check, work, volumes }: AnswerProps) {
             </li>
           ))}
         </ol>
+      )}
+      {check.series && (
+        <div class="answer-series">
+          <p class="answer-text">{t('check.series-line', check.series.owned, check.series.total, check.series.missing)}</p>
+          {check.series.followable && onFollow && (
+            <button class="button answer-follow" type="button" disabled={following} aria-busy={following || undefined} onClick={onFollow}>
+              {t('series.follow')}
+            </button>
+          )}
+        </div>
       )}
       {(check.kind === 'owned' || check.kind === 'read') && (
         <a class="answer-link" href={bookHref(work)}>

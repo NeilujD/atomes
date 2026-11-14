@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from '@testing-library/preact';
+import { cleanup, fireEvent, render, screen } from '@testing-library/preact';
 import { afterEach, describe, expect, test } from 'vitest';
 import type { Edition } from '../lib/catalog/catalog';
 import type { Spine } from '../lib/library/series';
@@ -53,6 +53,31 @@ describe('the Shelf Check answer', () => {
 
     expect(screen.getByText('Not in your Library')).toBeTruthy();
     expect(screen.getByText('You follow Spy x Family.')).toBeTruthy();
+  });
+
+  test('a Volume of a Series not followed: the Series line, and Follow', () => {
+    const followed: string[] = [];
+    const check: ShelfCheck = { kind: 'owned', status: 'unread', followed: null, series: { owned: 1, total: 113, missing: 54, followable: true } };
+    render(<ShelfCheckAnswer check={check} work="wd:Q56" volumes={[56]} onFollow={() => followed.push('follow')} />);
+
+    expect(screen.getByText('You have 1 of 113 · 54 missing')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Follow' }));
+    expect(followed).toEqual(['follow']);
+  });
+
+  test('a Followed or Dropped Series: the Series line, no Follow; nothing missing says nothing about it', () => {
+    const check: ShelfCheck = { kind: 'new', status: 'unread', followed: spyFamily, series: { owned: 3, total: 16, missing: 0, followable: false } };
+    render(<ShelfCheckAnswer check={check} work="wd:Q17" volumes={[17]} onFollow={() => undefined} />);
+
+    expect(screen.getByText('You have 3 of 16')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Follow' })).toBeNull();
+  });
+
+  test('one Volume missing', () => {
+    const check: ShelfCheck = { kind: 'new', status: 'unread', followed: null, series: { owned: 0, total: 2, missing: 1, followable: false } };
+    render(<ShelfCheckAnswer check={check} work="wd:Q17" volumes={[17]} />);
+
+    expect(screen.getByText('You have 0 of 2 · 1 missing')).toBeTruthy();
   });
 
   test('unknown on this device: not in your Library, check online later', () => {

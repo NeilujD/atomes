@@ -177,6 +177,8 @@ export const fr: typeof en = {
   'check.status': (status) => `Statut de lecture : ${status}`,
   'check.unknown-text': 'Cet appareil ne connaît pas encore ce livre. Vérifiez en ligne plus tard.',
   'check.spines': (series) => `Tomes de ${series}`,
+  'check.series-line': (owned, total, missing) =>
+    `Vous en avez ${owned} sur ${total}${missing > 0 ? ` · ${missing} ${missing === 1 ? 'manquant' : 'manquants'}` : ''}`,
   'check.kept': 'Prêt à vérifier des livres hors ligne : votre bibliothèque et vos séries suivies sont sur cet appareil.',
   'check.no-library': 'Votre bibliothèque n’est pas encore sur cet appareil. Vérifiez en ligne plus tard.',
   'find.title': 'Le trouver dans le catalogue de la BnF',
