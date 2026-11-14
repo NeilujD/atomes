@@ -18,6 +18,7 @@ export const en = {
   'nav.settings': 'Settings',
   'nav.you': 'You',
   'nav.private': 'Private by default',
+  'nav.back': 'Back',
   'common.close': 'Close',
   'connection.offline': 'Offline',
   'connection.reconnect': 'Reconnect',

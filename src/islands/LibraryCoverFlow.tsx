@@ -1,8 +1,8 @@
 // The Library in Cover flow mode: one book in front, the covers nearby on each
-// side, and Previous, Next and a slider to move. It starts in the middle.
+// side, and Previous, Next and a slider to move. It starts in the middle; the
+// Library keeps the move, for the way back from a Book (CORE-96).
 // Every cover links to its Book page; one on the side comes to the front first.
 // Which book stands in front: src/lib/library/flow.ts.
-import { useState } from 'preact/hooks';
 import { t } from '../lib/i18n/i18n';
 import { volumeLine, type LibraryBook } from '../lib/library/browse';
 import { flowMove, flowPosition, type FlowMove } from '../lib/library/flow';
@@ -12,14 +12,13 @@ import { Cover } from './Cover';
 // How many covers show on each side of the one in front.
 const nearby = 4;
 
-export function LibraryCoverFlow({ books }: { books: LibraryBook[] }) {
-  const [moved, setMoved] = useState<FlowMove>();
+export function LibraryCoverFlow({ books, moved, onMove }: { books: LibraryBook[]; moved: FlowMove | undefined; onMove: (moved: FlowMove) => void }) {
   const position = flowPosition(books, moved);
   const book = books.at(position);
   if (!book) return null;
 
   const last = books.length - 1;
-  const move = (to: number) => setMoved(flowMove(books, to));
+  const move = (to: number) => onMove(flowMove(books, to));
   const first = Math.max(0, position - nearby);
   // "One Piece, Volume 9": the Volumes of a Series share its title.
   const named = (each: LibraryBook) => [each.title, volumeLine(each)].filter(Boolean).join(', ');

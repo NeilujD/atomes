@@ -5,16 +5,18 @@
 // On the phone the controls open in a sheet.
 // The rules are in src/lib/library/browse.ts; this file only renders them.
 import type { ComponentChildren } from 'preact';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import type { Edition } from '../lib/catalog/catalog';
 import { coverUrl, lookupEditions } from '../lib/catalog/client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
-import { allBooks, browse, clearAll, libraryBooks, liveQuery, volumeLine, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
+import { browse, clearAll, libraryBooks, liveQuery, searchIns, sorts, volumeLine, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
+import type { FlowMove } from '../lib/library/flow';
 import { listLabels, type Label } from '../lib/library/label';
 import { letterGroups } from '../lib/library/letters';
 import { loadLibrary, waitingCount } from '../lib/library/library';
+import { savedLibraryState, type LibraryState } from '../lib/library/library-state';
 import { groupings, modes, readGrouping, readMode, saveGrouping, saveMode, type Grouping, type Mode } from '../lib/library/mode';
 import { bookHref, type Library as LibraryRecords } from '../lib/library/model';
 import type { Saved } from '../lib/library/records';
@@ -47,11 +49,23 @@ export default function LibraryIsland() {
 // The phone frame ends at 960 px (docs/design/ui-direction.md).
 const desktop = '(min-width: 960px)';
 
+// The Library state of this history entry (src/lib/library/library-state.ts),
+// so the way back from a Book or a Series finds the Library as it was. Other
+// keys of the entry stay.
+const entry = (): Record<string, unknown> => (typeof history.state === 'object' && history.state !== null ? (history.state as Record<string, unknown>) : {});
+const savedState = () => savedLibraryState(entry().library);
+const remember = (part: Partial<LibraryState>) => history.replaceState({ ...entry(), library: { ...savedState(), ...part } }, '');
+// Phone: the page scrolls. Desktop: the panel of AppShell does.
+const panel = () => document.querySelector('[data-frame="panel"]');
+
 export function Library({ sources }: { sources: Sources }) {
   const [read, setRead] = useState<{ library: LibraryRecords; labels: Saved<Label>[] }>();
   // In place of the grid when there is none to show (signed out, or the first read failed).
   const [message, setMessage] = useState<string>();
-  const [asked, setQuery] = useState<LibraryQuery>(allBooks);
+  const [saved] = useState(savedState);
+  const [asked, setQuery] = useState<LibraryQuery>(saved.query);
+  // Where the reader moved the Cover flow to (src/lib/library/flow.ts).
+  const [moved, setMoved] = useState<FlowMove | undefined>(saved.flow);
   const [grouping, setGrouping] = useState<Grouping>(readGrouping);
   const [mode, setMode] = useState<Mode>(readMode);
   const wide = useMedia(desktop);
@@ -101,6 +115,41 @@ export function Library({ sources }: { sources: Sources }) {
 
     start().catch(fail);
   }, [sources]);
+
+  useEffect(() => remember({ query: asked, flow: moved }), [asked, moved]);
+
+  // The scroll is the island's to put back, once the books are drawn.
+  // Kept as the page goes: at `pageswap` where there is one, since Chrome makes
+  // the page shorter by `pagehide` during a page transition, which cuts the
+  // scroll; at `pagehide` in a browser with no `pageswap`.
+  useEffect(() => {
+    history.scrollRestoration = 'manual';
+    let kept = false;
+    const keep = () => {
+      if (kept) return;
+      kept = true;
+      remember({ scroll: { page: scrollY, panel: panel()?.scrollTop ?? 0 } });
+    };
+    // Back from the back/forward cache: the next departure keeps the scroll again.
+    const shown = () => (kept = false);
+    addEventListener('pageswap', keep);
+    addEventListener('pagehide', keep);
+    addEventListener('pageshow', shown);
+    return () => {
+      removeEventListener('pageswap', keep);
+      removeEventListener('pagehide', keep);
+      removeEventListener('pageshow', shown);
+    };
+  }, []);
+  // Before the first paint with the books: the cover of a Book flying home
+  // (src/lib/page-transition.ts) lands in its slot only if the slot is in sight.
+  const scrolled = useRef(false);
+  useLayoutEffect(() => {
+    if (!read || scrolled.current) return;
+    scrolled.current = true;
+    scrollTo(0, saved.scroll.page);
+    panel()?.scrollTo(0, saved.scroll.panel);
+  }, [read, saved]);
 
   const books = useMemo(() => read && libraryBooks(read.library, editions.current, read.labels), [read]);
   const series = useMemo(() => read && books && librarySeries(books, read.library, editions.current), [read, books]);
@@ -222,7 +271,7 @@ export function Library({ sources }: { sources: Sources }) {
       ) : listed ? (
         <LibraryList groups={listed.groups} />
       ) : mode === 'flow' ? (
-        <LibraryCoverFlow books={found.books} />
+        <LibraryCoverFlow books={found.books} moved={moved} onMove={setMoved} />
       ) : (
         <ul class="library-grid">
           {found.books.map((book) => (
@@ -239,9 +288,6 @@ interface ControlsProps {
   found: Browsed;
   change: (part: Partial<LibraryQuery>) => void;
 }
-
-const searchIns: SearchIn[] = ['all', 'title', 'author', 'series', 'volumeTitle'];
-const sorts: SortBy[] = ['title', 'author', 'series', 'added'];
 
 // Search in, Sort, the author and Series filters, and the chips: in the
 // toolbar on desktop, in the sheet on the phone.

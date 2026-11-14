@@ -51,8 +51,10 @@ export function libraryBooks(library: Library, editions: Editions, labels: Saved
   });
 }
 
-export type SearchIn = 'all' | 'title' | 'author' | 'series' | 'volumeTitle';
-export type SortBy = 'title' | 'author' | 'series' | 'added';
+export const searchIns = ['all', 'title', 'author', 'series', 'volumeTitle'] as const;
+export type SearchIn = (typeof searchIns)[number];
+export const sorts = ['title', 'author', 'series', 'added'] as const;
+export type SortBy = (typeof sorts)[number];
 
 // What the toolbar asks for. A null filter takes every book.
 export interface LibraryQuery {
