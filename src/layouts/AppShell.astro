@@ -99,7 +99,9 @@ const icons = appIcons(appEnvironment(process.env));
         flow ? (
           <main class="flow">
             <EnvironmentBadge place="flow" />
-            <slot />
+            <div class="flow-content">
+              <slot />
+            </div>
           </main>
         ) : (
           <>
@@ -297,13 +299,21 @@ const icons = appIcons(appEnvironment(process.env));
     }
   }
 
-  /* Flow (sign-in): no chrome; the content in the middle of the window. */
+  /* Flow (sign-in, Series Onboarding): no chrome; the content in the middle of
+     the window. The environment badge, outside production, takes the first
+     row and scrolls away with the page; with no badge the row is empty. */
   .flow {
     grid-column: 1 / -1;
     min-height: 100dvh;
     display: grid;
-    place-items: center;
+    grid-template-rows: auto 1fr;
     padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  }
+
+  .flow-content {
+    grid-row: 2;
+    display: grid;
+    place-items: center;
   }
 
   /* Phone first: no sidebar, large title, tab bar. */
