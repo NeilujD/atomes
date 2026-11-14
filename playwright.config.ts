@@ -45,6 +45,7 @@ export default defineConfig({
     // Made for this run only: no secret is stored, and these settings win over `.env.local`.
     env: {
       CATALOG_SOURCES: 'recorded',
+      DEV_TOOLBAR: 'off',
       DATA_DIR: 'data-e2e',
       PORT: String(port),
       ALLOWED_DIDS: allReaders().join(','),
