@@ -23,10 +23,12 @@ async function toBookAndBack(page: Page, book: Locator, back: 'arrow' | 'browser
 test('back from a Book, the Library keeps its search, filter, scroll and Cover flow position', async ({ page, signIn }) => {
   test.slow();
   await signIn();
-  // Spy x Family 16, Kurokawa: Series Onboarding adds Volumes 1 to 16.
+  // Spy x Family 16, Kurokawa: Series Onboarding adds Volumes 1 to 16 once the
+  // reader answers that they own Volumes 1 to 15.
   await quickAdd(page, '9791042021030');
-  await page.getByRole('button', { name: 'Save series' }).click();
-  await expect(page).toHaveURL(/\/book/);
+  await page.getByRole('button', { name: 'Yes' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(/\/series/);
   await islandsLoaded(page);
   // One Piece 56, Glénat: a book the search leaves out.
   await quickAdd(page, '9782723478991');
