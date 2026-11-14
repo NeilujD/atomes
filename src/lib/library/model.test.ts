@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
 import type { Copy } from './copy';
 import type { Loan } from './loan';
-import { bookIsbns, bookPage, isOwned, lend, returnLoans, statusChange, type Library } from './model';
+import { bookIsbns, bookPage, isOwned, lend, ownsWork, returnLoans, statusChange, type Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -278,6 +278,19 @@ describe('Is owned', () => {
   test('read with no Copy (borrowed), or a Copy of another Work, is not owned', () => {
     expect(isOwned(onePiece56, library({ readingStatuses: [status('read')] }))).toBe(false);
     expect(isOwned(onePiece56, library({ copies: [copy('3m2b', { works: ['wd:Q190192'], isbn: '9782266320542' })] }))).toBe(false);
+  });
+});
+
+describe('Owns a Work', () => {
+  test('a Copy, an omnibus Copy, or a Copy of the Edition read before the Catalog knew its Work: owned', () => {
+    expect(ownsWork(work, library({ copies: [copy('3m2a')] }))).toBe(true);
+    expect(ownsWork(work, library({ copies: [copy('3m2a', { works: ['wd:Q1', work], isbn: '9782344068922' })] }))).toBe(true);
+    expect(ownsWork(work, library({ copies: [copy('3m2a', { works: [`isbn:${onePiece56.isbn}`] })], readingStatuses: [status('read')] }))).toBe(true);
+  });
+
+  test('read with no Copy, or a Copy of another Work: not owned', () => {
+    expect(ownsWork(work, library({ readingStatuses: [status('read')] }))).toBe(false);
+    expect(ownsWork(work, library({ copies: [copy('3m2b', { works: ['wd:Q190192'], isbn: '9782266320542' })] }))).toBe(false);
   });
 });
 
