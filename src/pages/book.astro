@@ -38,8 +38,10 @@ const choices = [
       </div>
     </section>
 
+    <!-- One cover for the skeleton and the book: render() moves it into the book.
+         The cover that flies from the Library lands on it, and must not hide halfway (src/lib/page-transition.ts). -->
     <div class="book" data-skeleton aria-hidden="true">
-      <div class="cover book-cover skeleton"></div>
+      <div class="cover book-cover skeleton" data-book-cover></div>
       <div class="content">
         <div class="head-text skeleton-text">
           <div class="skeleton skeleton-title"></div>
@@ -50,7 +52,6 @@ const choices = [
     </div>
 
     <article class="book" data-book hidden>
-      <div class="cover book-cover" data-cover></div>
       <div class="content">
         <div class="head-text">
           <p class="title" data-title aria-hidden="true"></p>
@@ -172,6 +173,7 @@ const choices = [
   const notFound = document.querySelector<HTMLElement>('[data-not-found]')!;
   const skeleton = document.querySelector<HTMLElement>('[data-skeleton]')!;
   const article = document.querySelector<HTMLElement>('[data-book]')!;
+  const cover = document.querySelector<HTMLElement>('[data-book-cover]')!;
   const statusRadios = article.querySelectorAll<HTMLInputElement>('[data-status] input[name="status"]');
   const finished = article.querySelector<HTMLElement>('[data-finished]')!;
   const finishedAt = article.querySelector<HTMLInputElement>('[data-finished-at]')!;
@@ -241,12 +243,16 @@ const choices = [
     loaded();
     message.hidden = true;
     notFound.hidden = true;
+    if (cover.parentElement !== article) {
+      cover.classList.remove('skeleton');
+      article.prepend(cover);
+    }
     article.hidden = false;
 
     document.title = `${page.title} · Atomes`;
     document.querySelector('[data-view-title]')!.textContent = page.title;
     const volume = page.volumes.length > 0 ? t('book.volumes', page.volumes) : page.volume ? t('book.volume', page.volume) : '';
-    showCover(article.querySelector<HTMLElement>('[data-cover]')!, {
+    showCover(cover, {
       src: page.cover,
       title: page.title,
       series: page.series,

@@ -22,6 +22,8 @@
   --caution-tint: light-dark(#fcefc9, #3a2f12);
   --cover-edge: light-dark(rgb(23 24 28 / 0.08), rgb(255 255 255 / 0.1));
   --scrim: light-dark(rgb(23 24 28 / 0.45), rgb(0 0 0 / 0.62));
+  /* The edge of a page that slides over another (src/styles/page-transitions.css). */
+  --page-shadow: light-dark(rgb(23 24 28 / 0.12), rgb(0 0 0 / 0.4));
   /* Camera views (Quick Add scan, Shelf Check): not themed, the picture sets the light. */
   --camera: #23252b;
   --camera-ink: #ffffff;

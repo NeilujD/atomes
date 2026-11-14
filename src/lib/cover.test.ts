@@ -15,6 +15,31 @@ function defaultCover(element: HTMLElement): string[] | null {
 }
 
 describe('showCover', () => {
+  test('keeps the image a page transition put in the box: same image, still shown', () => {
+    const element = box();
+    const flown = document.createElement('img');
+    flown.src = content.src;
+    element.dataset.cover = 'loaded';
+    element.append(flown);
+
+    showCover(element, content);
+
+    expect(element.querySelector('img')).toBe(flown);
+    expect(element.dataset.cover).toBe('loaded');
+  });
+
+  test('replaces the image a page transition put in the box when the book has another', () => {
+    const element = box();
+    const flown = document.createElement('img');
+    flown.src = '/api/cover/other';
+    element.append(flown);
+
+    showCover(element, content);
+
+    expect(element.querySelector('img')).not.toBe(flown);
+    expect(element.dataset.cover).toBe('loading');
+  });
+
   test('no image: the default cover with the Series and Volume', () => {
     const element = box();
     showCover(element, { ...content, src: null });
