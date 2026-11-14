@@ -39,10 +39,8 @@ const answers = [
       </button>
       <div class="camera-bottom">
         <p class="camera-text" data-camera-text aria-live="polite">{t('add.camera-starting')}</p>
-        <button class="camera-type" type="button" data-camera-close>
-          <Icon name="keyboard" />
-          <span>{t('add.type-isbn')}</span>
-        </button>
+        <!-- A small link: the camera is what the reader came for (CORE-97). -->
+        <button class="camera-type" type="button" data-camera-close>{t('add.type-isbn')}</button>
       </div>
     </dialog>
 
@@ -586,6 +584,32 @@ const answers = [
     video.srcObject = null;
   });
 
+  // From the Check tab or "Check a book" (CORE-97): in a shop, the scanner is
+  // what the reader wants, so the camera opens with no other tap. `scan=1`
+  // leaves the address at once: a reload or a Back does not open it again.
+  // No tap is needed to ask for the camera, in Safari as in Chrome
+  // (getUserMedia needs no user gesture, unlike sound); still to check in the
+  // installed app on an iPhone.
+  const address = new URL(location.href);
+  if (address.searchParams.get('scan') === '1') {
+    address.searchParams.delete('scan');
+    history.replaceState(history.state, '', address);
+    whenScreenShows(() => (scanButton.hidden ? typeInstead(t('camera.failed')) : void scan()));
+  }
+
+  // The gate (src/lib/auth/gate-boot.ts) may still hide the screen: a modal
+  // camera view would show over it, maybe before the sign-in screen.
+  function whenScreenShows(then: () => void) {
+    const root = document.documentElement;
+    if (!root.dataset.gate) return then();
+    const gate = new MutationObserver(() => {
+      if (root.dataset.gate) return;
+      gate.disconnect();
+      then();
+    });
+    gate.observe(root, { attributes: true, attributeFilter: ['data-gate'] });
+  }
+
   isbnForm.addEventListener('submit', (event) => {
     event.preventDefault();
     void lookUp();
@@ -775,19 +799,14 @@ const answers = [
     }
   }
 
-  .camera-close,
-  .camera-type {
+  .camera-close {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
     border: 0;
     background: var(--camera-control);
     color: var(--camera-ink);
     cursor: pointer;
-  }
-
-  .camera-close {
     place-self: start end;
     width: 44px;
     height: 44px;
@@ -812,12 +831,18 @@ const answers = [
     text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
   }
 
+  /* A small link, still a 44 px tap target. */
   .camera-type {
     min-height: 44px;
-    padding: 0 16px;
-    border-radius: 22px;
-    font-size: 15px;
-    font-weight: 600;
+    padding: 0 12px;
+    border: 0;
+    background: none;
+    color: var(--camera-ink);
+    font-size: 14px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
+    cursor: pointer;
   }
 
   .isbn-form {

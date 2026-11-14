@@ -52,10 +52,14 @@ const sidebarItems: { key: Section; href: string; label: string; icon: IconName 
   { key: 'to-buy', href: '/to-buy', label: t('nav.to-buy'), icon: 'shopping-bag' },
 ];
 
+// The Check tab and "Check a book" open the camera at once (CORE-97): in a shop,
+// the scanner is what the reader wants. src/pages/check.astro reads `scan=1`.
+const checkHref = '/check?scan=1';
+
 const tabItems: { key: Section; href: string; label: string; icon: IconName }[] = [
   { key: 'home', href: '/', label: t('nav.home'), icon: 'house' },
   { key: 'library', href: '/library', label: t('nav.library'), icon: 'library' },
-  { key: 'check', href: '/check', label: t('nav.check'), icon: 'scan-barcode' },
+  { key: 'check', href: checkHref, label: t('nav.check'), icon: 'scan-barcode' },
   { key: 'to-buy', href: '/to-buy', label: t('nav.to-buy'), icon: 'shopping-bag' },
   { key: 'settings', href: '/settings', label: t('nav.you'), icon: 'user' },
 ];
@@ -111,7 +115,7 @@ const icons = appIcons(appEnvironment(process.env));
               </a>
             </div>
 
-            <a class="check-button" href="/check" aria-current={ariaCurrent('check')}>
+            <a class="check-button" href={checkHref} aria-current={ariaCurrent('check')}>
               <Icon name="scan-barcode" />
               <span>{t('nav.check-book')}</span>
             </a>
