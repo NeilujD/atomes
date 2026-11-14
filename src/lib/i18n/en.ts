@@ -96,13 +96,9 @@ export const en = {
 
   // Home
   'home.title': 'Home',
-  'home.type-isbn': 'Type an ISBN',
-  'home.new': 'New & upcoming',
-  'home.new-empty': 'Nothing new yet. Mark a Volume read and its Series is followed: new and announced Volumes appear here.',
-  'home.reading': 'Reading now',
-  'home.reading-empty': 'No book in progress.',
   'home.owned-unread': 'Owned, not read yet',
-  'home.owned-unread-empty': 'Books you own and have not read appear here.',
+  'home.reading': 'Reading now',
+  'home.empty': 'Nothing here yet.',
 
   // Settings
   'settings.title': 'Settings',

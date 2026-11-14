@@ -151,6 +151,12 @@ export function isOwned(edition: Pick<Edition, 'isbn' | 'work'>, library: Librar
   return library.copies.some(({ value }) => value.isbn === edition.isbn || value.works.includes(edition.work.id));
 }
 
+// "Owned" for a Work of the Library, by the rule above: a Copy lists the
+// Work, or is the Edition of its Reading Status (saved as `isbn:`).
+export function ownsWork(work: string, library: Library): boolean {
+  return bookIsbns(work, library).some((isbn) => isOwned({ isbn, work: { id: work, title: '' } }, library));
+}
+
 // The Reading Status to save when the reader picks `chosen` for a Work, or
 // undefined when it is the current one: saving it again would drop its finish
 // date, and "unread" with no record is already true (ADR 0010). A new status

@@ -1,36 +1,21 @@
 ---
-import Icon from '../components/Icon.astro';
+// Home: the books the reader owns and has not read, then the books being read
+// (src/islands/Home.tsx). Rendered on the device: it reads the Library.
 import AppShell from '../layouts/AppShell.astro';
+import Home, { HomeSkeleton } from '../islands/Home';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
 const t = translator(requestLanguage(Astro.request));
-
-// Home before sign-in and storage exist: every section shows its empty state.
-const sections = [
-  { title: t('home.new'), empty: t('home.new-empty') },
-  { title: t('home.reading'), empty: t('home.reading-empty') },
-  { title: t('home.owned-unread'), empty: t('home.owned-unread-empty') },
-];
 ---
 
 <AppShell title={t('home.title')} current="home">
-  <a slot="actions" class="button" href="/check">
-    <Icon name="keyboard" />
-    <span>{t('home.type-isbn')}</span>
-  </a>
-  <div class="home">
-    {
-      sections.map((section) => (
-        <section class="group">
-          <h2 class="group-title">{section.title}</h2>
-          <p class="empty">{section.empty}</p>
-        </section>
-      ))
-    }
-  </div>
+  <Home client:only="preact">
+    <HomeSkeleton slot="fallback" />
+  </Home>
 </AppShell>
 
-<style>
+<style is:global>
+  /* Global: the island renders on the device, outside this page's scoped styles. */
   .home {
     max-width: 880px;
     display: flex;
@@ -38,19 +23,64 @@ const sections = [
     gap: 32px;
   }
 
-  .group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  .home-message {
+    font-size: 14px;
   }
 
-  .group-title {
+  .home-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .home-group-title {
     font-size: 18px;
   }
 
-  .empty {
+  .home-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .home-book {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .home-cover {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+
+  .home-book-title,
+  .home-book-line {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .home-book-title {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .home-book-line {
     color: var(--secondary);
-    font-size: 14px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .home-book:hover .home-book-title {
+    text-decoration: underline;
   }
 
   /* Desktop: sections read as list groups (header row on a hairline), not as cards. */
@@ -59,7 +89,7 @@ const sections = [
       gap: 28px;
     }
 
-    .group-title {
+    .home-group-title {
       display: flex;
       align-items: center;
       min-height: var(--row);
@@ -67,6 +97,11 @@ const sections = [
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 0;
+    }
+
+    .home-grid {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 28px 24px;
     }
   }
 </style>

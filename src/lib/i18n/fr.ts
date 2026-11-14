@@ -96,14 +96,9 @@ export const fr: typeof en = {
 
   // Home
   'home.title': 'Accueil',
-  'home.type-isbn': 'Saisir un ISBN',
-  'home.new': 'Nouveautés et à paraître',
-  'home.new-empty':
-    'Rien de nouveau pour l’instant. Marquez un tome comme lu et sa série est suivie : les nouveaux tomes et les tomes annoncés apparaissent ici.',
-  'home.reading': 'En cours de lecture',
-  'home.reading-empty': 'Aucun livre en cours.',
   'home.owned-unread': 'Possédés non lus',
-  'home.owned-unread-empty': 'Les livres que vous possédez et n’avez pas lus apparaissent ici.',
+  'home.reading': 'En cours de lecture',
+  'home.empty': 'Rien ici pour l’instant.',
 
   // Settings
   'settings.title': 'Réglages',
