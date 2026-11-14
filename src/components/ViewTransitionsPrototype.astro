@@ -1,0 +1,424 @@
+---
+// PROTOTYPE, throwaway (view transitions between pages). Dev server only: AppShell
+// includes it under `import.meta.env.DEV`, so a build never ships it.
+// Question: which page transition feels right, from Library to Book and back?
+// Variants switch from the floating bar (or `?vt=off|fade|morph|push|morph-push`),
+// kept in localStorage because a transition spans two pages. "Slow" stretches
+// every transition to 1.6 s to judge it.
+// Cross-document view transitions: Chrome 126+, Safari 18.2+; Firefox partial
+// (https://developer.chrome.com/docs/web-platform/view-transitions/cross-document).
+---
+
+<link rel="expect" href="#vt-prototype-end" blocking="render" />
+<style is:inline>
+  @view-transition {
+    navigation: auto;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    @view-transition {
+      navigation: none;
+    }
+  }
+
+  /* The chrome stays still: only the page moves. */
+  html[data-vt] .app > .sidebar {
+    view-transition-name: shell-sidebar;
+  }
+  html[data-vt] .app > .bottom {
+    view-transition-name: shell-bottom;
+  }
+  html[data-vt] .app > .panel {
+    view-transition-name: page;
+  }
+  #vt-switcher {
+    view-transition-name: vt-switcher;
+  }
+
+  ::view-transition-group(*) {
+    animation-duration: 220ms;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* B, D: the cover flies from its place in the Library to the Book page. */
+  ::view-transition-group(book-cover) {
+    animation-duration: 380ms;
+    animation-timing-function: cubic-bezier(0.3, 0.9, 0.3, 1);
+  }
+  ::view-transition-old(book-cover),
+  ::view-transition-new(book-cover) {
+    height: 100%;
+    object-fit: cover;
+    mix-blend-mode: normal;
+  }
+  /* Chrome blends with plus-lighter through a UA animation: our own animations drop it. */
+  ::view-transition-old(book-cover) {
+    animation: none;
+  }
+  ::view-transition-new(book-cover) {
+    animation: 200ms ease-out both vt-in;
+  }
+
+  /* A, B: the page fades through (old out, then new in), never two pages at once. */
+  ::view-transition-old(page) {
+    animation: 120ms ease-in both vt-out;
+  }
+  ::view-transition-new(page) {
+    animation: 200ms ease-out 80ms both vt-in;
+  }
+  @keyframes vt-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes vt-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* C, D: drill-down pushes the new page in from the right; back pops it out. */
+  @media (max-width: 959.98px) {
+    html[data-vt] .app > .panel {
+      min-height: 100dvh;
+      background: var(--ground);
+    }
+    html:active-view-transition-type(forward, back)::view-transition-group(page) {
+      animation-duration: 340ms;
+    }
+    html:active-view-transition-type(forward)::view-transition-old(page) {
+      animation: 340ms cubic-bezier(0.2, 0.8, 0.2, 1) both vt-behind-out;
+      mix-blend-mode: normal;
+    }
+    html:active-view-transition-type(forward)::view-transition-new(page) {
+      animation: 340ms cubic-bezier(0.2, 0.8, 0.2, 1) both vt-front-in;
+      mix-blend-mode: normal;
+      box-shadow: -8px 0 24px rgb(0 0 0 / 0.12);
+    }
+    html:active-view-transition-type(back)::view-transition-old(page) {
+      animation: 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both vt-front-out;
+      mix-blend-mode: normal;
+      z-index: 1;
+      box-shadow: -8px 0 24px rgb(0 0 0 / 0.12);
+    }
+    html:active-view-transition-type(back)::view-transition-new(page) {
+      animation: 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both vt-behind-in;
+      mix-blend-mode: normal;
+    }
+  }
+
+  @keyframes vt-front-in {
+    from {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes vt-front-out {
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes vt-behind-out {
+    to {
+      transform: translateX(-25%);
+      filter: brightness(0.92);
+    }
+  }
+  @keyframes vt-behind-in {
+    from {
+      transform: translateX(-25%);
+      filter: brightness(0.92);
+    }
+  }
+
+  /* Desktop: the panel content only shifts a little; the frame stays. */
+  @media (min-width: 960px) {
+    html:active-view-transition-type(forward, back)::view-transition-group(page) {
+      overflow: clip;
+    }
+    html:active-view-transition-type(forward)::view-transition-old(page) {
+      animation: 160ms ease-in both vt-fade-left;
+    }
+    html:active-view-transition-type(forward)::view-transition-new(page) {
+      animation: 260ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms both vt-in-from-right;
+    }
+    html:active-view-transition-type(back)::view-transition-old(page) {
+      animation: 160ms ease-in both vt-fade-right;
+    }
+    html:active-view-transition-type(back)::view-transition-new(page) {
+      animation: 260ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms both vt-in-from-left;
+    }
+  }
+  @keyframes vt-in-from-right {
+    from {
+      opacity: 0;
+      transform: translateX(32px);
+    }
+  }
+  @keyframes vt-in-from-left {
+    from {
+      opacity: 0;
+      transform: translateX(-32px);
+    }
+  }
+  @keyframes vt-fade-left {
+    to {
+      opacity: 0;
+      transform: translateX(-16px);
+    }
+  }
+  @keyframes vt-fade-right {
+    to {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+  }
+
+  html[data-vt-slow]::view-transition-group(*),
+  html[data-vt-slow]::view-transition-old(*),
+  html[data-vt-slow]::view-transition-new(*) {
+    animation-duration: 1.6s !important;
+  }
+
+  /* The switcher: obviously not part of the design. */
+  #vt-switcher {
+    position: fixed;
+    left: 50%;
+    bottom: calc(92px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 999px;
+    background: #111;
+    color: #fff;
+    font: 600 12px/1 system-ui, sans-serif;
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
+    white-space: nowrap;
+  }
+  @media (min-width: 960px) {
+    #vt-switcher {
+      bottom: 20px;
+    }
+  }
+  #vt-switcher button {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  #vt-switcher button:hover {
+    background: #333;
+  }
+  #vt-switcher [data-vt-slow-toggle][aria-pressed='true'] {
+    background: #f5c518;
+    color: #111;
+  }
+  #vt-switcher output {
+    min-width: 148px;
+    text-align: center;
+  }
+</style>
+<script is:inline>
+  (() => {
+    const KEY = 'atomes-vt-prototype';
+    const SLOW_KEY = 'atomes-vt-slow';
+    const COVER_KEY = 'atomes-vt-cover';
+    const FROM_KEY = 'atomes-vt-from';
+    const RETURN_KEY = 'atomes-vt-return';
+    const variants = [
+      ['off', 'Off (today)'],
+      ['fade', 'A · Calm fade'],
+      ['morph', 'B · Cover morph'],
+      ['push', 'C · Push'],
+      ['morph-push', 'D · Morph + push'],
+    ];
+    const keys = variants.map(([key]) => key);
+    const root = document.documentElement;
+
+    const asked = new URLSearchParams(location.search).get('vt');
+    if (keys.includes(asked)) localStorage.setItem(KEY, asked);
+    const variant = () => (keys.includes(localStorage.getItem(KEY)) ? localStorage.getItem(KEY) : 'fade');
+    const morphs = () => variant() === 'morph' || variant() === 'morph-push';
+    const pushes = () => variant() === 'push' || variant() === 'morph-push';
+    const apply = () => {
+      if (variant() === 'off') delete root.dataset.vt;
+      else root.dataset.vt = variant();
+      root.toggleAttribute('data-vt-slow', localStorage.getItem(SLOW_KEY) === '1');
+    };
+    apply();
+
+    // Tabs are depth 0; a Series is under them, a Book under a Series.
+    const depth = (href) => {
+      const path = new URL(href, location.href).pathname;
+      return path === '/book' ? 2 : path === '/series' ? 1 : 0;
+    };
+    const name = (element) => {
+      if (element) element.style.viewTransitionName = 'book-cover';
+    };
+    const clearNames = () => {
+      for (const element of document.querySelectorAll('[style*="view-transition-name"]')) element.style.viewTransitionName = '';
+    };
+
+    // Back to the page the Book was opened from: its covers draw only after the
+    // page shows (client:only island), and a transition takes its names when it
+    // starts. So an empty landing box takes the name at once, then sticks to the
+    // real cover every frame once it draws; the flying cover follows it there.
+    // The real cover stays hidden until the flight ends.
+    const land = (href, rect) => {
+      const landing = document.createElement('div');
+      landing.setAttribute('aria-hidden', 'true');
+      const place = (r) =>
+        Object.assign(landing.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, pointerEvents: 'none' });
+      place(rect);
+      landing.style.viewTransitionName = 'book-cover';
+      document.body.append(landing);
+      const hide = document.createElement('style');
+      hide.textContent = `a[href="${href}"] .book-cover { visibility: hidden; }`;
+      document.head.append(hide);
+      let flying = true;
+      const follow = () => {
+        if (!flying) return;
+        const target = [...document.querySelectorAll(`a[href="${href}"] .book-cover`)].find((element) => element.getClientRects().length);
+        if (target) place(target.getBoundingClientRect());
+        requestAnimationFrame(follow);
+      };
+      follow();
+      return () => {
+        flying = false;
+        landing.remove();
+        hide.remove();
+      };
+    };
+
+    // The Book page waits for this before it swaps its skeleton for the book,
+    // so the flying cover does not vanish halfway (src/pages/book.astro).
+    let settle;
+    window.atomesViewTransition = new Promise((resolve) => (settle = resolve));
+    if (!('onpagereveal' in window)) settle();
+
+    // The same book can show twice on a page: name the cover of the link clicked.
+    let lastLink;
+    addEventListener('click', (event) => (lastLink = event.target.closest?.('a')), true);
+
+    addEventListener('pageswap', (event) => {
+      sessionStorage.setItem(FROM_KEY, location.href);
+      sessionStorage.removeItem(COVER_KEY);
+      const transition = event.viewTransition;
+      if (!transition) return;
+      if (variant() === 'off') return transition.skipTransition();
+      if (!morphs() || !event.activation?.entry?.url) return;
+      const to = new URL(event.activation.entry.url);
+      if (to.pathname === '/book') {
+        // Library (or Home) to Book: the cover of the link opened.
+        const href = to.pathname + to.search;
+        const links = [lastLink, ...document.querySelectorAll('a[href^="/book?"]')].filter((a) => a?.getAttribute('href') === href);
+        const box = links.map((a) => a.querySelector('.book-cover')).find(Boolean);
+        name(box);
+        sessionStorage.setItem(COVER_KEY, JSON.stringify({ search: to.search, src: box?.querySelector('img')?.src ?? null }));
+        // Remember where the cover came from, for the flight back.
+        const r = box?.getBoundingClientRect();
+        if (r) sessionStorage.setItem(RETURN_KEY, JSON.stringify({ back: location.pathname + location.search, href, rect: { left: r.left, top: r.top, width: r.width, height: r.height } }));
+        return;
+      }
+      // Book back to the page it was opened from: its cover flies home. Anywhere
+      // else there is no cover to land on, so no name (it would hang over the page).
+      const trip = JSON.parse(sessionStorage.getItem(RETURN_KEY) ?? 'null');
+      if (trip && trip.href === location.pathname + location.search && trip.back === to.pathname + to.search) {
+        name(document.querySelector('[data-book]:not([hidden]) [data-cover], [data-skeleton]:not([hidden]) .book-cover'));
+        sessionStorage.setItem(RETURN_KEY, JSON.stringify({ ...trip, flying: true }));
+      }
+    });
+
+    addEventListener('pagereveal', (event) => {
+      const transition = event.viewTransition;
+      const from = sessionStorage.getItem(FROM_KEY);
+      const cover = JSON.parse(sessionStorage.getItem(COVER_KEY) ?? 'null');
+      sessionStorage.removeItem(COVER_KEY);
+      // A page back from the back/forward cache still holds the name set when it left.
+      clearNames();
+      const trip = JSON.parse(sessionStorage.getItem(RETURN_KEY) ?? 'null');
+      const homeward = trip?.flying && morphs();
+      if (trip?.flying) sessionStorage.setItem(RETURN_KEY, JSON.stringify({ ...trip, flying: false }));
+      if (!transition) {
+        return settle();
+      }
+      if (variant() === 'off') {
+        transition.skipTransition();
+        return settle();
+      }
+      if (pushes() && from) {
+        const step = depth(location.href) - depth(from);
+        if (step > 0) transition.types.add('forward');
+        if (step < 0) transition.types.add('back');
+      }
+      // Arrived on a Book from its cover: the skeleton cover takes the name and the image.
+      if (morphs() && location.pathname === '/book' && cover?.search === location.search) {
+        const box = document.querySelector('[data-skeleton] .book-cover');
+        if (box && cover.src) {
+          const image = document.createElement('img');
+          image.alt = '';
+          image.src = cover.src;
+          box.classList.remove('skeleton');
+          box.dataset.cover = 'loaded';
+          box.replaceChildren(image);
+        }
+        name(box);
+      }
+      // Back home from the Book: the landing box catches the flying cover.
+      const landed = homeward && trip.back === location.pathname + location.search ? land(trip.href, trip.rect) : () => {};
+      // Surface the state (prototype): what this transition did.
+      const named = [...document.querySelectorAll('[style*="view-transition-name"]')].map((element) => element.className);
+      console.info('[vt-prototype]', variant(), [...transition.types], named);
+      sessionStorage.setItem('atomes-vt-log', JSON.stringify({ at: location.pathname, variant: variant(), types: [...transition.types], named }));
+      transition.finished.finally(() => {
+        landed();
+        clearNames();
+        settle();
+      });
+    });
+
+    addEventListener('DOMContentLoaded', () => {
+      const bar = document.createElement('div');
+      bar.id = 'vt-switcher';
+      bar.innerHTML =
+        '<button type="button" data-vt-step="-1" aria-label="Previous variant">‹</button>' +
+        '<output aria-live="polite"></output>' +
+        '<button type="button" data-vt-step="1" aria-label="Next variant">›</button>' +
+        '<button type="button" data-vt-slow-toggle>Slow</button>';
+      const label = bar.querySelector('output');
+      const slow = bar.querySelector('[data-vt-slow-toggle]');
+      const render = () => {
+        label.textContent = variants[keys.indexOf(variant())][1];
+        slow.setAttribute('aria-pressed', String(localStorage.getItem(SLOW_KEY) === '1'));
+        apply();
+      };
+      const step = (by) => {
+        localStorage.setItem(KEY, keys[(keys.indexOf(variant()) + by + keys.length) % keys.length]);
+        render();
+      };
+      bar.addEventListener('click', (event) => {
+        const button = event.target.closest('button');
+        if (!button) return;
+        if (button.dataset.vtStep) step(Number(button.dataset.vtStep));
+        else {
+          localStorage.setItem(SLOW_KEY, localStorage.getItem(SLOW_KEY) === '1' ? '0' : '1');
+          render();
+        }
+      });
+      addEventListener('keydown', (event) => {
+        if (event.target.closest?.('input, textarea, select, [contenteditable]')) return;
+        if (event.key === 'ArrowLeft') step(-1);
+        if (event.key === 'ArrowRight') step(1);
+      });
+      render();
+      document.body.append(bar);
+    });
+  })();
+</script>

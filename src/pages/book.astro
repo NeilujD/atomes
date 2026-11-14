@@ -446,7 +446,8 @@ const choices = [
         reportNetwork(!loaded.stale);
         reportWaiting(loaded.waiting);
         library = loaded.library;
-        render();
+        // PROTOTYPE, throwaway: wait for the page transition (src/components/ViewTransitionsPrototype.astro).
+        void ((window as { atomesViewTransition?: Promise<void> }).atomesViewTransition ?? Promise.resolve()).then(render);
       },
       fail,
     );

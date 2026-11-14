@@ -9,6 +9,8 @@ import ConnectionStatus from '../components/ConnectionStatus.astro';
 import EnvironmentBadge from '../components/EnvironmentBadge.astro';
 import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
+// PROTOTYPE, throwaway: view transitions between pages (dev server only).
+import ViewTransitionsPrototype from '../components/ViewTransitionsPrototype.astro';
 import type { IconName } from '../components/icons';
 import { bootScript } from '../lib/appearance';
 import { gateBootScript } from '../lib/auth/gate-boot';
@@ -74,6 +76,7 @@ const icons = appIcons(appEnvironment(process.env));
     <link rel="apple-touch-icon" href={icons.appleTouch} />
     <meta name="generator" content={Astro.generator} />
     <title>{title} · Atomes</title>
+    {import.meta.env.DEV && <ViewTransitionsPrototype />}
   </head>
   <body>
     {
@@ -197,6 +200,7 @@ const icons = appIcons(appEnvironment(process.env));
         </div>
       </template>
     </div>
+    {import.meta.env.DEV && <span id="vt-prototype-end" hidden />}
   </body>
 </html>
 
