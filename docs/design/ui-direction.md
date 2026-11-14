@@ -1,6 +1,6 @@
 # UI direction: what Atomes takes from Linear
 
-Status: proposed, 2026-11-04. Applies to every screen. Code: `src/styles/theme.css`, `src/layouts/AppShell.astro`.
+Status: proposed, 2026-11-04; amended 2026-11-14 (colour roles, back arrow). Applies to every screen. Code: `src/styles/theme.css`, `src/layouts/AppShell.astro`.
 
 Source: Linear, ["How we redesigned the Linear UI (part II)"](https://linear.app/now/how-we-redesigned-the-linear-ui), 28 March 2024. The screen designs stay the reference for content (`docs/design/source/`, canvas link in `docs/HANDOFF.md`); this document changes the frame around them.
 
@@ -9,7 +9,7 @@ Source: Linear, ["How we redesigned the Linear UI (part II)"](https://linear.app
 Atomes keeps the canvas colours, font and screens, and takes four ideas from Linear:
 
 1. **The chrome is an inverted L.** On desktop, the sidebar and the view header frame one content panel. On the phone, the same parts become a large title and a tab bar.
-2. **The chrome is quiet; covers bring the colour.** Navigation uses greys only. Cobalt has one meaning: something new in a Series.
+2. **The chrome is quiet; covers bring the colour.** Navigation uses greys only. Cobalt marks something new in a Series and the one primary action of a screen; a muted red marks actions that destroy. Both are small touches: text, icon or a thin outline, never a large fill.
 3. **Few colour inputs, the rest derived.** One `light-dark()` pair per canvas colour, plus one contrast value that makes a high-contrast mode.
 4. **Define behaviour before screens, then test it per view type.** The rules below come first; each new screen must fit them.
 
@@ -21,7 +21,7 @@ Atomes keeps the canvas colours, font and screens, and takes four ideas from Lin
 | ["Reduce visual noise, maintain visual alignment, and increase the hierarchy and density"](https://linear.app/now/how-we-redesigned-the-linear-ui#:~:text=reduce%20visual%20noise%2C%20maintain%20visual%20alignment) of navigation. | Sidebar items are 32 px rows on one left edge, 16 px icons, no borders. The active item gets a soft fill, not a colour. Desktop sections are list groups on a hairline, not cards. |
 | Themes from ["three: base color, accent color, and contrast"](https://linear.app/now/how-we-redesigned-the-linear-ui#:~:text=we%20defined%20three%3A%20base%20color%2C%20accent%20color%2C%20and%20contrast) instead of 98 variables per theme. | The canvas colours are typed once, as `light-dark()` pairs. Secondary text, lines and inactive controls derive from them with one `--contrast` value. See "Why not a full generator" below. |
 | A contrast input gives high-contrast themes for accessibility. | `--contrast` is 0% by default and 45% when the OS asks for more contrast or the reader picks it in Settings. Measured: secondary text 6.3:1 to 10.7:1, lines 1.3:1 to 4.0:1 (light theme, on the panel). |
-| ["Limiting how much chrome (blue in our case)"](https://linear.app/now/how-we-redesigned-the-linear-ui#:~:text=limiting%20how%20much%20chrome) goes into the neutrals, for a timeless look. | Neutrals keep the warm paper tint of the canvas, never cobalt. Cobalt marks New and Upcoming Volumes, links and focus rings, nothing else. |
+| ["Limiting how much chrome (blue in our case)"](https://linear.app/now/how-we-redesigned-the-linear-ui#:~:text=limiting%20how%20much%20chrome) goes into the neutrals, for a timeless look. | Neutrals keep the warm paper tint of the canvas, never cobalt. Cobalt marks New and Upcoming Volumes, the primary action of a screen, links and focus rings, nothing else. |
 | ["Making our text and neutral icons darker"](https://linear.app/now/how-we-redesigned-the-linear-ui#:~:text=making%20our%20text%20and%20neutral%20icons%20darker) in light mode, lighter in dark mode. | Secondary text stays at the canvas value (6.3:1 light, 7.0:1 dark), above WCAG AA. Icons use the text colour of their row. |
 | [Inter Display](https://linear.app/now/how-we-redesigned-the-linear-ui#:~:text=We%20started%20using%20Inter%20Display) for headings, Inter for text. | One family, Schibsted Grotesk. Headings get weight 700 and negative tracking (-0.02em to -0.03em). Volume numbers and counts use tabular figures. |
 | Navigation had to work in Electron and in a browser, so some controls had to be ["easily removable"](https://linear.app/now/how-we-redesigned-the-linear-ui#:~:text=needed%20to%20be%20easily%20removable). | Atomes runs in a browser tab, as an installed PWA, and on a phone in a shop with no signal. The shell needs no browser controls and respects safe-area insets. |
@@ -64,7 +64,7 @@ Mix in `oklab`, not `oklch`: Chrome gives an `oklch` mix of near-greys the hue `
 
 **Panel (desktop).** One surface panel, 8 px from the window edges. Only the panel scrolls; the sidebar stays.
 
-**View header.** 48 px, sticky inside the panel, hairline under it. Left: page title (15 px, 600). Right: actions of the page (slot `actions`). On the phone: 28 px title, not sticky.
+**View header.** 48 px, sticky inside the panel, hairline under it. Left: page title (15 px, 600). Detail pages (Book, Series) show a back arrow before the title, on both frames: it goes back in history when the previous page is an Atomes page, else to the Library. The installed app has no browser Back button, so the arrow is the way back. Right: actions of the page (slot `actions`). On the phone: 28 px title, not sticky.
 
 **View toolbar (Library only).** A second header row under the view header; it sticks on desktop, not on the phone. Desktop, first row: search, the Books / Series switch, the result count, "Clear all" when a search or a filter is on, and the Grid / List / Cover flow switch at the right. In a narrow window with a filter on, this row wraps: the mode switch goes to a second line, still at the right. Under it: "Search in", Sort, the author and Series filters, then the Reading Status chips and the Label chips (none until the reader has a Label). In List, the A to Z index is the last row of the toolbar. Phone: the two switches are toolbar rows, Books / Series then Grid / List / Cover flow, each as wide as the screen. Then search and a "Sort and filter" button: it opens "Search in", Sort and the filters in a sheet, and shows how many are on. Then the result count and "Clear all". In List, the A to Z index is a rail on the right edge. Grid, List and Cover flow are for Books: Series shows a grid of cards, with no mode switch and no index. The toolbar never changes the sidebar. Code: `src/islands/Library.tsx`, `src/pages/library.astro`.
 
@@ -80,7 +80,7 @@ Mix in `oklab`, not `oklch`: Chrome gives an `oklch` mix of near-greys the hue `
 
 **Appearance.** `color-scheme` follows the system. `data-appearance="light|dark"` on `<html>` forces one; `data-contrast="more"` raises contrast. Settings sets Appearance (System, Light, Dark), kept on the device; an inline script in `AppShell` applies it before first paint. Rule and storage: `src/lib/appearance.ts`. The contrast control is still to build.
 
-**Colour roles.** Ink: text, read spines, primary buttons. Secondary: metadata, inactive navigation. Soft: fills, hover, active navigation. Line: hairlines, panel edge. Cobalt: New and Upcoming Volumes, links, focus. Caution (yellow, `--caution` on `--caution-tint`): the offline status, nothing else. Covers: their own colours, with a thin edge (`--cover-edge`).
+**Colour roles.** Ink: text, read spines, primary buttons. Secondary: metadata, inactive navigation. Soft: fills, hover, active navigation. Line: hairlines, panel edge. Cobalt (`--accent`): New and Upcoming Volumes, the one primary action of a screen, links, focus. On an action it is the text or icon colour, or a 1 px outline, never a large fill. In a Shelf Check answer, "missing" and "new" are cobalt; "already owned" stays ink. Danger (`--danger`, a muted red): the text or icon of an action that destroys (remove a Copy, delete a Label, reset), nothing else: no fills, and not for errors, which keep ink and weight. A destructive action offers Undo in its toast rather than a confirm dialog. Caution (yellow, `--caution` on `--caution-tint`): the offline status, nothing else. Covers: their own colours, with a thin edge (`--cover-edge`).
 
 ## Stress test before building screens
 
