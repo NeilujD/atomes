@@ -44,7 +44,7 @@ _Avoid_: Progress, state
 _French_: Statut de lecture
 
 **Label**:
-A word the reader attaches to Works to group and filter them by theme or category (e.g. Sci-fi, Manga, To re-read). Labels are personal and Private by default; the Catalog may suggest some from a Work's subjects.
+A word the reader attaches to Works or to a Series to group and filter them by theme or category (e.g. Sci-fi, Manga, To re-read). A Label on a Series applies to every Work of that Series, including Volumes added later. Labels are personal and Private by default; the Catalog may suggest some from a Work's subjects.
 _Avoid_: Tag, genre, category, shelf
 _French_: Étiquette
 
@@ -66,8 +66,13 @@ _Avoid_: Tome, issue, book
 _French_: Tome
 
 **Edition Line**:
-A Series as published by one publisher, in one language and format (e.g. One Piece, Glénat, French, standard). The reader collects a Series in one Edition Line at a time and may switch from a given Volume onward.
+A Series as published by one publisher, in one language and format (e.g. One Piece, Glénat, French, standard). The reader collects a Series in one Edition Line at a time and may switch from a given Volume onward. The app names an Edition Line by its publisher and the years of its Editions (e.g. Glénat · 1993–2000), so two editions of one publisher read apart.
 _Avoid_: Collection, imprint, version
+
+**Series Correction**:
+A reader's fix of the Catalog: the Series or Volume number of an Edition, or a new Series made by hand. It serves every reader of the instance, and a Catalog fill never overwrites it.
+_Avoid_: Override, edit, manual Series
+_French_: Correction de série
 
 **Followed Series**:
 A Series, in a given Edition Line, that the app watches for New Volumes. A Series becomes followed automatically when the reader marks one of its Volumes read.
@@ -95,14 +100,14 @@ _Avoid_: Submission, tip, announcement
 _French_: Signalement de parution
 
 **Missing Volume**:
-A Volume of a Followed Series, earlier than the latest one the reader owns, that they don't own.
+A Volume of a Followed Series, earlier than the latest one the reader owns, that they don't own and have not read. A Volume the reader read but no longer owns is not missing.
 _Avoid_: Gap, hole
 _French_: Tome manquant
 
 ## Buying
 
 **To Buy**:
-The reader's list of Editions they intend to acquire: the Volumes of Followed Series that are in shops in the reader's Edition Line and that they don't own, plus the Editions added by hand. The Volumes of Followed Series appear on it automatically: the Missing Volumes and every Volume after the latest one owned. Upcoming Volumes do not.
+The reader's list of Editions they intend to acquire: the Volumes of Followed Series that are in shops in the reader's Edition Line and that they don't own, plus the Editions added by hand. The Volumes of Followed Series appear on it automatically: the Missing Volumes and every Volume after the latest one owned that the reader has not read. Upcoming Volumes do not.
 _Avoid_: Wishlist, shopping list, want-to-read
 _French_: À acheter
 
