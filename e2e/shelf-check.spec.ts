@@ -67,3 +67,19 @@ test('Shelf Check offline: owned, missing and unknown books, and no ISBN leaves 
   await page.getByRole('button', { name: 'Add to Library' }).click();
   await expect(page.getByText(/Waiting: saved on this device/)).toBeVisible();
 });
+
+test('the Check tab opens the camera at once; with no camera, the ISBN field and the reason', async ({ page, signIn }) => {
+  await signIn();
+  await page.goto('/library');
+
+  // The browser of the test has no camera (and no permission to ask for one):
+  // the camera view closes and the reader types the ISBN instead. Chromium and
+  // WebKit give different errors: the reason is not checked word for word.
+  await page.getByRole('link', { name: 'Check', exact: true }).click();
+
+  await expect(page.getByLabel('ISBN', { exact: true })).toBeFocused();
+  await expect(page.locator('#isbn-hint')).not.toHaveText('The 13 digits under the barcode, on the back cover.');
+  await expect(page.getByRole('dialog')).toBeHidden();
+  // A reload or a Back does not open the camera again.
+  await expect(page).toHaveURL(/\/check$/);
+});
