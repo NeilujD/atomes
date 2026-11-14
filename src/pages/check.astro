@@ -76,6 +76,11 @@ const answers = [
     </div>
 
     <form class="preview" data-add-form hidden>
+      <!-- The Shelf Check answer (src/islands/ShelfCheckAnswer.tsx), first: a
+           placeholder holds its place until the Library is read. Focused, not
+           tabbable, so a screen reader says it after a lookup. -->
+      <div class="answer" data-answer tabindex="-1" hidden></div>
+
       <div class="book" data-preview>
         <div class="cover book-cover" data-cover></div>
         <div class="book-text">
@@ -115,9 +120,6 @@ const answers = [
         <!-- Find the Series or Work in BnF by the typed title (src/islands/FindInBnf.tsx). -->
         <div data-find></div>
       </fieldset>
-
-      <!-- The Shelf Check answer (src/islands/ShelfCheckAnswer.tsx), once the Library is read. -->
-      <div class="answer" data-answer hidden></div>
 
       <!-- Hidden offline for a book this device has no Catalog data for: check online later. -->
       <div class="add-actions" data-add-actions>
@@ -352,10 +354,13 @@ const answers = [
     details.disabled = !typing;
     addActions.hidden = answerOnly;
     for (const radio of radios) radio.checked = radio.value === 'unread';
-    answer.hidden = true;
+    // Its place is kept while the Library loads: the book below does not jump.
+    render(h('div', { class: 'skeleton answer-skeleton', 'aria-hidden': 'true' }), answer);
+    answer.hidden = false;
     showAction(false);
     addForm.hidden = false;
-    if (!answerOnly) (typing ? detail('title') : addButton).focus();
+    // A book the Catalog does not know: the reader types it.
+    if (typing) detail('title').focus();
 
     let check: ShelfCheck;
     if (onDevice) {
@@ -364,7 +369,10 @@ const answers = [
     } else {
       // Already in the Library: start from its Reading Status, and say so.
       const space = await openSpaceOrSay();
-      if (!space) return;
+      if (!space) {
+        answer.hidden = true;
+        return;
+      }
       let line: Edition[] | undefined;
       try {
         const loaded = await loadLibrary(space);
@@ -378,12 +386,16 @@ const answers = [
       } catch {
         // No copy on this device and no network: the status starts at "Not yet", and no answer.
         library = { copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] };
+        answer.hidden = true;
         return;
       }
       if (book !== next) return;
       check = shelfCheck(next.isbn, next.edition, library, line);
     }
     showAnswer(check, next);
+    // The answer is what the reader came for: focus it (screen readers) where
+    // it is, at the top, rather than scroll to Add.
+    if (!typing) answer.focus({ preventScroll: true });
     // Abandoned is not an answer here: no choice keeps it.
     const status = currentStatus(next.work, library);
     for (const radio of radios) radio.checked = radio.value === status;
@@ -396,7 +408,6 @@ const answers = [
   function showAnswer(check: ShelfCheck, shown: Book) {
     answer.dataset.kind = check.kind;
     render(h(ShelfCheckAnswer, { check, work: shown.work, volumes: shown.edition?.volumes ?? [] }), answer);
-    answer.hidden = false;
     showAction(check.kind === 'owned');
   }
 
@@ -1017,6 +1028,16 @@ const answers = [
     border: 1px solid var(--line);
   }
 
+  /* Focused by the script for screen readers, not by the reader: no ring. */
+  .answer:focus {
+    outline: none;
+  }
+
+  /* With a book on screen, the ISBN hint lines step aside; a problem stays. */
+  .quick-add:has(.preview:not([hidden])) .isbn-form .hint:not([data-error]) {
+    display: none;
+  }
+
   /* The question, Private and the add button, as if not wrapped. */
   .add-actions {
     display: contents;
@@ -1051,6 +1072,18 @@ const answers = [
   .answer-title {
     font-size: 17px;
     font-weight: 700;
+  }
+
+  /* Missing and New are cobalt (ui-direction.md, "Colour roles"); owned stays ink. */
+  [data-kind='missing'] .answer-title,
+  [data-kind='new'] .answer-title {
+    color: var(--accent);
+  }
+
+  /* Holds the place of the answer title while the Library loads. */
+  .answer-skeleton {
+    width: 60%;
+    height: 22px;
   }
 
   .answer-text {
