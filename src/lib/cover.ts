@@ -29,6 +29,8 @@ const shown = new WeakMap<HTMLElement, CoverContent>();
 export function showCover(box: HTMLElement, content: CoverContent): void {
   const before = shown.get(box);
   shown.set(box, content);
+  // The image of the cover that flew in from the Library (src/lib/page-transition.ts): no new load, no fade.
+  if (!before && content.src && box.querySelector('img')?.getAttribute('src') === content.src) return;
   // Same image: no new load. A default cover takes the new text.
   if (before?.src === content.src && box.dataset.cover !== 'default') return;
   if (!content.src || before?.src === content.src) return showDefault(box);

@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 import '@fontsource-variable/schibsted-grotesk';
 import '../styles/theme.css';
+import '../styles/page-transitions.css';
 import ConnectionStatus from '../components/ConnectionStatus.astro';
 import EnvironmentBadge from '../components/EnvironmentBadge.astro';
 import Icon from '../components/Icon.astro';
@@ -12,6 +13,7 @@ import Mark from '../components/Mark.astro';
 import type { IconName } from '../components/icons';
 import { bootScript } from '../lib/appearance';
 import { gateBootScript } from '../lib/auth/gate-boot';
+import { pageTransitionScript } from '../lib/page-transition';
 import { appIcons } from '../lib/environment';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 import { appEnvironment } from '../lib/server/settings';
@@ -34,9 +36,11 @@ const { title, current, detail = false, flow = false } = Astro.props;
 // <html lang> tells the page scripts which language to use (src/lib/i18n).
 const language = requestLanguage(Astro.request);
 const t = translator(language);
-// Before first paint: the forced theme, and on every screen but the sign-in
-// screen, the screen hidden until the gate answers (src/lib/auth/gate-boot.ts).
-const boot = flow ? bootScript : bootScript + gateBootScript;
+// Before first paint: the forced theme, on every screen but the sign-in screen
+// the screen hidden until the gate answers (src/lib/auth/gate-boot.ts), and the
+// page transitions (src/lib/page-transition.ts). Flow screens need them too:
+// they keep the previous page right for the next transition.
+const boot = (flow ? bootScript : bootScript + gateBootScript) + pageTransitionScript;
 // Astro hashes its own scripts, not `is:inline` ones: the CSP (ADR 0013) must
 // allow the boot script by its hash. No CSP in `astro dev`, so no `Astro.csp`.
 Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(boot).digest('base64')}`);
@@ -74,6 +78,8 @@ const icons = appIcons(appEnvironment(process.env));
     <link rel="apple-touch-icon" href={icons.appleTouch} />
     <meta name="generator" content={Astro.generator} />
     <title>{title} · Atomes</title>
+    <!-- The new page of a transition shows only once its body is parsed (src/lib/page-transition.ts). -->
+    <link rel="expect" href="#page-end" blocking="render" />
   </head>
   <body>
     {
@@ -93,7 +99,7 @@ const icons = appIcons(appEnvironment(process.env));
           </main>
         ) : (
           <>
-          <nav class="sidebar" aria-label={t('nav.main')}>
+          <nav class="sidebar" data-frame="sidebar" aria-label={t('nav.main')}>
             <div class="sidebar-top">
               <a class="brand" href="/" aria-label={t('nav.brand')}>
                 <Mark size={18} />
@@ -140,7 +146,7 @@ const icons = appIcons(appEnvironment(process.env));
             </div>
           </nav>
 
-          <main class="panel">
+          <main class="panel" data-frame="panel">
             <EnvironmentBadge place="top" />
             <header class:list={['view-header', { detail }]}>
               <h1 class="view-title" data-view-title>{title}</h1>
@@ -151,7 +157,7 @@ const icons = appIcons(appEnvironment(process.env));
             </div>
           </main>
 
-          <div class="bottom">
+          <div class="bottom" data-frame="bottom">
             <ConnectionStatus place="bar" />
             <nav class="tabbar" aria-label={t('nav.main')}>
               {
@@ -197,6 +203,7 @@ const icons = appIcons(appEnvironment(process.env));
         </div>
       </template>
     </div>
+    <span id="page-end" hidden />
   </body>
 </html>
 
