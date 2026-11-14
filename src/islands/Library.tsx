@@ -331,6 +331,17 @@ function Controls({ query, found, change }: ControlsProps) {
           <Chip key={status ?? 'all'} name={status ? t(`status.${status}`) : t('library.all-statuses')} count={count} pressed={query.status === status} onClick={() => change({ status })} />
         ))}
       </div>
+      <div class="library-chips" role="group" aria-label={t('library.ownership')}>
+        {found.owned.map(({ owned, count }) => (
+          <Chip
+            key={String(owned)}
+            name={owned === null ? t('library.all-owned') : t(owned ? 'library.owned' : 'library.not-owned')}
+            count={count}
+            pressed={query.owned === owned}
+            onClick={() => change({ owned })}
+          />
+        ))}
+      </div>
       {/* Labels are made on the Book page (CORE-35); with none, no row. */}
       {found.labels.length > 1 && (
         <div class="library-chips" role="group" aria-label={t('library.label')}>
@@ -346,7 +357,7 @@ function Controls({ query, found, change }: ControlsProps) {
 // The phone: one button opens the controls in a sheet; it shows how many are on.
 function Sheet({ query, found, change }: ControlsProps) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const on = [query.searchIn !== 'all', query.author, query.series, query.status, query.label].filter(Boolean).length;
+  const on = [query.searchIn !== 'all', query.author, query.series, query.status, query.label, query.owned !== null].filter(Boolean).length;
   return (
     <>
       <button class="button library-filters" type="button" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
@@ -428,10 +439,12 @@ function Book({ book }: { book: LibraryBook }) {
   const line = [volume, book.authors.join(', ')].filter(Boolean).join(' · ');
   return (
     <li>
-      <a class="library-book" href={bookHref(book.work)}>
+      {/* Read with no Copy: a grey cover and a quiet mark (CORE-100), no colour role. */}
+      <a class={book.owned ? 'library-book' : 'library-book library-not-owned'} href={bookHref(book.work)}>
         <Cover class="library-cover" src={book.cover} title={book.title} series={book.series} volumeTitle={book.volumeTitle} volume={volume} />
         <span class="library-book-title">{book.title}</span>
         {line && <span class="library-book-line">{line}</span>}
+        {!book.owned && <span class="library-book-line">{t('library.not-owned')}</span>}
       </a>
     </li>
   );

@@ -11,6 +11,7 @@ const book = (title: string, change: Partial<LibraryBook> = {}): LibraryBook => 
   volume: null,
   cover: null,
   status: 'unread',
+  owned: true,
   labels: [],
   addedAt: '2026-11-01T00:00:00.000Z',
   ...change,

@@ -85,6 +85,7 @@ describe('Library books', () => {
         volume: '40',
         cover: '/api/catalog/editions/9782864976165/cover',
         status: 'unread',
+        owned: true,
         labels: [],
         addedAt: '2026-11-04T00:00:00.000Z',
       },
@@ -95,6 +96,24 @@ describe('Library books', () => {
     const [book] = libraryBooks(library({ readingStatuses: [status(fondation, 'read', '2026-10-01T00:00:00.000Z')] }), editions, []);
 
     expect([book.title, book.status, book.addedAt]).toEqual(['Fondation', 'read', '2026-10-01T00:00:00.000Z']);
+  });
+
+  test('owned: a Copy of the Work, or an omnibus Copy that contains it; not owned: read with no Copy', () => {
+    const omnibus: Saved<Copy> = { rkey: 'o', value: { isbn: onePiece9.isbn, works: [work(onePiece9), work(onePiece105)], createdAt: '2026-11-01T00:00:00.000Z' } };
+    const records = library({ copies: [copy(dune, '2026-11-02T00:00:00.000Z'), omnibus], readingStatuses: [status(fondation, 'read')] });
+
+    expect(libraryBooks(records, editions, []).map((book) => [book.work, book.owned])).toEqual([
+      [work(dune), true],
+      [work(onePiece9), true],
+      [work(onePiece105), true],
+      [work(fondation), false],
+    ]);
+  });
+
+  test('a Work whose only Copy was removed stays, not owned', () => {
+    const removed = library({ readingStatuses: [status(dune, 'read')] });
+
+    expect(libraryBooks(removed, editions, []).map(({ title, owned }) => [title, owned])).toEqual([['Dune', false]]);
   });
 
   test('a Work with two Copies is one book, added with its first Copy', () => {
@@ -198,6 +217,11 @@ describe('Filters', () => {
     expect(names(find({ label: '3lbma' }).books)).toEqual(['One Piece 9', 'One Piece 105']);
   });
 
+  test('Owned or not: "Not owned" keeps the Works read with no Copy', () => {
+    expect(names(find({ owned: false }).books)).toEqual(['Fondation 1']);
+    expect(names(find({ owned: true }).books)).toEqual(['Astérix 40', 'Dune', 'La Horde du Contrevent', 'One Piece 9', 'One Piece 105']);
+  });
+
   test('the filters add up', () => {
     expect(names(find({ label: '3lbsf', status: 'read' }).books)).toEqual(['Fondation 1']);
   });
@@ -219,6 +243,14 @@ describe('Filters', () => {
     ]);
   });
 
+  test('Owned chips: all, owned, not owned, each counting the books the other filters leave', () => {
+    expect(find({ status: 'read', owned: false }).owned).toEqual([
+      { owned: null, count: 2 },
+      { owned: true, count: 1 },
+      { owned: false, count: 1 },
+    ]);
+  });
+
   test('Label chips: all, then each Label A to Z, each counting the books the other filters leave', () => {
     expect(find({ status: 'read', label: '3lbma' }).labels).toEqual([
       { label: null, name: '', count: 2 },
@@ -237,10 +269,11 @@ describe('Count and Clear all', () => {
     const found = find({ series: 'One Piece' });
 
     expect([found.books.length, found.total, found.filtered]).toEqual([2, 6, true]);
+    expect(find({ owned: false }).filtered).toBe(true);
   });
 
   test('Clear all drops the search, Search in and every filter, and keeps the sort', () => {
-    const query: LibraryQuery = { text: 'oda', searchIn: 'author', sort: 'added', author: 'Eiichirō Oda', series: 'One Piece', status: 'read', label: '3lbma' };
+    const query: LibraryQuery = { text: 'oda', searchIn: 'author', sort: 'added', author: 'Eiichirō Oda', series: 'One Piece', status: 'read', label: '3lbma', owned: false };
 
     expect(clearAll(query)).toEqual({ ...allBooks, sort: 'added' });
     expect(find(clearAll(query)).filtered).toBe(false);

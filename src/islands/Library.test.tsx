@@ -35,7 +35,7 @@ const books = [
 const onePiece = { id: 'wd:Q673', title: 'One Piece', sameAs: [] };
 const volumes = ['9782723434621', '9782723434638'].map((isbn, index) => ({ ...edition(isbn, 'One Piece', ['Eiichirō Oda']), series: onePiece, volumes: [index + 1], volume: index + 1 }));
 
-// The reader owns the three books and has read Dune. `labelled`: the books that carry the Label "Sci-fi".
+// The reader owns the three books and has read Dune (owned or not). `labelled`: the books that carry the Label "Sci-fi".
 async function libraryScreen(owned = books, labelled: Edition[] = []) {
   const { space } = memorySpace();
   if (labelled.length > 0) await saveLabel(space, { name: 'Sci-fi', works: labelled.map((each) => each.work.id), createdAt: '2026-11-01T00:00:00.000Z' });
@@ -43,7 +43,7 @@ async function libraryScreen(owned = books, labelled: Edition[] = []) {
   await saveReadingStatus(space, { work: books[1].work.id, isbn: books[1].isbn, status: 'read', updatedAt: '2026-11-02T00:00:00.000Z' });
   const sources: Sources = {
     open: () => Promise.resolve(space),
-    editions: (isbns) => Promise.resolve(new Map(owned.filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
+    editions: (isbns) => Promise.resolve(new Map([...books, ...volumes].filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
   };
   render(<Library sources={sources} />);
   await screen.findAllByRole('list');
@@ -117,6 +117,46 @@ describe('Library screen', () => {
     await libraryScreen([...books, ...volumes]);
 
     expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent', 'One Piece']);
+  });
+});
+
+describe('Owned or not', () => {
+  // Dune is read; its only Copy was removed.
+  const readNotOwned = () => libraryScreen([books[0], books[2]]);
+
+  test('a Work read with no Copy carries the quiet "Not owned" mark in Grid, List and Cover flow; an owned one does not', async () => {
+    await readNotOwned();
+
+    expect(screen.getByRole('link', { name: /Dune/ }).textContent).toContain('Not owned');
+    expect(screen.getByRole('link', { name: /Astérix/ }).textContent).not.toContain('Not owned');
+
+    choose('List');
+
+    expect(within(screen.getByRole('region', { name: 'D' })).getByRole('link', { name: /Dune/ }).textContent).toContain('Not owned');
+    expect(within(screen.getByRole('region', { name: 'A' })).getByRole('link', { name: /Astérix/ }).textContent).not.toContain('Not owned');
+
+    choose('Cover flow');
+
+    expect(screen.getByRole('link', { current: true }).getAttribute('aria-label')).toBe('Dune, Not owned');
+    expect(screen.getByRole('link', { name: 'Astérix' })).toBeTruthy();
+    expect(screen.getByText(/Read · Not owned/)).toBeTruthy();
+  });
+
+  test('the "Not owned" filter lists only the Works with no Copy; Clear all brings every book back', async () => {
+    await readNotOwned();
+    const ownedChips = () => within(screen.getAllByRole('group', { name: 'Owned or not' })[0]);
+    fireEvent.click(ownedChips().getByRole('button', { name: /Not owned/ }));
+
+    expect(titles()).toEqual(['Dune']);
+    expect(screen.getByText('1 of 3 books')).toBeTruthy();
+
+    fireEvent.click(ownedChips().getByRole('button', { name: /^Owned/ }));
+
+    expect(titles()).toEqual(['Astérix', 'La Horde du Contrevent']);
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear all' })[0]);
+
+    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent']);
   });
 });
 

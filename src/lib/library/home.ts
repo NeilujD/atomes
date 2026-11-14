@@ -3,13 +3,13 @@
 // renders them.
 import { compareText, type Language } from '../i18n/i18n';
 import type { LibraryBook } from './browse';
-import { ownsWork, type Library } from './model';
+import type { Library } from './model';
 
-// Owned-Unread (glossary): a Copy and the Reading Status unread. The last added first.
-export function ownedUnread(books: LibraryBook[], library: Library, language: Language): LibraryBook[] {
+// Owned-Unread (glossary): a Copy (`owned`, by ownsWork) and the Reading Status unread. The last added first.
+export function ownedUnread(books: LibraryBook[], language: Language): LibraryBook[] {
   const compare = compareText(language);
   return books
-    .filter((book) => book.status === 'unread' && ownsWork(book.work, library))
+    .filter((book) => book.status === 'unread' && book.owned)
     .sort((a, b) => b.addedAt.localeCompare(a.addedAt) || compare(a.title, b.title));
 }
 

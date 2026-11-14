@@ -39,7 +39,7 @@ const titles = (each: { title: string }[]) => each.map(({ title }) => title);
 
 function home(records: Library) {
   const books = libraryBooks(records, editions, []);
-  return { ownedUnread: titles(ownedUnread(books, records, 'en')), readingNow: titles(readingNow(books, records, 'en')) };
+  return { ownedUnread: titles(ownedUnread(books, 'en')), readingNow: titles(readingNow(books, records, 'en')) };
 }
 
 describe('Owned-Unread', () => {

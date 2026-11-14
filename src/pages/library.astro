@@ -232,6 +232,14 @@ const t = translator(requestLanguage(Astro.request));
     text-decoration: underline;
   }
 
+  /* A Work read with no Copy (CORE-100), in Grid, List and Cover flow: a grey,
+     faint cover and the quiet "Not owned" words, no colour role. Only the
+     cover fades, so the text keeps its contrast. */
+  .library-not-owned .book-cover {
+    filter: grayscale(1);
+    opacity: 0.6;
+  }
+
   /* Phone: the controls in a sheet from the bottom. */
   .library-sheet {
     inset: auto 0 0;
