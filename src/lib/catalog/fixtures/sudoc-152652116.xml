@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record>
+  <leader>     cam0 22        450 </leader>
+  <controlfield tag="001">152652116</controlfield>
+  <controlfield tag="002">67</controlfield>
+  <controlfield tag="003">https://www.sudoc.fr/152652116</controlfield>
+  <controlfield tag="004">20110530</controlfield>
+  <controlfield tag="005">20211226220445.000</controlfield>
+  <controlfield tag="006">315552325</controlfield>
+  <controlfield tag="007">384212103</controlfield>
+  <controlfield tag="008">Aax</controlfield>
+  <datafield tag="010" ind1="#" ind2="#">
+    <subfield code="a">2-8769-5218-1</subfield>
+    <subfield code="b">br.</subfield>
+  </datafield>
+  <datafield tag="034" ind1=" " ind2=" ">
+    <subfield code="a">OCoLC</subfield>
+    <subfield code="0">718509991</subfield>
+  </datafield>
+  <datafield tag="100" ind1="#" ind2="#">
+    <subfield code="a">20110530d1995    a  y0frey50      ba</subfield>
+  </datafield>
+  <datafield tag="101" ind1="1" ind2="#">
+    <subfield code="a">fre</subfield>
+    <subfield code="c">jpn</subfield>
+    <subfield code="2">639-2</subfield>
+  </datafield>
+  <datafield tag="102" ind1="#" ind2="#">
+    <subfield code="a">FR</subfield>
+  </datafield>
+  <datafield tag="104" ind1="#" ind2="#">
+    <subfield code="a">a</subfield>
+    <subfield code="b">y</subfield>
+    <subfield code="c">y</subfield>
+    <subfield code="d">ba</subfield>
+    <subfield code="e">0</subfield>
+    <subfield code="f">fre</subfield>
+  </datafield>
+  <datafield tag="105" ind1="#" ind2="#">
+    <subfield code="a">a   t   000yy</subfield>
+  </datafield>
+  <datafield tag="106" ind1="#" ind2="#">
+    <subfield code="a">r</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="c">txt</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="#">
+    <subfield code="6">z02</subfield>
+    <subfield code="c">sti</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="1">
+    <subfield code="6">z01</subfield>
+    <subfield code="a">i#</subfield>
+    <subfield code="b">xxxe##</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="1">
+    <subfield code="6">z02</subfield>
+    <subfield code="a">b#</subfield>
+    <subfield code="b">xb2e##</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="c">n</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="#">
+    <subfield code="6">z02</subfield>
+    <subfield code="c">n</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="1">
+    <subfield code="6">z01</subfield>
+    <subfield code="a">n</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="1">
+    <subfield code="6">z02</subfield>
+    <subfield code="a">n</subfield>
+  </datafield>
+  <datafield tag="200" ind1="1" ind2="#">
+    <subfield code="a">Le Duel</subfield>
+    <subfield code="f">Akira Toriyama</subfield>
+    <subfield code="g">[traduit du japonais par Kiyoko Chappe]</subfield>
+  </datafield>
+  <datafield tag="210" ind1="#" ind2="#">
+    <subfield code="a">Grenoble</subfield>
+    <subfield code="c">Glénat</subfield>
+    <subfield code="d">DL 1995</subfield>
+  </datafield>
+  <datafield tag="215" ind1="#" ind2="#">
+    <subfield code="a">1 vol. (184 p.)</subfield>
+    <subfield code="c">ill., couv. ill. en coul.</subfield>
+    <subfield code="d">18 cm</subfield>
+  </datafield>
+  <datafield tag="225" ind1="1" ind2="#">
+    <subfield code="a">Dragon Ball</subfield>
+    <subfield code="v">8</subfield>
+  </datafield>
+  <datafield tag="225" ind1="0" ind2="#">
+    <subfield code="a">Collection Manga</subfield>
+  </datafield>
+  <datafield tag="410" ind1="#" ind2="#">
+    <subfield code="0">04050770X</subfield>
+    <subfield code="t">Collection Manga (Grenoble)</subfield>
+    <subfield code="x">1275-7055</subfield>
+    <subfield code="v">1996</subfield>
+  </datafield>
+  <datafield tag="461" ind1="#" ind2="#">
+    <subfield code="t">Dragon Ball</subfield>
+    <subfield code="v">8</subfield>
+  </datafield>
+  <datafield tag="579" ind1=" " ind2=" ">
+    <subfield code="1">0499</subfield>
+    <subfield code="3">212533495</subfield>
+    <subfield code="t">Le Duel</subfield>
+  </datafield>
+  <datafield tag="700" ind1="#" ind2="1">
+    <subfield code="3">03231647X</subfield>
+    <subfield code="a">Toriyama</subfield>
+    <subfield code="b">Akira</subfield>
+    <subfield code="f">1955-2024</subfield>
+    <subfield code="c">mangaka</subfield>
+    <subfield code="4">070</subfield>
+  </datafield>
+  <datafield tag="702" ind1="#" ind2="1">
+    <subfield code="3">057148414</subfield>
+    <subfield code="a">Chappe</subfield>
+    <subfield code="b">Kiyoko</subfield>
+    <subfield code="f">19..-....</subfield>
+    <subfield code="4">730</subfield>
+  </datafield>
+  <datafield tag="712" ind1="0" ind2="2">
+    <subfield code="3">079201369</subfield>
+    <subfield code="a">Glénat</subfield>
+    <subfield code="c">Grenoble, Isère, France</subfield>
+    <subfield code="c">1969-....</subfield>
+    <subfield code="4">650</subfield>
+  </datafield>
+  <datafield tag="801" ind1="#" ind2="3">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">Abes</subfield>
+    <subfield code="c">20211226</subfield>
+    <subfield code="g">AFNOR</subfield>
+  </datafield>
+  <datafield tag="930" ind1="#" ind2="#">
+    <subfield code="5">315552325:424538458</subfield>
+    <subfield code="b">315552325</subfield>
+    <subfield code="a">BD TOR d/8</subfield>
+    <subfield code="j">g</subfield>
+  </datafield>
+  <datafield tag="940" ind1=" " ind2=" ">
+    <subfield code="5">315552325:424538458</subfield>
+    <subfield code="a">20110530</subfield>
+    <subfield code="b">x</subfield>
+  </datafield>
+  <datafield tag="941" ind1=" " ind2=" ">
+    <subfield code="5">315552325:424538458</subfield>
+    <subfield code="a">20110530</subfield>
+    <subfield code="b">11:19:36.000</subfield>
+  </datafield>
+</record>

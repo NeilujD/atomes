@@ -20,6 +20,17 @@ const spyFamily1to3 = '9782380714487'; // omnibus "Tomes 1 à 3" in its own BnF 
 const dragonBall1 = '9782723434621'; // 18 cm, known to SUDOC only: Series "Dragonball"
 const dragonBallPerfect1 = '9782723467681'; // 21 cm line of 34 Volumes, BnF Series record 41495473
 const dragonBall42 = '9782723449397'; // 18 cm, BnF Series "Dragon Ball." (two words)
+// Dragon Ball, Glénat, 18 cm, BnF Series record 34338439 (1993 to 2000):
+// Inventaire gives Volumes 2 to 4, 8, 10, 11 and more the one Work `sharedWork`.
+const dragonBall1993: Record<number, string> = {
+  1: '9782876952058',
+  2: '9782876952065',
+  3: '9782876952072',
+  8: '9782876952188',
+  10: '9782876952201',
+  11: '9782876952218',
+};
+const sharedWork = 'inv:91e782c2fc0f67739836a22c452f3623';
 const unknown = '9791099999993'; // valid check digit, no source knows it
 const naruto1 = '9782871294146'; // publisher "Dargaud Bénélux-Kana" (1 to 22); BnF's ISBN search misses it
 const naruto50 = '9782505009566'; // publisher "Kana" (23 on), same BnF Series record 38914962
@@ -509,6 +520,94 @@ describe('One Edition Line under two publisher names (ADR 0010, amendment 2026-1
     expect((await volumesOf(catalog, naruto1, signedOut)).map((v) => v.isbn)).toEqual([naruto1, naruto50]);
   });
 });
+
+describe('One Work per Volume number (ADR 0010, amendment 2026-11-14)', () => {
+  const volumesOf = async (catalog: Catalog, isbn: string, access = signedIn) =>
+    ((await (await answerVolumes(catalog, isbn, access)).json()) as { volumes: Edition[] }).volumes;
+
+  test('two Volumes Inventaire gives one Work each get their own Work, whatever the lookup order', async () => {
+    const { catalog } = setup();
+    const first = await edition(await answerEdition(catalog, dragonBall1993[2]));
+    expect(first.work.id).toBe(sharedWork);
+
+    const second = await edition(await answerEdition(catalog, dragonBall1993[3]));
+
+    expect(second.work).toEqual({ id: `isbn:${dragonBall1993[3]}`, title: second.title });
+    expect((await edition(await answerEdition(catalog, dragonBall1993[2]))).work.id).toBe(`isbn:${dragonBall1993[2]}`);
+    // Volume 1 has a Work of its own: it keeps it.
+    expect((await edition(await answerEdition(catalog, dragonBall1993[1]))).work.id).toBe('inv:31cee958a93ba50697a3fec2a32fc0c0');
+  });
+
+  test('a fill applies the rule: no Volume of the line keeps the shared Work, the others keep theirs', async () => {
+    const { catalog } = setup();
+
+    const volumes = await volumesOf(catalog, dragonBall1993[2]);
+
+    expect(volumes.filter((v) => v.work.id === sharedWork)).toEqual([]);
+    for (const volume of [2, 3, 4, 12, 20, 36]) {
+      const found = volumes.find((v) => v.volume === volume)!;
+      expect(found.work.id).toBe(`isbn:${found.isbn}`);
+    }
+    expect(volumes.find((v) => v.volume === 1)?.work.id).toBe('inv:31cee958a93ba50697a3fec2a32fc0c0');
+    expect(volumes.find((v) => v.volume === 6)?.work.id).toBe('inv:4393635352811f44e8a4630e9731eebb');
+    // Volumes 7 and 11 of another BnF record share one ISBN: one Edition, no failure.
+    expect(volumes.filter((v) => v.isbn === '9782723448376')).toHaveLength(1);
+  });
+
+  test('the dropped Work stays dropped when an Edition is fetched again a month later', async () => {
+    const { file } = setup();
+    const at = (iso: string) => {
+      const catalog = createCatalog({ file, fetch: recordedFetch().fetch, host: 'catalog.test', now: () => new Date(iso) });
+      open.push(catalog);
+      return catalog;
+    };
+    const before = at('2026-11-14T12:00:00.000Z');
+    await answerEdition(before, dragonBall1993[2]);
+    await answerEdition(before, dragonBall1993[3]);
+
+    const later = at('2026-12-20T12:00:00.000Z');
+    const again = await edition(await answerEdition(later, dragonBall1993[2]));
+
+    expect(again.fetchedAt).toBe('2026-12-20T12:00:00.000Z');
+    expect(again.work.id).toBe(`isbn:${dragonBall1993[2]}`);
+    // A Volume looked up for the first time after the drop does not get it either.
+    expect((await edition(await answerEdition(later, dragonBall1993[8]))).work.id).toBe(`isbn:${dragonBall1993[8]}`);
+  });
+
+  test('an answer not stored, a source being down, follows the rule too', async () => {
+    const { catalog, reopen } = setup();
+    await answerEdition(catalog, dragonBall1993[2]);
+    await answerEdition(catalog, dragonBall1993[3]);
+
+    const found = await edition(await answerEdition(reopen(recordedFetch(['www.sudoc.fr']).fetch), dragonBall1993[10]));
+
+    expect(found.work.id).toBe(`isbn:${dragonBall1993[10]}`);
+  });
+
+  test('a Catalog file from before the rule drops the shared Works it holds, once and for good (migration)', async () => {
+    const { catalog, file, reopen } = setup();
+    for (const volume of [1, 2, 3]) await answerEdition(catalog, dragonBall1993[volume]);
+    catalog.close();
+    open.splice(open.indexOf(catalog), 1);
+    // The file as the Catalog of main left it: the shared Work on each Volume, no dropped Work.
+    const old = new DatabaseSync(file);
+    old.prepare('update edition set work_id = ? where isbn != ?').run(sharedWork, dragonBall1993[1]);
+    old.exec('drop table dropped_work; pragma user_version = 6');
+    old.close();
+
+    const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
+    const migrated = createCatalog({ file, fetch: offline.fetch, host: 'catalog.test' });
+    open.push(migrated);
+
+    expect((await edition(await answerEdition(migrated, dragonBall1993[2]))).work.id).toBe(`isbn:${dragonBall1993[2]}`);
+    expect((await edition(await answerEdition(migrated, dragonBall1993[3]))).work.id).toBe(`isbn:${dragonBall1993[3]}`);
+    expect((await edition(await answerEdition(migrated, dragonBall1993[1]))).work.id).toBe('inv:31cee958a93ba50697a3fec2a32fc0c0');
+    expect(offline.calls).toEqual([]);
+    // Remembered: Volume 8, looked up later, does not get the Work.
+    expect((await edition(await answerEdition(reopen(), dragonBall1993[8]))).work.id).toBe(`isbn:${dragonBall1993[8]}`);
+  });
+});
+
 
 describe('A Catalog file from before book sizes (migration)', () => {
   const volumesOf = async (catalog: Catalog, isbn: string, access = signedIn) =>

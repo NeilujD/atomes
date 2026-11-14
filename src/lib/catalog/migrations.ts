@@ -6,6 +6,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { key } from './facts';
 import { bookHeight, placeLine } from './lines';
+import { dropSharedWorks } from './shared-works';
 
 type Step = (db: DatabaseSync) => void;
 
@@ -169,8 +170,24 @@ const titleKeysWithoutSpaces: Step = (db) => {
 // of a joint publisher name ("Dargaud Bénélux-Kana", then "Kana").
 const forgetFills: Step = (db) => db.exec('delete from line_fill');
 
+// One Work per Volume number (ADR 0010 amendment 2026-11-14, CORE-92): the
+// Works sources gave to Editions of different Volume numbers in one Series are
+// dropped for that Series, and remembered (shared-works.ts). Reader records
+// that name them are repaired once by scripts/repair-shared-works.ts.
+const oneWorkPerVolume: Step = (db) => {
+  db.exec(`
+    create table if not exists dropped_work (
+      work_id text not null,
+      series integer not null references series (n),
+      primary key (work_id, series)
+    );
+  `);
+  const rows = db.prepare('select distinct series from edition where series is not null').all() as { series: number }[];
+  for (const { series } of rows) dropSharedWorks(db, series);
+};
+
 // Add a step at the end; never edit or remove one.
-const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes, titleKeysWithoutSpaces, forgetFills];
+const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes, titleKeysWithoutSpaces, forgetFills, oneWorkPerVolume];
 
 export function migrate(db: DatabaseSync): void {
   const { user_version: done } = db.prepare('pragma user_version').get() as { user_version: number };
