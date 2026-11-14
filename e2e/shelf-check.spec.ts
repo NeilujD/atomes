@@ -11,6 +11,25 @@ async function check(page: Page, isbn: string) {
   await page.getByRole('button', { name: 'Look up' }).click();
 }
 
+test('Shelf Check: the answer comes first, on screen, with no scroll', async ({ page, signIn }) => {
+  await signIn();
+  // A whole phone screen (390 × 844), not only the part under the browser bars.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/check');
+  // One Piece 56, Glénat: a recorded Catalog answer, not in this reader's Library.
+  await check(page, '9782723478991');
+
+  const answer = page.getByText('Not in your Library', { exact: true });
+  await expect(answer).toBeInViewport({ ratio: 1 });
+  // Focus goes to the answer (screen readers), and the page did not scroll to Add.
+  await expect(page.locator(':focus')).toContainText('Not in your Library');
+  await expect(answer).toBeInViewport({ ratio: 1 });
+  // The answer is above the book it is about; the ISBN hint lines step aside.
+  const [answerBox, titleBox] = await Promise.all([answer.boundingBox(), page.getByRole('heading', { name: /One Piece/ }).boundingBox()]);
+  expect(answerBox!.y).toBeLessThan(titleBox!.y);
+  await expect(page.getByText('The 13 digits under the barcode, on the back cover.')).toBeHidden();
+});
+
 test('Shelf Check offline: owned, missing and unknown books, and no ISBN leaves the device', async ({ page, context, browser, baseURL, signIn }) => {
   await signIn();
   // The reader owns every Volume but 3, and follows the Series: set up on
