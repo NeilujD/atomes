@@ -298,18 +298,17 @@ export const fr: typeof en = {
 
   // À acheter (src/islands/ToBuy.tsx)
   'tobuy.title': 'À acheter',
-  'tobuy.private': 'Vous seul voyez cette liste. La liste À acheter n’est jamais partagée.',
+  'tobuy.empty': 'Rien à acheter : les tomes que vous n’avez pas dans les séries que vous suivez, et les livres ajoutés avec +, s’affichent ici, et vous seul les voyez.',
+  'tobuy.add-open': 'Ajouter un livre',
   'tobuy.add-label': 'Ajouter un livre par son ISBN',
   'tobuy.add': 'Ajouter',
   'tobuy.add-hint': 'Ajoute ce seul livre. Pour suivre toute une série, ajoutez l’un de ses tomes avec l’ajout rapide. L’ISBN, ce sont les 13 chiffres sous le code-barres.',
   'tobuy.owned': 'Vous avez déjà ce livre.',
   'tobuy.listed': 'Ce livre est déjà dans votre liste À acheter.',
   'tobuy.followed': 'Des séries que vous suivez',
-  'tobuy.followed-empty': 'Rien à acheter dans les séries que vous suivez : cette liste montre chaque tome en librairie, dans l’édition que vous collectionnez, que vous n’avez pas.',
   'tobuy.series': (series, count, volumes) => `${series} · ${count} ${count > 1 ? 'tomes' : 'tome'} (${volumes})`,
   'tobuy.show-more': (count, left) => `Afficher ${count} de plus (il en reste ${left})`,
   'tobuy.by-hand': 'Ajoutés à la main',
-  'tobuy.by-hand-empty': 'Rien d’ajouté à la main pour l’instant.',
   'tobuy.bought': 'Je l’ai acheté',
   'tobuy.remove': 'Retirer',
 
