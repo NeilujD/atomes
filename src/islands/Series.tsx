@@ -9,7 +9,8 @@ import type { Edition } from '../lib/catalog/catalog';
 import { coverUrl, lookupEditions, lookupVolumes } from '../lib/catalog/client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
-import { saveCopy } from '../lib/library/copy';
+import { takeAddedCopies } from '../lib/library/added-copies';
+import { deleteCopy, saveCopy } from '../lib/library/copy';
 import { saveFollow, type Follow } from '../lib/library/follow';
 import { isSeries, readIsbn } from '../lib/library/ids';
 import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
@@ -88,6 +89,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
       // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
       if (!own) return;
       space.current = own;
+      offerUndo();
       listing.current = freshListing(
         async () => {
           const read = await loadLibrary(own);
@@ -104,6 +106,20 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
         fail,
       );
       await listing.current.refresh();
+    }
+
+    // Series Onboarding opened this page: say what it added, with Undo for the
+    // Copies it added (only those: their record keys came with them).
+    function offerUndo() {
+      const added = takeAddedCopies(sessionStorage);
+      if (!added) return;
+      const undo = () =>
+        void save(async (own) => {
+          const states: WriteState[] = [];
+          for (const rkey of added.rkeys) states.push(await deleteCopy(own, rkey));
+          return worstState(states);
+        });
+      toast(added.text, added.rkeys.length > 0 ? { action: { label: t('common.undo'), run: undo } } : {});
     }
 
     // The Edition Line of the linked Edition, then the lines the reader collects.
