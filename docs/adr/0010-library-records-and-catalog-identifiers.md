@@ -1,6 +1,6 @@
 # Library records: five record types, Catalog identifiers and record keys
 
-Status: accepted
+Status: accepted. Amended by ADR 0017 (2026-11-14).
 
 The Library is stored as five record types, published as lexicons in `lexicons/app/atomes/` and listed in the Library Space (`app.atomes.library`). They follow ADR 0004 (own namespace, Editions by ISBN, Series by Catalog identifier) and ADR 0008 (an indexer can read them later without migration): records hold only ISBNs, Catalog identifiers and what the reader said, never data copied from the Catalog and never anything the app can compute.
 
@@ -156,3 +156,22 @@ Naruto (Kana, 18 cm) looked up from Volume 1 (9782871294146) gave Volumes 1 to 2
 - Rejected: search by title only, with no publisher. Naruto gives 216 records, One Piece more than the 500 the fill reads.
 
 Checked against the answers recorded on 2026-11-13: from Volume 1, the line has Volumes 1 to 72 but 20. BnF has no record of Volume 20 in this line (only the Hachette jeunesse Volume 20, another publisher), so the onboarding tile 20 says "Not in the Catalog" until the reader scans it. BnF also finds no record by ISBN for Volume 1, which its search lists with that ISBN (as in the amendment above).
+
+## Amendment 2026-11-14: one Work per Volume, and two editions of one publisher (Dragon Ball)
+
+On production, the owner added Dragon Ball 1 (Glénat, 18 cm). Some Volumes then showed as owned that the owner does not have, and the Volumes of two French editions were in one Edition Line. Two causes, both checked on 2026-11-14:
+
+- **Inventaire gives one Work to 19 Volumes.** It links Volumes 2 to 5, 7 to 15, 20 to 23, 27 and 36 of the 1993 edition to one Work (`inv:91e782c2fc0f67739836a22c452f3623`). A Volume is owned when a Copy has its Work (`src/lib/library/model.ts`), and a Reading Status belongs to the Work, so one Copy marks 19 Volumes owned and one Reading Status changes 19 Volumes.
+- **One BnF Series record holds two editions.** Record 34338439 lists the 1993 edition (Volumes 1 to 42, 1993 to 2000) and later printings of Volumes 8 to 11, 41 and 42 (2005 to 2008). Records 38839216 (2001 to 2004) and 39250101 (2003 to 2008) are two more editions. All are Glénat, French, 18 cm, so they have one Edition Line key, and for each Volume number the fill keeps the latest printing.
+
+Decisions of the owner, 2026-11-14:
+
+- **One Work per Volume number.** When a source gives one Work to Editions of different Volume numbers in one Series, the Catalog does not keep that Work for them: each of those Editions gets the Work `isbn:<isbn>`, as for an ISBN with no shared Work. Editions of one Volume number (reprints, other Edition Lines) still share a Work, and an omnibus keeps one Work per Volume it covers. A migration step applies the rule to the stored Editions.
+- **Repair of reader records, once.** A Reading Status names the Edition read (`isbn`), so a status on a dropped Work moves to `isbn:<isbn>` of that Edition, and a Copy's dropped Work becomes `isbn:<isbn>` of the Copy. A Label that names a dropped Work is listed, not guessed. This is the only exception to "reader records are never rewritten" (amendment 2026-11-11): a one-off script, `--dry-run` first, run by the owner after a backup of the Library and the Catalog. Shared records follow at the next share sync.
+- **Overlapping BnF Series records are separate Edition Lines.** Inside one Edition Line key, the fill groups BnF Series records: a record joins the first group (largest first) with which it shares at most one Volume number, else it starts a new group. Each group is an Edition Line; the key gets the id of the group's largest record. Editions with no BnF Series record join the first group. One Piece keeps one line: records 43702987 (Volume 1, 2013) and 46917823 (Volumes 98 to 100) share at most one Volume number with 38888890. Dragon Ball 18 cm gets three lines.
+- **Two printings of one Volume in one record: keep the one nearest the record's median year,** not the latest. In 34338439 this keeps the 1994 to 1996 printings of Volumes 8 to 11.
+- **The app names each Edition Line** "publisher · first year–last year" of its Editions (Glénat · 1993–2000) on the Series page, in the Volume sheet and in Series Onboarding.
+- **What the rules miss, the reader corrects** (ADR 0017): Dragon Ball 41 has only a 2008 printing in 34338439, so it stays in the 1993 line until a reader moves it.
+- Rejected: the BnF Series record in the Edition Line key. 34338439 itself holds both editions, and One Piece Volume 1 and 98 to 100 sit in records of their own (amendment 2026-11-12).
+- Rejected: title words ("Perfect", "pastel"), a gap in years, ISBN-10 against ISBN-13. The three Dragon Ball records use the same title forms, One Piece 38888890 mixes 2000 and 2013 printings of one line, and every line before 2007 has ISBN-10 only.
+- The threshold of two shared Volume numbers is a guess from three Series. A real reissue that BnF files in a record of its own can become a line of its own; the reader moves its Volumes back with a Series Correction.
