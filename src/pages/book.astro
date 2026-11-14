@@ -62,16 +62,12 @@ const choices = [
 
         <section class="group" aria-labelledby="status-title">
           <h2 class="group-title" id="status-title">{t('book.reading-status')}</h2>
-          <div class="segmented" role="radiogroup" aria-labelledby="status-title" data-status>
-            {
-              choices.map((choice) => (
-                <label class="segment">
-                  <input type="radio" name="status" value={choice.value} />
-                  <span>{choice.label}</span>
-                </label>
-              ))
-            }
-          </div>
+          <span class="status-chip">
+            <select aria-labelledby="status-title" data-status>
+              {choices.map((choice) => <option value={choice.value}>{choice.label}</option>)}
+            </select>
+            <Icon name="chevron-down" />
+          </span>
           <div class="finished" data-finished hidden>
             <label class="label" for="finished-at">{t('book.finished-on')}</label>
             <input class="field" id="finished-at" type="date" data-finished-at />
@@ -174,7 +170,7 @@ const choices = [
   const skeleton = document.querySelector<HTMLElement>('[data-skeleton]')!;
   const article = document.querySelector<HTMLElement>('[data-book]')!;
   const cover = document.querySelector<HTMLElement>('[data-book-cover]')!;
-  const statusRadios = article.querySelectorAll<HTMLInputElement>('[data-status] input[name="status"]');
+  const statusSelect = article.querySelector<HTMLSelectElement>('[data-status]')!;
   const finished = article.querySelector<HTMLElement>('[data-finished]')!;
   const finishedAt = article.querySelector<HTMLInputElement>('[data-finished-at]')!;
   const copyList = article.querySelector<HTMLUListElement>('[data-copies]')!;
@@ -275,7 +271,7 @@ const choices = [
         .flatMap((part, index) => (index === 0 ? [part] : [' · ', part])),
     );
 
-    for (const radio of statusRadios) radio.checked = radio.value === page.status;
+    statusSelect.value = page.status;
     finished.hidden = page.status !== 'read';
     finishedAt.value = page.finishedAt?.slice(0, 10) ?? '';
 
@@ -403,27 +399,25 @@ const choices = [
     return library.readingStatuses.find(({ rkey }) => rkey === work)?.value;
   }
 
-  for (const radio of statusRadios) {
-    radio.addEventListener('change', () => {
-      const chosen = statuses.find((status) => status === radio.value);
-      if (!page || !chosen) return;
-      const now = new Date();
-      const change = statusChange(work, page.isbn, chosen, library, now);
-      if (!change) return;
-      // Marking a Volume read follows its Series (glossary: Followed Series).
-      const edition = editions.get(page.isbn);
-      const follow = followOnRead(edition, chosen, library, now);
-      // Abandoning a Volume of a Followed Series suggests dropping the Series; the Series page does it.
-      const suggest = suggestsDrop(edition, chosen, library) && edition?.series;
-      const isbn = page.isbn;
-      void save(async () => {
-        const state = await saveReadingStatus(space, change);
-        return follow ? worstState([state, await saveFollow(space, follow)]) : state;
-      }).then(() => {
-        if (suggest) toast(t('series.drop-suggest', suggest.title), { link: { href: seriesHref(isbn), label: t('series.open') } });
-      });
+  statusSelect.addEventListener('change', () => {
+    const chosen = statuses.find((status) => status === statusSelect.value);
+    if (!page || !chosen) return;
+    const now = new Date();
+    const change = statusChange(work, page.isbn, chosen, library, now);
+    if (!change) return;
+    // Marking a Volume read follows its Series (glossary: Followed Series).
+    const edition = editions.get(page.isbn);
+    const follow = followOnRead(edition, chosen, library, now);
+    // Abandoning a Volume of a Followed Series suggests dropping the Series; the Series page does it.
+    const suggest = suggestsDrop(edition, chosen, library) && edition?.series;
+    const isbn = page.isbn;
+    void save(async () => {
+      const state = await saveReadingStatus(space, change);
+      return follow ? worstState([state, await saveFollow(space, follow)]) : state;
+    }).then(() => {
+      if (suggest) toast(t('series.drop-suggest', suggest.title), { link: { href: seriesHref(isbn), label: t('series.open') } });
     });
-  }
+  });
 
   finishedAt.addEventListener('change', () => {
     const current = readingStatus();
