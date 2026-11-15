@@ -297,19 +297,18 @@ export const en = {
 
   // To Buy (src/islands/ToBuy.tsx)
   'tobuy.title': 'To Buy',
-  'tobuy.private': 'Only you see this list. To Buy is never Shared.',
+  'tobuy.empty':
+    'Nothing to buy: the Volumes you do not own in the Series you follow, and the books you add with +, show here, and only you see them.',
+  'tobuy.add-open': 'Add a book',
   'tobuy.add-label': 'Add a book by its ISBN',
   'tobuy.add': 'Add',
   'tobuy.add-hint': 'Adds this one book only. To follow a whole Series, add one of its Volumes with Quick Add. The ISBN is the 13 digits under the barcode.',
   'tobuy.owned': 'You already have this book.',
   'tobuy.listed': 'This book is already on your To Buy list.',
   'tobuy.followed': 'From the Series you follow',
-  'tobuy.followed-empty':
-    'Nothing to buy in the Series you follow. This list shows every Volume in shops, in the Edition Line you collect, that you do not own.',
   'tobuy.series': (series: string, count: number, volumes: string) => `${series} · ${count} ${count === 1 ? 'Volume' : 'Volumes'} (${volumes})`,
   'tobuy.show-more': (count: number, left: number) => `Show ${count} more (${left} left)`,
   'tobuy.by-hand': 'Added by hand',
-  'tobuy.by-hand-empty': 'Nothing added by hand yet.',
   'tobuy.bought': 'I bought it',
   'tobuy.remove': 'Remove',
 
