@@ -13,10 +13,13 @@ export interface LetterGroup {
 
 export interface Listed {
   groups: LetterGroup[];
-  // A to Z, then "#": each letter jumps to its group, or nowhere (null) when
-  // no book is under it. Empty for "Recently added".
-  index: { letter: string; target: string | null }[];
+  // The letters with books, A to Z, then "#": each jumps to its group. Empty
+  // for "Recently added", and under `indexFrom` books.
+  index: { letter: string; target: string }[];
 }
+
+// Fewer books fit in a few screens: no index (CORE-110).
+export const indexFrom = 20;
 
 const alphabet = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 // The group of the rest: a digit, a sign, another script. Always last.
@@ -44,10 +47,10 @@ export function letterGroups(books: LibraryBook[], sort: SortBy, language: Langu
     else under.set(key, [book]);
   }
   const target = (each: string) => `letter-${each === otherLetters ? 'other' : each}`;
-  const letters = [...alphabet, otherLetters];
+  const letters = [...alphabet, otherLetters].filter((each) => under.has(each));
   return {
-    groups: letters.flatMap((each) => (under.has(each) ? { letter: each, target: target(each), books: under.get(each)! } : [])),
-    index: letters.map((each) => ({ letter: each, target: under.has(each) ? target(each) : null })),
+    groups: letters.map((each) => ({ letter: each, target: target(each), books: under.get(each)! })),
+    index: books.length < indexFrom ? [] : letters.map((each) => ({ letter: each, target: target(each) })),
   };
 }
 

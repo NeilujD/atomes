@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import type { Edition } from '../lib/catalog/catalog';
 import { saveCopy } from '../lib/library/copy';
 import { deleteLabel, labelCollection, saveLabel } from '../lib/library/label';
@@ -34,6 +34,12 @@ const books = [
 // Two Volumes of one Series.
 const onePiece = { id: 'wd:Q673', title: 'One Piece', sameAs: [] };
 const volumes = ['9782723434621', '9782723434638'].map((isbn, index) => ({ ...edition(isbn, 'One Piece', ['Eiichirō Oda']), series: onePiece, volumes: [index + 1], volume: index + 1 }));
+// Seventeen more novels, B to Z: with the three books, twenty, the fewest that get the A to Z index.
+const isbn = (twelve: string) => {
+  const sum = [...twelve].reduce((total, digit, at) => total + Number(digit) * (at % 2 === 0 ? 1 : 3), 0);
+  return `${twelve}${(10 - (sum % 10)) % 10}`;
+};
+const shelf = [...'BEFGIJKMNOPQRSTVZ'].map((letter, at) => edition(isbn(`978207099${at + 100}`), `${letter}ook ${at}`, []));
 
 // The reader owns the three books and has read Dune (owned or not). `labelled`: the books that carry the Label "Sci-fi".
 async function libraryScreen(owned = books, labelled: Edition[] = []) {
@@ -43,7 +49,7 @@ async function libraryScreen(owned = books, labelled: Edition[] = []) {
   await saveReadingStatus(space, { work: books[1].work.id, isbn: books[1].isbn, status: 'read', updatedAt: '2026-11-02T00:00:00.000Z' });
   const sources: Sources = {
     open: () => Promise.resolve(space),
-    editions: (isbns) => Promise.resolve(new Map([...books, ...volumes].filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
+    editions: (isbns) => Promise.resolve(new Map([...books, ...volumes, ...shelf].filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
   };
   render(<Library sources={sources} />);
   await screen.findAllByRole('list');
@@ -64,20 +70,35 @@ describe('Library screen', () => {
 
     expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent']);
     expect(screen.getAllByRole('link', { name: /Dune/ })[0].getAttribute('href')).toBe('/book?work=wd%3AQ320481');
-    expect(screen.getByText('3 books')).toBeTruthy();
   });
 
-  test('a search without accents narrows the grid and the count; Clear all brings every book back', async () => {
+  test('a search without accents narrows the grid and says how many books it finds; Clear all brings every book back, with no count', async () => {
     await libraryScreen();
+    // No search or filter: no count, and the place where it is read aloud waits.
+    expect(screen.getByRole('status').textContent).toBe('');
+
     fireEvent.input(screen.getByRole('searchbox', { name: 'Search your Library' }), { target: { value: 'asterix' } });
 
     expect(titles()).toEqual(['Astérix']);
-    expect(screen.getByText('1 of 3 books')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toBe('1 of 3 books');
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Clear all' })[0]);
 
     expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent']);
     expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('');
+    expect(screen.getByRole('status').textContent).toBe('');
+    expect(screen.queryByRole('button', { name: 'Clear all' })).toBeNull();
+  });
+
+  test('the Reading Status chips show their counts only once a search or a filter is on', async () => {
+    await libraryScreen();
+    const statusChips = () => within(screen.getAllByRole('group', { name: 'Reading Status' })[0]).getAllByRole('button').map((chip) => chip.textContent);
+
+    expect(statusChips()).toEqual(['All', 'Not yet', 'Reading', 'Read', 'Abandoned']);
+
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'd' } });
+
+    expect(statusChips()).toEqual(['All2', 'Not yet1', 'Reading0', 'Read1', 'Abandoned0']);
   });
 
   test('a search that finds nothing says so and offers Clear all', async () => {
@@ -102,7 +123,7 @@ describe('Library screen', () => {
 
     await waitFor(() => expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent']));
     expect(labelChips().getByRole('button', { name: /All/ }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByText('3 books')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toBe('');
   });
 
   test('Series mode shows one card per Series, opening its Series page, and is still on after a reload', async () => {
@@ -177,14 +198,34 @@ describe('Library modes', () => {
     expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent']);
   });
 
-  test('the index of List jumps to a letter: the focus moves to its group; a letter with no book is off', async () => {
+  test('a List row shows the Reading Status only when the book is not unread', async () => {
     await libraryScreen();
     choose('List');
+    const row = (letter: string) => within(screen.getByRole('region', { name: letter })).getByRole('link');
+
+    expect(row('D').textContent).toContain('Read');
+    expect(row('A').textContent).not.toContain('Not yet');
+    expect(row('L').textContent).not.toContain('Not yet');
+  });
+
+  test('with 20 books, List has an A to Z index of the letters with books; a letter jumps there and moves the focus to its group', async () => {
+    await libraryScreen([...books, ...shelf]);
+    choose('List');
     const index = within(screen.getByRole('navigation', { name: 'Jump to a letter' }));
+
+    expect(index.getAllByRole('button').map((button) => button.textContent).join('')).toBe('ABDEFGIJKLMNOPQRSTVZ');
+
     fireEvent.click(index.getByRole('button', { name: 'L' }));
 
     expect(document.activeElement).toBe(screen.getByRole('region', { name: 'L' }));
-    expect(index.getByRole<HTMLButtonElement>('button', { name: 'B' }).disabled).toBe(true);
+  });
+
+  test('under 20 books, List has no index', async () => {
+    await libraryScreen();
+    choose('List');
+
+    expect(headings()).toEqual(['A', 'D', 'L']);
+    expect(screen.queryByRole('navigation', { name: 'Jump to a letter' })).toBeNull();
   });
 
   test('the mode is kept on this device: the next visit opens in it; a kept value that is no mode opens the Grid', async () => {
@@ -238,6 +279,37 @@ describe('Library modes', () => {
 
     expect(headings()).toEqual(['Recently added']);
     expect(screen.queryByRole('navigation', { name: 'Jump to a letter' })).toBeNull();
+  });
+});
+
+// happy-dom opens a 1024 px window: the desktop toolbar. These tests narrow it to a phone.
+const viewport = (width: number) => (globalThis as unknown as { happyDOM: { setViewport(size: { width: number }): void } }).happyDOM.setViewport({ width });
+
+describe('On the phone', () => {
+  beforeEach(() => viewport(390));
+  afterEach(() => viewport(1024));
+  const view = () => screen.getByRole<HTMLSelectElement>('combobox', { name: 'View' });
+
+  test('Grid, List or Cover flow is one View menu, in the row of the search; Books / Series stays a switch', async () => {
+    await libraryScreen();
+
+    expect(within(view()).getAllByRole('option').map((option) => option.textContent)).toEqual(['Grid', 'List', 'Cover flow']);
+    expect(view().value).toBe('grid');
+    expect(view().closest('.library-search-row')).toBe(screen.getByRole('searchbox').closest('.library-search-row'));
+    expect(screen.queryByRole('radiogroup', { name: 'View' })).toBeNull();
+    expect(screen.getByRole('radio', { name: 'Series' })).toBeTruthy();
+
+    fireEvent.change(view(), { target: { value: 'list' } });
+
+    expect(headings()).toEqual(['A', 'D', 'L']);
+    expect(view().value).toBe('list');
+  });
+
+  test('Series shows no View menu', async () => {
+    await libraryScreen();
+    fireEvent.click(screen.getByRole('radio', { name: 'Series' }));
+
+    expect(screen.queryByRole('combobox', { name: 'View' })).toBeNull();
   });
 });
 
