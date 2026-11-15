@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { isSeriesId } from '../library/ids';
-import { answerChoose, answerCover, answerEdition, answerSearch, answerVolumes } from './api';
-import type { Catalog, Edition, LineSummary, SearchFound } from './catalog';
+import { answerChoose, answerCorrect, answerCover, answerEdition, answerFindSeries, answerSearch, answerUncorrect, answerVolumes } from './api';
+import type { Catalog, Edition, LineSummary, SearchFound, SeriesFound } from './catalog';
 import { createCatalog } from './catalog';
 import { fixtureDir, recordedFetch } from './recorded.fake';
 import { isCoverUrl, type SourceFetch } from './sources';
@@ -918,6 +918,178 @@ describe('An ISBN no source knows: find the Series or Work by title (CORE-40)', 
 
     expect((await search(catalog, 'title=Kaamelott&publisher=Casterman')).status).toBe(503);
   });
+});
+
+describe('Series Correction (ADR 0017)', () => {
+  type Answer = { volumes: Edition[]; lines: LineSummary[] };
+  const account = 'did:plc:reader-who-corrects';
+  const answerOf = async (catalog: Catalog, isbn: string, access = signedIn) =>
+    (await (await answerVolumes(catalog, isbn, access)).json()) as Answer;
+  const names = (lines: LineSummary[]) => lines.map(({ publisher, first, last }) => `${publisher} ${first}-${last}`);
+
+  // A Catalog with a clock, to fill an Edition Line again a week later.
+  function clocked() {
+    let clock = new Date('2026-11-15T10:00:00.000Z');
+    const dir = mkdtempSync(join(tmpdir(), 'atomes-catalog-'));
+    dirs.push(dir);
+    const file = join(dir, 'catalog.sqlite');
+    const sources = recordedFetch();
+    const make = () => {
+      const catalog = createCatalog({ file, fetch: sources.fetch, host: 'catalog.test', now: () => clock });
+      open.push(catalog);
+      return catalog;
+    };
+    return {
+      catalog: make(),
+      reopen: make,
+      calls: sources.calls,
+      later: (days: number) => (clock = new Date(clock.getTime() + days * 24 * 3600 * 1000)),
+    };
+  }
+
+  // Dragon Ball 18 cm, filled: Volume 41 has only a 2008 printing, in the 1993 line (BnF record 34338439).
+  async function dragonBall(catalog: Catalog) {
+    const { volumes, lines } = await answerOf(catalog, dragonBall1993[2]);
+    const volume41 = volumes.find((v) => v.volume === 41)!;
+    return { volume41: volume41.isbn, line1993: lines[0].anchor, line2003: lines[2].anchor };
+  }
+
+  test('Dragon Ball 41 (2008 printing) moves to the 2003–08 line, and stays there after the line fills again', async () => {
+    const { catalog, later, calls } = clocked();
+    const { volume41, line1993, line2003 } = await dragonBall(catalog);
+
+    const response = await answerCorrect(catalog, volume41, { anchor: line2003, volume: 41 }, account);
+
+    expect(response.status).toBe(200);
+    expect(await edition(response)).toMatchObject({ isbn: volume41, volume: 41, corrected: true });
+    expect((await answerOf(catalog, line2003)).volumes.find((v) => v.volume === 41)?.isbn).toBe(volume41);
+    expect((await answerOf(catalog, line1993)).volumes.some((v) => v.isbn === volume41)).toBe(false);
+
+    later(8);
+    const searches = calls.length;
+    const again = await answerOf(catalog, line1993);
+    const after = await answerOf(catalog, line2003);
+
+    expect(calls.length).toBeGreaterThan(searches);
+    expect(again.volumes.some((v) => v.isbn === volume41)).toBe(false);
+    expect(after.volumes.filter((v) => v.volume === 41).map((v) => v.isbn)).toEqual([volume41]);
+    expect(names(after.lines)).toEqual(['Glénat 1993-2000', 'Glénat 2001-2004', 'Glénat 2003-2008']);
+  });
+
+  test('every reader gets the Correction, also after a restart; no answer holds the Account', async () => {
+    const { catalog, reopen } = clocked();
+    const { volume41, line2003 } = await dragonBall(catalog);
+
+    const corrected = await answerCorrect(catalog, volume41, { anchor: line2003, volume: 41 }, account);
+    const again = reopen();
+    const answers = [corrected, await answerEdition(again, volume41), await answerVolumes(again, line2003, signedOut)];
+
+    expect(await edition(await answerEdition(again, volume41))).toMatchObject({ volume: 41, corrected: true });
+    for (const answer of answers) expect(await answer.text()).not.toContain(account);
+  });
+
+  test('a later Correction replaces the earlier one; "Back to the sources" gives the source data back', async () => {
+    const { catalog } = clocked();
+    const { volume41, line1993, line2003 } = await dragonBall(catalog);
+    const before = await edition(await answerEdition(catalog, volume41));
+    await answerCorrect(catalog, volume41, { anchor: line2003, volume: 40 }, account);
+
+    await answerCorrect(catalog, volume41, { anchor: line1993, volume: 43 }, 'did:plc:another-reader');
+
+    expect(await edition(await answerEdition(catalog, volume41))).toMatchObject({ volume: 43, volumes: [43], corrected: true });
+    const back = answerUncorrect(catalog, volume41);
+    expect(back.status).toBe(200);
+    expect(await edition(back)).toEqual(before);
+    expect((await answerOf(catalog, line1993)).volumes.find((v) => v.volume === 41)?.isbn).toBe(volume41);
+    expect((await answerOf(catalog, line2003)).volumes.some((v) => v.isbn === volume41)).toBe(false);
+  });
+
+  test('a new Series for a book with none: minted identifier, its first Edition Line, found by its title', async () => {
+    const { catalog } = clocked();
+    const novel = '9782265144026'; // "Réglez-lui son compte !", San-Antonio, Fleuve noir: no Series
+    await answerEdition(catalog, novel);
+    const newSeries = { title: 'San-Antonio', publisher: 'Fleuve noir', language: 'fre', height: 18 };
+
+    const created = await edition(await answerCorrect(catalog, novel, { newSeries, volume: 52 }, account));
+    // Another book joins it, in its Edition Line.
+    const joined = await edition(await answerCorrect(catalog, horde, { anchor: novel, volume: 1 }, account));
+
+    expect(created.series?.id).toMatch(/^atomes:catalog\.test:[0-9A-Z]{26}$/);
+    expect(created).toMatchObject({ series: { title: 'San-Antonio', sameAs: [] }, volume: 52, corrected: true });
+    expect(joined.series).toEqual(created.series);
+    expect((await answerOf(catalog, novel)).volumes.map((v) => [v.isbn, v.volume])).toEqual([
+      [horde, 1],
+      [novel, 52],
+    ]);
+    const found = (await findSeries(catalog, 'title=san%20antonio').json()) as { series: SeriesFound[] };
+    expect(found.series).toMatchObject([{ series: created.series, lines: [{ anchor: horde, first: 2007, last: 2019 }] }]);
+    expect(found.series[0].lines).toHaveLength(1);
+  });
+
+  test('two Series linked by hand keep the Corrections into either', async () => {
+    const { catalog } = clocked();
+    const newSeries = { title: 'Horde', publisher: 'Folio', language: 'fre', height: 18 };
+    const created = await edition(await answerCorrect(catalog, horde, { newSeries, volume: 1 }, account));
+    const onePiece = await edition(await answerEdition(catalog, onePiece56));
+
+    const linked = catalog.link(created.series!.id, onePiece.series!.id)!;
+
+    expect(await edition(await answerEdition(catalog, horde))).toMatchObject({ series: linked, volume: 1, corrected: true });
+    expect(catalog.lines(onePiece).map(({ anchor }) => anchor)).toContain(horde);
+  });
+
+  test('when a source is down for a book the Catalog does not hold yet, the answer says so and nothing is kept', async () => {
+    const { catalog, reopen } = setup(['inventaire.io']);
+    await answerEdition(catalog, onePiece56);
+
+    const response = await answerCorrect(catalog, horde, { anchor: onePiece56, volume: 1 }, account);
+
+    expect(response.status).toBe(503);
+    expect((await edition(await answerEdition(reopen(), horde))).corrected).toBeUndefined();
+  });
+
+  test('a wrong Correction is refused and stores nothing', async () => {
+    const { catalog } = clocked();
+    const onePiece = await edition(await answerEdition(catalog, onePiece56));
+    const correct = (isbn: string, body: unknown) => answerCorrect(catalog, isbn, body, account);
+    const newSeries = { title: 'Horde', publisher: 'Folio', language: 'fre', height: null };
+
+    const statuses = [
+      await correct('978', { anchor: onePiece56, volume: 1 }),
+      await correct(horde, { anchor: onePiece56, volume: -1 }),
+      await correct(horde, { anchor: onePiece56, volume: 10_000 }),
+      await correct(horde, { anchor: onePiece56 }),
+      await correct(horde, { anchor: '9782723478992', volume: 1 }),
+      await correct(horde, { anchor: onePiece56, newSeries, volume: 1 }),
+      await correct(horde, { newSeries: { ...newSeries, title: ' ' }, volume: 1 }),
+      await correct(horde, { newSeries: { ...newSeries, publisher: 'a'.repeat(301) }, volume: 1 }),
+      await correct(horde, { newSeries: { ...newSeries, language: 'french' }, volume: 1 }),
+      await correct(horde, { newSeries: { ...newSeries, height: 'tall' }, volume: 1 }),
+      await correct(unknown, { anchor: onePiece56, volume: 1 }),
+      await correct(horde, { anchor: kaamelott10, volume: 1 }),
+      await correct(onePiece56, { anchor: horde, volume: 1 }),
+    ].map(({ status }) => status);
+
+    expect(statuses).toEqual([400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 404, 422, 422]);
+    expect((await edition(await answerEdition(catalog, horde))).corrected).toBeUndefined();
+    expect(await edition(await answerEdition(catalog, onePiece56))).toEqual(onePiece);
+    expect(answerUncorrect(catalog, unknown).status).toBe(404);
+  });
+
+  test('the Series search is for signed-in readers, by a title', async () => {
+    const { catalog } = clocked();
+    const onePiece = await edition(await answerEdition(catalog, onePiece56));
+
+    const found = (await findSeries(catalog, 'title=ONE%20pi%C3%A8ce').json()) as { series: SeriesFound[] };
+
+    expect(found.series.map(({ series }) => series)).toEqual([onePiece.series]);
+    expect(findSeries(catalog, 'title=one', { signedIn: false }).status).toBe(401);
+    expect(findSeries(catalog, 'title=%20').status).toBe(400);
+    expect(findSeries(catalog, `title=${'a'.repeat(301)}`).status).toBe(400);
+  });
+
+  const findSeries = (catalog: Catalog, query: string, access = { signedIn: true }) =>
+    answerFindSeries(catalog, new URL(`http://atomes.test/api/catalog/series?${query}`), access);
 });
 
 describe('GET /api/catalog/editions/{isbn}/cover', () => {
