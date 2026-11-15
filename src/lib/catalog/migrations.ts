@@ -6,7 +6,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { key } from './facts';
 import { bookHeight, placeLine } from './lines';
-import { dropSharedWorks } from './shared-works';
 
 type Step = (db: DatabaseSync) => void;
 
@@ -173,7 +172,9 @@ const forgetFills: Step = (db) => db.exec('delete from line_fill');
 // One Work per Volume number (ADR 0010 amendment 2026-11-14, CORE-92): the
 // Works sources gave to Editions of different Volume numbers in one Series are
 // dropped for that Series, and remembered (shared-works.ts). Reader records
-// that name them are repaired once by scripts/repair-shared-works.ts.
+// that name them are repaired once by scripts/repair-shared-works.ts. The rule
+// is copied here as it was, on the schema of this step: shared-works.ts reads
+// tables and columns that later steps add.
 const oneWorkPerVolume: Step = (db) => {
   db.exec(`
     create table if not exists dropped_work (
@@ -182,8 +183,22 @@ const oneWorkPerVolume: Step = (db) => {
       primary key (work_id, series)
     );
   `);
-  const rows = db.prepare('select distinct series from edition where series is not null').all() as { series: number }[];
-  for (const { series } of rows) dropSharedWorks(db, series);
+  type Row = { series: number; work_id: string; volume: number | null; volumes: string | null };
+  const rows = db.prepare("select series, work_id, volume, volumes from edition where series is not null and work_id not like 'isbn:%'").all() as Row[];
+  const byWork = new Map<string, { series: number; work: string; volumes: number[][] }>();
+  for (const row of rows) {
+    const id = `${row.series} ${row.work_id}`;
+    const found = byWork.get(id) ?? { series: row.series, work: row.work_id, volumes: [] };
+    found.volumes.push(row.volumes ? (JSON.parse(row.volumes) as number[]) : row.volume === null ? [] : [row.volume]);
+    byWork.set(id, found);
+  }
+  for (const { series, work, volumes } of byWork.values()) {
+    const numbered = volumes.filter((each) => each.length > 0);
+    const across = numbered.some((a, i) => numbered.slice(i + 1).some((b) => !a.some((volume) => b.includes(volume))));
+    if (across) db.prepare('insert or ignore into dropped_work (work_id, series) values (?, ?)').run(work, series);
+  }
+  db.exec(`update edition set work_id = 'isbn:' || isbn, work_title = title
+    where exists (select 1 from dropped_work d where d.series = edition.series and d.work_id = edition.work_id)`);
 };
 
 // Overlapping BnF Series records are separate Edition Lines, named by their
