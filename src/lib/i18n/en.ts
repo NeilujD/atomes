@@ -439,4 +439,9 @@ export const en = {
   'library.grouping.books': 'Books',
   'library.grouping.series': 'Series',
   'library.series-counts': (owned: number, read: number) => `${owned} owned · ${read} read`,
+  // Series mode counts its Series cards (CORE-116).
+  'library.count-series': (shown: number, total: number, filtered: boolean) => (filtered ? `${shown} of ${total} Series` : `${total} Series`),
+  'library.show-series': (count: number) => `Show ${count} Series`,
+  'library.no-series': 'No book of your Library is in a Series.',
+  'library.no-series-match': 'No Series matches these filters.',
 };

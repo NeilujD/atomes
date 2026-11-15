@@ -35,6 +35,8 @@ const books = [
 // Two Volumes of one Series.
 const onePiece = { id: 'wd:Q673', title: 'One Piece', sameAs: [] };
 const volumes = ['9782723434621', '9782723434638'].map((isbn, index) => ({ ...edition(isbn, 'One Piece', ['Eiichirō Oda']), series: onePiece, volumes: [index + 1], volume: index + 1 }));
+// A Volume of a second Series.
+const gaston = { ...edition('9782800101187', 'Gaston 1', ['André Franquin']), series: { id: 'wd:Q30', title: 'Gaston', sameAs: [] }, volumes: [1], volume: 1 };
 // Seventeen more novels, B to Z: with the three books, twenty, the fewest that get the A to Z index.
 const isbn = (twelve: string) => {
   const sum = [...twelve].reduce((total, digit, at) => total + Number(digit) * (at % 2 === 0 ? 1 : 3), 0);
@@ -50,7 +52,7 @@ async function libraryScreen(owned = books, labelled: Edition[] = []) {
   await saveReadingStatus(space, { work: books[1].work.id, isbn: books[1].isbn, status: 'read', updatedAt: '2026-11-02T00:00:00.000Z' });
   const sources: Sources = {
     open: () => Promise.resolve(space),
-    editions: (isbns) => Promise.resolve(new Map([...books, ...volumes, ...shelf].filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
+    editions: (isbns) => Promise.resolve(new Map([...books, ...volumes, gaston, ...shelf].filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
   };
   render(<Library sources={sources} />);
   await screen.findAllByRole('list');
@@ -127,18 +129,51 @@ describe('Library screen', () => {
     expect(screen.getByRole('status').textContent).toBe('');
   });
 
-  test('Series mode shows one card per Series, opening its Series page, and is still on after a reload', async () => {
+  test('Series mode shows one card per Series, opening its Series page, and is still on after a reload; a book with no Series makes no card', async () => {
     await libraryScreen([...books, ...volumes]);
     fireEvent.click(screen.getByRole('radio', { name: 'Series' }));
 
-    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent', 'One Piece']);
+    expect(titles()).toEqual(['One Piece']);
     expect(screen.getByRole('link', { name: /One Piece/ }).getAttribute('href')).toBe('/series?isbn=9782723434621');
 
     // A reload: the screen starts again, on the same device.
     cleanup();
     await libraryScreen([...books, ...volumes]);
 
-    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent', 'One Piece']);
+    expect(titles()).toEqual(['One Piece']);
+  });
+
+  test('in Series mode, a search counts the Series cards it finds, out of the Series of the Library', async () => {
+    await libraryScreen([...books, ...volumes, gaston]);
+    fireEvent.click(screen.getByRole('radio', { name: 'Series' }));
+    // Five books found, two Series.
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'o' } });
+
+    expect(titles()).toEqual(['Gaston', 'One Piece']);
+    expect(screen.getByRole('status').textContent).toBe('2 of 2 Series');
+
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'oda' } });
+
+    expect(screen.getByRole('status').textContent).toBe('1 of 2 Series');
+  });
+
+  test('Series mode with no book in a Series says so, with no empty grid', async () => {
+    await libraryScreen();
+    fireEvent.click(screen.getByRole('radio', { name: 'Series' }));
+
+    expect(screen.getByText('No book of your Library is in a Series.')).toBeTruthy();
+    expect(screen.queryByRole('list')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Clear all' })).toBeNull();
+  });
+
+  test('in Series mode, a filter that keeps only books with no Series says no Series matches, and offers Clear all', async () => {
+    await libraryScreen([...books, ...volumes]);
+    fireEvent.click(screen.getByRole('radio', { name: 'Series' }));
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'dune' } });
+
+    expect(screen.getByText('No Series matches these filters.')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toBe('0 of 1 Series');
+    expect(screen.getAllByRole('button', { name: 'Clear all' }).length).toBeGreaterThan(0);
   });
 });
 
@@ -250,7 +285,7 @@ describe('Library modes', () => {
     choose('List');
     choose('Series');
 
-    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent', 'One Piece']);
+    expect(titles()).toEqual(['One Piece']);
     expect(screen.queryByRole('radiogroup', { name: 'View' })).toBeNull();
     expect(screen.queryByRole('navigation', { name: 'Jump to a letter' })).toBeNull();
 
@@ -311,6 +346,14 @@ describe('On the phone', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Series' }));
 
     expect(screen.queryByRole('combobox', { name: 'View' })).toBeNull();
+  });
+
+  test('in Series mode, the sheet shows as many Series as the cards', async () => {
+    await libraryScreen([...books, ...volumes, gaston]);
+    fireEvent.click(screen.getByRole('radio', { name: 'Series' }));
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'oda' } });
+
+    expect(screen.getByRole('button', { name: 'Show 1 Series', hidden: true })).toBeTruthy();
   });
 });
 

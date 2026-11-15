@@ -5,7 +5,7 @@ import type { Copy } from './copy';
 import type { Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
-import { librarySeries, seriesCards, type LibraryCard } from './series-mode';
+import { librarySeries, seriesCards, type LibrarySeries } from './series-mode';
 
 const edition = (isbn: string, title: string, change: Partial<Edition> = {}): Edition => ({
   isbn,
@@ -49,14 +49,14 @@ const status = (each: Edition, value: Status, updatedAt = '2026-11-01T00:00:00.0
 const library = (change: Partial<Library> = {}): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [], ...change });
 
 // The Library in Series mode, as the screen asks for it: the cards of the books `query` finds.
-function cards(reader: Library, known: Edition[], query: Partial<LibraryQuery> = {}): LibraryCard[] {
+function cards(reader: Library, known: Edition[], query: Partial<LibraryQuery> = {}): LibrarySeries[] {
   const editions = new Map(known.map((each) => [each.isbn, each]));
   const books = libraryBooks(reader, editions, []);
   const asked = { ...allBooks, ...query };
   return seriesCards(browse(books, [], asked, 'fr').books, librarySeries(books, reader, editions), asked.sort, 'fr');
 }
-// "One Piece (2 owned, 1 read)" for a Series, the title for a book.
-const names = (found: LibraryCard[]) => found.map((card) => ('series' in card ? `${card.series.title} (${card.series.owned} owned, ${card.series.read} read)` : card.book.title));
+// "One Piece (2 owned, 1 read)".
+const names = (found: LibrarySeries[]) => found.map((series) => `${series.title} (${series.owned} owned, ${series.read} read)`);
 
 // The reader owns five books, added one day apart, and has read Fondation without owning it.
 const known = [asterix, onePiece9, onePiece105, dune, horde, fondation];
@@ -72,14 +72,13 @@ const reader = library({
 });
 
 describe('Series mode', () => {
-  test('one card per Series; a book with no Series stays a book', () => {
-    expect(names(cards(reader, known))).toEqual([
-      'Astérix (1 owned, 0 read)',
-      'Dune',
-      'La Horde du Contrevent',
-      'Le Cycle de Fondation (0 owned, 1 read)',
-      'One Piece (2 owned, 1 read)',
-    ]);
+  test('one card per Series; a Work with no Series makes no card', () => {
+    // Five Series books and two with no Series (Dune, La Horde du Contrevent): three cards.
+    expect(names(cards(reader, known))).toEqual(['Astérix (1 owned, 0 read)', 'Le Cycle de Fondation (0 owned, 1 read)', 'One Piece (2 owned, 1 read)']);
+  });
+
+  test('a Library of books with no Series has no card', () => {
+    expect(cards(library({ copies: [copy(dune), copy(horde)] }), [dune, horde])).toEqual([]);
   });
 
   // The Catalog minted an identifier for Dragon Ball, then found it in
@@ -105,10 +104,10 @@ describe('Series mode', () => {
     expect(names(cards(library({ copies: volumes.map((each) => copy(each)) }), volumes))).toEqual(['Dragon Ball (3 owned, 0 read)']);
   });
 
-  test('a book whose Series the Catalog does not identify stays a book, even with a Series name typed on its Copy', () => {
+  test('a book whose Series the Catalog does not identify makes no card, even with a Series name typed on its Copy', () => {
     const typed: Saved<Copy> = { rkey: 'a', value: { isbn: '9782505000013', works: ['isbn:9782505000013'], createdAt: '2026-11-01T00:00:00.000Z', details: { title: 'Blacksad 1', series: 'Blacksad' } } };
 
-    expect(names(cards(library({ copies: [typed] }), []))).toEqual(['Blacksad 1']);
+    expect(cards(library({ copies: [typed] }), [])).toEqual([]);
   });
 });
 
@@ -150,7 +149,7 @@ describe('Series cover', () => {
   const covered = (each: Edition) => ({ ...each, cover: 'https://example.org/cover.jpg' });
   const coverOf = (known: Edition[]) => {
     const [card] = cards(library({ copies: [copy(onePiece9), copy(onePiece105)] }), known);
-    return 'series' in card && card.series.cover.isbn;
+    return card.cover.isbn;
   };
 
   test('the lowest Volume the reader has', () => {
@@ -172,7 +171,7 @@ describe('Search, sort and filters in Series mode', () => {
   test('a filter keeps a Series when one of its books matches, with the counts of the whole Series', () => {
     // One Piece 9 is read, One Piece 105 is not.
     expect(names(cards(reader, known, { status: 'read' }))).toEqual(['Le Cycle de Fondation (0 owned, 1 read)', 'One Piece (2 owned, 1 read)']);
-    expect(names(cards(reader, known, { author: 'Frank Herbert' }))).toEqual(['Dune']);
+    expect(names(cards(reader, known, { author: 'Frank Herbert' }))).toEqual([]);
     expect(names(cards(reader, known, { series: 'One Piece' }))).toEqual(['One Piece (2 owned, 1 read)']);
   });
 
@@ -181,21 +180,16 @@ describe('Search, sort and filters in Series mode', () => {
   });
 
   test('sorted by title, a Series stands at its own title, not at the title of its first book', () => {
-    // "Fondation" is before "La Horde du Contrevent"; its Series "Le Cycle de Fondation" is after.
-    expect(names(cards(reader, known, { sort: 'title' }))).toEqual([
-      'Astérix (1 owned, 0 read)',
-      'Dune',
-      'La Horde du Contrevent',
-      'Le Cycle de Fondation (0 owned, 1 read)',
-      'One Piece (2 owned, 1 read)',
-    ]);
+    // The book "Fondation" is before "Gaston 1"; its Series "Le Cycle de Fondation" is after "Gaston".
+    const gaston = volume('9782800101187', { id: 'wd:Q30', title: 'Gaston', sameAs: [] }, 1, { title: 'Gaston 1' });
+    const shelf = library({ copies: [copy(fondation), copy(gaston)] });
+
+    expect(names(cards(shelf, [fondation, gaston], { sort: 'title' }))).toEqual(['Gaston (1 owned, 0 read)', 'Le Cycle de Fondation (1 owned, 0 read)']);
   });
 
   test('other sorts: a Series stands where the first of its books found stands', () => {
     expect(names(cards(reader, known, { sort: 'series' }))).toEqual([
       'Astérix (1 owned, 0 read)',
-      'Dune',
-      'La Horde du Contrevent',
       'Le Cycle de Fondation (0 owned, 1 read)',
       'One Piece (2 owned, 1 read)',
     ]);
@@ -203,8 +197,6 @@ describe('Search, sort and filters in Series mode', () => {
     expect(names(cards(reader, known, { sort: 'added' }))).toEqual([
       'One Piece (2 owned, 1 read)',
       'Astérix (1 owned, 0 read)',
-      'Dune',
-      'La Horde du Contrevent',
       'Le Cycle de Fondation (0 owned, 1 read)',
     ]);
   });
