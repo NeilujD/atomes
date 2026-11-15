@@ -19,8 +19,9 @@ test('read, then its only Copy removed: the Work shows as not owned in every mod
   await islandsLoaded(page);
   await page.getByRole('combobox', { name: 'Reading Status' }).selectOption({ label: 'Read' });
   await expect(page.getByText('Saved to your Library.')).toBeVisible();
+  await page.getByRole('button', { name: 'More actions for the Copy with ISBN 9782723478991' }).click();
   await page.getByRole('button', { name: 'Remove the Copy with ISBN 9782723478991' }).click();
-  await expect(page.getByRole('button', { name: 'Remove the Copy with ISBN 9782723478991' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'More actions for the Copy with ISBN 9782723478991' })).toHaveCount(0);
   // La Horde du Contrevent: owned, a standalone novel, so no Series Onboarding.
   await quickAdd(page, '9782072927515');
   await expect(page.getByText(/is in your Library/)).toBeVisible();

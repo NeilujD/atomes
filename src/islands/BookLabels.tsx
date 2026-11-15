@@ -1,7 +1,7 @@
 // The Labels section of the Book page, a Preact island (ADR 0014): the Labels
 // this Work carries, the ones it gets from its Series (removed on the Series
-// page only, src/islands/SeriesLabels.tsx), the reader's others to add in one tap, a field for a new
-// one, and where every Label is renamed or deleted. Labels are saved in the
+// page only, src/islands/SeriesLabels.tsx), the reader's others to add in one tap, a "+ Label" chip
+// that opens the field for a new one, and where every Label is renamed or deleted. Labels are saved in the
 // reader's Library store, Private unless the reader shares them in Settings
 // (src/islands/Sharing.tsx). The rules are in src/lib/library/label.ts; this
 // file only renders and saves.
@@ -52,6 +52,9 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
   const [saving, setSaving] = useState(false);
   const [typed, setTyped] = useState('');
   const [problem, setProblem] = useState<string>();
+  // The New Label field, open from the "+ Label" chip.
+  const [adding, setAdding] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
 
   const space = useRef<Space | undefined>(undefined);
   const listing = useRef<{ refresh: () => Promise<void> } | undefined>(undefined);
@@ -89,6 +92,10 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
 
     start().catch(fail);
   }, [work, sources]);
+
+  useEffect(() => {
+    if (adding) field.current?.focus();
+  }, [adding]);
 
   // One change at a time; the section shows what is saved once it is done.
   const save: Save = (change) => void saveNow(change);
@@ -174,48 +181,57 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
       )}
       {fromSeries.length > 0 && <p class="labels-hint">{t('labels.series-hint')}</p>}
 
-      {others.length > 0 && (
-        <div class="labels-chips" role="group" aria-label={t('labels.yours')}>
-          {others.map(({ rkey, value }) => (
-            <button
-              key={rkey}
-              class="labels-chip labels-chip-add"
-              type="button"
-              disabled={saving}
-              onClick={() => save(async (own) => (await saveLabel(own, attach(value, work), rkey)).state)}
-            >
-              <span class="labels-chip-plus" aria-hidden="true">
-                +
-              </span>
-              <span class="labels-chip-name">{value.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <div class="labels-chips">
+        {others.length > 0 && (
+          <div class="labels-others" role="group" aria-label={t('labels.yours')}>
+            {others.map(({ rkey, value }) => (
+              <button
+                key={rkey}
+                class="labels-chip labels-chip-add"
+                type="button"
+                disabled={saving}
+                onClick={() => save(async (own) => (await saveLabel(own, attach(value, work), rkey)).state)}
+              >
+                <span class="labels-chip-plus" aria-hidden="true">
+                  +
+                </span>
+                <span class="labels-chip-name">{value.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <button class="labels-chip labels-chip-add" type="button" aria-expanded={adding} onClick={() => setAdding(!adding)}>
+          <span class="labels-chip-plus" aria-hidden="true">
+            +
+          </span>
+          <span class="labels-chip-name">{t('labels.add-label')}</span>
+        </button>
+      </div>
 
-      <form class="labels-new" onSubmit={add} noValidate>
-        <label class="labels-label" for="labels-new">
-          {t('labels.new')}
-        </label>
-        <div class="labels-row">
-          <input
-            class="field"
-            id="labels-new"
-            maxLength={nameLength}
-            autoComplete="off"
-            value={typed}
-            aria-invalid={problem ? 'true' : undefined}
-            aria-describedby="labels-new-hint"
-            onInput={(event) => setTyped(event.currentTarget.value)}
-          />
-          <button class="button" type="submit" disabled={saving}>
-            {t('labels.add')}
-          </button>
-        </div>
-        <p class="labels-hint" id="labels-new-hint" data-error={problem ? '' : undefined}>
-          {problem ?? t('labels.private')}
-        </p>
-      </form>
+      {adding && (
+        <form class="labels-new" onSubmit={add} noValidate>
+          <div class="labels-row">
+            <input
+              ref={field}
+              class="field"
+              maxLength={nameLength}
+              autoComplete="off"
+              value={typed}
+              aria-label={t('labels.new')}
+              placeholder={t('labels.new')}
+              aria-invalid={problem ? 'true' : undefined}
+              aria-describedby="labels-new-hint"
+              onInput={(event) => setTyped(event.currentTarget.value)}
+            />
+            <button class="button" type="submit" disabled={saving}>
+              {t('labels.add')}
+            </button>
+          </div>
+          <p class="labels-hint" id="labels-new-hint" data-error={problem ? '' : undefined}>
+            {problem ?? t('labels.private')}
+          </p>
+        </form>
+      )}
 
       {all.length > 0 && (
         <details class="labels-edit">

@@ -18,7 +18,7 @@ async function duneLabels(labels: Label[] = [], series: SeriesIds | null = null)
   const { space, stored } = memorySpace();
   for (const each of labels) await saveLabel(space, each);
   render(<BookLabels work={dune} sources={{ open: () => Promise.resolve(space), series: () => Promise.resolve(series) }} />);
-  await screen.findByRole('textbox', { name: 'New Label' });
+  await screen.findByRole('button', { name: 'Label' });
   return { space, saved: () => stored(labelCollection).map(({ value }) => [(value as Label).name, (value as Label).works]) };
 }
 
@@ -43,9 +43,20 @@ describe('Labels on the Book page', () => {
     expect(screen.getByRole('button', { name: 'Space opera' })).toBeTruthy();
   });
 
+  test('the New Label field stays closed until "+ Label" is tapped, then takes the focus', async () => {
+    await duneLabels();
+
+    expect(screen.queryByRole('textbox', { name: 'New Label' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Label' }));
+
+    expect(screen.getByRole('button', { name: 'Label' }).getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'New Label' }));
+  });
+
   test('a typed name makes a Label on this book and shows it', async () => {
     const { saved } = await duneLabels();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Label' }));
     fireEvent.input(screen.getByRole('textbox', { name: 'New Label' }), { target: { value: 'Sci-fi' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
@@ -57,6 +68,7 @@ describe('Labels on the Book page', () => {
   test('a name with no letter saves nothing and says what is missing', async () => {
     const { saved } = await duneLabels();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Label' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
     expect(screen.getByText('Type a name for the Label.')).toBeTruthy();

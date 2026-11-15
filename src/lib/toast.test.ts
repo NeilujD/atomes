@@ -27,6 +27,18 @@ describe('A toast with an action', () => {
     expect(screen.queryByText('55 Copies added.')).toBeNull();
   });
 
+  test('the same text with a new action replaces the toast shown: its Undo undoes the newer change', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    toast('Copy removed.', { action: { label: 'Undo', run: first } });
+    toast('Copy removed.', { action: { label: 'Undo', run: second } });
+
+    const buttons = screen.getAllByRole('button', { name: 'Undo' });
+    expect(buttons).toHaveLength(1);
+    fireEvent.click(buttons[0]);
+    expect([first.mock.calls.length, second.mock.calls.length]).toEqual([0, 1]);
+  });
+
   test('a toast with no action shows no action button', () => {
     toast('Saved.');
 
