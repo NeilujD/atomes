@@ -255,16 +255,16 @@ describe('what a Shared record may reveal', () => {
     expect(JSON.stringify([...pds.get(owner)!.records.values()])).not.toContain('Secret Santa');
   });
 
-  test('a Label on a Series is Shared like a Label on a Work that is not Private, and its Private Works stay off the PDS', async () => {
+  test('a Label on a Series only is Shared; a Label whose Works are all Private stays Private, Series or not', async () => {
     library.put(owner, 'app.atomes.label', '3l2series', { ...label('Shōnen', []), series: ['wd:Q673'] });
     library.put(owner, 'app.atomes.label', '3l2both', { ...label('Pirates', [secret]), series: ['wd:Q673'] });
     await sharing.setPrivate(owner, secret, true);
 
     await sharing.setShared(owner, 'labels', true);
 
-    expect(publicKeys()).toEqual(['app.atomes.label/3l2both', 'app.atomes.label/3l2series']);
+    expect(publicKeys()).toEqual(['app.atomes.label/3l2series']);
     expect(pds.get(owner)!.records.get('app.atomes.label/3l2series')).toEqual({ ...label('Shōnen', []), series: ['wd:Q673'] });
-    expect(pds.get(owner)!.records.get('app.atomes.label/3l2both')).toEqual({ ...label('Pirates', []), series: ['wd:Q673'] });
+    expect(JSON.stringify([...pds.get(owner)!.records.values()])).not.toContain('Pirates');
   });
 });
 
