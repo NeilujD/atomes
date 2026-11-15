@@ -73,6 +73,7 @@ async function seriesPage(follow?: Follow['status'], editions: Edition[] = all, 
 }
 
 const count = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling?.textContent;
+const missingList = () => within(screen.getByRole('region', { name: 'Missing Volumes' })).getAllByRole('listitem').map(({ textContent }) => textContent);
 
 afterEach(cleanup);
 
@@ -82,7 +83,8 @@ describe('Series page', () => {
 
     expect(screen.getByText('Following')).toBeTruthy();
     expect([count('owned'), count('read'), count('missing'), count('next')]).toEqual(['2', '1', '1', '4']);
-    expect(screen.getByRole('heading', { name: 'Missing Volumes: 2' })).toBeTruthy();
+    expect(missingList()).toEqual(['2']);
+    expect(screen.queryByText('not in the Catalog', { selector: 'dt' })).toBeNull();
     expect(screen.getByText('They are on your To Buy list.')).toBeTruthy();
     expect(['Volume 1: read', 'Volume 2: not owned', 'Volume 3: owned, not read', 'Volume 4: not owned'].map((name) => screen.getByText(name))).toHaveLength(4);
   });
@@ -269,7 +271,7 @@ describe('Volume sheet', () => {
 
     await waitFor(() => expect(spine('Volume 2: read, not owned')).toBeTruthy());
     expect(count('missing')).toBe('0');
-    expect(screen.queryByRole('heading', { name: /Missing Volumes/ })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Missing Volumes' })).toBeNull();
     expect(sheet().getByText('Read, not owned')).toBeTruthy();
 
     fireEvent.click(sheet().getByRole('button', { name: 'Add to To Buy' }));
@@ -277,6 +279,28 @@ describe('Volume sheet', () => {
     await waitFor(() => expect(sheet().getByText('On your To Buy list')).toBeTruthy());
     expect(toBuy()).toEqual([expect.objectContaining({ isbn: lineA[1].isbn })]);
     expect(sheet().queryByRole('button', { name: 'Add to To Buy' })).toBeNull();
+  });
+
+  test('a Volume the Catalog lacks is in the Missing list, counted apart, and a tap on it says why', async () => {
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div data-toasts></div>
+      <template data-toast-template>
+        <div data-toast><p data-toast-text></p><button type="button" data-toast-action hidden></button><button type="button" data-toast-close></button></div>
+      </template>`,
+    );
+    // The Catalog has no Edition of Volume 2; the reader owns 1 and 3.
+    const gap = lineA.filter(({ volume: n }) => n !== 2);
+    await seriesPage('following', [...gap, ...lineB], blacksad.id, [gap, lineB]);
+
+    expect([count('missing'), count('not in the Catalog')]).toEqual(['0', '1']);
+    expect(missingList()).toEqual(['2']);
+    // Not on To Buy: the Catalog has no ISBN to buy.
+    expect(screen.queryByText('They are on your To Buy list.')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Volume 2, not in the Catalog yet' }));
+
+    expect(await screen.findByText('The Catalog has no Edition of Volume 2 yet.')).toBeTruthy();
   });
 
   // A modal <dialog>: the browser closes it on Escape (happy-dom does not; checked in a browser).

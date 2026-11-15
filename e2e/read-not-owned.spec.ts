@@ -15,7 +15,7 @@ test('a Volume read but not owned is not Missing, and "Add to To Buy" puts it on
   await expect(page.getByRole('button', { name: /^Volume 3, missing/ })).toBeVisible();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(/\/series/);
-  await expect(page.getByRole('heading', { name: 'Missing Volumes: 3' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Missing Volumes' }).getByRole('listitem')).toHaveText(['3']);
 
   // Volume 3 read (borrowed): no longer Missing.
   const volumes = page.getByRole('region', { name: 'Volumes' });
@@ -23,7 +23,7 @@ test('a Volume read but not owned is not Missing, and "Add to To Buy" puts it on
   const sheet = page.getByRole('dialog');
   await sheet.getByRole('button', { name: 'Mark read' }).click();
   await expect(volumes.getByRole('button', { name: 'Volume 3: read, not owned' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /Missing Volumes/ })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Missing Volumes' })).toHaveCount(0);
 
   // The reader wants it again.
   await sheet.getByRole('button', { name: 'Add to To Buy' }).click();

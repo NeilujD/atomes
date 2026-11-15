@@ -113,6 +113,9 @@ export interface SeriesStanding {
   owned: number;
   read: number;
   missing: Edition[];
+  // Whole numbers before the latest Volume owned that the Catalog has no
+  // Edition of: not missing (no ISBN to buy), shown apart.
+  unknown: number[];
   // The first Volume after the latest one owned that the Catalog knows; null when there is none.
   next: number | null;
   spines: Spine[];
@@ -129,6 +132,7 @@ export function seriesStanding(volumes: Edition[], library: Library): SeriesStan
     owned: owned.length,
     read: read.length,
     missing: missingVolumes(volumes, library),
+    unknown: unknownVolumes(numbered, owned),
     next: numbered.find(([volume]) => volume > latest)?.[0] ?? null,
     spines: numbered.map(([volume, printings]) => ({
       volume,
@@ -139,6 +143,14 @@ export function seriesStanding(volumes: Edition[], library: Library): SeriesStan
         printings[0],
     })),
   };
+}
+
+// As Series Onboarding: a number from 1000 is likely a year read as a Volume,
+// so it ends no range of gaps.
+function unknownVolumes(numbered: [number, Edition[]][], owned: number[]): number[] {
+  const latest = Math.max(0, ...owned.filter((volume) => volume < 1000));
+  const known = new Set(numbered.map(([volume]) => volume));
+  return Array.from({ length: Math.ceil(latest) - 1 }, (_, index) => index + 1).filter((volume) => !known.has(volume));
 }
 
 function spineState(owned: boolean, read: boolean): SpineState {

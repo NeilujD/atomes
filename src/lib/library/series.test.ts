@@ -6,7 +6,7 @@ import { memorySpace } from './memory-space.fake';
 import type { Library } from './model';
 import type { ReadingStatus } from './reading-status';
 import { lexicons, type Saved } from './records';
-import { askCollected, collectedVolumes, dropSeries, followSeries, missingVolumes, seriesCover, seriesStanding, suggestsDrop, switchLine } from './series';
+import { askCollected, collectedVolumes, dropSeries, followSeries, missingVolumes, notOwnedVolumes, seriesCover, seriesStanding, suggestsDrop, switchLine } from './series';
 
 const blacksad = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
 
@@ -142,6 +142,27 @@ describe('Where the reader stands in a Series', () => {
     const reprint = volume(2, 'A', { isbn: isbn('979109999099') });
 
     expect(missingVolumes([...lineA, reprint], library({ copies: [...owns(lineA, 1, 4), copy(reprint)] })).map(({ volume: n }) => n)).toEqual([3]);
+  });
+
+  test('a Volume the Catalog lacks before the latest one owned is listed as unknown, apart from the Missing Volumes, and not on To Buy', () => {
+    // The Catalog has no Edition of Volume 3 (BnF has no record).
+    const gap = lineA.filter(({ volume: n }) => n !== 3);
+    const each = library({ copies: owns(lineA, 1, 5) });
+
+    const standing = seriesStanding(gap, each);
+
+    expect(standing.unknown).toEqual([3]);
+    expect(standing.missing.map(({ volume: n }) => n)).toEqual([2, 4]);
+    expect(notOwnedVolumes(gap, each).map(({ volume: n }) => n)).toEqual([2, 4, 6]);
+  });
+
+  test('no Volume is unknown after the latest one owned, nor up to a number that is a year', () => {
+    const gap = lineA.filter(({ volume: n }) => n !== 5);
+    // Volume "2003": a year read as a Volume number.
+    const year = volume(2003, 'A', { isbn: isbn('979109999997') });
+
+    expect(seriesStanding(gap, library({ copies: owns(lineA, 1, 4) })).unknown).toEqual([]);
+    expect(seriesStanding([...lineA, year], library({ copies: [...owns(lineA, 1, 2), copy(year)] })).unknown).toEqual([]);
   });
 });
 
