@@ -256,6 +256,13 @@ export const en = {
   'correction.bad-height': 'Type the height in cm, for example 18.',
   'correction.too-many': 'Too many Series Corrections for now. Try again in an hour.',
   'correction.failed': 'Could not save the correction. Try again.',
+  // The sheet of a Volume the Catalog lacks (src/islands/VolumeScan.tsx)
+  'scan-volume.title': (volume: number) => `Add Volume ${volume} to the Catalog`,
+  'scan-volume.hint': (volume: number) =>
+    `Scan or type the ISBN of Volume ${volume}: it joins this Edition Line as Volume ${volume}. Every reader of this Atomes sees it.`,
+  'scan-volume.save': (volume: number) => `Add Volume ${volume}`,
+  'scan-volume.not-found': 'No book source knows this ISBN. Check it, or try again in a few days.',
+  'scan-volume.joined': (volume: number) => `Volume ${volume} joins the Edition Line. Every reader sees it.`,
   'labels.title': 'Labels',
   'labels.none': 'No Label on this book.',
   'labels.remove': (name: string) => `Remove the Label ${name} from this book`,
@@ -315,7 +322,7 @@ export const en = {
   'onboarding.range': (first: number, last: number) => `Volumes ${first}–${last}`,
   'onboarding.range-count': (owned: number, read: number) => `${owned} owned · ${read} read`,
   'onboarding.unknown': (count: number) =>
-    `${count} ${count === 1 ? 'Volume is' : 'Volumes are'} not in the Catalog yet (hatched): no Copy for ${count === 1 ? 'it' : 'them'}.`,
+    `${count} ${count === 1 ? 'Volume is' : 'Volumes are'} not in the Catalog yet (hatched): tap one to scan its ISBN.`,
   'onboarding.follow': 'Tell me when a new Volume is out',
   'onboarding.in-edition': (line: string) => `In this edition: ${line}`,
   'onboarding.in-added-edition': 'In the edition you just added',
@@ -331,8 +338,6 @@ export const en = {
   'onboarding.tiles-read': 'Volumes: tap one to say you read it or not',
   'onboarding.tile-unknown': (volume: number) => `Volume ${volume}, not in the Catalog yet`,
   'onboarding.legend-unknown': 'Not in the Catalog',
-  'onboarding.unknown-volume': (volume: number) =>
-    `The Catalog does not know Volume ${volume} yet, so it gets no Copy here. Save the Series first, then scan it with Quick Add.`,
 
   // To Buy (src/islands/ToBuy.tsx)
   'tobuy.title': 'To Buy',
@@ -381,7 +386,6 @@ export const en = {
   'series.missing-title': 'Missing Volumes',
   'series.unknown': 'not in the Catalog',
   'series.unknown-volume': (volume: number) => `Volume ${volume}, not in the Catalog yet`,
-  'series.unknown-note': (volume: number) => `The Catalog has no Edition of Volume ${volume} yet.`,
   'series.missing-on-to-buy': 'They are on your To Buy list.',
   'series.missing-follow': 'Follow the Series to see them on your To Buy list.',
   'series.volumes': 'Volumes',

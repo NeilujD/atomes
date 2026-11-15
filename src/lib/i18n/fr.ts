@@ -255,6 +255,13 @@ export const fr: typeof en = {
   'correction.bad-height': 'Saisissez la hauteur en cm, par exemple 18.',
   'correction.too-many': 'Trop de corrections de série pour le moment. Réessayez dans une heure.',
   'correction.failed': 'La correction n’a pas pu être enregistrée. Réessayez.',
+  // La fiche d’un tome absent du catalogue (src/islands/VolumeScan.tsx)
+  'scan-volume.title': (volume) => `Ajouter le tome ${volume} au catalogue`,
+  'scan-volume.hint': (volume) =>
+    `Scannez ou saisissez l’ISBN du tome ${volume} : il rejoint cette édition comme tome ${volume}. Tous les lecteurs de cet Atomes le voient.`,
+  'scan-volume.save': (volume) => `Ajouter le tome ${volume}`,
+  'scan-volume.not-found': 'Aucune source ne connaît cet ISBN. Vérifiez-le, ou réessayez dans quelques jours.',
+  'scan-volume.joined': (volume) => `Le tome ${volume} rejoint l’édition. Tous les lecteurs le voient.`,
   'labels.title': 'Étiquettes',
   'labels.none': 'Aucune étiquette sur ce livre.',
   'labels.remove': (name) => `Retirer l’étiquette ${name} de ce livre`,
@@ -334,8 +341,6 @@ export const fr: typeof en = {
   'onboarding.tiles-read': 'Tomes : touchez-en un pour dire si vous l’avez lu ou non',
   'onboarding.tile-unknown': (volume) => `Tome ${volume}, pas encore dans le catalogue`,
   'onboarding.legend-unknown': 'Pas dans le catalogue',
-  'onboarding.unknown-volume': (volume) =>
-    `Le catalogue ne connaît pas encore le tome ${volume} : pas d’exemplaire ici. Enregistrez d’abord la série, puis scannez-le avec l’ajout rapide.`,
 
   // À acheter (src/islands/ToBuy.tsx)
   'tobuy.title': 'À acheter',
@@ -383,7 +388,6 @@ export const fr: typeof en = {
   'series.missing-title': 'Tomes manquants',
   'series.unknown': 'pas dans le catalogue',
   'series.unknown-volume': (volume) => `Tome ${volume}, pas encore dans le catalogue`,
-  'series.unknown-note': (volume) => `Le catalogue n’a encore aucune édition du tome ${volume}.`,
   'series.missing-on-to-buy': 'Ils sont sur votre liste À acheter.',
   'series.missing-follow': 'Suivez la série pour les voir sur votre liste À acheter.',
   'series.volumes': 'Tomes',

@@ -11,6 +11,7 @@ import { bookHref } from '../lib/library/model';
 import { readingStatusCollection, saveReadingStatus, type ReadingStatus } from '../lib/library/reading-status';
 import { toBuyCollection, type ToBuy } from '../lib/library/to-buy';
 import { Series, type Sources } from './Series';
+import type { VolumeScanSources } from './VolumeScan';
 
 const blacksad = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
 
@@ -44,7 +45,15 @@ const all = [...lineA, ...lineB];
 
 // The reader owns Volumes 1 and 3 of line A and read Volume 1; `follow` says how they follow Blacksad,
 // in a record saved under `followed`. `lines` are the Edition Lines the Catalog answers. The reader has `labels`.
-async function seriesPage(follow?: Follow['status'], editions: Edition[] = all, followed = blacksad.id, lines = [lineA, lineB], labels: Label[] = []) {
+// `scan`: the Catalog the sheet of an unknown Volume asks (VolumeScan).
+async function seriesPage(
+  follow?: Follow['status'],
+  editions: Edition[] = all,
+  followed = blacksad.id,
+  lines = [lineA, lineB],
+  labels: Label[] = [],
+  scan?: VolumeScanSources,
+) {
   const { space, stored } = memorySpace();
   for (const each of labels) await saveLabel(space, each);
   if (follow) await saveFollow(space, { series: followed, anchorIsbn: lineA[0].isbn, status: follow, updatedAt: '2026-11-06T11:00:00.000Z' });
@@ -59,6 +68,7 @@ async function seriesPage(follow?: Follow['status'], editions: Edition[] = all, 
         { anchor: lineA[0].isbn, publisher: 'Dargaud', first: 2001, last: 2005 },
         { anchor: lineB[0].isbn, publisher: 'Dark Horse', first: 2011, last: 2015 },
       ]),
+    scan,
   };
   render(<Series isbn={lineA[2].isbn} sources={sources} />);
   await screen.findByRole('heading', { name: 'Blacksad' });
@@ -281,7 +291,7 @@ describe('Volume sheet', () => {
     expect(sheet().queryByRole('button', { name: 'Add to To Buy' })).toBeNull();
   });
 
-  test('a Volume the Catalog lacks is in the Missing list, counted apart, and a tap on it says why', async () => {
+  test('a Volume the Catalog lacks is in the Missing list, counted apart; its ISBN typed in its sheet puts it in the Edition Line, and the Missing list counts it', async () => {
     document.body.insertAdjacentHTML(
       'beforeend',
       `<div data-toasts></div>
@@ -291,7 +301,18 @@ describe('Volume sheet', () => {
     );
     // The Catalog has no Edition of Volume 2; the reader owns 1 and 3.
     const gap = lineA.filter(({ volume: n }) => n !== 2);
-    await seriesPage('following', [...gap, ...lineB], blacksad.id, [gap, lineB]);
+    const scanned = volume(2, 'A', { isbn: '9782072927515', title: 'Blacksad 2' });
+    const corrections: [string, unknown][] = [];
+    const scan: VolumeScanSources = {
+      lookup: (isbn) => Promise.resolve(isbn === scanned.isbn ? { found: { ...scanned, series: null, volume: null, volumes: [] } } : { notFound: true }),
+      correct: (isbn, correction) => {
+        corrections.push([isbn, correction]);
+        gap.splice(1, 0, scanned);
+        return Promise.resolve({ found: scanned });
+      },
+      uncorrect: () => Promise.resolve({ failed: true }),
+    };
+    await seriesPage('following', [...gap, ...lineB], blacksad.id, [gap, lineB], [], scan);
 
     expect([count('missing'), count('not in the Catalog')]).toEqual(['0', '1']);
     expect(missingList()).toEqual(['2']);
@@ -299,8 +320,19 @@ describe('Volume sheet', () => {
     expect(screen.queryByText('They are on your To Buy list.')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Volume 2, not in the Catalog yet' }));
+    const sheet = within(screen.getByRole('dialog', { name: 'Add Volume 2 to the Catalog' }));
+    fireEvent.input(sheet.getByLabelText('ISBN'), { target: { value: '978-2-07-292751-5' } });
+    fireEvent.click(sheet.getByRole('button', { name: 'Add Volume 2' }));
 
-    expect(await screen.findByText('The Catalog has no Edition of Volume 2 yet.')).toBeTruthy();
+    expect(await screen.findByText('Volume 2 joins the Edition Line. Every reader sees it.')).toBeTruthy();
+    expect(corrections).toEqual([[scanned.isbn, { anchor: lineA[0].isbn, volume: 2 }]]);
+    await waitFor(() => expect([count('missing')]).toEqual(['1']));
+    expect(screen.queryByText('not in the Catalog', { selector: 'dt' })).toBeNull();
+    expect(missingList()).toEqual(['2']);
+    expect(screen.queryByRole('button', { name: 'Volume 2, not in the Catalog yet' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Add Volume 2 to the Catalog' })).toBeNull();
+    // Its toast offers Undo: no other test must find it.
+    document.body.innerHTML = '';
   });
 
   // A modal <dialog>: the browser closes it on Escape (happy-dom does not; checked in a browser).
