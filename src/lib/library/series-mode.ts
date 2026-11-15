@@ -1,5 +1,5 @@
 // The Library in Series mode (the Books / Series switch): one card per Series
-// in place of its books. Pure, as browse.ts; src/islands/Library.tsx renders it.
+// in place of its books. A book with no Catalog Series makes no card (CORE-116). Pure, as browse.ts; src/islands/Library.tsx renders it.
 import type { Edition, Series } from '../catalog/catalog';
 import { compareText, type Language } from '../i18n/i18n';
 import type { LibraryBook, SortBy } from './browse';
@@ -16,10 +16,8 @@ export interface LibrarySeries {
   read: number;
 }
 
-export type LibraryCard = { series: LibrarySeries } | { book: LibraryBook };
-
 // The Series of each book of the Library that has one, by Work. A book with
-// no Catalog Series is not here: it stays a book.
+// no Catalog Series is not here.
 export function librarySeries(books: LibraryBook[], library: Library, editions: Editions): Map<string, LibrarySeries> {
   return new Map(
     seriesGroups(books, library, editions).flatMap((group) => {
@@ -42,20 +40,13 @@ export function librarySeries(books: LibraryBook[], library: Library, editions: 
 // the counts of all its books in the Library. Sorted by title, a Series
 // stands at its own title: its books can have other titles ("Fondation" in
 // "Le Cycle de Fondation").
-export function seriesCards(found: LibraryBook[], series: ReadonlyMap<string, LibrarySeries>, sort: SortBy, language: Language): LibraryCard[] {
-  const shown = new Set<LibrarySeries>();
-  const cards = found.flatMap((book): LibraryCard[] => {
-    const its = series.get(book.work);
-    if (!its) return [{ book }];
-    if (shown.has(its)) return [];
-    shown.add(its);
-    return [{ series: its }];
-  });
+export function seriesCards(found: LibraryBook[], series: ReadonlyMap<string, LibrarySeries>, sort: SortBy, language: Language): LibrarySeries[] {
+  // A Set keeps the order each Series was first added in.
+  const cards = [...new Set(found.flatMap((book) => series.get(book.work) ?? []))];
   if (sort !== 'title') return cards;
   const compare = compareText(language);
-  const title = (card: LibraryCard) => ('series' in card ? card.series.title : card.book.title);
   // The sort is stable: two cards of one title keep the order of the books found.
-  return cards.sort((a, b) => compare(title(a), title(b)));
+  return cards.sort((a, b) => compare(a.title, b.title));
 }
 
 // A book of the Library with its Edition, which names its Series.

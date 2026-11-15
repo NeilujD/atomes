@@ -446,4 +446,9 @@ export const fr: typeof en = {
   'library.grouping.books': 'Livres',
   'library.grouping.series': 'Séries',
   'library.series-counts': (owned, read) => `${owned} ${owned > 1 ? 'possédés' : 'possédé'} · ${read} ${read > 1 ? 'lus' : 'lu'}`,
+  'library.count-series': (shown, total, filtered) =>
+    filtered ? `${shown} sur ${total} ${total > 1 ? 'séries' : 'série'}` : `${total} ${total > 1 ? 'séries' : 'série'}`,
+  'library.show-series': (count) => `Voir ${count} ${count > 1 ? 'séries' : 'série'}`,
+  'library.no-series': 'Aucun livre de votre bibliothèque n’est dans une série.',
+  'library.no-series-match': 'Aucune série ne correspond à ces filtres.',
 };

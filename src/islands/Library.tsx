@@ -196,11 +196,14 @@ export function Library({ sources }: { sources: Sources }) {
     ));
   const change = (part: Partial<LibraryQuery>) => setQuery({ ...query, ...part });
   const clear = () => setQuery(clearAll(query));
+  // Series mode counts its cards, out of the Series of the whole Library (CORE-116).
+  const cards = grouping === 'series' && seriesCards(found.books, series, query.sort, pageLanguage());
+  const shown = cards ? cards.length : found.books.length;
   // The count shows only while a search or a filter is on (CORE-110). Its live
   // region stays, empty and hidden, so a screen reader hears the first count.
   const count = (
     <p class={found.filtered ? 'library-count' : 'visually-hidden'} role="status">
-      {found.filtered && t('library.count', found.books.length, found.total, found.filtered)}
+      {found.filtered && (cards ? t('library.count-series', shown, new Set(series.values()).size, true) : t('library.count', shown, found.total, true))}
     </p>
   );
   const clearButton = found.filtered && (
@@ -214,7 +217,6 @@ export function Library({ sources }: { sources: Sources }) {
     setGrouping(chosen);
   };
   const groupingSwitch = <Segmented name="library-grouping" label={t('library.grouping')} choices={groupings} chosen={grouping} text={(each) => t(`library.grouping.${each}`)} onChange={group} />;
-  const cards = grouping === 'series' && seriesCards(found.books, series, query.sort, pageLanguage());
 
   return (
     <div class="library">
@@ -244,7 +246,7 @@ export function Library({ sources }: { sources: Sources }) {
             </>
           ) : (
             <>
-              <Sheet query={query} found={found} change={change} />
+              <Sheet query={query} found={found} change={change} show={cards ? t('library.show-series', shown) : t('library.show', shown)} />
               {modeSwitch}
             </>
           )}
@@ -260,16 +262,21 @@ export function Library({ sources }: { sources: Sources }) {
         {listed && <LetterIndex index={listed.index} />}
       </div>
 
-      {found.books.length === 0 ? (
+      {shown === 0 && !found.filtered ? (
+        // Series mode with no book in a Series: nothing to clear.
+        <p class="library-message">{t('library.no-series')}</p>
+      ) : shown === 0 ? (
         <div class="library-no-match">
-          <p>{t('library.no-match')}</p>
+          <p>{t(cards ? 'library.no-series-match' : 'library.no-match')}</p>
           <button class="button" type="button" onClick={clear}>
             {t('library.clear-all')}
           </button>
         </div>
       ) : cards ? (
         <ul class="library-grid">
-          {cards.map((card) => ('series' in card ? <SeriesCard key={`series ${card.series.cover.isbn}`} series={card.series} /> : <Book key={card.book.work} book={card.book} />))}
+          {cards.map((each) => (
+            <SeriesCard key={`series ${each.cover.isbn}`} series={each} />
+          ))}
         </ul>
       ) : listed ? (
         <LibraryList groups={listed.groups} />
@@ -360,7 +367,8 @@ function Controls({ query, found, change }: ControlsProps) {
 }
 
 // The phone: one button opens the controls in a sheet; it shows how many are on.
-function Sheet({ query, found, change }: ControlsProps) {
+// `show`: its button, which says how many books or Series show.
+function Sheet({ query, found, change, show }: ControlsProps & { show: string }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const on = [query.searchIn !== 'all', query.author, query.series, query.status, query.label, query.owned !== null].filter(Boolean).length;
   return (
@@ -383,7 +391,7 @@ function Sheet({ query, found, change }: ControlsProps) {
       >
         <Controls query={query} found={found} change={change} />
         <button class="button button-primary library-show" type="button" onClick={() => dialog.current?.close()}>
-          {t('library.show', found.books.length)}
+          {show}
         </button>
       </dialog>
     </>
