@@ -158,7 +158,6 @@ export const en = {
   'add.field-volume': 'Volume',
   'add.read-question': 'Have you read it?',
   'add.private': 'Private',
-  'add.private-hint': 'Only you can see this book. It is Private, saved on this Atomes server.',
   'add.submit': 'Add to Library',
   'add.sources-down': 'The book sources do not answer. Try again later.',
   'add.lookup-unreachable': 'Could not reach Atomes to look up the book. Check your connection and try again.',

@@ -30,6 +30,26 @@ test('Shelf Check: the answer comes first, on screen, with no scroll', async ({ 
   await expect(page.getByText('The 13 digits under the barcode, on the back cover.')).toBeHidden();
 });
 
+test('Shelf Check: the answer, the cover and Add fit in one phone screen, Private is one quiet line', async ({ page, signIn }) => {
+  await signIn();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/check');
+  // One Piece 56, Glénat: not in this reader's Library; its Series line comes too.
+  await check(page, '9782723478991');
+  await expect(page.getByText(/You have 0 of 113/)).toBeVisible();
+
+  await expect(page.getByText('Not in your Library', { exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(page.locator('[data-preview] [data-cover]')).toBeInViewport({ ratio: 1 });
+  const add = page.getByRole('button', { name: 'Add to Library' });
+  await expect(add).toBeInViewport({ ratio: 1 });
+  // Above the tab bar, with room to spare: not hidden under it.
+  const [addBox, tabBarBox] = await Promise.all([add.boundingBox(), page.getByRole('navigation', { name: 'Main' }).boundingBox()]);
+  expect(addBox!.y + addBox!.height).toBeLessThan(tabBarBox!.y - 24);
+  // Copies are never Shared: nothing to explain or change, one word says it.
+  await expect(page.getByText('Private', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Only you can see this book/)).toBeHidden();
+});
+
 test('Shelf Check offline: owned, missing and unknown books, and no ISBN leaves the device', async ({ page, context, browser, baseURL, signIn }) => {
   await signIn();
   // The reader owns every Volume but 3, and follows the Series: set up on
