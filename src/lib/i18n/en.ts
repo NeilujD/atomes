@@ -116,7 +116,7 @@ export const en = {
 
   // Sharing (Settings, Book page; glossary: Shared, Private)
   'sharing.title': 'Sharing',
-  'sharing.hint': 'Everything is Private until you share it. Shared records go to your AT Protocol account, where anyone can read them. Copies, Loans and To Buy are never Shared.',
+  'sharing.hint': 'Copies, Loans and To Buy are never Shared.',
   'sharing.readingStatuses': 'Reading Statuses',
   'sharing.follows': 'Followed Series',
   'sharing.labels': 'Labels',
