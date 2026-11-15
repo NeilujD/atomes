@@ -7,7 +7,7 @@ import type { Library } from './model';
 import type { ReadingStatus } from './reading-status';
 import type { Saved } from './records';
 import type { DeviceCatalog } from '../catalog/device';
-import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, shelfCheck } from './shelf-check';
+import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, readerLine, shelfCheck } from './shelf-check';
 
 const blacksad = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: ['bnf:cb000000001'] };
 
@@ -136,7 +136,7 @@ describe('shelfCheck', () => {
   test('a Volume after the latest one owned is not missing, and names the Followed Series', () => {
     const answer = shelfCheck(line[5].isbn, line[5], library({ copies: [copy(line[0]), copy(line[3])], follows: [follow()] }), line);
 
-    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: blacksad });
+    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: blacksad, series: { owned: 2, total: 6, missing: 2, followable: false } });
   });
 
   test('a Series followed under another identifier (sameAs) is followed', () => {
@@ -149,7 +149,7 @@ describe('shelfCheck', () => {
   test('a Dropped Series is not followed: no Missing Volume', () => {
     const answer = shelfCheck(line[2].isbn, line[2], library({ copies: [copy(line[0]), copy(line[3])], follows: [follow({ status: 'dropped' })] }), line);
 
-    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: null });
+    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 2, total: 6, missing: 2, followable: false } });
   });
 
   test('a Followed Series whose Edition Line could not be asked: followed, but not called missing', () => {
@@ -169,7 +169,56 @@ describe('shelfCheck', () => {
   test('owned wins over missing: a Copy of the Volume in a Followed Series', () => {
     const answer = shelfCheck(line[2].isbn, line[2], library({ copies: [copy(line[2]), copy(line[3])], follows: [follow()] }), line);
 
-    expect(answer).toEqual({ kind: 'owned', status: 'unread', followed: blacksad });
+    expect(answer).toEqual({ kind: 'owned', status: 'unread', followed: blacksad, series: { owned: 2, total: 6, missing: 2, followable: false } });
+  });
+});
+
+describe('shelfCheck: the Series line under the answer', () => {
+  // The Catalog lists Volumes 1 to 15 but 13 (a gap, as One Piece 13 at Glénat).
+  const gapped = Array.from({ length: 15 }, (_, i) => i + 1)
+    .filter((n) => n !== 13)
+    .map((n) => volume(n));
+
+  test('a Series not followed: owned, total (the highest Volume, the gap counts) and missing, and Follow', () => {
+    const answer = shelfCheck(gapped[12].isbn, gapped[12], library({ copies: [copy(gapped[12])] }), gapped);
+
+    expect(gapped[12].volume).toBe(14);
+    expect(answer).toEqual({ kind: 'owned', status: 'unread', followed: null, series: { owned: 1, total: 15, missing: 12, followable: true } });
+  });
+
+  test('a Volume not owned of a Series not followed: the same counts, from the line of this Edition', () => {
+    const answer = shelfCheck(gapped[1].isbn, gapped[1], library({ copies: [copy(gapped[0]), copy(gapped[3])] }), gapped);
+
+    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 2, total: 15, missing: 2, followable: true } });
+  });
+
+  test('a Followed Series: the counts, and no Follow', () => {
+    const answer = shelfCheck(line[2].isbn, line[2], library({ copies: [copy(line[0]), copy(line[3])], follows: [follow()] }), line);
+
+    expect(answer).toMatchObject({ kind: 'missing', series: { owned: 2, total: 6, missing: 2, followable: false } });
+  });
+
+  test('a Dropped Series: the counts, and no Follow', () => {
+    const answer = shelfCheck(line[2].isbn, line[2], library({ copies: [copy(line[0])], follows: [follow({ status: 'dropped' })] }), line);
+
+    expect(answer).toMatchObject({ kind: 'new', series: { owned: 1, total: 6, missing: 0, followable: false } });
+  });
+
+  test('no line for a book of no Series, or when the Edition Line could not be asked', () => {
+    expect(shelfCheck(standalone.isbn, standalone, library(), [standalone]).series).toBeUndefined();
+    expect(shelfCheck(line[2].isbn, line[2], library(), undefined).series).toBeUndefined();
+  });
+});
+
+describe('readerLine: the Edition Line the Series line counts in', () => {
+  test('the followed Edition Line, else the one of this Edition; none for a book of no Series', () => {
+    const other = isbn('979109999999');
+
+    expect(readerLine(line[2], library({ follows: [follow({ anchorIsbn: other })] }))).toBe(other);
+    expect(readerLine(line[2], library({ follows: [follow({ anchorIsbn: other, status: 'dropped' })] }))).toBe(other);
+    expect(readerLine(line[2], library())).toBe(line[2].isbn);
+    expect(readerLine(standalone, library())).toBeUndefined();
+    expect(readerLine(undefined, library())).toBeUndefined();
   });
 });
 
@@ -241,7 +290,7 @@ describe('deviceShelfCheck: the answer with no network, from this device only', 
   test('a Volume after the latest one owned: not in the Library, and names the Followed Series', async () => {
     const answer = await deviceShelfCheck(line[5].isbn, library({ copies: [copy(line[0]), copy(line[3])], follows: [follow()] }), kept);
 
-    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: blacksad });
+    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: blacksad, series: { owned: 2, total: 6, missing: 2, followable: false } });
   });
 
   test('a book this device knows, in no Followed Series and not in the Library', async () => {
@@ -274,17 +323,26 @@ describe('deviceShelfCheck: the answer with no network, from this device only', 
     expect((await deviceShelfCheck(standalone.isbn, saved, device([]))).check).toEqual({ kind: 'read', status: 'abandoned', followed: null });
   });
 
-  test('a Dropped Series is not read for its Edition Line', async () => {
-    const lines: string[] = [];
-    const watched: DeviceCatalog = {
-      edition: () => Promise.resolve(undefined),
-      line: (anchor) => (lines.push(anchor), Promise.resolve(line)),
-      hasCover: () => Promise.resolve(false),
-    };
+  test('a Series not followed: the Series line from the Edition Line this device kept for this ISBN', async () => {
+    const answer = await deviceShelfCheck(line[2].isbn, library({ copies: [copy(line[0])] }), device([line[2]], { [line[2].isbn]: line }));
 
-    await deviceShelfCheck(line[2].isbn, library({ follows: [follow({ status: 'dropped' })] }), watched);
+    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 1, total: 6, missing: 0, followable: true } });
+  });
 
-    expect(lines).toEqual([]);
+  test('a Series not followed whose Edition Line is not on this device: the answer, with no Series line', async () => {
+    const answer = await deviceShelfCheck(line[2].isbn, library({ copies: [copy(line[0])] }), device([line[2]]));
+
+    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: null });
+  });
+
+  test('a Dropped Series: its Edition Line gives the Series line, never a Missing Volume', async () => {
+    const answer = await deviceShelfCheck(
+      line[2].isbn,
+      library({ copies: [copy(line[0]), copy(line[3])], follows: [follow({ status: 'dropped' })] }),
+      device([line[2]], { [line[0].isbn]: line }),
+    );
+
+    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 2, total: 6, missing: 2, followable: false } });
   });
 });
 

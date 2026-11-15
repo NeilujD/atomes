@@ -174,7 +174,8 @@ const answers = [
   import { bookHref, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
   import { followOnRead, noOnboarding } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses } from '../lib/library/reading-status';
-  import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
+  import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, readerLine, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
+  import { followSeries } from '../lib/library/series';
   import { latestOnly } from '../lib/latest';
   import { lockWhileSaving } from '../lib/save-lock';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
@@ -379,10 +380,9 @@ const answers = [
         library = loaded.library;
         reportNetwork(!loaded.stale);
         reportWaiting(await waitingCount(space));
-        // A Followed Series: its Edition Line tells whether this Volume is
-        // missing; the one kept on this device when the Catalog cannot say now.
+        // A Followed Series: its Edition Line tells whether this Volume is missing.
         const anchor = followedLine(next.edition, library);
-        line = anchor ? ((await lookupVolumes(anchor).catch(() => undefined))?.volumes ?? (await device.line(anchor))) : undefined;
+        line = anchor ? await editionLine(anchor) : undefined;
       } catch {
         // No copy on this device and no network: the status starts at "Not yet", and no answer.
         library = { copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] };
@@ -392,7 +392,7 @@ const answers = [
       if (book !== next) return;
       check = shelfCheck(next.isbn, next.edition, library, line);
     }
-    showAnswer(check, next);
+    showAnswer(check, next, onDevice !== undefined);
     // The answer is what the reader came for: focus it (screen readers) where
     // it is, at the top, rather than scroll to Add.
     if (!typing) answer.focus({ preventScroll: true });
@@ -402,13 +402,81 @@ const answers = [
     // Another Copy of a book typed before: start from what the reader typed then.
     const before = library.copies.find(({ value }) => value.isbn === next.isbn && value.details)?.value.details;
     if (typing && before && !detail('title').value) fillDetails(before);
+    if (!onDevice) await addSeriesLine(next);
+  }
+
+  // The Edition Line of `anchor` (`/volumes`); the one kept on this device
+  // when the Catalog cannot say now.
+  async function editionLine(anchor: string): Promise<Edition[] | undefined> {
+    return (await lookupVolumes(anchor).catch(() => undefined))?.volumes ?? (await device.line(anchor));
+  }
+
+  // A Series not followed: its Series line comes after the answer, which
+  // does not need its Edition Line. Asking it online also leaves it in the
+  // service worker cache of a built app: the same check offline shows it too.
+  async function addSeriesLine(shown: Book) {
+    const anchor = readerLine(shown.edition, library);
+    if (!anchor || followedLine(shown.edition, library) !== undefined) return;
+    const line = await editionLine(anchor);
+    if (line && book === shown) showAnswer(shelfCheck(shown.isbn, shown.edition, library, line), shown, false);
+  }
+
+  // Follow from the Series line: the Series in the Edition Line of this book,
+  // then the check again (the book can now be a Missing Volume).
+  async function follow(check: ShelfCheck, shown: Book, offline: boolean) {
+    const change = shown.edition && followSeries(shown.edition, undefined, new Date());
+    const space = await openSpaceOrSay();
+    if (!change || !space) return;
+    showAnswer(check, shown, offline, true);
+    try {
+      const state = await saveFollow(space, change);
+      if (state !== 'refused') reportNetwork(state === 'sent');
+      reportWaiting(await waitingCount(space));
+      if (state !== 'sent') toast(await savedText(space, state), { error: state === 'refused' });
+      if (state === 'waiting') sendLater(space);
+      const loaded = (await loadLibrary(space)).library;
+      if (book !== shown) return;
+      library = loaded;
+      const again = offline
+        ? (await deviceShelfCheck(shown.isbn, library, device)).check
+        : shelfCheck(shown.isbn, shown.edition, library, await editionLine(change.anchorIsbn));
+      if (book === shown) showAnswer(again, shown, offline);
+    } catch (error) {
+      toast(spaceErrorMessage(error), { error: true });
+      if (book === shown) showAnswer(check, shown, offline);
+    }
   }
 
   // The Shelf Check answer, and the action that fits it.
-  function showAnswer(check: ShelfCheck, shown: Book) {
+  function showAnswer(check: ShelfCheck, shown: Book, offline: boolean, following = false) {
     answer.dataset.kind = check.kind;
-    render(h(ShelfCheckAnswer, { check, work: shown.work, volumes: shown.edition?.volumes ?? [] }), answer);
+    render(
+      h(ShelfCheckAnswer, {
+        check,
+        work: shown.work,
+        volumes: shown.edition?.volumes ?? [],
+        following,
+        onFollow: () => void follow(check, shown, offline),
+      }),
+      answer,
+    );
     showAction(check.kind === 'owned');
+  }
+
+  // Sends the waiting saves once the PDS can be reached; `sent` says so.
+  function sendLater(space: Space, sent: () => void = () => toast(t('saved.sent'))) {
+    if (sending) return;
+    sending = true;
+    sendWhenOnline(
+      space,
+      () => {
+        sending = false;
+        reportNetwork(true);
+        reportWaiting(0);
+        sent();
+      },
+      (error) => toast(spaceErrorMessage(error), { error: true }),
+    );
   }
 
   // Add to Library is the main action; for a book the reader owns, Add another Copy is secondary.
@@ -476,19 +544,11 @@ const answers = [
         link,
         error: state === 'refused',
       });
-      if (state === 'waiting' && !sending) {
-        sending = true;
-        sendWhenOnline(
-          space,
-          () => {
-            sending = false;
-            reportNetwork(true);
-            reportWaiting(0);
-            close();
-            toast(`${t('add.added', title)} ${t('saved.sent')}`, { link });
-          },
-          (error) => toast(spaceErrorMessage(error), { error: true }),
-        );
+      if (state === 'waiting') {
+        sendLater(space, () => {
+          close();
+          toast(`${t('add.added', title)} ${t('saved.sent')}`, { link });
+        });
       }
       return isbnInput;
     } catch (error) {
@@ -1093,6 +1153,15 @@ const answers = [
 
   .answer-link {
     font-size: 14px;
+  }
+
+  /* The Series line: quiet text, Follow at its end (wraps under it when narrow). */
+  .answer-series {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 12px;
   }
 
   /* The spine row of a Missing Volume (as on the Series page): filled = read,

@@ -178,6 +178,8 @@ export const en = {
   'check.status': (status: string) => `Reading Status: ${status}`,
   'check.unknown-text': 'This device does not know this book yet. Check online later.',
   'check.spines': (series: string) => `Volumes of ${series}`,
+  // The Series line under the answer; nothing about missing when none is.
+  'check.series-line': (owned: number, total: number, missing: number) => `You have ${owned} of ${total}${missing > 0 ? ` · ${missing} missing` : ''}`,
   'check.kept': 'Ready to check books offline: your Library and Followed Series are on this device.',
   'check.no-library': 'Your Library is not on this device yet. Check online later.',
   'find.title': 'Find it in the BnF catalogue',
