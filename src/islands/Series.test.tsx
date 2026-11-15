@@ -8,6 +8,7 @@ import { followCollection, saveFollow, type Follow } from '../lib/library/follow
 import { memorySpace } from '../lib/library/memory-space.fake';
 import { bookHref } from '../lib/library/model';
 import { readingStatusCollection, saveReadingStatus, type ReadingStatus } from '../lib/library/reading-status';
+import { toBuyCollection, type ToBuy } from '../lib/library/to-buy';
 import { Series, type Sources } from './Series';
 
 const blacksad = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
@@ -64,6 +65,7 @@ async function seriesPage(follow?: Follow['status'], editions: Edition[] = all, 
     keys: () => stored(followCollection).map(({ rkey }) => rkey),
     copies: () => stored(copyCollection).map(({ value }) => value as Copy),
     statuses: () => stored(readingStatusCollection).map(({ value }) => value as ReadingStatus),
+    toBuy: () => stored(toBuyCollection).map(({ value }) => value as ToBuy),
   };
 }
 
@@ -226,6 +228,24 @@ describe('Volume sheet', () => {
 
     await screen.findByText('Following');
     expect(follows()).toEqual([expect.objectContaining({ series: blacksad.id, anchorIsbn: lineA[1].isbn, status: 'following' })]);
+  });
+
+  test('a Volume read and not owned is outlined with the read mark, not Missing, and "Add to To Buy" puts it on To Buy by hand', async () => {
+    const { toBuy } = await seriesPage('following');
+
+    fireEvent.click(spine('Volume 2: not owned'));
+    fireEvent.click(sheet().getByRole('button', { name: 'Mark read' }));
+
+    await waitFor(() => expect(spine('Volume 2: read, not owned')).toBeTruthy());
+    expect(count('missing')).toBe('0');
+    expect(screen.queryByRole('heading', { name: /Missing Volumes/ })).toBeNull();
+    expect(sheet().getByText('Read, not owned')).toBeTruthy();
+
+    fireEvent.click(sheet().getByRole('button', { name: 'Add to To Buy' }));
+
+    await waitFor(() => expect(sheet().getByText('On your To Buy list')).toBeTruthy());
+    expect(toBuy()).toEqual([expect.objectContaining({ isbn: lineA[1].isbn })]);
+    expect(sheet().queryByRole('button', { name: 'Add to To Buy' })).toBeNull();
   });
 
   // A modal <dialog>: the browser closes it on Escape (happy-dom does not; checked in a browser).

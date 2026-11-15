@@ -70,22 +70,31 @@ describe('Where the reader stands in a Series', () => {
     const standing = seriesStanding(lineA, each);
 
     expect(standing.owned).toBe(3);
-    // Volume 3 is read but not owned (borrowed): it counts as read, and it is still missing.
+    // Volume 3 is read but not owned (borrowed): it counts as read, and it is not missing.
     expect(standing.read).toBe(2);
-    expect(standing.missing.map(({ volume: n }) => n)).toEqual([3]);
+    expect(standing.missing).toEqual([]);
     expect(standing.next).toBe(5);
   });
 
-  test('spines: filled when read, outlined when owned and not read, dashed grey when not owned, before or after the latest one owned', () => {
-    const each = library({ copies: owns(lineA, 1, 2, 4), readingStatuses: [status(lineA[0], 'read'), status(lineA[2], 'read')] });
+  test('a Missing Volume is one the reader does not own and has not read', () => {
+    const each = library({ copies: owns(lineA, 1, 4), readingStatuses: [status(lineA[2], 'read'), status(lineA[1], 'reading')] });
+
+    expect(missingVolumes(lineA, each).map(({ volume: n }) => n)).toEqual([2]);
+  });
+
+  test('spines: filled when owned and read, outlined when owned and not read, outlined with the read mark when read and not owned, dashed grey when not owned', () => {
+    const each = library({
+      copies: owns(lineA, 1, 2, 4),
+      readingStatuses: [status(lineA[0], 'read'), status(lineA[2], 'read'), status(lineA[5], 'read')],
+    });
 
     expect(seriesStanding(lineA, each).spines.map(({ volume: n, state }) => `${n} ${state}`)).toEqual([
       '1 read',
       '2 owned',
-      '3 read',
+      '3 read-not-owned',
       '4 owned',
       '5 not-owned',
-      '6 not-owned',
+      '6 read-not-owned',
     ]);
   });
 

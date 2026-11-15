@@ -343,12 +343,15 @@ export const en = {
   'series.missing-on-to-buy': 'They are on your To Buy list.',
   'series.missing-follow': 'Follow the Series to see them on your To Buy list.',
   'series.volumes': 'Volumes',
-  'series.spine': (volume: number, state: 'read' | 'owned' | 'not-owned') =>
-    `Volume ${volume}: ${state === 'read' ? 'read' : state === 'owned' ? 'owned, not read' : 'not owned'}`,
+  'series.spine': (volume: number, state: 'read' | 'owned' | 'read-not-owned' | 'not-owned') =>
+    `Volume ${volume}: ${{ read: 'read', owned: 'owned, not read', 'read-not-owned': 'read, not owned', 'not-owned': 'not owned' }[state]}`,
   'series.drop-suggest': (series: string) => `You abandoned a Volume of ${series}. Stop following the Series?`,
   'series.open': 'Open the Series page',
-  'series.state': (state: 'read' | 'owned' | 'not-owned'): string => (state === 'read' ? 'Read' : state === 'owned' ? 'Owned, not read' : 'Not owned'),
+  'series.state': (state: 'read' | 'owned' | 'read-not-owned' | 'not-owned'): string =>
+    ({ read: 'Read', owned: 'Owned, not read', 'read-not-owned': 'Read, not owned', 'not-owned': 'Not owned' })[state],
   'series.mark-read': 'Mark read',
+  'series.add-to-buy': 'Add to To Buy',
+  'series.on-to-buy': 'On your To Buy list',
   'series.open-book': 'Open',
 
   // Library (src/islands/Library.tsx)

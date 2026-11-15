@@ -115,7 +115,7 @@ describe('shelfCheck', () => {
     ]);
   });
 
-  test('a Missing Volume the reader read (borrowed) is still missing, and says it was read', () => {
+  test('a Volume the reader read and does not own (borrowed) is not missing: the answer says it was read', () => {
     const answer = shelfCheck(
       line[2].isbn,
       line[2],
@@ -123,7 +123,7 @@ describe('shelfCheck', () => {
       line,
     );
 
-    expect(answer).toMatchObject({ kind: 'missing', status: 'read', followed: blacksad });
+    expect(answer).toMatchObject({ kind: 'read', status: 'read', followed: blacksad });
   });
 
   test('missing through another printing of the same Volume number', () => {
