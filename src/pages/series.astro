@@ -71,9 +71,12 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     color: var(--ink);
   }
 
+  /* The heading is the view title (Series.tsx): this large title is content, as on the Book page. */
   .series-title {
     font-size: 40px;
+    font-weight: 700;
     line-height: 1.1;
+    letter-spacing: -0.02em;
   }
 
   .series-authors {
@@ -241,7 +244,7 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     font-size: 15px;
   }
 
-  /* The numbers read as one line: "2, 5, 13". */
+  /* The ranges read as one line of text, in normal weight: "1–12, 13, 14–55". */
   .series-missing-list {
     display: flex;
     flex-wrap: wrap;
@@ -249,7 +252,6 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     margin: 4px 0;
     padding: 0;
     list-style: none;
-    font-variant-numeric: tabular-nums;
   }
 
   .series-missing-list li:not(:last-child)::after {
@@ -280,15 +282,18 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     font-weight: 600;
   }
 
-  /* The spine row: filled = owned and read, outlined = owned not read, outlined with the read mark = read not owned,
-     dashed grey = not owned. */
+  /* The spine row: filled = owned and read, outlined on a grey fill = owned not read, outlined with the read mark =
+     read not owned, dashed grey = not owned. One column width for the whole Series, from its widest number
+     (--spine-digits, Series.tsx), so the rows line up past Volume 99. */
   .series-spines {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, max(24px, calc(var(--spine-digits, 2) * 1ch + 10px)));
     gap: 2px 0;
     margin: 0;
     padding: 0;
     list-style: none;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
   }
 
   .series-spine {
@@ -301,6 +306,7 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     flex-direction: column;
     align-items: center;
     gap: 2px;
+    width: 100%;
     min-width: 24px;
     /* 6 px on top: room for the 4 px lift inside the button and its focus ring. */
     padding: 6px 5px 2px;
@@ -371,6 +377,11 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
 
   .series-spine[data-state='read'] .series-spine-bar {
     background: var(--ink);
+  }
+
+  /* Owned, not read: a grey fill, so it stands out among the dashed Volumes not owned. Grey, no colour role. */
+  .series-spine[data-state='owned'] .series-spine-bar {
+    background: var(--off);
   }
 
   .series-spine[data-state='not-owned'] .series-spine-bar {
