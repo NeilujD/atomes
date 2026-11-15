@@ -976,6 +976,19 @@ describe('Series Correction (ADR 0017)', () => {
     expect(names(after.lines)).toEqual(['Glénat 1993-2000', 'Glénat 2001-2004', 'Glénat 2003-2008']);
   });
 
+  test('a book scanned for a Volume the line lacks (CORE-108) fills the gap, and stays there after the line fills again', async () => {
+    const { catalog, later } = clocked();
+    const { line1993 } = await dragonBall(catalog);
+    expect((await answerOf(catalog, line1993)).volumes.some((v) => v.volume === 5)).toBe(false);
+    const scanned = '9781408730218'; // Asterix and the White Iris: a book a source knows, standing in for Dragon Ball 5
+
+    expect((await answerCorrect(catalog, scanned, { anchor: line1993, volume: 5 }, account)).status).toBe(200);
+    later(8);
+
+    const after = await answerOf(catalog, line1993);
+    expect(after.volumes.filter((v) => v.volume === 5).map((v) => v.isbn)).toEqual([scanned]);
+  });
+
   test('every reader gets the Correction, also after a restart; no answer holds the Account', async () => {
     const { catalog, reopen } = clocked();
     const { volume41, line2003 } = await dragonBall(catalog);

@@ -314,6 +314,23 @@ describe('Every Volume number from 1 to the highest known', () => {
     expect(saved.copies.map(({ isbn }) => isbn)).toEqual([isbns[2], isbns[4]]);
     expect(saved.readingStatuses.map(({ isbn }) => isbn)).toEqual([isbns[0], isbns[2], isbns[4]]);
   });
+
+  test('when the reader scans Volume 2 into the Edition Line (CORE-108), the earlier choices stay and its tile can be owned and read', () => {
+    // Owned up to 5, Volume 3 tapped not owned.
+    const choices = tapTile(onboarding, afterQuickAdd, { ...onboarding.start, ownedUpTo: 5 }, 'owned', isbns[2]);
+
+    const after = seriesOnboarding(volume(1), [...known, volume(2)], afterQuickAdd);
+
+    expect(volumeTiles(after, afterQuickAdd, choices).map(({ volume, isbn, owned }) => [volume, isbn, owned])).toEqual([
+      [1, isbns[0], true],
+      [2, isbns[1], true],
+      [3, isbns[2], false],
+      [4, null, false],
+      [5, isbns[4], true],
+    ]);
+    const read = tapTile(after, afterQuickAdd, choices, 'read', isbns[1]);
+    expect(onboardingSave(after, afterQuickAdd, read, now).readingStatuses.map(({ isbn }) => isbn)).toEqual([isbns[1]]);
+  });
 });
 
 describe('Tap changes Owned or Read', () => {

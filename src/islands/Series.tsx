@@ -2,8 +2,9 @@
 // Series, and follow, switch Edition Line, stop following (glossary: Followed
 // Series, Dropped Series, Edition Line). Each spine opens a Volume sheet: I
 // bought it, Mark read, Open. "Select" starts bulk select
-// (src/islands/Selection.tsx): a tap on a spine picks its Volume. The rules
-// are in src/lib/library/series.ts; this file only renders and saves.
+// (src/islands/Selection.tsx): a tap on a spine picks its Volume. A tap on a
+// Volume the Catalog lacks opens the sheet that scans its ISBN (VolumeScan.tsx).
+// The rules are in src/lib/library/series.ts; this file only renders and saves.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import type { Edition, LineSummary } from '../lib/catalog/catalog';
@@ -39,6 +40,7 @@ import { toast } from '../lib/toast';
 import { Cover } from './Cover';
 import { liveSelection, SelectionBar, type SelectionSources } from './Selection';
 import { SeriesLabels } from './SeriesLabels';
+import { liveVolumeScan, VolumeScan, type VolumeScanSources } from './VolumeScan';
 
 export interface Sources extends CatalogAsk {
   // Undefined when signed out.
@@ -46,6 +48,7 @@ export interface Sources extends CatalogAsk {
   // Every Edition Line of the Series of `isbn`, named; undefined when the Catalog cannot say.
   lines(isbn: string): Promise<LineSummary[] | undefined>;
   selection?: SelectionSources;
+  scan?: VolumeScanSources;
 }
 
 const live: Sources = {
@@ -54,6 +57,7 @@ const live: Sources = {
   editions: lookupEditions,
   lines: async (isbn) => (await lookupVolumes(isbn))?.lines,
   selection: liveSelection,
+  scan: liveVolumeScan,
 };
 
 // `isbn`: an Edition of the Series, from the link (`seriesHref`).
@@ -78,6 +82,8 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   // Bulk select: on or off, and the Volumes picked, in the order of the taps.
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
+  // The Volume the Catalog lacks whose sheet is open.
+  const [scanning, setScanning] = useState<number>();
 
   const space = useRef<Space | undefined>(undefined);
   const listing = useRef<{ refresh: () => Promise<void> } | undefined>(undefined);
@@ -289,14 +295,16 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const picked = standing.spines
     .filter(({ volume }) => selected.includes(volume))
     .map(({ edition: printing }) => ({ work: printing.work.id, isbn: printing.isbn, edition: printing }));
-  // After Move to Series the Edition Lines changed: the page asks the Catalog again.
-  const afterSave = async (moved: Edition[] = []) => {
-    if (moved.length > 0) {
-      lines.current.clear();
-      editions.current.clear();
-      setSelected([]);
-    }
+  // After a Series Correction the Edition Lines changed: the page asks the Catalog again.
+  const afterCorrection = async () => {
+    lines.current.clear();
+    editions.current.clear();
     await listing.current?.refresh();
+  };
+  const afterSave = async (moved: Edition[] = []) => {
+    if (moved.length === 0) return listing.current?.refresh();
+    setSelected([]);
+    await afterCorrection();
   };
   document.title = `${edition.series.title} · Atomes`;
 
@@ -401,13 +409,13 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
             {missingList(standing).map(({ volume, unknown }) => (
               <li key={volume}>
                 {unknown ? (
-                  // CORE-108 replaces the note with the sheet that scans its ISBN.
                   <button
                     class="series-missing-unknown"
                     type="button"
                     data-volume={volume}
+                    aria-haspopup="dialog"
                     aria-label={t('series.unknown-volume', volume)}
-                    onClick={() => toast(t('series.unknown-note', volume))}
+                    onClick={() => setScanning(volume)}
                   >
                     {volume}
                   </button>
@@ -481,6 +489,16 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
           library={library}
           onSaved={afterSave}
           sources={sources.selection ?? liveSelection}
+        />
+      )}
+
+      {scanning !== undefined && (
+        <VolumeScan
+          volume={scanning}
+          anchor={anchor.isbn}
+          onChanged={afterCorrection}
+          onClose={() => setScanning(undefined)}
+          sources={sources.scan ?? liveVolumeScan}
         />
       )}
 

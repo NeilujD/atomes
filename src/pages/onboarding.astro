@@ -3,10 +3,13 @@
 // the reader says which Volumes they own and have read, and whether to follow
 // the Edition Line. From a later Volume it asks first: "Do you own 1–N?". `?isbn=<the Edition just added>`. A Flow screen
 // (ui-direction): no sidebar or tab bar. Rules: src/lib/library/onboarding.ts.
+// A tap on a Volume the Catalog lacks opens the sheet that scans its ISBN
+// (src/islands/VolumeScan.tsx); the reader's choices stay meanwhile.
 import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
+import '../styles/correction.css';
 
 const t = translator(requestLanguage(Astro.request));
 
@@ -123,10 +126,14 @@ const steppers = [
         </button>
       </div>
     </form>
+    <!-- The sheet of a Volume the Catalog lacks: out of the form, its buttons save nothing here. -->
+    <div data-volume-scan></div>
   </section>
 </AppShell>
 
 <script>
+  import { h, render as renderIsland } from 'preact';
+  import { VolumeScan } from '../islands/VolumeScan';
   import { openOwnSpace } from '../lib/auth/server-client';
   import { lookupVolumes } from '../lib/catalog/client';
   import { reportNetwork, reportWaiting } from '../lib/connection';
@@ -173,6 +180,7 @@ const steppers = [
   const saveButton = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   // Skip and the close icon: "not now".
   const skips = [...form.querySelectorAll<HTMLAnchorElement>('[data-skip]')];
+  const scanBox = card.querySelector<HTMLElement>('[data-volume-scan]')!;
 
   const isbn = new URLSearchParams(location.search).get('isbn') ?? '';
   const bookHref = (work: string) => `/book?work=${encodeURIComponent(work)}`;
@@ -248,10 +256,11 @@ const steppers = [
     button.className = 'tile';
     button.textContent = String(tile.volume);
     button.dataset.volume = String(tile.volume);
-    // No Catalog Edition: no ISBN, so no record. A tap says why.
+    // No Catalog Edition: no ISBN, so no record. A tap opens the sheet that scans its ISBN.
     if (tile.isbn === null) {
       button.classList.add('unknown');
       button.setAttribute('aria-label', t('onboarding.tile-unknown', tile.volume));
+      button.setAttribute('aria-haspopup', 'dialog');
       return button;
     }
     button.classList.toggle('owned', tile.owned);
@@ -328,10 +337,7 @@ const steppers = [
     const tile = (event.target as Element).closest<HTMLButtonElement>('button.tile');
     if (!tile || !onboarding) return;
     const volume = Number(tile.dataset.volume);
-    if (tile.classList.contains('unknown')) {
-      toast(t('onboarding.unknown-volume', volume));
-      return;
-    }
+    if (tile.classList.contains('unknown')) return openScan(onboarding, volume);
     if (!tile.dataset.isbn) return;
     if (tile.getAttribute('aria-disabled') === 'true') {
       toast(t(mode === 'owned' ? 'onboarding.locked' : 'onboarding.locked-read', volume));
@@ -383,6 +389,32 @@ const steppers = [
           : steppers[0].querySelector<HTMLElement>('[data-by]:not(:disabled)');
       next?.focus();
     });
+  }
+
+  // The sheet of an unknown Volume. After its Series Correction (and after
+  // Undo) the Edition Line is asked again; the choices stay: they are by ISBN
+  // and by number, and the new Volume follows the ranges like the others.
+  function openScan(shown: Onboarding, volume: number) {
+    const close = () => {
+      renderIsland(null, scanBox);
+      tileBox.querySelector<HTMLButtonElement>(`[data-volume="${volume}"]`)?.focus();
+    };
+    renderIsland(h(VolumeScan, { volume, anchor: shown.anchor.isbn, onChanged: () => newLine(shown.anchor), onClose: close }), scanBox);
+  }
+
+  async function newLine(anchor: Onboarding['anchor']) {
+    const answered = await lookupVolumes(anchor.isbn).catch(() => undefined);
+    if (!answered) return toast(t('add.lookup-unreachable'), { error: true });
+    onboarding = seriesOnboarding(anchor, answered.volumes, library);
+    showUnknown(onboarding);
+    render(onboarding);
+  }
+
+  // The Catalog knows only the Volumes someone looked up: say how many
+  // numbers get no Copy.
+  function showUnknown(shown: Onboarding) {
+    const unknown = volumeTiles(shown, library, choices).filter(({ isbn }) => isbn === null).length;
+    form.querySelector('[data-known]')!.textContent = unknown > 0 ? t('onboarding.unknown', unknown) : '';
   }
 
   for (const skip of skips) {
@@ -470,10 +502,7 @@ const steppers = [
     form.querySelector('[data-edition-line]')!.textContent = line
       ? t('onboarding.in-edition', line)
       : t('onboarding.in-added-edition');
-    // The Catalog knows only the Volumes someone looked up: say how many
-    // numbers get no Copy.
-    const unknown = volumeTiles(shown, library, choices).filter(({ isbn }) => isbn === null).length;
-    form.querySelector('[data-known]')!.textContent = unknown > 0 ? t('onboarding.unknown', unknown) : '';
+    showUnknown(shown);
     const all = form.querySelector<HTMLButtonElement>('[data-stepper="owned"] [data-shortcut]')!;
     all.textContent = t('onboarding.up-to', shown.steps.at(-1)!);
     followSwitch.checked = choices.follow;

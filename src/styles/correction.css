@@ -1,6 +1,7 @@
 /* The Series Correction sheet (src/islands/SeriesCorrection.tsx), and the
    bulk select sheets that share its look (src/islands/Selection.tsx): Book
-   page, Library and Series page. Global: islands render on the device. */
+   page, Library, Series page and Series Onboarding (the sheet of a Volume the
+   Catalog lacks). Global: islands render on the device. */
 /* The Series Correction sheet: from the bottom on the phone, centred on desktop, as the Volume sheet. */
 .correction-sheet {
   inset: auto 0 0;
@@ -132,4 +133,20 @@
   .correction-body {
     padding: 24px;
   }
+}
+
+/* The camera in the sheet of a Volume the Catalog lacks (src/islands/VolumeScan.tsx). */
+.volume-scan-camera:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-scan-video {
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  object-fit: cover;
+  border-radius: var(--radius-panel);
+  background: var(--camera);
 }
