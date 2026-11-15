@@ -3,6 +3,7 @@ import ArrowLeft from '@lucide/astro/icons/arrow-left';
 import Bell from '@lucide/astro/icons/bell';
 import BookPlus from '@lucide/astro/icons/book-plus';
 import Check from '@lucide/astro/icons/check';
+import ChevronDown from '@lucide/astro/icons/chevron-down';
 import Handshake from '@lucide/astro/icons/handshake';
 import House from '@lucide/astro/icons/house';
 import Keyboard from '@lucide/astro/icons/keyboard';
@@ -30,6 +31,7 @@ export const icons = {
   bell: Bell,
   'book-plus': BookPlus,
   check: Check,
+  'chevron-down': ChevronDown,
   handshake: Handshake,
   house: House,
   keyboard: Keyboard,

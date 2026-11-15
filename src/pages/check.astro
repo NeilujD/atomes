@@ -123,19 +123,15 @@ const answers = [
 
       <!-- Hidden offline for a book this device has no Catalog data for: check online later. -->
       <div class="add-actions" data-add-actions>
-        <fieldset class="question">
-          <legend class="label">{t('add.read-question')}</legend>
-          <div class="segmented">
-            {
-              answers.map((answer) => (
-                <label class="segment">
-                  <input type="radio" name="status" value={answer.value} checked={answer.value === 'unread'} />
-                  <span>{answer.label}</span>
-                </label>
-              ))
-            }
-          </div>
-        </fieldset>
+        <div class="question">
+          <label class="label" for="read-status">{t('add.read-question')}</label>
+          <span class="status-chip">
+            <select id="read-status" name="status">
+              {answers.map((answer) => <option value={answer.value}>{answer.label}</option>)}
+            </select>
+            <Icon name="chevron-down" />
+          </span>
+        </div>
 
         <div class="private">
           <Icon name="lock" size={18} />
@@ -192,7 +188,7 @@ const answers = [
   const answer = addForm.querySelector<HTMLElement>('[data-answer]')!;
   const addActions = addForm.querySelector<HTMLElement>('[data-add-actions]')!;
   const kept = isbnForm.querySelector<HTMLElement>('[data-kept]')!;
-  const radios = addForm.querySelectorAll<HTMLInputElement>('input[name="status"]');
+  const statusSelect = addForm.querySelector<HTMLSelectElement>('select[name="status"]')!;
   const preview = addForm.querySelector<HTMLElement>('[data-preview]')!;
   const details = addForm.querySelector<HTMLFieldSetElement>('[data-details]')!;
   const detailsProblem = details.querySelector<HTMLElement>('[data-details-problem]')!;
@@ -354,7 +350,7 @@ const answers = [
     details.hidden = !typing;
     details.disabled = !typing;
     addActions.hidden = answerOnly;
-    for (const radio of radios) radio.checked = radio.value === 'unread';
+    statusSelect.value = 'unread';
     // Its place is kept while the Library loads: the book below does not jump.
     render(h('div', { class: 'skeleton answer-skeleton', 'aria-hidden': 'true' }), answer);
     answer.hidden = false;
@@ -396,9 +392,8 @@ const answers = [
     // The answer is what the reader came for: focus it (screen readers) where
     // it is, at the top, rather than scroll to Add.
     if (!typing) answer.focus({ preventScroll: true });
-    // Abandoned is not an answer here: no choice keeps it.
-    const status = currentStatus(next.work, library);
-    for (const radio of radios) radio.checked = radio.value === status;
+    // Abandoned is not an answer here: no choice keeps it (no option selected).
+    statusSelect.value = currentStatus(next.work, library);
     // Another Copy of a book typed before: start from what the reader typed then.
     const before = library.copies.find(({ value }) => value.isbn === next.isbn && value.details)?.value.details;
     if (typing && before && !detail('title').value) fillDetails(before);
@@ -507,8 +502,7 @@ const answers = [
     }
     const typedBook = fields?.details;
     const title = current.edition?.title ?? typedBook?.title ?? t('book.isbn', current.isbn);
-    const checked = [...radios].find((radio) => radio.checked)?.value;
-    const chosen = statuses.find((status) => status === checked);
+    const chosen = statuses.find((status) => status === statusSelect.value);
     const space = await openSpaceOrSay();
     if (!space) return;
     try {
@@ -1051,14 +1045,8 @@ const answers = [
   .question {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 8px;
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-
-  .question legend {
-    margin-bottom: 8px;
   }
 
   .private {
