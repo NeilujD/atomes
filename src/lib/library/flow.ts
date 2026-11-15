@@ -23,3 +23,14 @@ export function flowPosition(books: Books, moved: FlowMove | undefined): number 
 export function flowMove(books: Books, to: number): FlowMove {
   return { to: Math.min(Math.max(to, 0), books.length - 1), works: worksOf(books) };
 }
+
+// Phone: the place of the cover a swipe stops on, the one whose middle is
+// nearest `middle`, the middle of the strip. `middles`: where each cover's
+// middle is, in order.
+export function flowNearest(middles: number[], middle: number): number {
+  let nearest = 0;
+  middles.forEach((each, at) => {
+    if (Math.abs(each - middle) < Math.abs(middles[nearest] - middle)) nearest = at;
+  });
+  return nearest;
+}

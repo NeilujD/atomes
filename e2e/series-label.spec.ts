@@ -35,7 +35,7 @@ test('a Label put on One Piece from its Series page goes on every One Piece Work
   await islandsLoaded(page);
 
   await page.goto('/library');
-  await expect(page.getByText('3 books', { exact: true })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('list').getByRole('link')).toHaveCount(3);
   await page.getByRole('button', { name: 'Sort and filter' }).click();
   await page.getByRole('button', { name: /^Shōnen/ }).click();
   await page.getByRole('button', { name: 'Show 2 books' }).click();

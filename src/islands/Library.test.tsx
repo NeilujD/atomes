@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
+import type { Window as HappyWindow } from 'happy-dom';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import type { Edition } from '../lib/catalog/catalog';
 import { saveCopy } from '../lib/library/copy';
@@ -363,6 +364,43 @@ describe('Cover flow', () => {
 
     expect([current(), slider().value]).toEqual(['Astérix', '1']);
     expect(screen.getByRole('link', { current: true }).getAttribute('href')).toBe('/book?work=wd%3AQ976165');
+  });
+
+  describe('on the phone', () => {
+    // Under 960 px: the phone frame (docs/design/ui-direction.md).
+    const viewport = (width: number, height: number) => (window as unknown as HappyWindow).happyDOM.setViewport({ width, height });
+    const phone = () => viewport(390, 844);
+    afterEach(() => viewport(1024, 768));
+    // On the phone the View is a menu (CORE-110).
+    const chooseOnPhone = (mode: string) => fireEvent.change(screen.getByRole('combobox', { name: 'View' }), { target: { value: mode } });
+
+    test('the covers are a strip to swipe: no Previous, Next or slider, and every book is a link', async () => {
+      phone();
+      await libraryScreen();
+      chooseOnPhone('flow');
+
+      expect(current()).toBe('Dune');
+      expect(screen.getByText('2 of 3')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Previous' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+      expect(screen.queryByRole('slider')).toBeNull();
+      // The cover first; the title under the strip links too for the book in front.
+      expect(['Astérix', 'Dune', 'La Horde du Contrevent'].map((name) => screen.getAllByRole('link', { name })[0].getAttribute('href'))).toEqual([
+        '/book?work=wd%3AQ976165',
+        '/book?work=wd%3AQ320481',
+        '/book?work=wd%3AQ464234',
+      ]);
+    });
+
+    test('a cover on the side comes to the front when tapped', async () => {
+      phone();
+      await libraryScreen();
+      chooseOnPhone('flow');
+      fireEvent.click(screen.getByRole('link', { name: 'La Horde du Contrevent' }));
+
+      expect(current()).toBe('La Horde du Contrevent');
+      expect(screen.getByText('3 of 3')).toBeTruthy();
+    });
   });
 
   test('a search starts again in the middle of the books it finds', async () => {

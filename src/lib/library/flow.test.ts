@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { flowMove, flowPosition } from './flow';
+import { flowMove, flowNearest, flowPosition } from './flow';
 
 // Books known by their Work only: the flow needs no more.
 const books = (...works: string[]) => works.map((work) => ({ work }));
@@ -27,5 +27,22 @@ describe('Where Cover flow stands', () => {
 
     expect(flowPosition(books('a', 'b', 'c'), moved)).toBe(1);
     expect(flowPosition(books('e', 'd', 'c', 'b', 'a'), moved)).toBe(2);
+  });
+});
+
+describe('Which cover a swipe stops on (phone)', () => {
+  // The middles of four covers, 100 px apart.
+  const middles = [50, 150, 250, 350];
+
+  test('the cover whose middle is nearest the middle of the strip', () => {
+    expect(flowNearest(middles, 50)).toBe(0);
+    expect(flowNearest(middles, 240)).toBe(2);
+    expect(flowNearest(middles, 290)).toBe(2);
+    expect(flowNearest(middles, 310)).toBe(3);
+  });
+
+  test('past an end, the cover at that end', () => {
+    expect(flowNearest(middles, -80)).toBe(0);
+    expect(flowNearest(middles, 900)).toBe(3);
   });
 });

@@ -1,25 +1,33 @@
-// The Library in Cover flow mode: one book in front, the covers nearby on each
-// side, and Previous, Next and a slider to move. It starts in the middle; the
-// Library keeps the move, for the way back from a Book (CORE-96).
+// The Library in Cover flow mode: one book in front, the covers on each side.
+// Desktop: the covers nearby, and Previous, Next and a slider to move. Phone:
+// every cover in a strip the reader swipes, which snaps on a cover (CORE-106).
+// It starts in the middle; the Library keeps the move, for the way back from
+// a Book (CORE-96).
 // Every cover links to its Book page; one on the side comes to the front first.
 // Which book stands in front: src/lib/library/flow.ts.
+import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 import { t } from '../lib/i18n/i18n';
 import { volumeLine, type LibraryBook } from '../lib/library/browse';
-import { flowMove, flowPosition, type FlowMove } from '../lib/library/flow';
+import { flowMove, flowNearest, flowPosition, type FlowMove } from '../lib/library/flow';
 import { bookHref } from '../lib/library/model';
 import { Cover } from './Cover';
 
-// How many covers show on each side of the one in front.
+// Desktop: how many covers show on each side of the one in front.
 const nearby = 4;
+// Phone: a swipe has ended once the strip has not scrolled for this long.
+const settleMs = 100;
 
-export function LibraryCoverFlow({ books, moved, onMove }: { books: LibraryBook[]; moved: FlowMove | undefined; onMove: (moved: FlowMove) => void }) {
+export function LibraryCoverFlow({ books, moved, onMove, wide }: { books: LibraryBook[]; moved: FlowMove | undefined; onMove: (moved: FlowMove) => void; wide: boolean }) {
   const position = flowPosition(books, moved);
+  const strip = useStrip(wide, position, books.length, (to) => onMove(flowMove(books, to)));
   const book = books.at(position);
   if (!book) return null;
 
   const last = books.length - 1;
   const move = (to: number) => onMove(flowMove(books, to));
-  const first = Math.max(0, position - nearby);
+  // Phone: every cover, for the strip. Desktop: the covers nearby.
+  const first = wide ? Math.max(0, position - nearby) : 0;
+  const shown = wide ? books.slice(first, position + nearby + 1) : books;
   // "One Piece, Volume 9": the Volumes of a Series share its title. A book
   // read with no Copy says so, as its grey cover does.
   const notOwned = (each: LibraryBook) => (each.owned ? '' : t('library.not-owned'));
@@ -27,19 +35,21 @@ export function LibraryCoverFlow({ books, moved, onMove }: { books: LibraryBook[
 
   return (
     <div class="library-flow">
-      <div class="library-flow-stage">
-        {books.slice(first, position + nearby + 1).map((each, at) => {
+      <div ref={strip} class={wide ? 'library-flow-stage' : 'library-flow-stage library-flow-strip'}>
+        {shown.map((each, at) => {
           const offset = first + at - position;
           return (
-            // The covers on the sides are a shortcut for a pointer: the keyboard has Previous, Next and the slider.
+            // Desktop: the covers on the sides are a shortcut for a pointer, the
+            // keyboard has Previous, Next and the slider. Phone: every cover
+            // takes the focus, which scrolls it into the strip.
             <a
               key={each.work}
               class={each.owned ? 'library-flow-cover' : 'library-flow-cover library-not-owned'}
               href={bookHref(each.work)}
-              style={`--side: ${Math.sign(offset)}; --away: ${Math.abs(offset)}`}
+              style={wide ? `--side: ${Math.sign(offset)}; --away: ${Math.abs(offset)}` : undefined}
               aria-current={offset === 0}
               aria-label={named(each)}
-              tabIndex={offset === 0 ? 0 : -1}
+              tabIndex={wide && offset !== 0 ? -1 : 0}
               onClick={(event) => {
                 if (offset === 0) return;
                 event.preventDefault();
@@ -61,17 +71,70 @@ export function LibraryCoverFlow({ books, moved, onMove }: { books: LibraryBook[
         <span class="library-flow-line">{[book.authors.join(', '), t(`status.${book.status}`), notOwned(book)].filter(Boolean).join(' · ')}</span>
       </div>
 
-      <div class="library-flow-controls">
-        {/* At an end the button stays in reach (`aria-disabled`): `disabled` would drop the focus of the keyboard. */}
-        <button class="button" type="button" aria-disabled={position === 0} onClick={() => move(position - 1)}>
-          {t('library.flow.previous')}
-        </button>
-        {/* The slider counts from 1, as the position above it does. */}
-        <input type="range" aria-label={t('library.flow.browse')} min={1} max={books.length} value={position + 1} onInput={(event) => move(event.currentTarget.valueAsNumber - 1)} />
-        <button class="button" type="button" aria-disabled={position === last} onClick={() => move(position + 1)}>
-          {t('library.flow.next')}
-        </button>
-      </div>
+      {wide && (
+        <div class="library-flow-controls">
+          {/* At an end the button stays in reach (`aria-disabled`): `disabled` would drop the focus of the keyboard. */}
+          <button class="button" type="button" aria-disabled={position === 0} onClick={() => move(position - 1)}>
+            {t('library.flow.previous')}
+          </button>
+          {/* The slider counts from 1, as the position above it does. */}
+          <input type="range" aria-label={t('library.flow.browse')} min={1} max={books.length} value={position + 1} onInput={(event) => move(event.currentTarget.valueAsNumber - 1)} />
+          <button class="button" type="button" aria-disabled={position === last} onClick={() => move(position + 1)}>
+            {t('library.flow.next')}
+          </button>
+        </div>
+      )}
     </div>
   );
+}
+
+// The place of the cover nearest the middle of the strip.
+function nearest(strip: HTMLElement): number {
+  const middles = [...strip.children].map((cover) => (cover as HTMLElement).offsetLeft + (cover as HTMLElement).offsetWidth / 2);
+  return flowNearest(middles, strip.scrollLeft + strip.clientWidth / 2);
+}
+
+// Phone: the strip scrolls to the cover in front (at once when it is drawn,
+// so the way back from a Book and the cover flight find it in sight; then as
+// the browser scrolls, smooth unless the reader asks for less motion), and the
+// cover it snaps on after a swipe comes to the front.
+function useStrip(wide: boolean, position: number, count: number, snapped: (to: number) => void) {
+  const strip = useRef<HTMLDivElement>(null);
+  const drawn = useRef(false);
+  const latest = useRef({ position, snapped });
+  latest.current = { position, snapped };
+
+  useLayoutEffect(() => {
+    const element = strip.current;
+    if (wide || !element) {
+      drawn.current = false;
+      return;
+    }
+    const cover = element.children[position] as HTMLElement | undefined;
+    if (cover && nearest(element) !== position) {
+      element.scrollTo({ left: cover.offsetLeft + cover.offsetWidth / 2 - element.clientWidth / 2, behavior: drawn.current ? 'auto' : 'instant' });
+    }
+    drawn.current = true;
+    // Not on every render: a Library read again during a swipe must not pull the strip back.
+  }, [wide, position, count]);
+
+  useEffect(() => {
+    const element = strip.current;
+    if (wide || !element) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const settle = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const to = nearest(element);
+        if (to !== latest.current.position) latest.current.snapped(to);
+      }, settleMs);
+    };
+    element.addEventListener('scroll', settle, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      element.removeEventListener('scroll', settle);
+    };
+  }, [wide]);
+
+  return strip;
 }
