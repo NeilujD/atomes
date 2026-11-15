@@ -27,6 +27,7 @@ import {
   seriesStanding,
   switchLine,
   type CatalogAsk,
+  type SeriesStanding,
   type Spine,
 } from '../lib/library/series';
 import { bought, deleteToBuy, handAdd, saveToBuy } from '../lib/library/to-buy';
@@ -298,6 +299,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
             <Count value={standing.owned} label={t('series.owned')} />
             <Count value={standing.read} label={t('series.read')} />
             <Count value={standing.missing.length} label={t('series.missing')} />
+            {standing.unknown.length > 0 && <Count value={standing.unknown.length} label={t('series.unknown')} />}
             <Count value={standing.next ?? '—'} label={t('series.next')} />
           </dl>
 
@@ -370,20 +372,42 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
         </form>
       )}
 
-      {standing.missing.length > 0 && (
+      {(standing.missing.length > 0 || standing.unknown.length > 0) && (
         <section class="series-missing" aria-labelledby="series-missing-title">
           <h2 class="series-missing-title" id="series-missing-title">
-            {t('series.missing-title', standing.missing.map(({ volume }) => volume).join(', '))}
+            {t('series.missing-title')}
           </h2>
-          <p class="series-hint">
-            {following ? (
-              <>
-                {t('series.missing-on-to-buy')} <a href="/to-buy">{t('nav.to-buy')}</a>
-              </>
-            ) : (
-              t('series.missing-follow')
-            )}
-          </p>
+          <ul class="series-missing-list">
+            {missingList(standing).map(({ volume, unknown }) => (
+              <li key={volume}>
+                {unknown ? (
+                  // CORE-108 replaces the note with the sheet that scans its ISBN.
+                  <button
+                    class="series-missing-unknown"
+                    type="button"
+                    data-volume={volume}
+                    aria-label={t('series.unknown-volume', volume)}
+                    onClick={() => toast(t('series.unknown-note', volume))}
+                  >
+                    {volume}
+                  </button>
+                ) : (
+                  volume
+                )}
+              </li>
+            ))}
+          </ul>
+          {standing.missing.length > 0 && (
+            <p class="series-hint">
+              {following ? (
+                <>
+                  {t('series.missing-on-to-buy')} <a href="/to-buy">{t('nav.to-buy')}</a>
+                </>
+              ) : (
+                t('series.missing-follow')
+              )}
+            </p>
+          )}
         </section>
       )}
 
@@ -506,6 +530,13 @@ function linked(lines: Map<string, Edition[]>, isbn: string): Edition | undefine
 function followOf(library: Library, edition: Edition | undefined): Follow | undefined {
   const series = edition?.series;
   return library.follows.find(({ rkey }) => isSeries(series, rkey))?.value;
+}
+
+// The Missing list in Volume order: the Missing Volumes and, apart, the
+// numbers the Catalog has no Edition of.
+function missingList({ missing, unknown }: SeriesStanding): { volume: number; unknown: boolean }[] {
+  const known = missing.flatMap(({ volume }) => (volume === null ? [] : [{ volume, unknown: false }]));
+  return [...known, ...unknown.map((volume) => ({ volume, unknown: true }))].sort((a, b) => a.volume - b.volume);
 }
 
 function Count({ value, label }: { value: number | string; label: string }) {
