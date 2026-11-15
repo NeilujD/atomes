@@ -121,6 +121,22 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     font-weight: 600;
   }
 
+  /* The other Edition Lines, by name, above the ISBN field. */
+  .series-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    margin: 0 0 8px;
+    padding: 0;
+    border: 0;
+  }
+
+  .series-lines legend {
+    padding: 0;
+    margin-bottom: 6px;
+  }
+
   .series-switch-row .field {
     flex: 1;
     max-width: 280px;

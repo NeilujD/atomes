@@ -5,7 +5,21 @@
 import { DatabaseSync } from 'node:sqlite';
 import { editionWork, seriesIdRank } from '../library/ids';
 import { key, seriesKey, type Facts, type SourceName } from './facts';
-import { bookHeight, lineHeight, linePrefix, placeLine, publisherWords, samePrefix, samePublisher, sameSize } from './lines';
+import {
+  bookHeight,
+  lineHeight,
+  lineKey,
+  lineName,
+  linePrefix,
+  lineRecord,
+  placeLine,
+  publisherWords,
+  recordGroups,
+  samePrefix,
+  samePublisher,
+  sameSize,
+  type LineName,
+} from './lines';
 import { inTransaction, migrate } from './migrations';
 import { dropSharedWorks, losesWork } from './shared-works';
 import type { Publisher, SourceFetch } from './sources';
@@ -31,6 +45,10 @@ export interface Edition {
   volumes: number[];
   // The first of `volumes`, for clients that know one Volume per Edition.
   volume: number | null;
+  // The year of this printing, which names its Edition Line (ADR 0010,
+  // amendment 2026-11-14). Optional: answers kept on a device from before
+  // have none.
+  year?: number | null;
   // Licence Ouverte (BnF, SUDOC) asks to show the source and its date.
   // `reader`: no source knows the ISBN, a reader picked its Series (CORE-40).
   sources: EditionSource[];
@@ -38,6 +56,10 @@ export interface Edition {
 }
 
 export type EditionSource = SourceName | 'reader';
+
+// An Edition Line of a Series, to switch to (ADR 0010, amendment 2026-11-14):
+// its name, and `anchor`, the ISBN of its lowest Volume.
+export type LineSummary = LineName & { anchor: string };
 
 export type Lookup = { found: Edition } | { notFound: true } | { unavailable: true };
 
@@ -95,6 +117,9 @@ export interface Catalog {
   // Edition Line at most once a week; the Volumes known so far without `fill`
   // or when that fails.
   volumes(anchor: Edition, options: { fill: boolean }): Promise<Edition[]>;
+  // Every Edition Line this Catalog knows in the Series of `edition`, the
+  // earliest first. None when the Edition is in no Series.
+  lines(edition: Edition): LineSummary[];
   // The Edition Lines and books BnF lists under a title (and publisher): one
   // page of 50 records. Only the typed words leave the server.
   search(title: string, publisher?: string): Promise<SearchFound | { unavailable: true }>;
@@ -147,6 +172,9 @@ type EditionRow = {
   same_as: string | null;
   volume: number | null;
   volumes: string | null;
+  edition_line: string | null;
+  year: number | null;
+  bnf_id: string | null;
   sources: string;
   fetched_at: string;
 };
@@ -269,18 +297,25 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     (db.prepare('select edition_line from edition where isbn = ?').get(isbn) as { edition_line: string | null } | undefined)?.edition_line ?? null;
 
   // An Edition stays in its line while its Series and size fit it; else it
-  // joins the line of its size (lines.ts), under either name of its publisher.
-  function lineOf(edition: Edition): string | null {
+  // joins the line that holds its BnF Series `record`, else the line of its
+  // size (lines.ts), under either name of its publisher.
+  function lineOf(edition: Edition, record: string | undefined): string | null {
     const prefix = prefixOf(edition);
     if (!prefix) return null;
     const height = bookHeight(edition.format);
     const current = lineAt(edition.isbn);
     if (current && samePrefix(current, prefix) && sameSize(height, lineHeight(current))) return current;
     const series = prefix.slice(0, prefix.indexOf('|') + 1);
-    const lines = db
-      .prepare('select edition_line as line, count(*) as editions from edition where substr(edition_line, 1, ?) = ? group by edition_line')
-      .all(series.length, series) as { line: string; editions: number }[];
-    return placeLine(prefix, height, lines.filter(({ line }) => samePrefix(line, prefix)));
+    const lines = (
+      db
+        .prepare('select edition_line as line, count(*) as editions from edition where substr(edition_line, 1, ?) = ? group by edition_line')
+        .all(series.length, series) as { line: string; editions: number }[]
+    ).filter(({ line }) => samePrefix(line, prefix));
+    const withRecord = record
+      ? (db.prepare('select distinct edition_line as line from edition where bnf_id = ? and edition_line is not null').all(record) as { line: string }[])
+      : [];
+    const sameRecord = withRecord.find(({ line }) => samePrefix(line, prefix) && sameSize(height, lineHeight(line)));
+    return sameRecord?.line ?? placeLine(prefix, height, lines, record);
   }
 
   // One Edition from the facts of every source, best source first. Sources
@@ -289,7 +324,8 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   // whose title matches the best source's title, or its Series title, are
   // merged: BnF may title a Volume by its own name ("Mission start") where
   // Inventaire says "Spy × Family, Tome 2".
-  function merge(isbn: string, all: Facts[]): Edition | undefined {
+  // `record`: the BnF Series record the Edition names, which places it in an Edition Line.
+  function merge(isbn: string, all: Facts[]): { edition: Edition; record: string | undefined } | undefined {
     const best = all.find((f) => f.title);
     const title = best?.title;
     if (!title) return undefined;
@@ -312,18 +348,20 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       series,
       volumes,
       volume: volumes[0] ?? null,
+      year: pick((f) => f.year) ?? null,
       sources: facts.map((f) => f.source),
       fetchedAt: now().toISOString(),
     };
-    return edition;
+    return { edition, record: pick((f) => f.series?.bnfId) };
   }
 
   // Gives the Edition as stored: its Work may be dropped (shared-works.ts).
-  function store(edition: Edition, line = lineOf(edition)): Edition {
+  function store(edition: Edition, record: string | undefined, line = lineOf(edition, record)): Edition {
     const series = edition.series && byIdentifier(edition.series.id);
     db.prepare(
       `insert or replace into edition (isbn, title, volume_title, authors, publisher, language, format, cover, work_id,
-        work_title, series, volume, volumes, edition_line, sources, fetched_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        work_title, series, volume, volumes, edition_line, year, bnf_id, sources, fetched_at)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       edition.isbn,
       edition.title,
@@ -339,6 +377,8 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       edition.volume,
       JSON.stringify(edition.volumes),
       line,
+      edition.year ?? null,
+      record ?? null,
       JSON.stringify(edition.sources),
       edition.fetchedAt,
     );
@@ -364,15 +404,15 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
 
     const { facts, failed } = await fetchFacts(options.fetch, isbn);
     if (failed && row) return { found: toEdition(row) };
-    const edition = merge(isbn, facts);
-    if (!edition) {
+    const merged = merge(isbn, facts);
+    if (!merged) {
       if (failed) return { unavailable: true };
       if (row && !chosen) return { found: toEdition(row) };
       db.prepare('insert or replace into miss (isbn, checked_at) values (?, ?)').run(isbn, now().toISOString());
       return row ? { found: toEdition(row) } : { notFound: true };
     }
     // An answer missing a source is not stored: the next lookup asks again.
-    return { found: failed ? ownWork(edition) : store(edition) };
+    return { found: failed ? ownWork(merged.edition) : store(merged.edition, merged.record) };
   }
 
   // Adds the Volumes BnF lists for the Edition Line of `anchor` (CORE-31). A
@@ -382,11 +422,12 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   // 2026-11-13), the language and the book size of the line (ADR 0010,
   // amendment 2026-11-12). The BnF Series record of the
   // line counts only when the anchor or the Edition is an omnibus: One Piece's
-  // single Volumes name four records. One Edition per Volume or omnibus range
-  // ("1-2" next to Volumes 1 and 2): one the Catalog has already, else one in
-  // the line's record (quiz books and box sets of the same size have their
-  // own), else the latest printing. Like a lookup, nothing is stored when a
-  // source fails, so Work identifiers stay the ones a lookup gives.
+  // single Volumes name four records. Records that overlap are separate
+  // Edition Lines (amendment 2026-11-14): the fill fills every line of the
+  // key, not only the anchor's, and may move the anchor. One Edition per
+  // Volume or omnibus range ("1-2" next to Volumes 1 and 2) in each line (see
+  // `better` below). Like a lookup, nothing is stored when a source fails, so
+  // Work identifiers stay the ones a lookup gives.
   // Calls at the same time for one Edition Line share one fill.
   const filling = new Map<string, Promise<void>>();
   const failedAt = new Map<string, string>();
@@ -406,7 +447,6 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       failedAt.set(line, now().toISOString());
       console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
     };
-    const known = (db.prepare(`${selectEdition} where edition.edition_line = ?`).all(line) as EditionRow[]).map(toEdition);
     let listed: Listed[];
     try {
       // A name of several words may be a joint imprint whose later Volumes name one of them.
@@ -424,42 +464,112 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
         facts.language === anchor.language &&
         sameSize(bookHeight(facts.format), height),
     );
-    // The line's BnF Series record: the one most Editions of the anchor's kind
-    // (omnibus or single Volume) name, whatever Volume was looked up first.
+    // The BnF Series record counts for omnibus Editions: an Edition of the
+    // other kind than the anchor (omnibus or single Volume) with a record is
+    // in another Edition Line (amendment 2026-11-12).
     const omnibus = (volumes: number[] | undefined) => (volumes?.length ?? 0) > 1;
-    const counts = new Map<string, number>();
-    for (const { facts } of inSeries)
-      if (facts.series?.bnfId && omnibus(facts.volumes) === omnibus(anchor.volumes))
-        counts.set(facts.series.bnfId, (counts.get(facts.series.bnfId) ?? 0) + 1);
-    const bnfId = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
-    const byVolume = new Map<string, Listed>();
-    const newer = (a: Listed, b: Listed) => (a.facts.series?.bnfId === bnfId) !== (b.facts.series?.bnfId === bnfId)
-      ? a.facts.series?.bnfId === bnfId
-      : (a.year ?? 0) > (b.year ?? 0);
-    for (const each of inSeries) {
-      const theirs = each.facts.series?.bnfId;
-      const checked = omnibus(each.facts.volumes) || omnibus(anchor.volumes);
-      if (checked && theirs && bnfId && theirs !== bnfId) continue;
-      const volume = String(each.facts.volumes);
-      const kept = byVolume.get(volume);
-      if (!kept || newer(each, kept)) byVolume.set(volume, each);
+    const recordOf = (each: Listed) => each.facts.series?.bnfId;
+    const ofKind = inSeries.filter((each) => !recordOf(each) || omnibus(each.facts.volumes) === omnibus(anchor.volumes));
+
+    // Overlapping records are separate Edition Lines (amendment 2026-11-14):
+    // every Edition of this key moves to the line of its record's group.
+    // Editions with no record join the first group; an Edition not listed
+    // keeps a line that is still a group's, else joins the first.
+    const groups = recordGroups(ofKind.map((each) => ({ record: recordOf(each), volumes: each.facts.volumes! })));
+    const firstGroup = groups.values().next().value;
+    const groupIds = new Set(groups.values());
+    const prefix = line.split('|').slice(0, 3).join('|');
+    const series = prefix.slice(0, prefix.indexOf('|') + 1);
+    const ofKey = (db.prepare(`${selectEdition} where substr(edition.edition_line, 1, ?) = ?`).all(series.length, series) as EditionRow[]).filter(
+      (row) => samePrefix(row.edition_line!, prefix) && lineHeight(row.edition_line!) === height,
+    );
+    // A group keeps the key it has already, under either name of the publisher.
+    const keyOf = new Map<string, string>();
+    for (const { edition_line } of ofKey) {
+      const record = lineRecord(edition_line!);
+      if (record && groupIds.has(record) && !keyOf.has(record)) keyOf.set(record, edition_line!);
     }
-    const knownIsbns = new Set(known.map(({ isbn }) => isbn));
-    const knownVolumes = new Set(known.map(({ volumes }) => String(volumes)));
-    const added = [...byVolume].filter(([volume, { isbn }]) => !knownIsbns.has(isbn) && !knownVolumes.has(volume)).map(([, each]) => each);
+    const lineFor = (record: string | undefined) => {
+      const group = (record && groups.get(record)) || firstGroup;
+      return group ? (keyOf.get(group) ?? lineKey(prefix, height, group)) : line;
+    };
+    const byIsbn = new Map(ofKind.map((each) => [each.isbn, each]));
+    for (const row of ofKey) {
+      const found = byIsbn.get(row.isbn);
+      const record = found ? recordOf(found) : (row.bnf_id ?? undefined);
+      const current = lineRecord(row.edition_line!);
+      const moved = found || (record && groups.has(record)) || !current || !groupIds.has(current) ? lineFor(record) : row.edition_line!;
+      db.prepare('update edition set edition_line = ?, year = coalesce(?, year), bnf_id = coalesce(?, bnf_id) where isbn = ?').run(
+        moved,
+        found?.year ?? null,
+        record ?? null,
+        row.isbn,
+      );
+    }
+
+    // One Edition per Volume or omnibus range ("1-2" next to Volumes 1 and 2)
+    // in each line: one in the largest record; in one record, the printing
+    // nearest its median year (34338439 holds the 1994 and 2005 printings of
+    // Volume 8); with no record, the latest printing.
+    const counts = new Map<string, number>();
+    const years = new Map<string, number[]>();
+    for (const each of ofKind) {
+      const record = recordOf(each);
+      if (!record) continue;
+      counts.set(record, (counts.get(record) ?? 0) + 1);
+      if (each.year !== undefined) years.set(record, [...(years.get(record) ?? []), each.year]);
+    }
+    const size = (each: Listed) => counts.get(recordOf(each) ?? '') ?? 0;
+    const fromMedian = (each: Listed) => {
+      const record = recordOf(each);
+      return record && each.year !== undefined ? Math.abs(each.year - median(years.get(record)!)) : Infinity;
+    };
+    const better = (a: Listed, b: Listed) =>
+      size(a) !== size(b) ? size(a) > size(b) : recordOf(a) && fromMedian(a) !== fromMedian(b) ? fromMedian(a) < fromMedian(b) : (a.year ?? 0) > (b.year ?? 0);
+    const picked = new Map<string, Map<string, Listed>>();
+    for (const each of ofKind) {
+      const target = lineFor(recordOf(each));
+      const volumes = picked.get(target) ?? new Map<string, Listed>();
+      picked.set(target, volumes);
+      const volume = String(each.facts.volumes);
+      const kept = volumes.get(volume);
+      if (!kept || better(each, kept)) volumes.set(volume, each);
+    }
+
+    // One the Catalog has already wins, unless it is a printing of the same
+    // record that the median year leaves out: then both stay.
+    const added: { each: Listed; target: string }[] = [];
+    for (const [target, volumes] of picked) {
+      const stored = db.prepare('select isbn, volume, volumes, bnf_id from edition where edition_line = ?').all(target) as {
+        isbn: string;
+        volume: number | null;
+        volumes: string | null;
+        bnf_id: string | null;
+      }[];
+      for (const [volume, each] of volumes) {
+        const claims = stored.filter(
+          (row) =>
+            String(row.volumes ? (JSON.parse(row.volumes) as number[]) : row.volume === null ? [] : [row.volume]) === volume &&
+            !(byIsbn.has(row.isbn) && recordOf(each) && row.bnf_id === recordOf(each)),
+        );
+        if (!stored.some(({ isbn }) => isbn === each.isbn) && claims.length === 0) added.push({ each, target });
+      }
+    }
     let fromInventaire: Map<string, Facts>;
     try {
-      fromInventaire = await inventaireEditions(options.fetch, added.map(({ isbn }) => isbn));
+      fromInventaire = await inventaireEditions(options.fetch, added.map(({ each }) => each.isbn));
     } catch (error) {
       return fail(error);
     }
-    for (const { isbn, facts } of added) {
-      const edition = merge(isbn, [facts, ...(fromInventaire.get(isbn) ? [fromInventaire.get(isbn)!] : [])]);
+    for (const { each, target } of added) {
+      const merged = merge(each.isbn, [each.facts, ...(fromInventaire.get(each.isbn) ? [fromInventaire.get(each.isbn)!] : [])]);
       // The Series this Catalog gives it must be the line's; the size was checked above.
-      const prefix = edition && prefixOf(edition);
-      if (edition && prefix && samePrefix(line, prefix)) store(edition, line);
+      const edition = merged?.edition;
+      const editionPrefix = edition && prefixOf(edition);
+      if (merged && editionPrefix && samePrefix(target, editionPrefix)) store(merged.edition, merged.record, target);
     }
-    db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(line, now().toISOString());
+    for (const each of new Set([line, ...picked.keys()]))
+      db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(each, now().toISOString());
     failedAt.delete(line);
   }
 
@@ -558,7 +668,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       fetchedAt: now().toISOString(),
     };
     // A chosen Volume joins the Edition Line of its anchor, whatever its size.
-    store(edition, edition.series ? (lineAt(anchor.isbn) ?? lineOf(edition)) : null);
+    store(edition, undefined, edition.series ? (lineAt(anchor.isbn) ?? lineOf(edition, undefined)) : null);
     // The sources are asked again a day later (lookup).
     db.prepare('insert or replace into miss (isbn, checked_at) values (?, ?)').run(isbn, edition.fetchedAt);
     return { found: edition };
@@ -581,10 +691,23 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       const line = anchor?.edition_line;
       if (!line || !edition.series) return [edition];
       if (fill) await fillOnce({ ...edition, series: edition.series }, line);
+      // The fill may move the anchor to the line of its BnF Series record.
       const rows = db
         .prepare(`${selectEdition} where edition.edition_line = ? order by edition.volume is null, edition.volume, edition.isbn`)
-        .all(line) as EditionRow[];
+        .all(lineAt(edition.isbn) ?? line) as EditionRow[];
       return rows.map(toEdition);
+    },
+    lines(edition) {
+      const series = edition.series && byIdentifier(edition.series.id);
+      if (!series) return [];
+      const rows = db
+        .prepare(`${selectEdition} where edition.series = ? and edition.edition_line is not null order by edition.volume is null, edition.volume, edition.isbn`)
+        .all(series.n) as EditionRow[];
+      const lines = new Map<string, EditionRow[]>();
+      for (const row of rows) lines.set(row.edition_line!, [...(lines.get(row.edition_line!) ?? []), row]);
+      return [...lines.values()]
+        .map((each): LineSummary => ({ anchor: each[0].isbn, ...lineName(each) }))
+        .sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity) || (a.anchor < b.anchor ? -1 : 1));
     },
     close: () => db.close(),
   };
@@ -607,12 +730,19 @@ function toEdition(row: EditionRow): Edition {
         : null,
     volumes: row.volumes ? (JSON.parse(row.volumes) as number[]) : row.volume === null ? [] : [row.volume],
     volume: row.volume,
+    year: row.year,
     sources: JSON.parse(row.sources) as EditionSource[],
     fetchedAt: row.fetched_at,
   };
 }
 
 const isReader = (edition: Pick<Edition, 'sources'>) => edition.sources.includes('reader');
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
 
 // BnF files one Series under several spellings: SUDOC's "Dragonball" finds
 // BnF's Series records titled "Dragon Ball", and only "Dragon Ball" finds the

@@ -121,6 +121,16 @@ bun scripts/record-catalog-answers.ts 9782876952058 9782876952072 9782876952188 
 | 9782876952188, 9782876952201, 9782876952218 | Dragon Ball 8 (1994), 10 and 11 (1996): the same Work again |
 | `inventaire-batch-58b945484109.json` | Inventaire, the Volumes of the 1993 line the fill adds: the same Work for 4, 12 to 15, 20 to 23, 27 and 36. The `bnf-search-6dc7a6c70f8e-*.xml` pages are the "Dragon Ball" search above, recorded again with no change |
 
+Edition Lines by BnF Series record (ADR 0010 amendment 2026-11-14, CORE-95), recorded on 2026-11-15: the fill now fills every line of a key (Dragon Ball 18 cm: 34338439, 38839216, 39250101; One Piece: the run, the "500 quiz book" and the arc box sets), keeps the printing nearest its record's median year, so it asks Inventaire about other ISBNs. The BnF answers did not change.
+
+```sh
+bun scripts/record-catalog-answers.ts --fill 9782876952065 9782723434621 9782723478991 9782723488525 9782203085053 9782723467681
+```
+
+| File | Answer |
+|---|---|
+| `inventaire-batch-136433ee9a4a.json`, `-1e5391afe7e6`, `-43f46d0233ff`, `-5429554c4b98`, `-5898b51497fd`, `-70426e667bda`, `-713a638d59e0`, `-a70a7ae34a20`, `-aba3b6c14c08`, `-d9bc78b58388` | Inventaire, the Works of the Volumes these fills add |
+
 `catalog-v0.sqlite` is not a source answer: it is a Catalog file made on 2026-11-11 by the Catalog of `main` before `same_as` (commit a3f8d6c), from the recorded answers: One Piece 112, then 56, then the Spy x Family Edition Line with a fill. The migration tests open a copy of it. Never make it again: it stands for the files that real instances hold.
 
 Review the diff before committing: answers change when the sources fix their data.

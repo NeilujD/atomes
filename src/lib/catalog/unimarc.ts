@@ -106,5 +106,6 @@ export function unimarcFacts(record: UnimarcRecord, source: SourceName): Facts {
     format: subfield(record, '215', 'd'),
     series: seriesTitle ? { title: seriesTitle, bnfId: bnfSeries } : undefined,
     volumes,
+    year: publishedYear(record),
   };
 }

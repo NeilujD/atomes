@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { isSeriesId } from '../library/ids';
 import { answerChoose, answerCover, answerEdition, answerSearch, answerVolumes } from './api';
-import type { Catalog, Edition, SearchFound } from './catalog';
+import type { Catalog, Edition, LineSummary, SearchFound } from './catalog';
 import { createCatalog } from './catalog';
 import { fixtureDir, recordedFetch } from './recorded.fake';
 import { isCoverUrl, type SourceFetch } from './sources';
@@ -67,6 +67,9 @@ afterEach(() => {
 });
 
 const edition = async (response: Response) => (await response.json()) as Edition;
+
+// A file from before the year and BnF Series record of each Edition (CORE-95).
+const beforeLineRecords = 'alter table edition drop column year; alter table edition drop column bnf_id;';
 
 // An Edition Line fill starts only for a signed-in reader (ADR 0010, Catalog access).
 const signedIn = { fill: true };
@@ -134,7 +137,7 @@ describe('GET /api/catalog/editions/{isbn}', () => {
     const { catalog, reopen, file } = setup();
     await answerEdition(catalog, dragonBallSuper1to2);
     const old = new DatabaseSync(file);
-    old.exec('alter table edition drop column volumes; pragma user_version = 2');
+    old.exec(`alter table edition drop column volumes; ${beforeLineRecords} pragma user_version = 2`);
     old.close();
 
     const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
@@ -454,8 +457,9 @@ describe('Edition Lines by book size (ADR 0010, amendment 2026-11-12)', () => {
 
     const volumes = await volumesOf(catalog, dragonBall1);
 
-    // BnF lists no Volume 24 to 26 of the 18 cm Glénat line.
-    const numbers = Array.from({ length: 42 }, (_, i) => i + 1).filter((n) => n < 24 || n > 26);
+    // The 1993 line (BnF Series record 34338439): BnF lists no Volume 24 to
+    // 26, and Volumes 5 to 7 under another publisher (Comics-USA).
+    const numbers = Array.from({ length: 42 }, (_, i) => i + 1).filter((n) => (n < 5 || n > 7) && (n < 24 || n > 26));
     expect(volumes.map((v) => v.volume)).toEqual(numbers);
     expect(volumes[0].isbn).toBe(dragonBall1);
     expect(heights(volumes)).toEqual(new Set(['18']));
@@ -549,9 +553,7 @@ describe('One Work per Volume number (ADR 0010, amendment 2026-11-14)', () => {
       expect(found.work.id).toBe(`isbn:${found.isbn}`);
     }
     expect(volumes.find((v) => v.volume === 1)?.work.id).toBe('inv:31cee958a93ba50697a3fec2a32fc0c0');
-    expect(volumes.find((v) => v.volume === 6)?.work.id).toBe('inv:4393635352811f44e8a4630e9731eebb');
-    // Volumes 7 and 11 of another BnF record share one ISBN: one Edition, no failure.
-    expect(volumes.filter((v) => v.isbn === '9782723448376')).toHaveLength(1);
+    expect(volumes.find((v) => v.volume === 16)?.work.id).toBe('inv:1c3247b1dd00451b0a08f49db15fc530');
   });
 
   test('the dropped Work stays dropped when an Edition is fetched again a month later', async () => {
@@ -592,7 +594,7 @@ describe('One Work per Volume number (ADR 0010, amendment 2026-11-14)', () => {
     // The file as the Catalog of main left it: the shared Work on each Volume, no dropped Work.
     const old = new DatabaseSync(file);
     old.prepare('update edition set work_id = ? where isbn != ?').run(sharedWork, dragonBall1993[1]);
-    old.exec('drop table dropped_work; pragma user_version = 6');
+    old.exec(`drop table dropped_work; ${beforeLineRecords} pragma user_version = 6`);
     old.close();
 
     const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
@@ -608,6 +610,99 @@ describe('One Work per Volume number (ADR 0010, amendment 2026-11-14)', () => {
   });
 });
 
+
+describe('Overlapping BnF Series records are separate Edition Lines (ADR 0010, amendment 2026-11-14)', () => {
+  type Answer = { volumes: Edition[]; lines: LineSummary[] };
+  const answerOf = async (catalog: Catalog, isbn: string, access = signedIn) =>
+    (await (await answerVolumes(catalog, isbn, access)).json()) as Answer;
+  const names = (lines: LineSummary[]) => lines.map(({ publisher, first, last }) => `${publisher} ${first}-${last}`);
+
+  test('Dragon Ball 18 cm gives three Edition Lines, named by their years', async () => {
+    const { catalog } = setup();
+
+    const { lines } = await answerOf(catalog, dragonBall1993[2]);
+
+    // Volume 41 has only a 2008 printing in 34338439: it stays in the 1993 line (Series Correction, ADR 0017).
+    expect(names(lines)).toEqual(['Glénat 1993-2008', 'Glénat 2001-2004', 'Glénat 2003-2008']);
+    const second = await answerOf(catalog, lines[1].anchor, signedOut);
+    expect(second.volumes.map((v) => v.volume)).toEqual(Array.from({ length: 21 }, (_, i) => i + 1));
+    expect(new Set(second.volumes.map((v) => v.year))).toEqual(new Set([2001, 2002, 2003, 2004]));
+    // 39250101 lists no Volume 8 to 10, and gives Volumes 7 and 11 one ISBN: one Edition, no failure.
+    const third = await answerOf(catalog, lines[2].anchor, signedOut);
+    expect(third.volumes.filter((v) => v.isbn === '9782723448376')).toHaveLength(1);
+    expect(third.volumes.map((v) => v.volume)).toEqual([3, 4, 5, 6, 7, ...Array.from({ length: 10 }, (_, i) => i + 12)]);
+  });
+
+  test('in 34338439 each Volume keeps the printing nearest the median year: Volumes 8 to 11 are the 1994 to 1996 ones', async () => {
+    const { volumes } = await answerOf(setup().catalog, dragonBall1993[2]);
+
+    const printings = volumes.filter((v) => v.volume !== null && v.volume >= 8 && v.volume <= 11);
+    expect(printings.map((v) => [v.volume, v.year])).toEqual([
+      [8, 1994],
+      [9, 1994],
+      [10, 1996],
+      [11, 1996],
+    ]);
+    expect(printings.map((v) => v.isbn)).toEqual(expect.arrayContaining([dragonBall1993[8], dragonBall1993[10], dragonBall1993[11]]));
+    expect(volumes.find((v) => v.volume === 42)?.year).toBe(2000);
+  });
+
+  test('Dragon Ball 1, known to SUDOC only, joins the 1993 line; the other lines are not filled again', async () => {
+    const { catalog, calls } = setup();
+
+    const { volumes, lines } = await answerOf(catalog, dragonBall1);
+    const searches = calls.length;
+
+    expect(volumes[0].isbn).toBe(dragonBall1);
+    expect(volumes.map((v) => v.volume)).toEqual([1, 2, 3, 4, ...Array.from({ length: 16 }, (_, i) => i + 8), ...Array.from({ length: 16 }, (_, i) => i + 27)]);
+    expect(lines).toHaveLength(3);
+    for (const { anchor } of lines) await answerOf(catalog, anchor);
+    expect(calls).toHaveLength(searches);
+  });
+
+  test('One Piece 18 cm stays one line, with 43702987 (Volume 1) and 46917823 (Volumes 98 to 100)', async () => {
+    const { volumes, lines } = await answerOf(setup().catalog, onePiece1);
+
+    expect(volumes.map((v) => v.volume)).toEqual(Array.from({ length: 113 }, (_, i) => i + 1).filter((n) => n !== 13));
+    expect(volumes[0].isbn).toBe(onePiece1);
+    expect(lines.find(({ anchor }) => volumes.some((v) => v.isbn === anchor))).toMatchObject({ publisher: 'Glénat' });
+  });
+
+  test('a Catalog file from before fills each mixed line again; the anchor of a follow finds the line of its record (migration)', async () => {
+    const { catalog, file } = setup();
+    const before = await answerOf(catalog, dragonBall1993[2]);
+    const followed = before.lines[1].anchor; // Volume 1 of the 2001 edition
+    catalog.close();
+    open.splice(open.indexOf(catalog), 1);
+    // The file as the Catalog of main left it: one line of four parts for the three editions, filled.
+    const old = new DatabaseSync(file);
+    const { edition_line: line } = old.prepare('select edition_line from edition where isbn = ?').get(followed) as { edition_line: string };
+    const key = line.split('|').slice(0, 4).join('|');
+    old.prepare('update edition set edition_line = ? where edition_line like ?').run(key, `${key}|%`);
+    old.prepare('delete from line_fill').run();
+    old.prepare('insert into line_fill (edition_line, filled_at) values (?, ?)').run(key, new Date().toISOString());
+    old.exec(`${beforeLineRecords} pragma user_version = 7`);
+    old.close();
+    const sources = recordedFetch();
+    const migrated = createCatalog({ file, fetch: sources.fetch, host: 'catalog.test' });
+    open.push(migrated);
+    expect((await answerOf(migrated, followed, signedOut)).volumes.length).toBeGreaterThan(50);
+
+    const after = await answerOf(migrated, followed);
+
+    expect(after.volumes.map((v) => v.volume)).toEqual(Array.from({ length: 21 }, (_, i) => i + 1));
+    expect(after.volumes[0].isbn).toBe(followed);
+    expect(names(after.lines)).toEqual(['Glénat 1993-2008', 'Glénat 2001-2004', 'Glénat 2003-2008']);
+  });
+
+  test('Naruto (Kana) stays one line', async () => {
+    const { volumes, lines } = await answerOf(setup().catalog, naruto1);
+
+    expect(volumes).toHaveLength(71);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ publisher: 'Kana', first: 2002 });
+  });
+});
 
 describe('A Catalog file from before book sizes (migration)', () => {
   const volumesOf = async (catalog: Catalog, isbn: string, access = signedIn) =>
@@ -629,7 +724,7 @@ describe('A Catalog file from before book sizes (migration)', () => {
       old.prepare('update edition set edition_line = ? where isbn = ?').run(row.edition_line.split('|').slice(0, 3).join('|'), row.isbn);
     old.prepare('delete from line_fill').run();
     old.prepare('insert into line_fill (edition_line, filled_at) values (?, ?)').run(rows[0].edition_line.split('|').slice(0, 3).join('|'), new Date().toISOString());
-    old.exec('pragma user_version = 3');
+    old.exec(`${beforeLineRecords} pragma user_version = 3`);
     old.close();
     return file;
   }
@@ -640,7 +735,9 @@ describe('A Catalog file from before book sizes (migration)', () => {
     open.push(catalog);
 
     expect((await volumesOf(catalog, dragonBall1, signedOut)).map((v) => v.isbn)).toEqual([dragonBall1]);
-    expect(await volumesOf(catalog, dragonBallPerfect1, signedOut)).toHaveLength(32);
+    const perfect = await volumesOf(catalog, dragonBallPerfect1, signedOut);
+    expect(perfect.length).toBeGreaterThanOrEqual(32);
+    expect(new Set(perfect.map((v) => v.format?.match(/^\d+/)?.[0]))).toEqual(new Set(['21']));
   });
 
   test('every Edition Line filled before fills again at its next ask, once', async () => {
