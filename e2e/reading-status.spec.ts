@@ -37,3 +37,25 @@ test('Set the Reading Status with its chip, on Check a book and on the Book page
   await page.getByRole('combobox', { name: 'Reading Status' }).selectOption({ label: 'Abandoned' });
   await expect(page.getByLabel('Finished on')).toBeHidden();
 });
+
+test('A Reading Status chosen while the Library loads stays chosen', async ({ page, signIn }) => {
+  await signIn();
+  // Hold the Library until the reader has chosen.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/api/library**', async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto('/check');
+
+  // La Horde du Contrevent: a recorded standalone novel.
+  await page.getByLabel('ISBN', { exact: true }).fill('9782072927515');
+  await page.getByRole('button', { name: 'Look up' }).click();
+  const question = page.getByRole('combobox', { name: 'Have you read it?' });
+  await question.selectOption({ label: 'Read' });
+  release();
+
+  await expect(page.locator('[data-answer] .answer-skeleton')).toHaveCount(0);
+  await expect(question).toHaveValue('read');
+});

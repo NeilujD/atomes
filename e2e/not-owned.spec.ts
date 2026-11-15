@@ -29,7 +29,7 @@ test('read, then its only Copy removed: the Work shows as not owned in every mod
   await expect(page.getByText('2 books', { exact: true })).toBeVisible();
   const books = page.getByRole('main').getByRole('list');
   const onePiece = books.getByRole('link', { name: /One Piece/ });
-  const horde = books.getByRole('link', { name: /La Horde du Contrevent/ });
+  const horde = books.getByRole('link', { name: /La Horde du Contrevent/i });
   await expect(onePiece).toContainText('Not owned');
   await expect(horde).not.toContainText('Not owned');
   const grey = (link: typeof onePiece) => link.locator('.book-cover').evaluate((cover) => getComputedStyle(cover).filter);
@@ -37,11 +37,11 @@ test('read, then its only Copy removed: the Work shows as not owned in every mod
 
   await page.getByRole('radio', { name: 'List' }).check();
   await expect(page.getByRole('main').getByRole('link', { name: /One Piece/ })).toContainText('Not owned');
-  await expect(page.getByRole('main').getByRole('link', { name: /La Horde du Contrevent/ })).not.toContainText('Not owned');
+  await expect(page.getByRole('main').getByRole('link', { name: /La Horde du Contrevent/i })).not.toContainText('Not owned');
 
   await page.getByRole('radio', { name: 'Cover flow' }).check();
   await expect(page.getByRole('link', { name: 'One Piece, Volume 56, Not owned' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'La Horde du Contrevent', exact: true }).first()).toBeAttached();
+  await expect(page.getByRole('link', { name: /^La Horde du Contrevent$/i }).first()).toBeAttached();
 
   await page.getByRole('radio', { name: 'Grid' }).check();
   await page.getByRole('button', { name: 'Sort and filter' }).click();

@@ -26,5 +26,5 @@ test('To Buy lists a Missing Volume of a followed Series', async ({ page, signIn
   await sheet.getByLabel('Add a book by its ISBN').fill('9782723478991');
   await sheet.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(sheet).toBeHidden();
-  await expect(page.getByRole('region', { name: 'Added by hand' }).getByText(/One Piece/).first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Added by hand' }).getByRole('listitem').filter({ hasText: 'ISBN 9782723478991' })).toBeVisible();
 });

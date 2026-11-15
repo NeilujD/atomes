@@ -189,6 +189,9 @@ const answers = [
   const addActions = addForm.querySelector<HTMLElement>('[data-add-actions]')!;
   const kept = isbnForm.querySelector<HTMLElement>('[data-kept]')!;
   const statusSelect = addForm.querySelector<HTMLSelectElement>('select[name="status"]')!;
+  // The reader can answer before the Library has loaded: that answer wins over the Library's.
+  let statusChosen = false;
+  statusSelect.addEventListener('change', () => (statusChosen = true));
   const preview = addForm.querySelector<HTMLElement>('[data-preview]')!;
   const details = addForm.querySelector<HTMLFieldSetElement>('[data-details]')!;
   const detailsProblem = details.querySelector<HTMLElement>('[data-details-problem]')!;
@@ -351,6 +354,7 @@ const answers = [
     details.disabled = !typing;
     addActions.hidden = answerOnly;
     statusSelect.value = 'unread';
+    statusChosen = false;
     // Its place is kept while the Library loads: the book below does not jump.
     render(h('div', { class: 'skeleton answer-skeleton', 'aria-hidden': 'true' }), answer);
     answer.hidden = false;
@@ -393,7 +397,7 @@ const answers = [
     // it is, at the top, rather than scroll to Add.
     if (!typing) answer.focus({ preventScroll: true });
     // Abandoned is not an answer here: no choice keeps it (no option selected).
-    statusSelect.value = currentStatus(next.work, library);
+    if (!statusChosen) statusSelect.value = currentStatus(next.work, library);
     // Another Copy of a book typed before: start from what the reader typed then.
     const before = library.copies.find(({ value }) => value.isbn === next.isbn && value.details)?.value.details;
     if (typing && before && !detail('title').value) fillDetails(before);
