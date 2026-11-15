@@ -1,7 +1,7 @@
 // The Library screen, a Preact island (ADR 0014): every book in Grid, List
 // (LibraryList.tsx) or Cover flow (LibraryCoverFlow.tsx), under one toolbar
 // (search, Search in, Sort, filters, count, Clear all, the Books / Series
-// switch and the mode switch).
+// switch and the mode switch, one icon on the phone).
 // On the phone the controls open in a sheet.
 // The rules are in src/lib/library/browse.ts; this file only renders them.
 import type { ComponentChildren } from 'preact';
@@ -182,24 +182,25 @@ export function Library({ sources }: { sources: Sources }) {
   // no mode switch and no letter index; the mode is kept for the way back.
   const byBooks = grouping === 'books';
   const listed = byBooks && mode === 'list' ? letterGroups(found.books, query.sort, pageLanguage()) : undefined;
-  const modeSwitch = byBooks && (
-    <Segmented
-      name="library-mode"
-      label={t('library.mode')}
-      choices={modes}
-      chosen={mode}
-      text={(each) => t(`library.mode.${each}`)}
-      onChange={(chosen) => {
-        saveMode(chosen);
-        setMode(chosen);
-      }}
-    />
-  );
+  const choose = (chosen: Mode) => {
+    saveMode(chosen);
+    setMode(chosen);
+  };
+  // Desktop: a switch with the three words. Phone: one icon (CORE-110).
+  const modeSwitch =
+    byBooks &&
+    (wide ? (
+      <Segmented name="library-mode" label={t('library.mode')} choices={modes} chosen={mode} text={(each) => t(`library.mode.${each}`)} onChange={choose} />
+    ) : (
+      <ModeMenu mode={mode} onChange={choose} />
+    ));
   const change = (part: Partial<LibraryQuery>) => setQuery({ ...query, ...part });
   const clear = () => setQuery(clearAll(query));
+  // The count shows only while a search or a filter is on (CORE-110). Its live
+  // region stays, empty and hidden, so a screen reader hears the first count.
   const count = (
-    <p class="library-count" role="status">
-      {t('library.count', found.books.length, found.total, found.filtered)}
+    <p class={found.filtered ? 'library-count' : 'visually-hidden'} role="status">
+      {found.filtered && t('library.count', found.books.length, found.total, found.filtered)}
     </p>
   );
   const clearButton = found.filtered && (
@@ -219,7 +220,6 @@ export function Library({ sources }: { sources: Sources }) {
     <div class="library">
       <div class="library-toolbar">
         {!wide && groupingSwitch}
-        {!wide && modeSwitch}
         <div class="library-search-row">
           <div class="library-search">
             <label class="visually-hidden" for="library-search">
@@ -243,13 +243,16 @@ export function Library({ sources }: { sources: Sources }) {
               {modeSwitch}
             </>
           ) : (
-            <Sheet query={query} found={found} change={change} />
+            <>
+              <Sheet query={query} found={found} change={change} />
+              {modeSwitch}
+            </>
           )}
         </div>
         {wide ? (
           <Controls query={query} found={found} change={change} />
         ) : (
-          <div class="library-count-row">
+          <div class={found.filtered ? 'library-count-row' : 'visually-hidden'}>
             {count}
             {clearButton}
           </div>
@@ -292,6 +295,8 @@ interface ControlsProps {
 // Search in, Sort, the author and Series filters, and the chips: in the
 // toolbar on desktop, in the sheet on the phone.
 function Controls({ query, found, change }: ControlsProps) {
+  // With no search or filter on, each count is the Library itself: none shows (CORE-110).
+  const shown = (count: number) => (found.filtered ? count : undefined);
   return (
     <div class="library-controls">
       <div class="library-selects">
@@ -328,7 +333,7 @@ function Controls({ query, found, change }: ControlsProps) {
       </div>
       <div class="library-chips" role="group" aria-label={t('library.status')}>
         {found.statuses.map(({ status, count }) => (
-          <Chip key={status ?? 'all'} name={status ? t(`status.${status}`) : t('library.all-statuses')} count={count} pressed={query.status === status} onClick={() => change({ status })} />
+          <Chip key={status ?? 'all'} name={status ? t(`status.${status}`) : t('library.all-statuses')} count={shown(count)} pressed={query.status === status} onClick={() => change({ status })} />
         ))}
       </div>
       <div class="library-chips" role="group" aria-label={t('library.ownership')}>
@@ -336,7 +341,7 @@ function Controls({ query, found, change }: ControlsProps) {
           <Chip
             key={String(owned)}
             name={owned === null ? t('library.all-owned') : t(owned ? 'library.owned' : 'library.not-owned')}
-            count={count}
+            count={shown(count)}
             pressed={query.owned === owned}
             onClick={() => change({ owned })}
           />
@@ -346,7 +351,7 @@ function Controls({ query, found, change }: ControlsProps) {
       {found.labels.length > 1 && (
         <div class="library-chips" role="group" aria-label={t('library.label')}>
           {found.labels.map(({ label, name, count }) => (
-            <Chip key={label ?? 'all'} name={label ? name : t('library.all-labels')} count={count} pressed={query.label === label} onClick={() => change({ label })} />
+            <Chip key={label ?? 'all'} name={label ? name : t('library.all-labels')} count={shown(count)} pressed={query.label === label} onClick={() => change({ label })} />
           ))}
         </div>
       )}
@@ -396,17 +401,18 @@ function Select({ id, label, value, onChange, children }: { id: string; label: s
   );
 }
 
-function Chip({ name, count, pressed, onClick }: { name: string; count: number; pressed: boolean; onClick: () => void }) {
+function Chip({ name, count, pressed, onClick }: { name: string; count: number | undefined; pressed: boolean; onClick: () => void }) {
   return (
     <button class="library-chip" type="button" aria-pressed={pressed} onClick={onClick}>
       <span class="library-chip-name">{name}</span>
-      <span class="library-chip-count">{count}</span>
+      {count !== undefined && <span class="library-chip-count">{count}</span>}
     </button>
   );
 }
 
-// One choice among a few: the Books / Series switch and the Grid / List / Cover
-// flow switch. Desktop: in the search row. Phone: each a row of its own.
+// One choice among a few: the Books / Series switch and, on desktop, the Grid /
+// List / Cover flow switch. Desktop: in the search row. Phone: Books / Series
+// is a row of its own.
 function Segmented<Choice extends string>({
   name,
   label,
@@ -433,6 +439,53 @@ function Segmented<Choice extends string>({
     </div>
   );
 }
+
+// The phone: Grid / List / Cover flow in the search row, as one icon, the
+// mode's own. A tap opens the system menu of a native select, as the Reading
+// Status chip does (CORE-105); a screen reader hears "View, Grid".
+function ModeMenu({ mode, onChange }: { mode: Mode; onChange: (mode: Mode) => void }) {
+  return (
+    <span class="library-view">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        {modeIcons[mode]}
+      </svg>
+      <select
+        aria-label={t('library.mode')}
+        value={mode}
+        onChange={(event) => {
+          const chosen = modes.find((each) => each === event.currentTarget.value);
+          if (chosen) onChange(chosen);
+        }}
+      >
+        {modes.map((each) => (
+          <option key={each} value={each}>
+            {t(`library.mode.${each}`)}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+// Lucide's layout-grid, list and gallery-horizontal (https://lucide.dev, ISC),
+// drawn here: an island cannot use the Astro icons of src/components/icons.ts.
+const modeIcons: Record<Mode, ComponentChildren> = {
+  grid: (
+    <>
+      <rect width="7" height="7" x="3" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="14" rx="1" />
+      <rect width="7" height="7" x="3" y="14" rx="1" />
+    </>
+  ),
+  list: <path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13" />,
+  flow: (
+    <>
+      <path d="M2 3v18M22 3v18" />
+      <rect width="12" height="18" x="6" y="3" rx="2" />
+    </>
+  ),
+};
 
 function Book({ book }: { book: LibraryBook }) {
   const volume = volumeLine(book);

@@ -88,31 +88,34 @@ describe('Letter groups', () => {
   });
 });
 
-describe('Jump index', () => {
-  test('lists A to Z, then "#"', () => {
-    const { index } = list([book('Akira')]);
+// Twenty books, the fewest that get a jump index: one a letter, A to T.
+const twenty = [...'ABCDEFGHIJKLMNOPQRST'].map((letter) => book(`${letter}nother book`));
 
-    expect(index.map(({ letter }) => letter).join('')).toBe('ABCDEFGHIJKLMNOPQRSTUVWXYZ#');
+describe('Jump index', () => {
+  test('only with 20 books or more: a shorter List fits in a few screens', () => {
+    expect(list(twenty.slice(1)).index).toEqual([]);
+    expect(list(twenty).index).toHaveLength(20);
   });
 
-  test('a letter with books jumps to its group; a letter with none jumps nowhere', () => {
-    const { groups, index } = list([book('Akira'), book('Dune'), book('Dracula'), book('1984')]);
+  test('lists only the letters with books, A to Z, then "#"; each jumps to its group', () => {
+    const { groups, index } = list([...twenty.slice(1), book('Akira'), book('Dune'), book('1984')]);
 
-    expect(index.filter(({ target }) => target !== null)).toEqual([
+    expect(index.map(({ letter }) => letter).join('')).toBe('ABCDEFGHIJKLMNOPQRST#');
+    expect(index.slice(0, 2)).toEqual([
       { letter: 'A', target: 'letter-A' },
-      { letter: 'D', target: 'letter-D' },
-      { letter: '#', target: 'letter-other' },
+      { letter: 'B', target: 'letter-B' },
     ]);
-    expect(groups.map(({ target }) => target)).toEqual(['letter-A', 'letter-D', 'letter-other']);
+    expect(index.at(-1)).toEqual({ letter: '#', target: 'letter-other' });
+    expect(index.map(({ target }) => target)).toEqual(groups.map(({ target }) => target));
   });
 
   test('follows the sort: by author, the letters of the surnames', () => {
-    const { index } = list([book('Dune', { authors: ['Frank Herbert'] }), book('Fondation', { authors: ['Isaac Asimov'] })], 'author');
+    const authors = twenty.map((each, at) => ({ ...each, authors: [at % 2 === 0 ? 'Frank Herbert' : 'Isaac Asimov'] }));
 
-    expect(index.flatMap(({ letter, target }) => (target ? letter : []))).toEqual(['A', 'H']);
+    expect(list(authors, 'author').index.map(({ letter }) => letter)).toEqual(['A', 'H']);
   });
 
   test('"Recently added" has no letter to jump to', () => {
-    expect(list([book('Akira')], 'added').index).toEqual([]);
+    expect(list(twenty, 'added').index).toEqual([]);
   });
 });

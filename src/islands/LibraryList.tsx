@@ -10,13 +10,13 @@ import { Cover } from './Cover';
 const spoken = (letter: string | null) => (letter === otherLetters ? t('library.other-letters') : undefined);
 
 // The A to Z index, in the toolbar: a row of letters on desktop, a rail on the
-// right edge on the phone. A letter with no book is off.
+// right edge on the phone. Only the letters with books, and only in a long List.
 export function LetterIndex({ index }: Pick<Listed, 'index'>) {
   if (index.length === 0) return null;
   return (
     <nav class="library-index" aria-label={t('library.index')}>
       {index.map(({ letter, target }) => (
-        <button key={letter} type="button" disabled={!target} aria-label={spoken(letter)} onClick={(event) => target && jump(event.currentTarget, target)}>
+        <button key={letter} type="button" aria-label={spoken(letter)} onClick={(event) => jump(event.currentTarget, target)}>
           {letter}
         </button>
       ))}
@@ -68,7 +68,8 @@ function Row({ book }: { book: LibraryBook }) {
           {line && <span class="library-row-line">{line}</span>}
         </span>
         <span class="library-row-author">{book.authors.join(', ')}</span>
-        <span class="library-row-status">{[t(`status.${book.status}`), book.owned ? '' : t('library.not-owned')].filter(Boolean).join(' · ')}</span>
+        {/* Unread is most books: it says nothing (CORE-110). */}
+        <span class="library-row-status">{[book.status === 'unread' ? '' : t(`status.${book.status}`), book.owned ? '' : t('library.not-owned')].filter(Boolean).join(' · ')}</span>
       </a>
     </li>
   );

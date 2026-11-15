@@ -37,14 +37,14 @@ test('back from a Book, the Library keeps its search, filter, scroll and Cover f
   await islandsLoaded(page);
 
   await page.goto('/library');
-  await expect(page.getByText('17 books', { exact: true })).toBeVisible();
+  const books = page.getByRole('main').getByRole('list').getByRole('link');
+  await expect(books).toHaveCount(17);
   await page.getByRole('searchbox', { name: 'Search your Library' }).fill('spy');
   await page.getByRole('button', { name: 'Sort and filter' }).click();
   await page.getByRole('button', { name: /^Not yet/ }).click();
   await page.getByRole('button', { name: 'Show 16 books' }).click();
   // Down the grid, then the book in the middle of the screen, clear of the tab bar.
   await page.evaluate(() => scrollTo(0, 600));
-  const books = page.getByRole('main').getByRole('list').getByRole('link');
   const middle = await books.evaluateAll((links) => links.findIndex((link) => link.contains(document.elementFromPoint(innerWidth / 2, innerHeight / 2))));
   const book = books.nth(middle);
   const scrolled = await page.evaluate(() => Math.round(scrollY));
@@ -62,7 +62,7 @@ test('back from a Book, the Library keeps its search, filter, scroll and Cover f
   await asLeft();
 
   // Cover flow, moved to book 12.
-  await page.getByRole('radio', { name: 'Cover flow' }).check();
+  await page.getByRole('combobox', { name: 'View' }).selectOption('Cover flow');
   await page.getByRole('slider', { name: 'Browse your Library' }).fill('12');
   await expect(page.getByText('12 of 16', { exact: true })).toBeVisible();
   const front = page.locator('.library-flow-cover[aria-current="true"]');
@@ -79,7 +79,9 @@ test('back from a Book, the Library keeps its search, filter, scroll and Cover f
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Library' }).click();
   await expect(page).toHaveURL(/\/library$/);
   await expect(page.getByRole('searchbox', { name: 'Search your Library' })).toHaveValue('');
-  await expect(page.getByText('17 books', { exact: true })).toBeVisible();
+  // No filter on, so no count (CORE-110); the Cover flow is over all 17 books.
+  await expect(page.getByRole('button', { name: 'Sort and filter', exact: true })).toBeVisible();
+  await expect(page.getByText('17 books', { exact: true })).toHaveCount(0);
   await expect(page.getByText('9 of 17', { exact: true })).toBeVisible();
 
   // A Book opened in a new tab, as from a bookmark: the back arrow opens the Library.
