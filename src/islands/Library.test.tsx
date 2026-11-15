@@ -4,11 +4,13 @@ import type { Window as HappyWindow } from 'happy-dom';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import type { Edition } from '../lib/catalog/catalog';
 import { saveCopy } from '../lib/library/copy';
-import { deleteLabel, labelCollection, saveLabel } from '../lib/library/label';
+import { deleteLabel, labelCollection, listLabels, saveLabel } from '../lib/library/label';
 import { memorySpace } from '../lib/library/memory-space.fake';
 import { saveReadingStatus } from '../lib/library/reading-status';
 import { reconnectEvent } from '../lib/network';
+import type { WriteState } from '../lib/space/space';
 import { Library, type Sources } from './Library';
+import type { SelectionSources } from './Selection';
 
 const edition = (isbn: string, title: string, authors: string[]): Edition => ({
   isbn,
@@ -44,15 +46,24 @@ const isbn = (twelve: string) => {
 };
 const shelf = [...'BEFGIJKMNOPQRSTVZ'].map((letter, at) => edition(isbn(`978207099${at + 100}`), `${letter}ook ${at}`, []));
 
+// Bulk select calls no server unless a test says what it answers.
+const refuse = () => Promise.reject(new Error('Not called in this test'));
+const noSelectionCalls: SelectionSources = {
+  sharing: { load: refuse, setPrivateWorks: refuse },
+  correction: { find: refuse, correct: refuse, uncorrect: refuse },
+  refresh: () => Promise.resolve(),
+};
+
 // The reader owns the three books and has read Dune (owned or not). `labelled`: the books that carry the Label "Sci-fi".
-async function libraryScreen(owned = books, labelled: Edition[] = []) {
-  const { space } = memorySpace();
+async function libraryScreen(owned = books, labelled: Edition[] = [], state: WriteState = 'sent', selection: Partial<SelectionSources> = {}) {
+  const { space } = memorySpace(state);
   if (labelled.length > 0) await saveLabel(space, { name: 'Sci-fi', works: labelled.map((each) => each.work.id), createdAt: '2026-11-01T00:00:00.000Z' });
   for (const each of owned) await saveCopy(space, { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-01T00:00:00.000Z' });
   await saveReadingStatus(space, { work: books[1].work.id, isbn: books[1].isbn, status: 'read', updatedAt: '2026-11-02T00:00:00.000Z' });
   const sources: Sources = {
     open: () => Promise.resolve(space),
     editions: (isbns) => Promise.resolve(new Map([...books, ...volumes, gaston, ...shelf].filter((each) => isbns.includes(each.isbn)).map((each) => [each.isbn, each]))),
+    selection: { ...noSelectionCalls, ...selection },
   };
   render(<Library sources={sources} />);
   await screen.findAllByRole('list');
@@ -490,5 +501,97 @@ describe('Library state in its history entry', () => {
 
     expect(screen.getByRole('link', { current: true }).getAttribute('aria-label')).toBe('La Horde du Contrevent');
     expect(screen.getByText('3 of 3')).toBeTruthy();
+  });
+});
+
+describe('Bulk select', () => {
+  const toasts = () =>
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div data-toasts></div>
+      <template data-toast-template>
+        <div data-toast><p data-toast-text></p><button type="button" data-toast-action hidden></button><button type="button" data-toast-close></button></div>
+      </template>`,
+    );
+  const sheet = () => within(screen.getByRole('dialog'));
+  const select = (...names: string[]) => {
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }));
+    for (const name of names) fireEvent.click(screen.getByRole('button', { name: new RegExp(name) }));
+  };
+
+  beforeEach(toasts);
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  test('select 3 books and add the Label "Shōnen": the 3 Works carry it, and Undo removes it', async () => {
+    const space = await libraryScreen();
+    select('Astérix', 'Dune', 'La Horde');
+    expect(screen.getByText('3 selected')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Label' }));
+    fireEvent.input(sheet().getByRole('textbox', { name: 'New Label' }), { target: { value: 'Shōnen' } });
+    fireEvent.click(sheet().getByRole('button', { name: 'Add' }));
+
+    await waitFor(async () => expect((await listLabels(space)).records.map(({ value }) => value.works)).toEqual([books.map((each) => each.work.id)]));
+    expect(await screen.findByText('Shōnen on 3 books.')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+    await waitFor(async () => expect((await listLabels(space)).records).toEqual([]));
+  });
+
+  test('"Select all" takes what the filter shows; a tap on a picked book leaves it out', async () => {
+    await libraryScreen();
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'a' } });
+    select();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
+    expect(screen.getByText('3 selected')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Dune/ }));
+    expect(screen.getByText('2 selected')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByText('2 selected')).toBeNull();
+    expect(screen.getAllByRole('link', { name: /Dune/ }).length).toBeGreaterThan(0);
+  });
+
+  test('set Read on every picked Work in one action, with one toast; offline the writes wait on this device', async () => {
+    const space = await libraryScreen(books, [], 'waiting');
+    select('Astérix', 'Dune', 'La Horde');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reading Status' }));
+    fireEvent.click(sheet().getByRole('button', { name: 'Read' }));
+
+    expect(await screen.findByText(/Waiting: saved on this device/)).toBeTruthy();
+    const saved = (await space.list('app.atomes.readingStatus')).records.map(({ value }) => (value as { status: string }).status);
+    expect(saved).toEqual(['read', 'read', 'read']);
+    expect(screen.getAllByRole('button', { name: 'Undo' })).toHaveLength(1);
+  });
+
+  test('keeps the picked Works Private in one request; Undo lets go only the ones it changed', async () => {
+    const calls: [string[], boolean][] = [];
+    const state = { shared: { readingStatuses: true, follows: false, labels: false }, privateWorks: [books[1].work.id], pending: false, canShare: true };
+    const sharing = {
+      load: () => Promise.resolve({ state }),
+      setPrivateWorks: (works: string[], kept: boolean) => {
+        calls.push([works, kept]);
+        return Promise.resolve({ state });
+      },
+    };
+    await libraryScreen(books, [], 'sent', { sharing });
+    select('Astérix', 'Dune', 'La Horde');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Private' }));
+    fireEvent.click(sheet().getByRole('button', { name: 'Keep Private' }));
+
+    expect(await screen.findByText('2 books kept Private.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls).toEqual([
+      [[books[0].work.id, books[2].work.id], true],
+      [[books[0].work.id, books[2].work.id], false],
+    ]);
   });
 });

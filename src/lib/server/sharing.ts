@@ -18,6 +18,7 @@
 // limited to one reader's DID; nothing here takes a DID from a request.
 // Never logs a record value.
 import { DatabaseSync } from 'node:sqlite';
+import { inTransaction } from '../catalog/migrations';
 import { categories, categoryNames, type Category, type SharingState } from '../sharing/categories';
 import type { LibraryStore } from './library-store';
 import type { PublicRepo } from './public-repo';
@@ -44,6 +45,8 @@ export interface Sharing {
   // the session may not write Shared records. Turning one off always saves.
   setShared(did: string, category: Category, shared: boolean): Promise<SharingState>;
   setPrivate(did: string, work: string, kept: boolean): Promise<SharingState>;
+  // The same for many Works at once (bulk select), with one sync of the PDS.
+  setPrivateWorks(did: string, works: readonly string[], kept: boolean): Promise<SharingState>;
   // Brings the public repo in line with the instance.
   sync(did: string): Promise<SharingState>;
   // The reader signed in again: their session may now write what waited.
@@ -183,6 +186,19 @@ export function createSharing({ file, library, access }: { file: string; library
     return { shared: sharedOf(did), privateWorks: [...privateWorksOf(did)], pending: isPending(did), canShare: await canShare(did) };
   }
 
+  function setPrivateWorks(did: string, works: readonly string[], kept: boolean) {
+    return serial(did, async () => {
+      const change = kept
+        ? db.prepare('insert or ignore into private_work (did, work) values (?, ?)')
+        : db.prepare('delete from private_work where did = ? and work = ?');
+      inTransaction(db, () => {
+        for (const work of works) change.run(did, work);
+      });
+      await trySync(did);
+      return state(did);
+    });
+  }
+
   return {
     state: (did) =>
       serial(did, async () => {
@@ -202,13 +218,8 @@ export function createSharing({ file, library, access }: { file: string; library
         await trySync(did, repo);
         return state(did);
       }),
-    setPrivate: (did, work, kept) =>
-      serial(did, async () => {
-        if (kept) db.prepare('insert or ignore into private_work (did, work) values (?, ?)').run(did, work);
-        else db.prepare('delete from private_work where did = ? and work = ?').run(did, work);
-        await trySync(did);
-        return state(did);
-      }),
+    setPrivate: (did, work, kept) => setPrivateWorks(did, [work], kept),
+    setPrivateWorks,
     sync: (did) =>
       serial(did, async () => {
         await trySync(did);

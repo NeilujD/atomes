@@ -1,0 +1,135 @@
+/* The Series Correction sheet (src/islands/SeriesCorrection.tsx), and the
+   bulk select sheets that share its look (src/islands/Selection.tsx): Book
+   page, Library and Series page. Global: islands render on the device. */
+/* The Series Correction sheet: from the bottom on the phone, centred on desktop, as the Volume sheet. */
+.correction-sheet {
+  inset: auto 0 0;
+  width: 100%;
+  max-width: none;
+  max-height: 85dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  background: var(--surface);
+  color: var(--ink);
+  text-align: start;
+}
+
+.correction-sheet::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.correction-body,
+.correction-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.correction-body {
+  padding: 20px 20px max(20px, env(safe-area-inset-bottom));
+}
+
+.correction-head,
+.correction-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.correction-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.correction-title {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.correction-sheet .hint {
+  margin: 0;
+  color: var(--secondary);
+  font-size: 13px;
+}
+
+.correction-sheet .hint[data-error] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.correction-sheet .hint:empty {
+  display: none;
+}
+
+.correction-sheet .label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.correction-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.correction-field {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.correction-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.correction-item {
+  width: 100%;
+  min-height: var(--row);
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.correction-lines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.correction-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--row);
+  font-size: 14px;
+}
+
+@media (min-width: 960px) {
+  .correction-sheet {
+    inset: 0;
+    width: 440px;
+    margin: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+  }
+
+  .correction-body {
+    padding: 24px;
+  }
+}

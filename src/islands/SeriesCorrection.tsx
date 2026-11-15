@@ -3,12 +3,15 @@
 // Series, then picks the Edition Line and the Volume number. The Catalog
 // keeps it for every reader of the instance; "Back to the sources" deletes
 // it. Mounted by the script of src/pages/book.astro, which shows the Edition
-// the Catalog answers next.
+// the Catalog answers next. Bulk select (CORE-109) opens it as "Move to
+// Series" for many Editions: known Volume numbers stay, and the sheet asks
+// only for the missing ones (moveCorrections, src/lib/library/bulk.ts).
 import { useRef, useState } from 'preact/hooks';
-import type { Correction, Edition, SeriesFound } from '../lib/catalog/catalog';
+import type { Correction, Edition, NewSeries, SeriesFound } from '../lib/catalog/catalog';
 import { correctEdition, findSeries, uncorrectEdition, type CorrectionAnswer } from '../lib/catalog/client';
 import { bookHeight } from '../lib/catalog/lines';
 import { pageLanguage, t } from '../lib/i18n/i18n';
+import { moveCorrections } from '../lib/library/bulk';
 import { lineLabel } from '../lib/library/model';
 import { isNetworkFailure } from '../lib/network';
 
@@ -18,28 +21,51 @@ export interface Sources {
   uncorrect: typeof uncorrectEdition;
 }
 
-const live: Sources = { find: findSeries, correct: correctEdition, uncorrect: uncorrectEdition };
+const live: Sources = {
+  find: findSeries,
+  correct: correctEdition,
+  uncorrect: uncorrectEdition,
+};
 
 export interface SeriesCorrectionProps {
-  edition: Edition;
-  // The Catalog now gives this Edition, with `text` to tell the reader.
-  onCorrected: (edition: Edition, text: string) => void;
+  // One on the Book page; the books picked in bulk select.
+  editions: Edition[];
+  // Bulk select: the text of the button that opens the sheet. The Book page
+  // has its "Change" link and may edit the Volume number it knows.
+  button?: string;
+  // The Catalog now gives these Editions, with `text` to tell the reader.
+  onCorrected: (editions: Edition[], text: string) => void;
   sources?: Sources;
 }
 
 // The languages a New Series offers, as the sources name them (ISO 639-2),
 // with the code the browser names them by.
-const languages: Record<string, string> = { fre: 'fr', eng: 'en', jpn: 'ja', kor: 'ko', chi: 'zh', spa: 'es', ita: 'it', ger: 'de', dut: 'nl', por: 'pt' };
+const languages: Record<string, string> = {
+  fre: 'fr',
+  eng: 'en',
+  jpn: 'ja',
+  kor: 'ko',
+  chi: 'zh',
+  spa: 'es',
+  ita: 'it',
+  ger: 'de',
+  dut: 'nl',
+  por: 'pt',
+};
 
 type Step = { search: true } | { series: SeriesFound } | { newSeries: true };
 
-export function SeriesCorrection({ edition, onCorrected, sources = live }: SeriesCorrectionProps) {
+export function SeriesCorrection({ editions, button, onCorrected, sources = live }: SeriesCorrectionProps) {
+  const [edition] = editions;
+  const bulk = button !== undefined;
   const sheet = useRef<HTMLDialogElement>(null);
   const [step, setStep] = useState<Step>({ search: true });
   const [typed, setTyped] = useState(edition.series?.title ?? edition.title);
   const [found, setFound] = useState<SeriesFound[]>();
   const [anchor, setAnchor] = useState('');
   const [volume, setVolume] = useState(edition.volume === null ? '' : String(edition.volume));
+  // Bulk: the Volume number typed for each Edition with none, by ISBN.
+  const [typedVolumes, setTypedVolumes] = useState<Record<string, string>>({});
   const [title, setTitle] = useState(edition.title);
   const [publisher, setPublisher] = useState(edition.publisher ?? '');
   const [language, setLanguage] = useState(edition.language && edition.language in languages ? edition.language : 'fre');
@@ -83,34 +109,85 @@ export function SeriesCorrection({ edition, onCorrected, sources = live }: Serie
     setStep({ series });
   }
 
-  async function send(ask: () => Promise<CorrectionAnswer>, text: string) {
-    const answer = await run(ask);
-    if (!answer) return;
-    if ('found' in answer) {
-      sheet.current?.close();
-      return onCorrected(answer.found, text);
+  // One request after the other: the first refused one stops the rest and says why.
+  async function send(asks: (() => Promise<CorrectionAnswer>)[], text: string) {
+    const found: Edition[] = [];
+    for (const ask of asks) {
+      const answer = await run(ask);
+      if (!answer) return;
+      if (!('found' in answer)) {
+        return setProblem(t('signedOut' in answer ? 'auth.session-ended' : 'tooMany' in answer ? 'correction.too-many' : 'correction.failed'));
+      }
+      found.push(answer.found);
     }
-    setProblem(t('signedOut' in answer ? 'auth.session-ended' : 'tooMany' in answer ? 'correction.too-many' : 'correction.failed'));
+    sheet.current?.close();
+    onCorrected(found, text);
   }
 
   function save(event: Event) {
     event.preventDefault();
-    const number = volume.trim() ? Number(volume.trim().replace(',', '.')) : null;
-    if (number !== null && !(number > 0 && number < 10_000)) return setProblem(t('find.bad-volume'));
-    let correction: Correction;
+    const typed = bulk ? editions.filter((each) => each.volume === null).map(({ isbn }) => [isbn, typedVolumes[isbn] ?? ''] as const) : [[edition.isbn, volume] as const];
+    const numbers: Record<string, number | null> = {};
+    for (const [isbn, text] of typed) {
+      const number = text.trim() ? Number(text.trim().replace(',', '.')) : null;
+      if (number !== null && !(number > 0 && number < 10_000)) return setProblem(t('find.bad-volume'));
+      numbers[isbn] = number;
+    }
+    let target: { anchor: string } | { newSeries: NewSeries };
     if ('newSeries' in step) {
       const size = height.trim() ? Number(height.trim().replace(',', '.')) : null;
       if (!title.trim() || !publisher.trim()) return setProblem(t('correction.bad-new'));
       if (size !== null && !(size >= 5 && size <= 100)) return setProblem(t('correction.bad-height'));
-      correction = { newSeries: { title: title.trim(), publisher: publisher.trim(), language, height: size }, volume: number };
+      target = {
+        newSeries: {
+          title: title.trim(),
+          publisher: publisher.trim(),
+          language,
+          height: size,
+        },
+      };
     } else {
-      correction = { anchor, volume: number };
+      target = { anchor };
     }
-    void send(() => sources.correct(edition.isbn, correction), t('correction.saved'));
+    // The Book page sends the Volume number as typed, even one the Catalog knew.
+    const corrections: [string, Correction][] = bulk ? moveCorrections(editions, target, numbers) : [[edition.isbn, { ...target, volume: numbers[edition.isbn] }]];
+    void send(
+      corrections.map(
+        ([isbn, correction]) =>
+          () =>
+            sources.correct(isbn, correction),
+      ),
+      t('correction.saved'),
+    );
   }
 
   const names = new Intl.DisplayNames([pageLanguage()], { type: 'language' });
-  const volumeField = (
+  const volumeField = bulk ? (
+    <>
+      <p class="hint">{t('correction.volumes-kept')}</p>
+      {editions
+        .filter((each) => each.volume === null)
+        .map((each) => (
+          <label class="correction-field" key={each.isbn}>
+            <span class="label">{t('correction.volume-of', each.volumeTitle ?? each.title)}</span>
+            <input
+              class="field"
+              type="text"
+              inputMode="decimal"
+              maxLength={8}
+              autoComplete="off"
+              value={typedVolumes[each.isbn] ?? ''}
+              onInput={(event) =>
+                setTypedVolumes({
+                  ...typedVolumes,
+                  [each.isbn]: event.currentTarget.value,
+                })
+              }
+            />
+          </label>
+        ))}
+    </>
+  ) : (
     <div class="correction-field">
       <label class="correction-field">
         <span class="label">{t('correction.volume')}</span>
@@ -148,9 +225,15 @@ export function SeriesCorrection({ edition, onCorrected, sources = live }: Serie
 
   return (
     <>
-      <button class="series-change" type="button" aria-haspopup="dialog" aria-label={edition.series ? t('book.series-change-label') : undefined} onClick={open}>
-        {t(edition.series ? 'book.series-change' : 'book.series-add')}
-      </button>
+      {bulk ? (
+        <button class="button" type="button" aria-haspopup="dialog" onClick={open}>
+          {button}
+        </button>
+      ) : (
+        <button class="series-change" type="button" aria-haspopup="dialog" aria-label={edition.series ? t('book.series-change-label') : undefined} onClick={open}>
+          {t(edition.series ? 'book.series-change' : 'book.series-add')}
+        </button>
+      )}
       {/* A tap on the backdrop closes it, as Escape does. */}
       <dialog
         ref={sheet}
@@ -196,12 +279,12 @@ export function SeriesCorrection({ edition, onCorrected, sources = live }: Serie
                 </ul>
               )}
               <div class="correction-actions">
-                {edition.corrected && (
+                {!bulk && edition.corrected && (
                   <button
                     class="button button-quiet"
                     type="button"
                     disabled={busy}
-                    onClick={() => void send(() => sources.uncorrect(edition.isbn), t('correction.restored'))}
+                    onClick={() => void send([() => sources.uncorrect(edition.isbn)], t('correction.restored'))}
                   >
                     {t('correction.to-sources')}
                   </button>

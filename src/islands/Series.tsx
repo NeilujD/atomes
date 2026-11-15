@@ -1,8 +1,9 @@
 // The Series page, a Preact island (ADR 0014): where the reader stands in one
 // Series, and follow, switch Edition Line, stop following (glossary: Followed
 // Series, Dropped Series, Edition Line). Each spine opens a Volume sheet: I
-// bought it, Mark read, Open. The rules are in src/lib/library/series.ts;
-// this file only renders and saves.
+// bought it, Mark read, Open. "Select" starts bulk select
+// (src/islands/Selection.tsx): a tap on a spine picks its Volume. The rules
+// are in src/lib/library/series.ts; this file only renders and saves.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import type { Edition, LineSummary } from '../lib/catalog/catalog';
@@ -36,6 +37,7 @@ import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
 import { toast } from '../lib/toast';
 import { Cover } from './Cover';
+import { liveSelection, SelectionBar, type SelectionSources } from './Selection';
 import { SeriesLabels } from './SeriesLabels';
 
 export interface Sources extends CatalogAsk {
@@ -43,6 +45,7 @@ export interface Sources extends CatalogAsk {
   open(): Promise<Space | undefined>;
   // Every Edition Line of the Series of `isbn`, named; undefined when the Catalog cannot say.
   lines(isbn: string): Promise<LineSummary[] | undefined>;
+  selection?: SelectionSources;
 }
 
 const live: Sources = {
@@ -50,6 +53,7 @@ const live: Sources = {
   volumes: async (isbn) => (await lookupVolumes(isbn))?.volumes,
   editions: lookupEditions,
   lines: async (isbn) => (await lookupVolumes(isbn))?.lines,
+  selection: liveSelection,
 };
 
 // `isbn`: an Edition of the Series, from the link (`seriesHref`).
@@ -71,6 +75,9 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const [chosen, setChosen] = useState<number>();
   const [peek, setPeek] = useState<{ volume: number; align: PeekAlign }>();
   const sheet = useRef<HTMLDialogElement>(null);
+  // Bulk select: on or off, and the Volumes picked, in the order of the taps.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
 
   const space = useRef<Space | undefined>(undefined);
   const listing = useRef<{ refresh: () => Promise<void> } | undefined>(undefined);
@@ -278,6 +285,19 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const spine = standing.spines.find(({ volume }) => volume === chosen);
   const onToBuy = spine !== undefined && library.toBuy.some(({ value }) => value.isbn === spine.edition.isbn);
   const seriesTitle = edition.series.title;
+  const pick = (volume: number) => setSelected(selected.includes(volume) ? selected.filter((each) => each !== volume) : [...selected, volume]);
+  const picked = standing.spines
+    .filter(({ volume }) => selected.includes(volume))
+    .map(({ edition: printing }) => ({ work: printing.work.id, isbn: printing.isbn, edition: printing }));
+  // After Move to Series the Edition Lines changed: the page asks the Catalog again.
+  const afterSave = async (moved: Edition[] = []) => {
+    if (moved.length > 0) {
+      lines.current.clear();
+      editions.current.clear();
+      setSelected([]);
+    }
+    await listing.current?.refresh();
+  };
   document.title = `${edition.series.title} · Atomes`;
 
   return (
@@ -412,9 +432,16 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
       )}
 
       <section aria-labelledby="series-volumes">
-        <h2 class="series-group-title" id="series-volumes">
-          {t('series.volumes')}
-        </h2>
+        <div class="series-group-head">
+          <h2 class="series-group-title" id="series-volumes">
+            {t('series.volumes')}
+          </h2>
+          {!selecting && (
+            <button class="button button-quiet" type="button" onClick={() => setSelecting(true)}>
+              {t('select.start')}
+            </button>
+          )}
+        </div>
         <ol class="series-spines">
           {standing.spines.map(({ volume, state, edition: printing }) => (
             <li key={volume} class="series-spine" data-state={state}>
@@ -427,8 +454,9 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               <button
                 class="series-spine-button"
                 type="button"
-                aria-haspopup="dialog"
-                onClick={() => open(volume)}
+                aria-haspopup={selecting ? undefined : 'dialog'}
+                aria-pressed={selecting ? selected.includes(volume) : undefined}
+                onClick={() => (selecting ? pick(volume) : open(volume))}
                 onPointerEnter={(event) => event.pointerType === 'mouse' && setPeek({ volume, align: peekAlign(event.currentTarget) })}
                 onPointerLeave={() => setPeek(undefined)}
               >
@@ -440,6 +468,21 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
           ))}
         </ol>
       </section>
+
+      {selecting && space.current && (
+        <SelectionBar
+          picked={picked}
+          onAll={() => setSelected(standing.spines.map(({ volume }) => volume))}
+          onDone={() => {
+            setSelecting(false);
+            setSelected([]);
+          }}
+          space={space.current}
+          library={library}
+          onSaved={afterSave}
+          sources={sources.selection ?? liveSelection}
+        />
+      )}
 
       {/* Escape closes it, as a tap on the backdrop does. */}
       <dialog
