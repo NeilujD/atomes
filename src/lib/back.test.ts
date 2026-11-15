@@ -18,4 +18,8 @@ describe('the back arrow of a Book or Series page', () => {
     expect(goesBack(opened)).toBe(false);
     expect(goesBack({ ...opened, referrer: `${origin}/library`, from: '/library', entries: 1 })).toBe(false);
   });
+
+  test('opened from another site after an Atomes page: the Library, not a step back out of Atomes', () => {
+    expect(goesBack({ ...opened, referrer: 'https://example.org/atomes', from: '/library', entries: 3 })).toBe(false);
+  });
 });
