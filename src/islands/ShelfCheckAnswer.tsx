@@ -17,9 +17,11 @@ export interface AnswerProps {
   onFollow?: () => void;
   // While the follow saves: a second tap cannot save twice.
   following?: boolean;
+  // The Series line is coming (its Edition Line loads): keep its place.
+  seriesLoading?: boolean;
 }
 
-export function ShelfCheckAnswer({ check, work, volumes, onFollow, following = false }: AnswerProps) {
+export function ShelfCheckAnswer({ check, work, volumes, onFollow, following = false, seriesLoading = false }: AnswerProps) {
   const status = t(`status.${check.status}`);
   const series = check.followed?.title ?? '';
   const [title, text] = {
@@ -54,6 +56,7 @@ export function ShelfCheckAnswer({ check, work, volumes, onFollow, following = f
           )}
         </div>
       )}
+      {!check.series && seriesLoading && <div class="skeleton answer-series-skeleton" aria-hidden="true" />}
       {(check.kind === 'owned' || check.kind === 'read') && (
         <a class="answer-link" href={bookHref(work)}>
           {t('link.book-page')}

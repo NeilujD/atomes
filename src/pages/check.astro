@@ -392,7 +392,7 @@ const answers = [
       if (book !== next) return;
       check = shelfCheck(next.isbn, next.edition, library, line);
     }
-    showAnswer(check, next, onDevice !== undefined);
+    showAnswer(check, next, onDevice !== undefined, false, !onDevice && seriesLineComes(next));
     // The answer is what the reader came for: focus it (screen readers) where
     // it is, at the top, rather than scroll to Add.
     if (!typing) answer.focus({ preventScroll: true });
@@ -413,11 +413,15 @@ const answers = [
   // A Series not followed: its Series line comes after the answer, which
   // does not need its Edition Line. Asking it online also leaves it in the
   // service worker cache of a built app: the same check offline shows it too.
+  // Its place is kept from the first answer (seriesLoading): Add to Library does not jump when it comes.
   async function addSeriesLine(shown: Book) {
-    const anchor = readerLine(shown.edition, library);
-    if (!anchor || followedLine(shown.edition, library) !== undefined) return;
-    const line = await editionLine(anchor);
-    if (line && book === shown) showAnswer(shelfCheck(shown.isbn, shown.edition, library, line), shown, false);
+    if (!seriesLineComes(shown)) return;
+    const line = await editionLine(readerLine(shown.edition, library)!);
+    if (book === shown) showAnswer(shelfCheck(shown.isbn, shown.edition, library, line), shown, false);
+  }
+
+  function seriesLineComes(shown: Book): boolean {
+    return readerLine(shown.edition, library) !== undefined && followedLine(shown.edition, library) === undefined;
   }
 
   // Follow from the Series line: the Series in the Edition Line of this book,
@@ -447,7 +451,7 @@ const answers = [
   }
 
   // The Shelf Check answer, and the action that fits it.
-  function showAnswer(check: ShelfCheck, shown: Book, offline: boolean, following = false) {
+  function showAnswer(check: ShelfCheck, shown: Book, offline: boolean, following = false, seriesLoading = false) {
     answer.dataset.kind = check.kind;
     render(
       h(ShelfCheckAnswer, {
@@ -455,6 +459,7 @@ const answers = [
         work: shown.work,
         volumes: shown.edition?.volumes ?? [],
         following,
+        seriesLoading,
         onFollow: () => void follow(check, shown, offline),
       }),
       answer,
@@ -1148,6 +1153,11 @@ const answers = [
   }
 
   /* The Series line: quiet text, Follow at its end (wraps under it when narrow). */
+  .answer-series-skeleton {
+    width: 70%;
+    height: var(--row);
+  }
+
   .answer-series {
     display: flex;
     flex-wrap: wrap;
