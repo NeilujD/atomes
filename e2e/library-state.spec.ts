@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, quickAdd, test } from './test';
+import { dragFlow, expect, quickAdd, test } from './test';
 
 // Back from a Book, the Library is as the reader left it (CORE-96): search,
 // filters, scroll and the Cover flow position, with the back arrow of the Book
@@ -61,9 +61,10 @@ test('back from a Book, the Library keeps its search, filter, scroll and Cover f
   await toBookAndBack(page, book, 'browser');
   await asLeft();
 
-  // Cover flow, swiped to book 12 (the phone strip, CORE-106).
+  // Cover flow, dragged to book 12 (CORE-106).
   await page.getByRole('combobox', { name: 'View' }).selectOption('Cover flow');
-  await page.locator('.library-flow-cover').nth(11).evaluate((cover) => cover.scrollIntoView({ inline: 'center', block: 'nearest' }));
+  await expect(page.getByText('9 of 16', { exact: true })).toBeVisible();
+  await dragFlow(page, 3);
   await expect(page.getByText('12 of 16', { exact: true })).toBeVisible();
   const front = page.locator('.library-flow-cover[aria-current="true"]');
 

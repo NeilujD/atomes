@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { flowMove, flowNearest, flowPosition, flowStand } from './flow';
+import { flowDrag, flowMove, flowPosition, flowRest, flowSpring, flowStand } from './flow';
 
 // Books known by their Work only: the flow needs no more.
 const books = (...works: string[]) => works.map((work) => ({ work }));
@@ -30,39 +30,68 @@ describe('Where Cover flow stands', () => {
   });
 });
 
-describe('Which cover a swipe stops on (phone)', () => {
-  // The middles of four covers, 100 px apart.
-  const middles = [50, 150, 250, 350];
-
-  test('the cover whose middle is nearest the middle of the strip', () => {
-    expect(flowNearest(middles, 50)).toBe(0);
-    expect(flowNearest(middles, 240)).toBe(2);
-    expect(flowNearest(middles, 290)).toBe(2);
-    expect(flowNearest(middles, 310)).toBe(3);
+describe('How a cover stands', () => {
+  test('in front: flat, in the middle, in full light', () => {
+    expect(flowStand(0)).toEqual({ x: 0, z: -0, turn: 0, shade: 0, opacity: 1, hidden: false });
   });
 
-  test('past an end, the cover at that end', () => {
-    expect(flowNearest(middles, -80)).toBe(0);
-    expect(flowNearest(middles, 900)).toBe(3);
+  test('the next cover on each side: turned, 2/3 of a cover away, pushed back, shaded', () => {
+    expect(flowStand(1)).toMatchObject({ x: 0.66, z: -0.84, turn: 1, shade: 0.38 });
+    expect(flowStand(-1)).toMatchObject({ x: -0.66, z: -0.84, turn: -1, shade: 0.38 });
+  });
+
+  test('the covers after it stack 1/4 of a cover apart, darker each time up to the 5th', () => {
+    expect(flowStand(3).x - flowStand(2).x).toBeCloseTo(0.24);
+    expect(flowStand(3).shade).toBeGreaterThan(flowStand(2).shade);
+    expect(flowStand(9).shade).toBeCloseTo(flowStand(5).shade);
+  });
+
+  test('half way through a drag: half turned', () => {
+    expect(flowStand(0.5)).toMatchObject({ x: 0.33, turn: 0.5 });
+  });
+
+  test('past 5 covers it fades out; past 6.5 it is not drawn', () => {
+    expect(flowStand(5).opacity).toBe(1);
+    expect(flowStand(5.75).opacity).toBeCloseTo(0.5);
+    expect(flowStand(6.5).hidden).toBe(false);
+    expect(flowStand(-6.6).hidden).toBe(true);
   });
 });
 
-describe('How a cover stands in the phone strip', () => {
-  test('in front: flat, in the middle, full size', () => {
-    expect(flowStand(0)).toEqual({ shift: 0, turn: 0, scale: 1 });
+describe('A drag', () => {
+  test('moves the flow by the covers dragged', () => {
+    expect(flowDrag(2, 1.5, 5)).toBe(3.5);
+    expect(flowDrag(2, -2, 5)).toBe(0);
   });
 
-  test('the next cover on each side: turned, 3/4 of a cover away, smaller', () => {
-    expect(flowStand(1)).toEqual({ shift: 0.75, turn: 1, scale: 0.8 });
-    expect(flowStand(-1)).toEqual({ shift: -0.75, turn: -1, scale: 0.8 });
+  test('past an end, it gives way at a third of the pace', () => {
+    expect(flowDrag(0, -1, 5)).toBeCloseTo(-0.35);
+    expect(flowDrag(4, 1, 5)).toBeCloseTo(4.35);
+  });
+});
+
+describe('Where a released drag comes to rest', () => {
+  test('still: the nearest book', () => {
+    expect(flowRest(2.4, 0, 5)).toBe(2);
+    expect(flowRest(2.6, 0, 5)).toBe(3);
   });
 
-  test('the covers after it stack 1/5 of a cover apart, as on desktop', () => {
-    expect(flowStand(3).shift).toBeCloseTo(1.15);
-    expect(flowStand(-3).shift).toBeCloseTo(-1.15);
+  test('flung: carried on by its speed, within the books', () => {
+    expect(flowRest(2.4, 5, 10)).toBe(3);
+    expect(flowRest(2, 100, 10)).toBe(8);
+    expect(flowRest(2, -100, 10)).toBe(0);
   });
+});
 
-  test('half way through a swipe: half turned', () => {
-    expect(flowStand(0.5)).toEqual({ shift: 0.375, turn: 0.5, scale: 0.9 });
+describe('The spring to the book at rest', () => {
+  test('it gets there with no bounce, then stops', () => {
+    let state = { offset: 0, speed: 0, done: false };
+    let passed = false;
+    for (let frame = 0; frame < 300 && !state.done; frame++) {
+      state = flowSpring(state.offset, state.speed, 3, 1 / 60);
+      if (state.offset > 3.001) passed = true;
+    }
+    expect(state).toEqual({ offset: 3, speed: 0, done: true });
+    expect(passed).toBe(false);
   });
 });

@@ -57,3 +57,20 @@ export async function quickAdd(page: Page, isbn: string): Promise<void> {
   await page.getByRole('button', { name: 'Look up' }).click();
   await page.getByRole('button', { name: 'Add to Library' }).click();
 }
+
+// Drags the Cover flow by `covers` covers (positive: toward the end), then
+// holds still before letting go, so the drag carries no speed and comes to
+// rest on the nearest cover.
+export async function dragFlow(page: Page, covers: number): Promise<void> {
+  const stage = (await page.locator('.library-flow-stage').boundingBox())!;
+  const width = await page.locator('.library-flow-cover[aria-current="true"]').evaluate((cover) => (cover as HTMLElement).offsetWidth);
+  // A drag of 0.44 of a cover's width moves the flow by one cover (LibraryCoverFlow.tsx).
+  const across = covers * width * 0.44;
+  const y = stage.y + stage.height / 2;
+  const from = stage.x + stage.width / 2 + across / 2;
+  await page.mouse.move(from, y);
+  await page.mouse.down();
+  await page.mouse.move(from - across, y, { steps: 12 });
+  await page.waitForTimeout(150);
+  await page.mouse.up();
+}
