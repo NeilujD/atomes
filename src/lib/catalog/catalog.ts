@@ -23,6 +23,7 @@ import {
 } from './lines';
 import { inTransaction, migrate } from './migrations';
 import { dropSharedWorks, losesWork } from './shared-works';
+import { shownEditions } from './shown';
 import type { Publisher, SourceFetch } from './sources';
 import { bnfSearch, fetchFacts, inventaireEditions, isCoverUrl, type Listed } from './sources';
 
@@ -224,17 +225,6 @@ type EditionRow = {
 // Every identifier of a Series but its main one, oldest link first.
 const sameAsOf = (n: string) =>
   `(select json_group_array(id) from (select id from series_link where series = ${n} and id != series.id order by rowid))`;
-// The Editions as readers see them (ADR 0017): the source data, with each
-// Series Correction laid over it. A Correction with an anchor is in the
-// Series and Edition Line where the sources put the anchor.
-const shownEditions = `(select e.isbn, e.title, e.volume_title, e.authors, e.publisher, e.language, e.format, e.cover,
-    e.work_id, e.work_title, e.year, e.bnf_id, e.sources, e.fetched_at,
-    iif(c.isbn is null, e.series, coalesce(c.series, a.series)) as series,
-    iif(c.isbn is null, e.edition_line, coalesce(c.edition_line, a.edition_line)) as edition_line,
-    iif(c.isbn is null, e.volume, c.volume) as volume,
-    iif(c.isbn is null, e.volumes, iif(c.volume is null, '[]', json_array(c.volume))) as volumes,
-    c.isbn is not null as corrected
-  from edition e left join series_correction c on c.isbn = e.isbn left join edition a on a.isbn = c.anchor)`;
 const selectEdition = `select edition.*, series.id as series_id, series.title as series_title, ${sameAsOf('series.n')} as same_as
   from ${shownEditions} as edition left join series on series.n = edition.series`;
 const selectSeries = `select series.n, series.id, series.title, series.bnf_id, ${sameAsOf('series.n')} as same_as from series`;
@@ -445,8 +435,15 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       edition.fetchedAt,
     );
     db.prepare('delete from miss where isbn = ?').run(edition.isbn);
-    if (series) dropSharedWorks(db, series.n);
+    dropSharedWorksOf(edition.isbn);
     return toEdition(editionRow(edition.isbn)!);
+  }
+
+  // One Work per Volume number, in the Series where readers see the Edition
+  // (shared-works.ts): a Series Correction moves it there.
+  function dropSharedWorksOf(isbn: string): void {
+    const shown = db.prepare(`select series from ${shownEditions} where isbn = ?`).get(isbn) as { series: number | null } | undefined;
+    if (shown?.series != null) dropSharedWorks(db, shown.series);
   }
 
   // The Work of an Edition that is not stored, with the rule of `store`.
@@ -769,12 +766,16 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
         `insert or replace into series_correction (isbn, anchor, series, edition_line, volume, account, created_at)
           values (?, ?, ?, ?, ?, ?, ?)`,
       ).run(isbn, target!.anchor, target!.series, target!.line, correction.volume, account, now().toISOString());
+      dropSharedWorksOf(isbn);
     });
     return { found: toEdition(editionRow(isbn)!) };
   }
 
   function uncorrect(isbn: string): Edition | undefined {
-    db.prepare('delete from series_correction where isbn = ?').run(isbn);
+    inTransaction(db, () => {
+      db.prepare('delete from series_correction where isbn = ?').run(isbn);
+      dropSharedWorksOf(isbn);
+    });
     const row = editionRow(isbn);
     return row && toEdition(row);
   }

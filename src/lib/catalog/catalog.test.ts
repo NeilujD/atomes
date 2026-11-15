@@ -1051,6 +1051,37 @@ describe('Series Correction (ADR 0017)', () => {
     expect(catalog.lines(onePiece).map(({ anchor }) => anchor)).toContain(horde);
   });
 
+  // Dragon Ball 2 and 3 (1993): Inventaire gives them one Work (ADR 0010, amendment 2026-11-14).
+  const [volume2, volume3] = [dragonBall1993[2], dragonBall1993[3]];
+  const elsewhere = { title: 'Dragon Ball kanzenban', publisher: 'Glénat', language: 'fre', height: 18 };
+  const workOf = async (catalog: Catalog, isbn: string) => (await edition(await answerEdition(catalog, isbn))).work.id;
+
+  test('one Work per Volume number counts where readers see the Edition: out of the Series, then into it', async () => {
+    const { catalog } = clocked();
+    await answerEdition(catalog, volume2);
+    await answerCorrect(catalog, volume2, { newSeries: elsewhere, volume: 2 }, account);
+
+    // Volume 2 is no longer in the Series of Volume 3: Volume 3 keeps the Work.
+    expect(await workOf(catalog, volume3)).toBe(sharedWork);
+
+    await answerCorrect(catalog, volume3, { anchor: volume2, volume: 3 }, account);
+
+    expect(await workOf(catalog, volume2)).toBe(`isbn:${volume2}`);
+    expect(await workOf(catalog, volume3)).toBe(`isbn:${volume3}`);
+  });
+
+  test('one Work per Volume number counts again when a Correction goes "Back to the sources"', async () => {
+    const { catalog } = clocked();
+    await answerEdition(catalog, volume2);
+    await answerCorrect(catalog, volume2, { newSeries: elsewhere, volume: 2 }, account);
+    expect(await workOf(catalog, volume3)).toBe(sharedWork);
+
+    answerUncorrect(catalog, volume2);
+
+    expect(await workOf(catalog, volume2)).toBe(`isbn:${volume2}`);
+    expect(await workOf(catalog, volume3)).toBe(`isbn:${volume3}`);
+  });
+
   test('when a source is down for a book the Catalog does not hold yet, the answer says so and nothing is kept', async () => {
     const { catalog, reopen } = setup(['inventaire.io']);
     await answerEdition(catalog, onePiece56);
