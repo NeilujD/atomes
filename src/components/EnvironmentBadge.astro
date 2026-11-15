@@ -56,13 +56,11 @@ const t = translator(requestLanguage(Astro.request));
     }
   }
 
-  /* Flow (no chrome, content centred): over the top edge, so the content does not move. */
+  /* Flow (no chrome, content centred): in its own row above the content
+     (AppShell), so it scrolls away with the page and covers nothing. */
   .flow {
-    position: fixed;
-    inset: 0 0 auto;
     display: flex;
     justify-content: center;
-    padding-top: max(12px, env(safe-area-inset-top));
-    pointer-events: none;
+    margin: 0 0 16px;
   }
 </style>
