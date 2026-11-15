@@ -31,9 +31,14 @@ export function toast(text: string, { link, action, error = false }: ToastOption
   if (!region || !template) return () => undefined;
 
   // The same notice again (a retry that fails again): keep the one shown.
-  const shown = [...region.querySelectorAll<HTMLElement>('[data-toast]')];
+  // With an action, it is a new change: its toast takes the place of the old one.
+  let shown = [...region.querySelectorAll<HTMLElement>('[data-toast]')];
   const same = shown.find((each) => each.dataset.text === text);
-  if (same) return () => same.remove();
+  if (same && !action) return () => same.remove();
+  if (same) {
+    same.remove();
+    shown = shown.filter((each) => each !== same);
+  }
 
   const item = template.content.firstElementChild!.cloneNode(true) as HTMLElement;
   item.dataset.text = text;

@@ -38,7 +38,9 @@ test('Cobalt marks the primary action of each screen; the muted red marks Remove
 
   // The Book page: Remove a Copy destroys.
   await expect(page).toHaveURL(/\/book/);
-  await expectRole(page.getByRole('button', { name: 'Remove' }), '--danger');
+  await page.getByRole('button', { name: 'More actions for the Copy with ISBN 9782723478991' }).click();
+  await expectRole(page.getByRole('button', { name: 'Remove the Copy with ISBN 9782723478991' }), '--danger');
+  await page.keyboard.press('Escape');
 
   // The Series page, not followed: Follow.
   await page.goto('/series?isbn=9782723478991');
