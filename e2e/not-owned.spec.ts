@@ -17,7 +17,7 @@ test('read, then its only Copy removed: the Work shows as not owned in every mod
   await page.getByRole('link', { name: 'Skip' }).click();
   await expect(page).toHaveURL(/\/book/);
   await islandsLoaded(page);
-  await page.getByRole('radiogroup', { name: 'Reading Status' }).getByRole('radio', { name: 'Read' }).check();
+  await page.getByRole('combobox', { name: 'Reading Status' }).selectOption({ label: 'Read' });
   await expect(page.getByText('Saved to your Library.')).toBeVisible();
   await page.getByRole('button', { name: 'Remove the Copy with ISBN 9782723478991' }).click();
   await expect(page.getByRole('button', { name: 'Remove the Copy with ISBN 9782723478991' })).toHaveCount(0);
