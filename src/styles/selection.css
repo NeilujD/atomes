@@ -92,14 +92,21 @@
   cursor: pointer;
 }
 
+/* A picked item is cobalt (ui-direction: colour roles). */
 .library-pick[aria-pressed='true'] .library-cover {
-  outline: 3px solid var(--ink);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* A picked spine on the Series page. */
+/* A picked spine on the Series page: the ring hugs the 14 px spine (20 px in
+   all), so it stays inside its 24 px column and never meets the next one. */
 .series-spine-button[aria-pressed='true'] {
-  outline: 2px solid var(--ink);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.series-spine-button[aria-pressed='true'] .series-spine-bar {
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 

@@ -96,11 +96,16 @@ function nearest(strip: HTMLElement): number {
   return flowNearest(middles, strip.scrollLeft + strip.clientWidth / 2);
 }
 
-// Phone: each cover turns and stacks by how far it is from the middle of the
-// strip, as the reader swipes (src/lib/library/flow.ts). The transform is on
-// the face, not on the link: the link is the snap target, and WebKit snaps on
-// the transformed box. A tap lands on the face the reader sees (library.astro).
+// Phone, in a browser with no scroll-driven animations (older Safari): each
+// cover turns and stacks by how far it is from the middle of the strip, as the
+// reader swipes (src/lib/library/flow.ts). Elsewhere the CSS does it in the
+// browser's scroll thread (library.astro): set from here, a frame after the
+// scroll, the faces would shake. The transform is on the face, not on the
+// link: the link is the snap target, and WebKit snaps on the transformed box.
+const scrollDriven = typeof CSS !== 'undefined' && CSS.supports('animation-timeline: view()');
+
 function stand(strip: HTMLElement) {
+  if (scrollDriven) return;
   const middle = strip.scrollLeft + strip.clientWidth / 2;
   const covers = [...strip.children] as HTMLElement[];
   const step = covers.length > 1 ? covers[1].offsetLeft - covers[0].offsetLeft : 1;

@@ -553,12 +553,12 @@ const t = translator(requestLanguage(Astro.request));
 
   /* Phone (CORE-106): every cover in a strip the reader swipes. It snaps on a
      cover, which comes to the front; the covers on the sides turn and stack
-     as on desktop, from a transform the island sets as the strip scrolls
-     (src/islands/LibraryCoverFlow.tsx). The spacers at each end let the
-     first and the last cover reach the middle. */
+     as on desktop. The covers stand 3/4 of a cover apart (--flow-near), so
+     the two next to the middle one need no shift. The spacers at each end
+     let the first and the last cover reach the middle. */
   .library-flow-strip {
     display: flex;
-    gap: 12px;
+    gap: 0;
     overflow: auto hidden;
     overscroll-behavior-x: contain;
     scroll-snap-type: x mandatory;
@@ -579,7 +579,7 @@ const t = translator(requestLanguage(Astro.request));
   .library-flow-strip::after {
     content: '';
     flex: none;
-    width: calc(50% - var(--cover) / 2 - 12px);
+    width: calc(50% - var(--cover) * var(--flow-near) / 2);
   }
 
   .library-flow-strip .library-flow-cover {
@@ -588,16 +588,96 @@ const t = translator(requestLanguage(Astro.request));
     left: auto;
     flex: none;
     align-self: flex-start;
-    margin: 20px 0 0;
+    margin: 20px calc(var(--cover) * (var(--flow-near) - 1) / 2) 0;
     transform: none;
     transition: none;
     scroll-snap-align: center;
-    /* The face turns (LibraryCoverFlow.tsx), the link stays: a tap goes to the face it sees. */
+    /* The face turns, the link stays: a tap goes to the face it sees. WebKit snaps on the transformed box. */
     pointer-events: none;
   }
 
   .library-flow-strip .library-flow-face {
     pointer-events: auto;
+  }
+
+  /* The turn and the stack follow the scroll in the browser's own scroll
+     thread (Chrome 115, Safari 26), so the faces never lag the finger.
+     Elsewhere the island sets the same transform as the strip scrolls
+     (src/islands/LibraryCoverFlow.tsx, flowStand in src/lib/library/flow.ts).
+     Each link and its face follow their own view of the strip (`cover` range:
+     0% as it comes in at the right, 50% in the middle, 100% as it leaves at
+     the left), widened by two strip widths on each side (inset -200%), so the
+     covers packed at the edges get their shift too. Between the two covers
+     next to the middle (--step on each side): turn and scale. Past them: a
+     shift that packs the covers to --flow-step of a cover apart. The nearer
+     cover is on top (z-index). Anonymous timelines: Safari 26 does not attach
+     the face to a timeline its link names. */
+  @supports (animation-timeline: view()) {
+    .library-flow-strip .library-flow-cover {
+      --step: calc(var(--cover) * var(--flow-near));
+      animation: library-flow-order linear both;
+      animation-timeline: view(inline -200%);
+    }
+
+    .library-flow-strip .library-flow-face {
+      animation:
+        library-flow-turn linear both,
+        library-flow-pack-in linear none,
+        library-flow-pack-out linear none;
+      animation-timeline: view(inline -200%), view(inline -200%), view(inline -200%);
+      animation-range:
+        cover calc(50% - var(--step)) cover calc(50% + var(--step)),
+        cover 0% cover calc(50% - var(--step)),
+        cover calc(50% + var(--step)) cover 100%;
+    }
+  }
+
+  @keyframes library-flow-order {
+    0%,
+    100% {
+      z-index: 0;
+    }
+
+    50% {
+      z-index: 1000;
+    }
+  }
+
+  @keyframes library-flow-turn {
+    from {
+      transform: perspective(1100px) rotateY(-58deg) scale(0.8);
+    }
+
+    50% {
+      transform: perspective(1100px) rotateY(0) scale(1);
+    }
+
+    to {
+      transform: perspective(1100px) rotateY(58deg) scale(0.8);
+    }
+  }
+
+  /* A cover `n` steps from the middle (n > 1) moves (n - 1) * (--flow-near - --flow-step)
+     covers toward it. At the start of its range, n * --step is half of five strip widths
+     (the strip and two on each side) plus half a cover. */
+  @keyframes library-flow-pack-in {
+    from {
+      translate: calc(((500cqw + var(--cover)) / 2 - var(--step)) * (var(--flow-step) - var(--flow-near)) / var(--flow-near)) 0;
+    }
+
+    to {
+      translate: 0 0;
+    }
+  }
+
+  @keyframes library-flow-pack-out {
+    from {
+      translate: 0 0;
+    }
+
+    to {
+      translate: calc(((500cqw + var(--cover)) / 2 - var(--step)) * (var(--flow-near) - var(--flow-step)) / var(--flow-near)) 0;
+    }
   }
 
   /* A tap on a side cover scrolls it to the middle. */
