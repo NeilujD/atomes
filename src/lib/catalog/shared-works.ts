@@ -8,6 +8,7 @@
 // Edition of the Series stored later, reprints included: nothing tells which
 // Volume the Work was meant for.
 import type { DatabaseSync } from 'node:sqlite';
+import { shownEditions } from './shown';
 
 // Editions of one Volume number (reprints, other Edition Lines) share a Work,
 // and so does an omnibus with each Volume it covers: only Editions that hold
@@ -25,9 +26,11 @@ const volumesOf = (row: Pick<Row, 'volume' | 'volumes'>) =>
 
 // Drops, for Series `series`, every Work its stored Editions share across
 // Volume numbers, and gives each Edition of a dropped Work its own Work.
+// Editions are where readers see them: a Series Correction moves an Edition
+// and sets its Volume number (ADR 0017), not its Work.
 export function dropSharedWorks(db: DatabaseSync, series: number): void {
   const rows = db
-    .prepare("select isbn, work_id, volume, volumes from edition where series = ? and work_id not like 'isbn:%'")
+    .prepare(`select isbn, work_id, volume, volumes from ${shownEditions} where series = ? and work_id not like 'isbn:%'`)
     .all(series) as Row[];
   const byWork = new Map<string, number[][]>();
   for (const row of rows) byWork.set(row.work_id, [...(byWork.get(row.work_id) ?? []), volumesOf(row)]);
@@ -35,7 +38,7 @@ export function dropSharedWorks(db: DatabaseSync, series: number): void {
     if (acrossVolumes(volumes)) db.prepare('insert or ignore into dropped_work (work_id, series) values (?, ?)').run(work, series);
   db.prepare(
     `update edition set work_id = 'isbn:' || isbn, work_title = title
-     where series = ? and work_id in (select work_id from dropped_work where series = ?)`,
+     where isbn in (select isbn from ${shownEditions} where series = ?) and work_id in (select work_id from dropped_work where series = ?)`,
   ).run(series, series);
 }
 
@@ -44,7 +47,7 @@ export function losesWork(db: DatabaseSync, series: number, edition: { isbn: str
   if (edition.work.id.startsWith('isbn:')) return false;
   if (db.prepare('select 1 from dropped_work where work_id = ? and series = ?').get(edition.work.id, series)) return true;
   const others = db
-    .prepare('select volume, volumes from edition where series = ? and work_id = ? and isbn != ?')
+    .prepare(`select volume, volumes from ${shownEditions} where series = ? and work_id = ? and isbn != ?`)
     .all(series, edition.work.id, edition.isbn) as Pick<Row, 'volume' | 'volumes'>[];
   return acrossVolumes([edition.volumes, ...others.map(volumesOf)]);
 }

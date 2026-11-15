@@ -23,6 +23,7 @@ import {
 } from './lines';
 import { inTransaction, migrate } from './migrations';
 import { dropSharedWorks, losesWork } from './shared-works';
+import { shownEditions } from './shown';
 import type { Publisher, SourceFetch } from './sources';
 import { bnfSearch, fetchFacts, inventaireEditions, isCoverUrl, type Listed } from './sources';
 
@@ -224,17 +225,6 @@ type EditionRow = {
 // Every identifier of a Series but its main one, oldest link first.
 const sameAsOf = (n: string) =>
   `(select json_group_array(id) from (select id from series_link where series = ${n} and id != series.id order by rowid))`;
-// The Editions as readers see them (ADR 0017): the source data, with each
-// Series Correction laid over it. A Correction with an anchor is in the
-// Series and Edition Line where the sources put the anchor.
-const shownEditions = `(select e.isbn, e.title, e.volume_title, e.authors, e.publisher, e.language, e.format, e.cover,
-    e.work_id, e.work_title, e.year, e.bnf_id, e.sources, e.fetched_at,
-    iif(c.isbn is null, e.series, coalesce(c.series, a.series)) as series,
-    iif(c.isbn is null, e.edition_line, coalesce(c.edition_line, a.edition_line)) as edition_line,
-    iif(c.isbn is null, e.volume, c.volume) as volume,
-    iif(c.isbn is null, e.volumes, iif(c.volume is null, '[]', json_array(c.volume))) as volumes,
-    c.isbn is not null as corrected
-  from edition e left join series_correction c on c.isbn = e.isbn left join edition a on a.isbn = c.anchor)`;
 const selectEdition = `select edition.*, series.id as series_id, series.title as series_title, ${sameAsOf('series.n')} as same_as
   from ${shownEditions} as edition left join series on series.n = edition.series`;
 const selectSeries = `select series.n, series.id, series.title, series.bnf_id, ${sameAsOf('series.n')} as same_as from series`;
@@ -419,6 +409,14 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
 
   // Gives the Edition as stored: its Work may be dropped (shared-works.ts).
   function store(edition: Edition, record: string | undefined, line = lineOf(edition, record)): Edition {
+    write(edition, record, line);
+    dropSharedWorksOf(edition.isbn);
+    return toEdition(editionRow(edition.isbn)!);
+  }
+
+  // Stores the Edition with no check of shared Works: a fill checks its
+  // Series once, after every Edition it adds.
+  function write(edition: Edition, record: string | undefined, line: string | null): void {
     const series = edition.series && byIdentifier(edition.series.id);
     db.prepare(
       `insert or replace into edition (isbn, title, volume_title, authors, publisher, language, format, cover, work_id,
@@ -445,8 +443,13 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       edition.fetchedAt,
     );
     db.prepare('delete from miss where isbn = ?').run(edition.isbn);
-    if (series) dropSharedWorks(db, series.n);
-    return toEdition(editionRow(edition.isbn)!);
+  }
+
+  // One Work per Volume number, in the Series where readers see the Edition
+  // (shared-works.ts): a Series Correction moves it there.
+  function dropSharedWorksOf(isbn: string): void {
+    const shown = db.prepare(`select series from ${shownEditions} where isbn = ?`).get(isbn) as { series: number | null } | undefined;
+    if (shown?.series != null) dropSharedWorks(db, shown.series);
   }
 
   // The Work of an Edition that is not stored, with the rule of `store`.
@@ -536,15 +539,18 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     // Overlapping records are separate Edition Lines (amendment 2026-11-14):
     // every Edition of this key moves to the line of its record's group.
     // Editions with no record join the first group; an Edition not listed
-    // keeps a line that is still a group's, else joins the first.
+    // keeps a line that is still a group's, else joins the first. An Edition
+    // of the other kind with a record is in a line of the other kind's groups:
+    // it keeps it, unless it shares the anchor's line, which this fill keys
+    // again; then it goes where an Edition with no record goes.
     const groups = recordGroups(ofKind.map((each) => ({ record: recordOf(each), volumes: each.facts.volumes! })));
     const firstGroup = groups.values().next().value;
     const groupIds = new Set(groups.values());
     const prefix = line.split('|').slice(0, 3).join('|');
     const series = prefix.slice(0, prefix.indexOf('|') + 1);
     // The source data only: a Series Correction lies over it whatever the fill does.
-    type KeyRow = Pick<EditionRow, 'isbn' | 'edition_line' | 'bnf_id'>;
-    const ofKey = (db.prepare('select isbn, edition_line, bnf_id from edition where substr(edition_line, 1, ?) = ?').all(series.length, series) as KeyRow[]).filter(
+    type KeyRow = Pick<EditionRow, 'isbn' | 'edition_line' | 'bnf_id' | 'volumes'>;
+    const ofKey = (db.prepare('select isbn, edition_line, bnf_id, volumes from edition where substr(edition_line, 1, ?) = ?').all(series.length, series) as KeyRow[]).filter(
       (row) => samePrefix(row.edition_line!, prefix) && lineHeight(row.edition_line!) === height,
     );
     // A group keeps the key it has already, under either name of the publisher.
@@ -558,18 +564,24 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       return group ? (keyOf.get(group) ?? lineKey(prefix, height, group)) : line;
     };
     const byIsbn = new Map(ofKind.map((each) => [each.isbn, each]));
-    for (const row of ofKey) {
-      const found = byIsbn.get(row.isbn);
-      const record = found ? recordOf(found) : (row.bnf_id ?? undefined);
+    const movedTo = (row: KeyRow, found: Listed | undefined, record: string | undefined) => {
+      const otherKind = !found && record && omnibus(row.volumes ? (JSON.parse(row.volumes) as number[]) : []) !== omnibus(anchor.volumes);
+      if (otherKind) return row.edition_line === line ? lineFor(undefined) : row.edition_line!;
       const current = lineRecord(row.edition_line!);
-      const moved = found || (record && groups.has(record)) || !current || !groupIds.has(current) ? lineFor(record) : row.edition_line!;
-      db.prepare('update edition set edition_line = ?, year = coalesce(?, year), bnf_id = coalesce(?, bnf_id) where isbn = ?').run(
-        moved,
-        found?.year ?? null,
-        record ?? null,
-        row.isbn,
-      );
-    }
+      return found || (record && groups.has(record)) || !current || !groupIds.has(current) ? lineFor(record) : row.edition_line!;
+    };
+    const move = () => {
+      for (const row of ofKey) {
+        const found = byIsbn.get(row.isbn);
+        const record = found ? recordOf(found) : (row.bnf_id ?? undefined);
+        db.prepare('update edition set edition_line = ?, year = coalesce(?, year), bnf_id = coalesce(?, bnf_id) where isbn = ?').run(
+          movedTo(row, found, record),
+          found?.year ?? null,
+          record ?? null,
+          row.isbn,
+        );
+      }
+    };
 
     // One Edition per Volume or omnibus range ("1-2" next to Volumes 1 and 2)
     // in each line: one in the largest record; in one record, the printing
@@ -603,39 +615,63 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     // One the Catalog has already wins, unless it is a printing of the same
     // record that the median year leaves out: then both stay. A Volume a
     // reader moved in counts; one moved out does not.
-    const added: { each: Listed; target: string }[] = [];
-    for (const [target, volumes] of picked) {
-      const stored = db.prepare(`select isbn, volume, volumes, bnf_id from ${shownEditions} where edition_line = ?`).all(target) as {
-        isbn: string;
-        volume: number | null;
-        volumes: string | null;
-        bnf_id: string | null;
-      }[];
-      for (const [volume, each] of volumes) {
-        const claims = stored.filter(
-          (row) =>
-            String(row.volumes ? (JSON.parse(row.volumes) as number[]) : row.volume === null ? [] : [row.volume]) === volume &&
-            !(byIsbn.has(row.isbn) && recordOf(each) && row.bnf_id === recordOf(each)),
-        );
-        if (!stored.some(({ isbn }) => isbn === each.isbn) && claims.length === 0) added.push({ each, target });
+    // The Editions move first; nothing is stored before Inventaire answers, so
+    // the moves are undone, then made again with the new Editions.
+    const added = undone(() => {
+      move();
+      const added: { each: Listed; target: string }[] = [];
+      for (const [target, volumes] of picked) {
+        const stored = db.prepare(`select isbn, volume, volumes, bnf_id from ${shownEditions} where edition_line = ?`).all(target) as {
+          isbn: string;
+          volume: number | null;
+          volumes: string | null;
+          bnf_id: string | null;
+        }[];
+        for (const [volume, each] of volumes) {
+          const claims = stored.filter(
+            (row) =>
+              String(row.volumes ? (JSON.parse(row.volumes) as number[]) : row.volume === null ? [] : [row.volume]) === volume &&
+              !(byIsbn.has(row.isbn) && recordOf(each) && row.bnf_id === recordOf(each)),
+          );
+          if (!stored.some(({ isbn }) => isbn === each.isbn) && claims.length === 0) added.push({ each, target });
+        }
       }
-    }
+      return added;
+    });
     let fromInventaire: Map<string, Facts>;
     try {
       fromInventaire = await inventaireEditions(options.fetch, added.map(({ each }) => each.isbn));
     } catch (error) {
       return fail(error);
     }
-    for (const { each, target } of added) {
-      const merged = merge(each.isbn, [each.facts, ...(fromInventaire.get(each.isbn) ? [fromInventaire.get(each.isbn)!] : [])]);
-      // The Series this Catalog gives it must be the line's; the size was checked above.
-      const edition = merged?.edition;
-      const editionPrefix = edition && prefixOf(edition);
-      if (merged && editionPrefix && samePrefix(target, editionPrefix)) store(merged.edition, merged.record, target);
-    }
-    for (const each of new Set([line, ...picked.keys()]))
-      db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(each, now().toISOString());
+    // Merging finds or makes the Series, in a transaction of its own.
+    const merged = added.map(({ each, target }) => ({
+      target,
+      found: merge(each.isbn, [each.facts, ...(fromInventaire.get(each.isbn) ? [fromInventaire.get(each.isbn)!] : [])]),
+    }));
+    inTransaction(db, () => {
+      move();
+      for (const { target, found } of merged) {
+        // The Series this Catalog gives it must be the line's; the size was checked above.
+        const editionPrefix = found && prefixOf(found.edition);
+        if (found && editionPrefix && samePrefix(target, editionPrefix)) write(found.edition, found.record, target);
+      }
+      dropSharedWorks(db, Number(series.slice(0, -1)));
+      for (const each of new Set([line, ...picked.keys()]))
+        db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(each, now().toISOString());
+    });
     failedAt.delete(line);
+  }
+
+  // What `run` gives, with every change it made to the Catalog file undone.
+  function undone<T>(run: () => T): T {
+    db.exec('savepoint undone');
+    try {
+      return run();
+    } finally {
+      db.exec('rollback to undone');
+      db.exec('release undone');
+    }
   }
 
   // A missing or unusable picture is not remembered: the next request asks again.
@@ -769,12 +805,16 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
         `insert or replace into series_correction (isbn, anchor, series, edition_line, volume, account, created_at)
           values (?, ?, ?, ?, ?, ?, ?)`,
       ).run(isbn, target!.anchor, target!.series, target!.line, correction.volume, account, now().toISOString());
+      dropSharedWorksOf(isbn);
     });
     return { found: toEdition(editionRow(isbn)!) };
   }
 
   function uncorrect(isbn: string): Edition | undefined {
-    db.prepare('delete from series_correction where isbn = ?').run(isbn);
+    inTransaction(db, () => {
+      db.prepare('delete from series_correction where isbn = ?').run(isbn);
+      dropSharedWorksOf(isbn);
+    });
     const row = editionRow(isbn);
     return row && toEdition(row);
   }

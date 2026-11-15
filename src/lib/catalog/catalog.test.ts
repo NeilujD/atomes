@@ -340,6 +340,15 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
     expect(volumes.filter((v) => v.volume !== null && v.volume <= 3).map((v) => v.volumes)).toEqual([[1], [1, 2, 3], [2], [3]]);
   });
 
+  test('an omnibus looked up before its single Volumes ends next to them too', async () => {
+    const { catalog } = setup();
+    await answerEdition(catalog, spyFamily1to3);
+
+    const volumes = await volumesOf(catalog, spyFamily16);
+
+    expect(volumes.filter((v) => v.volume !== null && v.volume <= 3).map((v) => v.volumes)).toEqual([[1], [1, 2, 3], [2], [3]]);
+  });
+
   test('BnF lists the omnibus Editions of an omnibus line, each once with all its Volumes', async () => {
     const { catalog } = setup();
 
@@ -693,6 +702,43 @@ describe('Overlapping BnF Series records are separate Edition Lines (ADR 0010, a
     expect(after.volumes.map((v) => v.volume)).toEqual(Array.from({ length: 21 }, (_, i) => i + 1));
     expect(after.volumes[0].isbn).toBe(followed);
     expect(names(after.lines)).toEqual(['Glénat 1993-2008', 'Glénat 2001-2004', 'Glénat 2003-2008']);
+  });
+
+  test('a fill from an omnibus leaves the single-Volume Edition Lines as they are', async () => {
+    const { catalog, file } = setup();
+    const before = await answerOf(catalog, dragonBall1993[2]);
+    // An omnibus "Tomes 1-2" in its own BnF Series record, looked up into the
+    // 1993 line (no Dragon Ball omnibus is recorded), and a week later.
+    const omnibus = '9782723400008';
+    const db = new DatabaseSync(file);
+    db.prepare(
+      `insert into edition (isbn, title, authors, publisher, language, format, work_id, work_title, series, volume, volumes,
+        edition_line, year, bnf_id, sources, fetched_at)
+      select ?, 'Dragon Ball, tomes 1-2', authors, publisher, language, format, 'isbn:' || ?, 'Dragon Ball, tomes 1-2', series, 1, '[1,2]',
+        edition_line, 1995, '99999999', sources, ? from edition where isbn = ?`,
+    ).run(omnibus, omnibus, new Date().toISOString(), before.lines[0].anchor);
+    db.exec('delete from line_fill');
+    db.close();
+
+    await answerOf(catalog, omnibus);
+
+    const after = await answerOf(catalog, dragonBall1993[2], signedOut);
+    expect(names(after.lines)).toEqual(names(before.lines));
+    expect((await answerOf(catalog, after.lines[1].anchor, signedOut)).volumes.map((v) => v.volume)).toEqual(Array.from({ length: 21 }, (_, i) => i + 1));
+  });
+
+  test('when Inventaire is down during a fill, no Edition moves to the line of its record and the sources rest for an hour', async () => {
+    const { catalog, reopen } = setup();
+    await answerEdition(catalog, dragonBall1993[2]);
+    const down = recordedFetch(['inventaire.io']);
+    const offline = reopen(down.fetch);
+
+    expect((await answerOf(offline, dragonBall1993[2])).volumes).toHaveLength(1);
+    const asked = down.calls.length;
+    await answerOf(offline, dragonBall1993[2]);
+
+    expect(asked).toBeGreaterThan(0);
+    expect(down.calls).toHaveLength(asked);
   });
 
   test('Naruto (Kana) stays one line', async () => {
@@ -1049,6 +1095,50 @@ describe('Series Correction (ADR 0017)', () => {
 
     expect(await edition(await answerEdition(catalog, horde))).toMatchObject({ series: linked, volume: 1, corrected: true });
     expect(catalog.lines(onePiece).map(({ anchor }) => anchor)).toContain(horde);
+  });
+
+  test('an omnibus moved with its Volume number kept keeps every Volume it holds; another number makes it one Volume', async () => {
+    const { catalog } = clocked();
+    await answerEdition(catalog, onePiece56);
+    await answerEdition(catalog, dragonBallSuper1to2);
+
+    const moved = await edition(await answerCorrect(catalog, dragonBallSuper1to2, { anchor: onePiece56, volume: 1 }, account));
+
+    expect(moved).toMatchObject({ volume: 1, volumes: [1, 2], corrected: true });
+    expect((await answerOf(catalog, onePiece56, signedOut)).volumes.find((v) => v.isbn === dragonBallSuper1to2)?.volumes).toEqual([1, 2]);
+    const renumbered = await edition(await answerCorrect(catalog, dragonBallSuper1to2, { anchor: onePiece56, volume: 3 }, account));
+    expect(renumbered).toMatchObject({ volume: 3, volumes: [3] });
+  });
+
+  // Dragon Ball 2 and 3 (1993): Inventaire gives them one Work (ADR 0010, amendment 2026-11-14).
+  const [volume2, volume3] = [dragonBall1993[2], dragonBall1993[3]];
+  const elsewhere = { title: 'Dragon Ball kanzenban', publisher: 'Glénat', language: 'fre', height: 18 };
+  const workOf = async (catalog: Catalog, isbn: string) => (await edition(await answerEdition(catalog, isbn))).work.id;
+
+  test('one Work per Volume number counts where readers see the Edition: out of the Series, then into it', async () => {
+    const { catalog } = clocked();
+    await answerEdition(catalog, volume2);
+    await answerCorrect(catalog, volume2, { newSeries: elsewhere, volume: 2 }, account);
+
+    // Volume 2 is no longer in the Series of Volume 3: Volume 3 keeps the Work.
+    expect(await workOf(catalog, volume3)).toBe(sharedWork);
+
+    await answerCorrect(catalog, volume3, { anchor: volume2, volume: 3 }, account);
+
+    expect(await workOf(catalog, volume2)).toBe(`isbn:${volume2}`);
+    expect(await workOf(catalog, volume3)).toBe(`isbn:${volume3}`);
+  });
+
+  test('one Work per Volume number counts again when a Correction goes "Back to the sources"', async () => {
+    const { catalog } = clocked();
+    await answerEdition(catalog, volume2);
+    await answerCorrect(catalog, volume2, { newSeries: elsewhere, volume: 2 }, account);
+    expect(await workOf(catalog, volume3)).toBe(sharedWork);
+
+    answerUncorrect(catalog, volume2);
+
+    expect(await workOf(catalog, volume2)).toBe(`isbn:${volume2}`);
+    expect(await workOf(catalog, volume3)).toBe(`isbn:${volume3}`);
   });
 
   test('when a source is down for a book the Catalog does not hold yet, the answer says so and nothing is kept', async () => {
