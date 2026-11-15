@@ -271,7 +271,7 @@ export function Library({ sources }: { sources: Sources }) {
       ) : listed ? (
         <LibraryList groups={listed.groups} />
       ) : mode === 'flow' ? (
-        <LibraryCoverFlow books={found.books} moved={moved} onMove={setMoved} />
+        <LibraryCoverFlow books={found.books} moved={moved} onMove={setMoved} wide={wide} />
       ) : (
         <ul class="library-grid">
           {found.books.map((book) => (

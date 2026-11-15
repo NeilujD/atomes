@@ -521,6 +521,98 @@ const t = translator(requestLanguage(Astro.request));
     }
   }
 
+  /* Phone (CORE-106): every cover in a strip the reader swipes. It snaps on a
+     cover, which comes to the front (src/islands/LibraryCoverFlow.tsx). The
+     spacers at each end let the first and the last cover reach the middle. */
+  .library-flow-strip {
+    display: flex;
+    gap: 12px;
+    overflow: auto hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .library-flow-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .library-flow-strip::before,
+  .library-flow-strip::after,
+  .library-flow-strip .library-flow-cover {
+    --cover: min(var(--flow-cover), (100cqh - var(--flow-room)) * 2 / 3);
+  }
+
+  .library-flow-strip::before,
+  .library-flow-strip::after {
+    content: '';
+    flex: none;
+    width: calc(50% - var(--cover) / 2 - 12px);
+  }
+
+  .library-flow-strip .library-flow-cover {
+    position: relative;
+    top: auto;
+    left: auto;
+    flex: none;
+    align-self: flex-start;
+    margin: 20px 0 0;
+    transform: none;
+    transition: none;
+    scroll-snap-align: center;
+  }
+
+  /* A tap on a side cover scrolls it to the middle. */
+  @media (prefers-reduced-motion: no-preference) {
+    .library-flow-strip {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* The covers on the sides turn as they leave the middle, as on desktop,
+     where the browser has scroll-driven animations (Chrome 115, Safari 26);
+     flat elsewhere, and with reduced motion. Turned, they take less room, so
+     they come closer: the next cover stands 3/4 of a cover from the middle,
+     as `--flow-near` on desktop. */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .library-flow-strip {
+        gap: 0;
+      }
+
+      .library-flow-strip::before,
+      .library-flow-strip::after {
+        width: calc(50% - var(--cover) * 3 / 8);
+      }
+
+      .library-flow-strip .library-flow-cover {
+        margin-inline: calc(var(--cover) / -8);
+        animation: library-flow-turn linear both;
+        animation-timeline: view(inline);
+      }
+    }
+  }
+
+  /* From the right edge of the strip to the left one; flat and on top in the middle. */
+  @keyframes library-flow-turn {
+    0%,
+    30% {
+      z-index: 0;
+      transform: perspective(1100px) rotateY(-58deg) scale(0.8);
+    }
+
+    50% {
+      z-index: 10;
+      transform: perspective(1100px) rotateY(0) scale(1);
+    }
+
+    70%,
+    100% {
+      z-index: 0;
+      transform: perspective(1100px) rotateY(58deg) scale(0.8);
+    }
+  }
+
   .library-flow-cover .library-flow-face {
     width: 100%;
     box-shadow:

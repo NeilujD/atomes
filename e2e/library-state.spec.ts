@@ -61,9 +61,9 @@ test('back from a Book, the Library keeps its search, filter, scroll and Cover f
   await toBookAndBack(page, book, 'browser');
   await asLeft();
 
-  // Cover flow, moved to book 12.
+  // Cover flow, swiped to book 12 (the phone strip, CORE-106).
   await page.getByRole('radio', { name: 'Cover flow' }).check();
-  await page.getByRole('slider', { name: 'Browse your Library' }).fill('12');
+  await page.locator('.library-flow-cover').nth(11).evaluate((cover) => cover.scrollIntoView({ inline: 'center', block: 'nearest' }));
   await expect(page.getByText('12 of 16', { exact: true })).toBeVisible();
   const front = page.locator('.library-flow-cover[aria-current="true"]');
 
