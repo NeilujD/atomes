@@ -384,6 +384,10 @@ export const fr: typeof en = {
   'library.any-series': 'Toutes les séries',
   'library.status': 'Statut de lecture',
   'library.all-statuses': 'Tous',
+  'library.ownership': 'Possédé ou non',
+  'library.all-owned': 'Tous',
+  'library.owned': 'Possédé',
+  'library.not-owned': 'Non possédé',
   'library.label': 'Étiquette',
   'library.all-labels': 'Toutes les étiquettes',
   'library.count': (shown, total, filtered) =>

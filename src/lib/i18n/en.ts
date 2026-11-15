@@ -383,6 +383,10 @@ export const en = {
   'library.any-series': 'Any Series',
   'library.status': 'Reading Status',
   'library.all-statuses': 'All',
+  'library.ownership': 'Owned or not',
+  'library.all-owned': 'All',
+  'library.owned': 'Owned',
+  'library.not-owned': 'Not owned',
   'library.label': 'Label',
   'library.all-labels': 'All Labels',
   'library.count': (shown: number, total: number, filtered: boolean) =>

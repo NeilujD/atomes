@@ -3,7 +3,7 @@
 // rules are tested in Node; src/islands/Library.tsx only renders them.
 import { compareText, t, type Language } from '../i18n/i18n';
 import { labelsAtoZ, type Label } from './label';
-import { bookPage, type Editions, type Library } from './model';
+import { bookPage, ownsWork, type Editions, type Library } from './model';
 import { statuses, type Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -17,6 +17,8 @@ export interface LibraryBook {
   // A path on the Atomes server.
   cover: string | null;
   status: Status;
+  // The reader has a Copy of it (ownsWork, model.ts); else it is here by its Reading Status only.
+  owned: boolean;
   // The keys of the Labels that list this Work.
   labels: string[];
   // Its first Copy, else its Reading Status for a Work the reader does not own.
@@ -45,6 +47,7 @@ export function libraryBooks(library: Library, editions: Editions, labels: Saved
       volume: page.volume,
       cover: page.cover,
       status: page.status,
+      owned: ownsWork(work, library),
       labels: labels.filter(({ value }) => value.works.includes(work)).map(({ rkey }) => rkey),
       addedAt: copies.length > 0 ? copies.reduce((first, each) => (each < first ? each : first)) : statusAt,
     };
@@ -65,9 +68,11 @@ export interface LibraryQuery {
   series: string | null;
   status: Status | null;
   label: string | null;
+  // true: owned only; false: not owned only (read with no Copy).
+  owned: boolean | null;
 }
 
-export const allBooks: LibraryQuery = { text: '', searchIn: 'all', sort: 'title', author: null, series: null, status: null, label: null };
+export const allBooks: LibraryQuery = { text: '', searchIn: 'all', sort: 'title', author: null, series: null, status: null, label: null, owned: null };
 
 // Clear all keeps the order the reader picked: it is not a filter.
 export function clearAll(query: LibraryQuery): LibraryQuery {
@@ -92,6 +97,7 @@ export interface Browsed {
   series: string[];
   // Each chip counts the books the other filters leave; null is "all".
   statuses: { status: Status | null; count: number }[];
+  owned: { owned: boolean | null; count: number }[];
   labels: { label: string | null; name: string; count: number }[];
 }
 
@@ -104,28 +110,34 @@ export function browse(books: LibraryBook[], labels: Saved<Label>[], asked: Libr
     return words.every((word) => found.includes(word));
   };
   // Every filter but `skip`, so a chip can count what choosing it would give.
-  const kept = (skip?: 'status' | 'label') =>
+  const kept = (skip?: 'status' | 'owned' | 'label') =>
     books.filter(
       (book) =>
         searched(book) &&
         (query.author === null || book.authors.includes(query.author)) &&
         (query.series === null || book.series === query.series) &&
         (skip === 'status' || query.status === null || book.status === query.status) &&
+        (skip === 'owned' || query.owned === null || book.owned === query.owned) &&
         (skip === 'label' || query.label === null || book.labels.includes(query.label)),
     );
 
   const forStatus = kept('status');
+  const forOwned = kept('owned');
   const forLabel = kept('label');
-  const { text, author, series, status, label } = query;
+  const { text, author, series, status, label, owned } = query;
   return {
     books: kept().sort(order(query.sort, compare)),
     total: books.length,
-    filtered: text.trim() !== '' || [author, series, status, label].some((each) => each !== null),
+    filtered: text.trim() !== '' || [author, series, status, label, owned].some((each) => each !== null),
     authors: [...new Set(books.flatMap((book) => book.authors))].sort(compare),
     series: [...new Set(books.flatMap((book) => book.series ?? []))].sort(compare),
     statuses: [null, ...statuses].map((each) => ({
       status: each,
       count: each === null ? forStatus.length : forStatus.filter((book) => book.status === each).length,
+    })),
+    owned: [null, true, false].map((each) => ({
+      owned: each,
+      count: each === null ? forOwned.length : forOwned.filter((book) => book.owned === each).length,
     })),
     labels: [
       { label: null, name: '', count: forLabel.length },

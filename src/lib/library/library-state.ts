@@ -35,6 +35,7 @@ export function savedLibraryState(saved: unknown): LibraryState {
       series: textOrNull(asked.series),
       status: oneOf<Status | null>(statuses, asked.status, null),
       label: textOrNull(asked.label),
+      owned: typeof asked.owned === 'boolean' ? asked.owned : null,
     },
     flow: Number.isInteger(moved.to) && (moved.to as number) >= 0 && typeof moved.works === 'string' ? { to: moved.to as number, works: moved.works } : undefined,
     scroll: { page: place(at.page), panel: place(at.panel) },

@@ -88,7 +88,7 @@ export function Home({ sources }: { sources: Sources }) {
     if (!library) return undefined;
     const books = libraryBooks(library, editions.current, []);
     return [
-      { id: 'home-owned-unread', title: t('home.owned-unread'), books: ownedUnread(books, library, pageLanguage()) },
+      { id: 'home-owned-unread', title: t('home.owned-unread'), books: ownedUnread(books, pageLanguage()) },
       { id: 'home-reading', title: t('home.reading'), books: readingNow(books, library, pageLanguage()) },
     ].filter((section) => section.books.length > 0);
   }, [library]);

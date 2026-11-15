@@ -20,8 +20,10 @@ export function LibraryCoverFlow({ books, moved, onMove }: { books: LibraryBook[
   const last = books.length - 1;
   const move = (to: number) => onMove(flowMove(books, to));
   const first = Math.max(0, position - nearby);
-  // "One Piece, Volume 9": the Volumes of a Series share its title.
-  const named = (each: LibraryBook) => [each.title, volumeLine(each)].filter(Boolean).join(', ');
+  // "One Piece, Volume 9": the Volumes of a Series share its title. A book
+  // read with no Copy says so, as its grey cover does.
+  const notOwned = (each: LibraryBook) => (each.owned ? '' : t('library.not-owned'));
+  const named = (each: LibraryBook) => [each.title, volumeLine(each), notOwned(each)].filter(Boolean).join(', ');
 
   return (
     <div class="library-flow">
@@ -32,7 +34,7 @@ export function LibraryCoverFlow({ books, moved, onMove }: { books: LibraryBook[
             // The covers on the sides are a shortcut for a pointer: the keyboard has Previous, Next and the slider.
             <a
               key={each.work}
-              class="library-flow-cover"
+              class={each.owned ? 'library-flow-cover' : 'library-flow-cover library-not-owned'}
               href={bookHref(each.work)}
               style={`--side: ${Math.sign(offset)}; --away: ${Math.abs(offset)}`}
               aria-current={offset === 0}
@@ -56,7 +58,7 @@ export function LibraryCoverFlow({ books, moved, onMove }: { books: LibraryBook[
           {book.title}
         </a>
         <span>{[volumeLine(book), book.volumeTitle].filter(Boolean).join(' · ')}</span>
-        <span class="library-flow-line">{[book.authors.join(', '), t(`status.${book.status}`)].filter(Boolean).join(' · ')}</span>
+        <span class="library-flow-line">{[book.authors.join(', '), t(`status.${book.status}`), notOwned(book)].filter(Boolean).join(' · ')}</span>
       </div>
 
       <div class="library-flow-controls">

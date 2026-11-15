@@ -61,14 +61,14 @@ function Row({ book }: { book: LibraryBook }) {
   const line = [volume, book.volumeTitle].filter(Boolean).join(' · ');
   return (
     <li>
-      <a class="library-row" href={bookHref(book.work)}>
+      <a class={book.owned ? 'library-row' : 'library-row library-not-owned'} href={bookHref(book.work)}>
         <Cover class="library-row-cover" src={book.cover} title={book.title} series={book.series} volumeTitle={book.volumeTitle} volume={volume} />
         <span class="library-row-main">
           <span class="library-row-title">{book.title}</span>
           {line && <span class="library-row-line">{line}</span>}
         </span>
         <span class="library-row-author">{book.authors.join(', ')}</span>
-        <span class="library-row-status">{t(`status.${book.status}`)}</span>
+        <span class="library-row-status">{[t(`status.${book.status}`), book.owned ? '' : t('library.not-owned')].filter(Boolean).join(' · ')}</span>
       </a>
     </li>
   );
