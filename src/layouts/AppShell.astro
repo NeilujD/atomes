@@ -636,7 +636,7 @@ const icons = appIcons(appEnvironment(process.env));
     animation: toast-in 180ms ease-out;
   }
 
-  /* No danger colour in the palette (ui-direction: colour roles): an error stands out by its weight and stays. */
+  /* An error stands out by its weight and stays; --danger is for actions that destroy, not errors (ui-direction: colour roles). */
   .toast[data-error] {
     border-color: var(--ink);
     font-weight: 500;
