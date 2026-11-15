@@ -31,6 +31,7 @@ const volume = (n: number, line: 'A' | 'B' = 'A', change: Partial<Edition> = {})
   series: blacksad,
   volumes: [n],
   volume: n,
+  year: (line === 'A' ? 2000 : 2010) + n,
   sources: ['BnF'],
   fetchedAt: '2026-11-06T10:00:00.000Z',
   ...change,
@@ -50,6 +51,11 @@ async function seriesPage(follow?: Follow['status'], editions: Edition[] = all, 
     open: () => Promise.resolve(space),
     volumes: (each) => Promise.resolve(lines.find((line) => line.some(({ isbn: one }) => one === each))),
     editions: (isbns) => Promise.resolve(new Map(editions.filter(({ isbn: one }) => isbns.includes(one)).map((each) => [each.isbn, each]))),
+    lines: () =>
+      Promise.resolve([
+        { anchor: lineA[0].isbn, publisher: 'Dargaud', first: 2001, last: 2005 },
+        { anchor: lineB[0].isbn, publisher: 'Dark Horse', first: 2011, last: 2015 },
+      ]),
   };
   render(<Series isbn={lineA[2].isbn} sources={sources} />);
   await screen.findByRole('heading', { name: 'Blacksad' });
@@ -108,9 +114,27 @@ describe('Series page', () => {
 
     await screen.findByText('From Volume 4');
     expect(follows()[0]).toMatchObject({ anchorIsbn: lineB[3].isbn, fromVolume: '4', status: 'following' });
-    expect(screen.getByText('Dark Horse · English')).toBeTruthy();
+    expect(screen.getByText('Dark Horse · 2011–2015')).toBeTruthy();
     // Volumes 1 to 3 stay in line A (Volume 2 still missing); 4 and 5 come from line B.
     await waitFor(() => expect([count('owned'), count('missing'), count('next')]).toEqual(['2', '1', '4']));
+  });
+
+  test('the page names the Edition Line by its publisher and years', async () => {
+    await seriesPage('following');
+
+    expect(screen.getByText('Dargaud · 2001–2005')).toBeTruthy();
+  });
+
+  test('the switch lists the other Edition Lines of the Series by name; picking one switches from its first Volume', async () => {
+    const { follows } = await seriesPage('following');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch Edition Line' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Dark Horse · 2011–2015' }));
+
+    await screen.findByText('Dark Horse · 2011–2015', { selector: '.series-tag' });
+    expect(follows()[0]).toEqual(expect.objectContaining({ anchorIsbn: lineB[0].isbn, status: 'following' }));
+    expect(follows()[0].fromVolume).toBeUndefined();
+    expect(screen.queryByRole('button', { name: 'Dargaud · 2001–2005' })).toBeNull();
   });
 
   test('switching refuses a book of the same Edition Line, next to the field', async () => {
@@ -127,7 +151,7 @@ describe('Series page', () => {
   test('a book of no Series says so', async () => {
     const { space } = memorySpace();
     const alone = volume(1, 'A', { series: null });
-    render(<Series isbn={alone.isbn} sources={{ open: () => Promise.resolve(space), volumes: () => Promise.resolve([alone]), editions: () => Promise.resolve(new Map()) }} />);
+    render(<Series isbn={alone.isbn} sources={{ open: () => Promise.resolve(space), volumes: () => Promise.resolve([alone]), editions: () => Promise.resolve(new Map()), lines: () => Promise.resolve([]) }} />);
 
     expect(await screen.findByText('The Catalog knows no Series for this book.')).toBeTruthy();
   });
@@ -162,6 +186,7 @@ describe('Volume sheet', () => {
 
     expect(sheet().getByRole('heading', { name: 'Blacksad' })).toBeTruthy();
     expect(sheet().getByText('Volume 2', { selector: 'p' })).toBeTruthy();
+    expect(sheet().getByText('Dargaud · 2001–2005')).toBeTruthy();
     expect(sheet().getByText('Not owned')).toBeTruthy();
     expect(sheet().getByRole('button', { name: 'I bought it' })).toBeTruthy();
     expect(sheet().getByRole('button', { name: 'Mark read' })).toBeTruthy();
@@ -239,6 +264,7 @@ describe('Series page after Series Onboarding', () => {
       open: () => Promise.resolve(space),
       volumes: () => Promise.resolve(lineA),
       editions: () => Promise.resolve(new Map()),
+      lines: () => Promise.resolve([]),
     };
     render(<Series isbn={lineA[2].isbn} sources={sources} />);
 

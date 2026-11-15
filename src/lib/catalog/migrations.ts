@@ -186,8 +186,24 @@ const oneWorkPerVolume: Step = (db) => {
   for (const { series } of rows) dropSharedWorks(db, series);
 };
 
+// Overlapping BnF Series records are separate Edition Lines, named by their
+// years (ADR 0010 amendment 2026-11-14, CORE-95): an Edition keeps its year
+// and its BnF Series record, and the Edition Line key ends with the record
+// that names the line (empty until a fill knows it). Which lines mix records
+// is not known before a fill, so every Edition Line fills again; the fill
+// gives the listed Editions their year and record, and moves them.
+const lineRecords: Step = (db) => {
+  db.exec(`
+    alter table edition add column year integer;
+    alter table edition add column bnf_id text;
+    update edition set edition_line = edition_line || '|'
+      where edition_line is not null and length(edition_line) - length(replace(edition_line, '|', '')) = 3;
+    delete from line_fill;
+  `);
+};
+
 // Add a step at the end; never edit or remove one.
-const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes, titleKeysWithoutSpaces, forgetFills, oneWorkPerVolume];
+const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes, titleKeysWithoutSpaces, forgetFills, oneWorkPerVolume, lineRecords];
 
 export function migrate(db: DatabaseSync): void {
   const { user_version: done } = db.prepare('pragma user_version').get() as { user_version: number };

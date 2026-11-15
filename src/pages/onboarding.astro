@@ -135,7 +135,8 @@ const steppers = [
   import { saveFollow } from '../lib/library/follow';
   import { t } from '../lib/i18n/i18n';
   import { loadLibrary, savedText, waitingCount, worstState } from '../lib/library/library';
-  import { editionLabel, type Library } from '../lib/library/model';
+  import { lineName } from '../lib/catalog/lines';
+  import { lineLabel, type Library } from '../lib/library/model';
   import { notNow } from '../lib/library/not-now';
   import {
     answer,
@@ -465,7 +466,7 @@ const steppers = [
     document.title = `${series} · Atomes`;
     heading.textContent = t('onboarding.heading-series', series);
     form.querySelector('[data-intro]')!.textContent = t('onboarding.intro', series, anchor.volumes);
-    const line = editionLabel(anchor);
+    const line = lineLabel(lineName(answered!.volumes));
     form.querySelector('[data-edition-line]')!.textContent = line
       ? t('onboarding.in-edition', line)
       : t('onboarding.in-added-edition');

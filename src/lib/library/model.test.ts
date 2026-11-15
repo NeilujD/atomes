@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
 import type { Copy } from './copy';
 import type { Loan } from './loan';
-import { bookIsbns, bookPage, isOwned, lend, ownsWork, returnLoans, statusChange, type Library } from './model';
+import { bookIsbns, bookPage, isOwned, lend, lineLabel, ownsWork, returnLoans, statusChange, type Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -333,3 +333,16 @@ function status(value: Status, finishedAt?: string): Saved<ReadingStatus> {
     value: { work, isbn: onePiece56.isbn, status: value, finishedAt, updatedAt: '2026-11-05T10:00:00.000Z' },
   };
 }
+
+describe('Edition Line name (glossary: Edition Line)', () => {
+  test('publisher and the years of its Editions, in the UI language', () => {
+    expect(lineLabel({ publisher: 'Glénat', first: 1993, last: 2000 }, 'en')).toBe('Glénat · 1993–2000');
+    expect(lineLabel({ publisher: 'Glénat', first: 1993, last: 2000 }, 'fr')).toBe('Glénat · 1993–2000');
+  });
+
+  test('one year once; no year known: the publisher only; no publisher: the years only', () => {
+    expect(lineLabel({ publisher: 'Kana', first: 2002, last: 2002 }, 'en')).toBe('Kana · 2002');
+    expect(lineLabel({ publisher: 'Kana', first: null, last: null }, 'en')).toBe('Kana');
+    expect(lineLabel({ publisher: null, first: 2002, last: 2010 }, 'en')).toBe('2002–2010');
+  });
+});

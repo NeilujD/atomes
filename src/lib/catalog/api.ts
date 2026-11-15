@@ -3,8 +3,9 @@
 // first check access (access.ts): a signed-out client over its limit gets 429.
 //
 // GET /api/catalog/editions/{isbn}          → 200 Edition, 400, 404, 429, 503
-// GET /api/catalog/editions/{isbn}/volumes  → 200 { series, volumes }: the
-//   known Volumes of the Edition Line of that (anchor) ISBN, by Volume number.
+// GET /api/catalog/editions/{isbn}/volumes  → 200 { series, volumes, lines }:
+//   the known Volumes of the Edition Line of that (anchor) ISBN, by Volume
+//   number, and every Edition Line of its Series, named (LineSummary).
 //   Only a signed-in reader starts a fill of the Edition Line.
 // GET /api/catalog/editions/{isbn}/cover    → 200 picture, 400, 404, 429, 503
 // GET /api/catalog/search?title=&publisher= → 200 SearchFound, 400, 401, 503:
@@ -34,7 +35,10 @@ export const answerEdition = (catalog: Catalog, isbn: string | undefined) =>
   withEdition(catalog, isbn, (edition) => json(200, edition));
 
 export const answerVolumes = (catalog: Catalog, isbn: string | undefined, options: { fill: boolean }) =>
-  withEdition(catalog, isbn, async (edition) => json(200, { series: edition.series, volumes: await catalog.volumes(edition, options) }));
+  withEdition(catalog, isbn, async (edition) => {
+    const volumes = await catalog.volumes(edition, options);
+    return json(200, { series: edition.series, volumes, lines: catalog.lines(edition) });
+  });
 
 export async function answerCover(catalog: Catalog, raw: string | undefined) {
   const isbn = parseIsbn(raw);

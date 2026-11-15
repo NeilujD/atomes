@@ -17,6 +17,8 @@ export interface Facts {
   series?: { id?: string; title?: string; bnfId?: string };
   // The Volumes of the Edition, in order: several for an omnibus.
   volumes?: number[];
+  // The year of publication of this printing.
+  year?: number;
 }
 
 // An omnibus holds a few Volumes: "1-2", "Tomes 1 à 3", "Tome 1 & 2", "T01 à T03".

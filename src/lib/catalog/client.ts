@@ -2,7 +2,7 @@
 // else (ADR 0001), except for an ISBN no source knows: then the title and
 // publisher the reader typed, and the book they picked (ADR 0010, CORE-40).
 // Rejects like fetch when the Atomes server cannot be reached.
-import type { Choice, Edition, Lookup, SearchFound } from './catalog';
+import type { Choice, Edition, LineSummary, Lookup, SearchFound } from './catalog';
 
 // The cover of an Edition, served by the Atomes server (api.ts): the browser
 // never asks a book source, which would learn who looks at which book.
@@ -41,13 +41,16 @@ export async function lookupEditions(isbns: string[]): Promise<Map<string, Editi
 }
 
 // The Volumes the Catalog knows in the Edition Line of `isbn` (its anchor
-// Edition first looked up), by Volume number. Undefined when the Catalog does
-// not know the ISBN or cannot answer.
-export async function lookupVolumes(isbn: string): Promise<{ series: Edition['series']; volumes: Edition[] } | undefined> {
+// Edition first looked up), by Volume number, and every Edition Line of its
+// Series (none in an answer kept from before CORE-95). Undefined when the
+// Catalog does not know the ISBN or cannot answer.
+export async function lookupVolumes(
+  isbn: string,
+): Promise<{ series: Edition['series']; volumes: Edition[]; lines: LineSummary[] } | undefined> {
   const response = await fetch(volumesPath(isbn));
   if (!response.ok) return undefined;
-  const answer = (await response.json()) as { series: Edition['series']; volumes: Answered[] };
-  return { series: answer.series, volumes: answer.volumes.map(withVolumes) };
+  const answer = (await response.json()) as { series: Edition['series']; volumes: Answered[]; lines?: LineSummary[] };
+  return { series: answer.series, volumes: answer.volumes.map(withVolumes), lines: answer.lines ?? [] };
 }
 
 export type SearchAnswer = { found: SearchFound } | { signedOut: true } | { unavailable: true };
