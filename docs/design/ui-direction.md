@@ -90,7 +90,7 @@ Before a screen is built, check that its view type works in the frame, in light,
 | --- | --- | --- |
 | Cover grid | Library (Grid), Home "Owned, not read yet" | Covers on the panel in both themes; cover edge visible. |
 | List with groups | Library (List), New & upcoming, To Buy | Letter headers as list groups. Library (List): with 20 books or more, the A to Z index of the letters with books is a row of the toolbar on desktop and a rail on the right edge on the phone. |
-| Cover flow | Library (Cover flow) | Full panel width; toolbar stays visible. |
+| Cover flow | Library (Cover flow) | Full panel width; toolbar stays visible. Phone: a strip the reader swipes; the covers on the sides turn and stack as on desktop, from a transform set as the strip scrolls (every browser, no scroll-driven animation). |
 | Detail | Book, Series | Large title in content; spine row legible in high contrast. |
 | Camera | Shelf Check, Quick Add (scan built: modal `<dialog>` in `src/pages/check.astro`, reader in `src/lib/scan/barcode.ts`) | Full screen on the phone (no tab bar); a card on desktop; colours not themed (`--camera`, `--camera-ink`); Close and "Type the ISBN" always reachable. The frame shows the reader's state: starting (dim), looking (a line sweeps; after 8 s a distance and light tip), wrong barcode (dashed, one shake, the reason), found (check mark and the ISBN for 0.6 s, a short vibration where supported). No motion with reduced motion. |
 | Flow | Sign in (`AppShell flow`, `src/pages/sign-in.astro`), Series Onboarding | No sidebar or tab bar; one action per step; content centred (a card on desktop). The mark is the progress: books lift while working, a book lands in the empty slot when done; no motion with reduced motion. |

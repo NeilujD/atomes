@@ -80,6 +80,21 @@ describe('When Series Onboarding starts', () => {
     expect(noOnboarding(volume(1), library({ follows: [followOf(status)] }))).toBe(why);
   });
 
+  test('followed from Check a book before any Volume was added: the flow starts', () => {
+    expect(noOnboarding(volume(1), library({ follows: [followOf('following')] }), volumes)).toBeUndefined();
+  });
+
+  test.each<[string, Partial<Library>]>([
+    ['a Copy', { copies: [copyOf(3)] }],
+    ['a Reading Status', { readingStatuses: [readOf(2)] }],
+  ])('followed, and another Volume of the Edition Line has %s: no flow', (_, before) => {
+    expect(noOnboarding(volume(1), library({ follows: [followOf('following')], ...before }), volumes)).toBe('followed');
+  });
+
+  test('dropped with no Volume in the Library: still no flow, the reader said no', () => {
+    expect(noOnboarding(volume(1), library({ follows: [followOf('dropped')] }), volumes)).toBe('dropped');
+  });
+
   test.each<[string, Partial<Edition>]>([
     ['no Series', { series: null }],
     ['no Volume number', { volumes: [], volume: null }],

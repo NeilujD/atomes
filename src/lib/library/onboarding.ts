@@ -67,14 +67,19 @@ export interface OnboardingSave {
 // is the Library before the Copy of `added` was saved: the flow is for a
 // Series with no follow record (following or dropped) under any of its
 // identifiers. Its Volumes already in the Library show as kept in the flow.
+// A follow made before any Volume was in the Library (Follow on Check a book)
+// told nothing about the Volumes owned: with `line`, the reader's Edition
+// Line, the flow still starts then.
 export type NoOnboarding = 'no-series' | 'followed' | 'dropped';
 
-export function noOnboarding(added: Edition, before: Library): NoOnboarding | undefined {
+export function noOnboarding(added: Edition, before: Library, line?: Edition[]): NoOnboarding | undefined {
   const series = added.series;
   if (!series || added.volume === null) return 'no-series';
   const follow = before.follows.find(({ rkey }) => isSeries(series, rkey));
-  if (follow) return follow.value.status === 'dropped' ? 'dropped' : 'followed';
-  return undefined;
+  if (!follow) return undefined;
+  if (follow.value.status === 'dropped') return 'dropped';
+  const { copies, readingStatuses } = seriesRecords(series, line ?? [], before);
+  return line && copies.length + readingStatuses.length === 0 ? undefined : 'followed';
 }
 
 // The records of one Series in the Library: Copies and Reading Statuses of its

@@ -8,7 +8,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 import { t } from '../lib/i18n/i18n';
 import { volumeLine, type LibraryBook } from '../lib/library/browse';
-import { flowMove, flowNearest, flowPosition, type FlowMove } from '../lib/library/flow';
+import { flowMove, flowNearest, flowPosition, flowStand, type FlowMove } from '../lib/library/flow';
 import { bookHref } from '../lib/library/model';
 import { Cover } from './Cover';
 
@@ -16,6 +16,8 @@ import { Cover } from './Cover';
 const nearby = 4;
 // Phone: a swipe has ended once the strip has not scrolled for this long.
 const settleMs = 100;
+// How far a cover on the side turns, as on desktop (src/pages/library.astro).
+const turnDeg = 58;
 
 export function LibraryCoverFlow({ books, moved, onMove, wide }: { books: LibraryBook[]; moved: FlowMove | undefined; onMove: (moved: FlowMove) => void; wide: boolean }) {
   const position = flowPosition(books, moved);
@@ -94,10 +96,28 @@ function nearest(strip: HTMLElement): number {
   return flowNearest(middles, strip.scrollLeft + strip.clientWidth / 2);
 }
 
+// Phone: each cover turns and stacks by how far it is from the middle of the
+// strip, as the reader swipes (src/lib/library/flow.ts). The transform is on
+// the face, not on the link: the link is the snap target, and WebKit snaps on
+// the transformed box. A tap lands on the face the reader sees (library.astro).
+function stand(strip: HTMLElement) {
+  const middle = strip.scrollLeft + strip.clientWidth / 2;
+  const covers = [...strip.children] as HTMLElement[];
+  const step = covers.length > 1 ? covers[1].offsetLeft - covers[0].offsetLeft : 1;
+  for (const cover of covers) {
+    const width = cover.offsetWidth;
+    const offset = (cover.offsetLeft + width / 2 - middle) / step;
+    const { shift, turn, scale } = flowStand(offset);
+    (cover.firstElementChild as HTMLElement).style.transform = `translateX(${(shift * width - offset * step).toFixed(1)}px) perspective(1100px) rotateY(${(-turn * turnDeg).toFixed(1)}deg) scale(${scale.toFixed(3)})`;
+    cover.style.zIndex = String(1000 - Math.round(Math.abs(offset) * 10));
+  }
+}
+
 // Phone: the strip scrolls to the cover in front (at once when it is drawn,
 // so the way back from a Book and the cover flight find it in sight; then as
-// the browser scrolls, smooth unless the reader asks for less motion), and the
-// cover it snaps on after a swipe comes to the front.
+// the browser scrolls, smooth unless the reader asks for less motion), the
+// covers turn as it scrolls, and the cover it snaps on after a swipe comes to
+// the front.
 function useStrip(wide: boolean, position: number, count: number, snapped: (to: number) => void) {
   const strip = useRef<HTMLDivElement>(null);
   const drawn = useRef(false);
@@ -118,11 +138,19 @@ function useStrip(wide: boolean, position: number, count: number, snapped: (to: 
     // Not on every render: a Library read again during a swipe must not pull the strip back.
   }, [wide, position, count]);
 
+  // After every render: other books can stand in the same places.
+  useLayoutEffect(() => {
+    if (!wide && strip.current) stand(strip.current);
+  });
+
   useEffect(() => {
     const element = strip.current;
     if (wide || !element) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let frame = 0;
     const settle = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => stand(element));
       clearTimeout(timer);
       timer = setTimeout(() => {
         const to = nearest(element);
@@ -130,8 +158,13 @@ function useStrip(wide: boolean, position: number, count: number, snapped: (to: 
       }, settleMs);
     };
     element.addEventListener('scroll', settle, { passive: true });
+    // A turned phone or a new width: the covers change size.
+    const resized = new ResizeObserver(() => stand(element));
+    resized.observe(element);
     return () => {
       clearTimeout(timer);
+      cancelAnimationFrame(frame);
+      resized.disconnect();
       element.removeEventListener('scroll', settle);
     };
   }, [wide]);

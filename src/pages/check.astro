@@ -528,8 +528,11 @@ const answers = [
 
       // A Series with no follow: ask which other Volumes the reader has. Series
       // Onboarding asks the Catalog for them. Only after a sent save: offline
-      // or refused, the Copy is enough.
-      const why = state === 'sent' && current.edition ? noOnboarding(current.edition, library) : 'no-series';
+      // or refused, the Copy is enough. A followed Series with no Volume in
+      // the Library yet (Follow tapped before Add) still asks.
+      const anchor = followedLine(current.edition, library);
+      const line = state === 'sent' && anchor ? await editionLine(anchor) : undefined;
+      const why = state === 'sent' && current.edition ? noOnboarding(current.edition, library, line) : 'no-series';
       if (why === undefined) {
         location.assign(`/onboarding?isbn=${isbn}`);
         return 'leave';

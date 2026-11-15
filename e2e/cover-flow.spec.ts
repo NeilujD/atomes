@@ -46,7 +46,8 @@ test('swipe through the covers: the strip snaps on a cover, which comes to the f
     .toBeLessThanOrEqual(1);
 
   // A tap on the cover on the left side brings it to the front, and keeps the Library page.
-  await covers.nth(8).click();
+  // The face of a side cover turns and stacks; the reader taps what they see.
+  await covers.nth(8).locator('.library-flow-face').click();
   await expect(page.getByText('9 of 16', { exact: true })).toBeVisible();
   await expect(covers.nth(8)).toHaveAttribute('aria-current', 'true');
   await expect(page).toHaveURL(/\/library$/);

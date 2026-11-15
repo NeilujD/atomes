@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { flowMove, flowNearest, flowPosition } from './flow';
+import { flowMove, flowNearest, flowPosition, flowStand } from './flow';
 
 // Books known by their Work only: the flow needs no more.
 const books = (...works: string[]) => works.map((work) => ({ work }));
@@ -44,5 +44,25 @@ describe('Which cover a swipe stops on (phone)', () => {
   test('past an end, the cover at that end', () => {
     expect(flowNearest(middles, -80)).toBe(0);
     expect(flowNearest(middles, 900)).toBe(3);
+  });
+});
+
+describe('How a cover stands in the phone strip', () => {
+  test('in front: flat, in the middle, full size', () => {
+    expect(flowStand(0)).toEqual({ shift: 0, turn: 0, scale: 1 });
+  });
+
+  test('the next cover on each side: turned, 3/4 of a cover away, smaller', () => {
+    expect(flowStand(1)).toEqual({ shift: 0.75, turn: 1, scale: 0.8 });
+    expect(flowStand(-1)).toEqual({ shift: -0.75, turn: -1, scale: 0.8 });
+  });
+
+  test('the covers after it stack 1/5 of a cover apart, as on desktop', () => {
+    expect(flowStand(3).shift).toBeCloseTo(1.15);
+    expect(flowStand(-3).shift).toBeCloseTo(-1.15);
+  });
+
+  test('half way through a swipe: half turned', () => {
+    expect(flowStand(0.5)).toEqual({ shift: 0.375, turn: 0.5, scale: 0.9 });
   });
 });

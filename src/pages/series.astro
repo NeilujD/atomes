@@ -244,12 +244,14 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     font-size: 15px;
   }
 
-  /* The ranges read as one line of text, in normal weight: "1–12, 13, 14–55". */
+  /* The ranges read as one line of text, in normal weight: "1–12, 13, 14–55".
+     On many lines, a gap between them: the hatched Volumes do not touch. */
   .series-missing-list {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    margin: 4px 0;
+    gap: 8px 0;
+    margin: 6px 0 8px;
     padding: 0;
     list-style: none;
   }

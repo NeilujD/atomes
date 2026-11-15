@@ -34,3 +34,15 @@ export function flowNearest(middles: number[], middle: number): number {
   });
   return nearest;
 }
+
+// Phone: how a cover stands when its middle is `offset` covers from the middle
+// of the strip (a fraction while the strip scrolls). As on desktop: flat in
+// front; the next cover turned and 3/4 of a cover away; the ones after
+// stacked 1/5 of a cover apart. `shift`: where it stands, in cover widths
+// from the middle; `turn`: -1 turned to the left edge, 1 to the right one.
+export function flowStand(offset: number): { shift: number; turn: number; scale: number } {
+  const away = Math.abs(offset);
+  const side = Math.sign(offset);
+  const near = Math.min(away, 1);
+  return { shift: side * (away <= 1 ? away * 0.75 : 0.75 + (away - 1) * 0.2), turn: side * near, scale: 1 - 0.2 * near };
+}
