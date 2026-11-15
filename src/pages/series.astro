@@ -3,6 +3,8 @@
 // Line, stop following; each spine opens a Volume sheet (src/islands/Series.tsx). `?isbn=<an Edition of the
 // Series>` (seriesHref). Rendered on the device: it reads the Library.
 import AppShell from '../layouts/AppShell.astro';
+import '../styles/correction.css';
+import '../styles/selection.css';
 import Series, { SeriesSkeleton } from '../islands/Series';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 

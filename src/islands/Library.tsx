@@ -2,7 +2,8 @@
 // (LibraryList.tsx) or Cover flow (LibraryCoverFlow.tsx), under one toolbar
 // (search, Search in, Sort, filters, count, Clear all, the Books / Series
 // switch and the mode switch, one icon on the phone).
-// On the phone the controls open in a sheet.
+// On the phone the controls open in a sheet. "Select" starts bulk select
+// (src/islands/Selection.tsx): a tap picks a book instead of opening it.
 // The rules are in src/lib/library/browse.ts; this file only renders them.
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -18,7 +19,7 @@ import { letterGroups } from '../lib/library/letters';
 import { loadLibrary, waitingCount } from '../lib/library/library';
 import { savedLibraryState, type LibraryState } from '../lib/library/library-state';
 import { groupings, modes, readGrouping, readMode, saveGrouping, saveMode, type Grouping, type Mode } from '../lib/library/mode';
-import { bookHref, type Library as LibraryRecords } from '../lib/library/model';
+import { bookHref, bookIsbns, workEdition, type Library as LibraryRecords } from '../lib/library/model';
 import type { Saved } from '../lib/library/records';
 import { seriesHref } from '../lib/library/series';
 import { librarySeries, seriesCards, type LibrarySeries } from '../lib/library/series-mode';
@@ -29,17 +30,20 @@ import { toast } from '../lib/toast';
 import { Cover } from './Cover';
 import { LibraryCoverFlow } from './LibraryCoverFlow';
 import { LetterIndex, LibraryList } from './LibraryList';
+import { liveSelection, SelectionBar, type PickedBook, type SelectionSources } from './Selection';
 
 // Where the screen reads from: the reader's Library store and the Catalog.
 export interface Sources {
   // Undefined when signed out.
   open(): Promise<Space | undefined>;
   editions(isbns: string[]): Promise<Map<string, Edition>>;
+  selection?: SelectionSources;
 }
 
 const live: Sources = {
   open: async () => (await openOwnSpace())?.space,
   editions: lookupEditions,
+  selection: liveSelection,
 };
 
 export default function LibraryIsland() {
@@ -72,6 +76,11 @@ export function Library({ sources }: { sources: Sources }) {
   // Catalog answers kept for this visit, so an offline reload keeps the titles.
   const editions = useRef(new Map<string, Edition>());
   const loaded = useRef(false);
+  const space = useRef<Space | undefined>(undefined);
+  const listing = useRef<{ refresh: () => Promise<void> } | undefined>(undefined);
+  // Bulk select: on or off, and the Works picked, in the order of the taps.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
 
   useEffect(() => {
     // No network: the connection status says it, and the listing tries again.
@@ -86,7 +95,8 @@ export function Library({ sources }: { sources: Sources }) {
       const own = await sources.open();
       // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
       if (!own) return;
-      const listing = freshListing(
+      space.current = own;
+      listing.current = freshListing(
         async () => {
           const [records, labels] = await Promise.all([loadLibrary(own), listLabels(own)]);
           await askCatalog(records.library);
@@ -102,7 +112,7 @@ export function Library({ sources }: { sources: Sources }) {
         },
         fail,
       );
-      await listing.refresh();
+      await listing.current.refresh();
     }
 
     // The Editions of the Copies and Reading Statuses, when not asked yet. One
@@ -215,6 +225,18 @@ export function Library({ sources }: { sources: Sources }) {
   };
   const groupingSwitch = <Segmented name="library-grouping" label={t('library.grouping')} choices={groupings} chosen={grouping} text={(each) => t(`library.grouping.${each}`)} onChange={group} />;
   const cards = grouping === 'series' && seriesCards(found.books, series, query.sort, pageLanguage());
+  const pick = (work: string) => setSelected(selected.includes(work) ? selected.filter((each) => each !== work) : [...selected, work]);
+  const picked = selected.map((work): PickedBook => ({ work, isbn: bookIsbns(work, read.library)[0] ?? '', edition: workEdition(work, read.library, editions.current) }));
+  // After Move to Series: the Catalog's new answers, so the books show their new Series.
+  const afterSave = async (moved: Edition[] = []) => {
+    for (const edition of moved) editions.current.set(edition.isbn, edition);
+    await listing.current?.refresh();
+  };
+  const selectButton = !selecting && (
+    <button class="button button-quiet library-select" type="button" onClick={() => setSelecting(true)}>
+      {t('select.start')}
+    </button>
+  );
 
   return (
     <div class="library">
@@ -241,11 +263,13 @@ export function Library({ sources }: { sources: Sources }) {
               {count}
               {clearButton}
               {modeSwitch}
+              {selectButton}
             </>
           ) : (
             <>
               <Sheet query={query} found={found} change={change} />
               {modeSwitch}
+              {selectButton}
             </>
           )}
         </div>
@@ -267,6 +291,13 @@ export function Library({ sources }: { sources: Sources }) {
             {t('library.clear-all')}
           </button>
         </div>
+      ) : selecting ? (
+        // Bulk select: the books the filter shows, in a grid whatever the mode, each a toggle.
+        <ul class="library-grid">
+          {found.books.map((book) => (
+            <Book key={book.work} book={book} picked={selected.includes(book.work)} onPick={() => pick(book.work)} />
+          ))}
+        </ul>
       ) : cards ? (
         <ul class="library-grid">
           {cards.map((card) => ('series' in card ? <SeriesCard key={`series ${card.series.cover.isbn}`} series={card.series} /> : <Book key={card.book.work} book={card.book} />))}
@@ -281,6 +312,20 @@ export function Library({ sources }: { sources: Sources }) {
             <Book key={book.work} book={book} />
           ))}
         </ul>
+      )}
+      {selecting && space.current && (
+        <SelectionBar
+          picked={picked}
+          onAll={() => setSelected([...new Set([...selected, ...found.books.map(({ work }) => work)])])}
+          onDone={() => {
+            setSelecting(false);
+            setSelected([]);
+          }}
+          space={space.current}
+          library={read.library}
+          onSaved={afterSave}
+          sources={sources.selection ?? liveSelection}
+        />
       )}
     </div>
   );
@@ -487,18 +532,31 @@ const modeIcons: Record<Mode, ComponentChildren> = {
   ),
 };
 
-function Book({ book }: { book: LibraryBook }) {
+// In bulk select (`onPick`), a toggle that picks the book instead of a link to it.
+function Book({ book, picked, onPick }: { book: LibraryBook; picked?: boolean; onPick?: () => void }) {
   const volume = volumeLine(book);
   const line = [volume, book.authors.join(', ')].filter(Boolean).join(' · ');
+  // Read with no Copy: a grey cover and a quiet mark (CORE-100), no colour role.
+  const name = book.owned ? 'library-book' : 'library-book library-not-owned';
+  const content = (
+    <>
+      <Cover class="library-cover" src={book.cover} title={book.title} series={book.series} volumeTitle={book.volumeTitle} volume={volume} />
+      <span class="library-book-title">{book.title}</span>
+      {line && <span class="library-book-line">{line}</span>}
+      {!book.owned && <span class="library-book-line">{t('library.not-owned')}</span>}
+    </>
+  );
   return (
     <li>
-      {/* Read with no Copy: a grey cover and a quiet mark (CORE-100), no colour role. */}
-      <a class={book.owned ? 'library-book' : 'library-book library-not-owned'} href={bookHref(book.work)}>
-        <Cover class="library-cover" src={book.cover} title={book.title} series={book.series} volumeTitle={book.volumeTitle} volume={volume} />
-        <span class="library-book-title">{book.title}</span>
-        {line && <span class="library-book-line">{line}</span>}
-        {!book.owned && <span class="library-book-line">{t('library.not-owned')}</span>}
-      </a>
+      {onPick ? (
+        <button class={`${name} library-pick`} type="button" aria-pressed={picked} onClick={onPick}>
+          {content}
+        </button>
+      ) : (
+        <a class={name} href={bookHref(book.work)}>
+          {content}
+        </a>
+      )}
     </li>
   );
 }

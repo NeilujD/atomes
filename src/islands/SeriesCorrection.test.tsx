@@ -47,7 +47,7 @@ function screenFor(shown: Edition = edition, answer: CorrectionAnswer = { found:
       return Promise.resolve({ found: edition });
     },
   };
-  render(<SeriesCorrection edition={shown} onCorrected={(next) => (result.corrected = next)} sources={sources} />);
+  render(<SeriesCorrection editions={[shown]} onCorrected={([next]) => (result.corrected = next)} sources={sources} />);
   return { searched, corrections, uncorrected, result };
 }
 
@@ -131,5 +131,59 @@ describe('Series Correction sheet (Book page)', () => {
 
     expect(await sheet().findByText(text)).toBeTruthy();
     expect(result.corrected).toBeUndefined();
+  });
+});
+
+describe('Move to Series (bulk select)', () => {
+  const unnumbered = { ...edition, isbn: '9782723456746', title: 'Dragon Ball, hors-série', volume: null, volumes: [] } as Edition;
+
+  function bulkFor(editions: Edition[]) {
+    const corrections: [string, Correction][] = [];
+    const result = { found: undefined as Edition[] | undefined };
+    const sources: Sources = {
+      find: () => Promise.resolve({ found }),
+      correct: (isbn, correction) => {
+        corrections.push([isbn, correction]);
+        return Promise.resolve({ found: { ...editions.find((each) => each.isbn === isbn)!, corrected: true } });
+      },
+      uncorrect: () => Promise.reject(new Error('not asked')),
+    };
+    render(<SeriesCorrection editions={editions} button="Move to Series" onCorrected={(next) => (result.found = next)} sources={sources} />);
+    return { corrections, result };
+  }
+
+  test('a known Volume number stays: the sheet asks only for the missing one', async () => {
+    const { corrections, result } = bulkFor([edition, unnumbered]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Series' }));
+    fireEvent.click(sheet().getByRole('button', { name: 'Search' }));
+    fireEvent.click(await sheet().findByRole('button', { name: 'Dragon Ball' }));
+    fireEvent.click(sheet().getByRole('radio', { name: 'Glénat · 2003–2008' }));
+    expect(sheet().queryByLabelText('Volume number of Dragon Ball 41')).toBeNull();
+    fireEvent.input(sheet().getByLabelText('Volume number of Dragon Ball, hors-série'), { target: { value: '42' } });
+    fireEvent.click(sheet().getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(result.found).toHaveLength(2));
+    expect(corrections).toEqual([
+      [dragonBall41, { anchor: '9782723448376', volume: 41 }],
+      ['9782723456746', { anchor: '9782723448376', volume: 42 }],
+    ]);
+    expect(screen.queryByRole('button', { name: 'Back to the sources' })).toBeNull();
+  });
+
+  test('into a New Series: the first book makes it, the others join it', async () => {
+    const { corrections } = bulkFor([edition, unnumbered]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Series' }));
+    fireEvent.click(sheet().getByRole('button', { name: 'New Series' }));
+    fireEvent.input(sheet().getByLabelText('Title of the Series'), { target: { value: 'Dragon Ball Z' } });
+    fireEvent.click(sheet().getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(corrections).toEqual([
+        [dragonBall41, { newSeries: { title: 'Dragon Ball Z', publisher: 'Glénat', language: 'fre', height: 18 }, volume: 41 }],
+        ['9782723456746', { anchor: dragonBall41, volume: null }],
+      ]),
+    );
   });
 });

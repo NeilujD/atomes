@@ -326,3 +326,35 @@ describe('Series page after Series Onboarding', () => {
     expect(takeAddedCopies(sessionStorage)).toBeUndefined();
   });
 });
+
+describe('Bulk select on the Series page', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  test('select spines, then set Read on their Works in one action: a tap picks a Volume, it opens no sheet', async () => {
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<div data-toasts></div>
+      <template data-toast-template>
+        <div data-toast><p data-toast-text></p><button type="button" data-toast-action hidden></button><button type="button" data-toast-close></button></div>
+      </template>`,
+    );
+    const page = await seriesPage('following');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Volume 2: not owned' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Volume 4: not owned' }));
+    expect(screen.getByText('2 selected')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Volume 2: not owned' }).getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reading Status' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Reading Status of 2 books' })).getByRole('button', { name: 'Read' }));
+
+    expect(await screen.findByText('Read: 2 books.')).toBeTruthy();
+    expect(page.statuses().filter(({ status }) => status === 'read').map(({ work }) => work)).toEqual([lineA[0].work.id, lineA[1].work.id, lineA[3].work.id]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
+    expect(screen.getByText('5 selected')).toBeTruthy();
+  });
+});

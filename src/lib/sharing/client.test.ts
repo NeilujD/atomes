@@ -33,6 +33,14 @@ test('keeps a Work Private with its identifier in the path', async () => {
   expect(asked[0][0]).toBe('/api/sharing/private-works/isbn%3A9782723478991');
 });
 
+test('keeps many Works Private in one PUT', async () => {
+  const { client, asked } = answering(200, state);
+
+  await client.setPrivateWorks(['wd:Q1', 'isbn:9782723478991'], true);
+  expect(asked[0][0]).toBe('/api/sharing/private-works');
+  expect(asked[0][1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ works: ['wd:Q1', 'isbn:9782723478991'], private: true }) });
+});
+
 test.each([
   [403, { error: 'NeedsConsent' }, { needsConsent: true }],
   [401, { error: 'SignedOut' }, { signedOut: true }],

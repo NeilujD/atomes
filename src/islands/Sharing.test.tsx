@@ -27,6 +27,7 @@ function fakeServer(start: SharingState = allPrivate) {
     load: () => answer(() => undefined),
     setShared: (category: Category, shared: boolean) => answer(() => (state = { ...state, shared: { ...state.shared, [category]: shared } })),
     setPrivate: () => answer(() => undefined),
+    setPrivateWorks: () => answer(() => undefined),
     sync: () =>
       answer(() => {
         server.synced += 1;

@@ -15,6 +15,8 @@ export interface SharingClient {
   load(): Promise<SharingAnswer>;
   setShared(category: Category, shared: boolean): Promise<SharingAnswer>;
   setPrivate(work: string, kept: boolean): Promise<SharingAnswer>;
+  // Many Works at once (bulk select).
+  setPrivateWorks(works: string[], kept: boolean): Promise<SharingAnswer>;
   // Tries the PDS again.
   sync(): Promise<SharingAnswer>;
 }
@@ -45,6 +47,7 @@ export function sharingClient(fetcher: Fetch = (input, init) => fetch(input, ini
     load: () => ask(''),
     setShared: (category, shared) => put(`/categories/${category}`, { shared }),
     setPrivate: (work, kept) => put(`/private-works/${encodeURIComponent(work)}`, { private: kept }),
+    setPrivateWorks: (works, kept) => put('/private-works', { works, private: kept }),
     sync: () => ask('/sync', { method: 'POST' }),
   };
 }

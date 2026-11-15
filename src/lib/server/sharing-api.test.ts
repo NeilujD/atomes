@@ -75,6 +75,16 @@ describe('the sharing API', () => {
     expect(await freed.json()).toMatchObject({ privateWorks: [] });
   });
 
+  test('keeps many Works Private in one request, and lets them go', async () => {
+    const works = ['wd:Q1', 'isbn:9782723478991'];
+    const kept = await call(owner, 'PUT', '/private-works', { works, private: true });
+    expect(kept.status).toBe(200);
+    expect(await kept.json()).toMatchObject({ privateWorks: ['isbn:9782723478991', 'wd:Q1'] });
+
+    const freed = await call(owner, 'PUT', '/private-works', { works, private: false });
+    expect(await freed.json()).toMatchObject({ privateWorks: [] });
+  });
+
   test('a Work kept Private while the PDS is down: the answer says pending, and the next GET removes it', async () => {
     await call(owner, 'PUT', '/categories/readingStatuses', { shared: true });
     pds.get(owner)!.network.online = false;
@@ -129,6 +139,11 @@ describe('the sharing API', () => {
     ['an unknown category', 'PUT', '/categories/copies', { shared: true }, 400],
     ['a body with no boolean', 'PUT', '/categories/labels', { shared: 'yes' }, 400],
     ['a Work that is not a Catalog identifier', 'PUT', '/private-works/not%20a%20work', { private: true }, 400],
+    ['a list with one bad Work', 'PUT', '/private-works', { works: ['wd:Q1', 'not a work'], private: true }, 400],
+    ['a list that is not an array', 'PUT', '/private-works', { works: 'wd:Q1', private: true }, 400],
+    ['an empty list', 'PUT', '/private-works', { works: [], private: true }, 400],
+    ['a list with no boolean', 'PUT', '/private-works', { works: ['wd:Q1'] }, 400],
+    ['a list of more than 1000 Works', 'PUT', '/private-works', { works: Array.from({ length: 1001 }, (_, at) => `wd:Q${at + 1}`), private: true }, 400],
     ['an unknown path', 'GET', '/everything', undefined, 404],
     ['a delete', 'DELETE', '/categories/labels', undefined, 405],
   ])('refuses %s', async (_, method, path, body, status) => {
