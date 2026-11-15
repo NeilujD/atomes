@@ -555,18 +555,20 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       return group ? (keyOf.get(group) ?? lineKey(prefix, height, group)) : line;
     };
     const byIsbn = new Map(ofKind.map((each) => [each.isbn, each]));
-    for (const row of ofKey) {
-      const found = byIsbn.get(row.isbn);
-      const record = found ? recordOf(found) : (row.bnf_id ?? undefined);
-      const current = lineRecord(row.edition_line!);
-      const moved = found || (record && groups.has(record)) || !current || !groupIds.has(current) ? lineFor(record) : row.edition_line!;
-      db.prepare('update edition set edition_line = ?, year = coalesce(?, year), bnf_id = coalesce(?, bnf_id) where isbn = ?').run(
-        moved,
-        found?.year ?? null,
-        record ?? null,
-        row.isbn,
-      );
-    }
+    const move = () => {
+      for (const row of ofKey) {
+        const found = byIsbn.get(row.isbn);
+        const record = found ? recordOf(found) : (row.bnf_id ?? undefined);
+        const current = lineRecord(row.edition_line!);
+        const moved = found || (record && groups.has(record)) || !current || !groupIds.has(current) ? lineFor(record) : row.edition_line!;
+        db.prepare('update edition set edition_line = ?, year = coalesce(?, year), bnf_id = coalesce(?, bnf_id) where isbn = ?').run(
+          moved,
+          found?.year ?? null,
+          record ?? null,
+          row.isbn,
+        );
+      }
+    };
 
     // One Edition per Volume or omnibus range ("1-2" next to Volumes 1 and 2)
     // in each line: one in the largest record; in one record, the printing
@@ -600,39 +602,62 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     // One the Catalog has already wins, unless it is a printing of the same
     // record that the median year leaves out: then both stay. A Volume a
     // reader moved in counts; one moved out does not.
-    const added: { each: Listed; target: string }[] = [];
-    for (const [target, volumes] of picked) {
-      const stored = db.prepare(`select isbn, volume, volumes, bnf_id from ${shownEditions} where edition_line = ?`).all(target) as {
-        isbn: string;
-        volume: number | null;
-        volumes: string | null;
-        bnf_id: string | null;
-      }[];
-      for (const [volume, each] of volumes) {
-        const claims = stored.filter(
-          (row) =>
-            String(row.volumes ? (JSON.parse(row.volumes) as number[]) : row.volume === null ? [] : [row.volume]) === volume &&
-            !(byIsbn.has(row.isbn) && recordOf(each) && row.bnf_id === recordOf(each)),
-        );
-        if (!stored.some(({ isbn }) => isbn === each.isbn) && claims.length === 0) added.push({ each, target });
+    // The Editions move first; nothing is stored before Inventaire answers, so
+    // the moves are undone, then made again with the new Editions.
+    const added = undone(() => {
+      move();
+      const added: { each: Listed; target: string }[] = [];
+      for (const [target, volumes] of picked) {
+        const stored = db.prepare(`select isbn, volume, volumes, bnf_id from ${shownEditions} where edition_line = ?`).all(target) as {
+          isbn: string;
+          volume: number | null;
+          volumes: string | null;
+          bnf_id: string | null;
+        }[];
+        for (const [volume, each] of volumes) {
+          const claims = stored.filter(
+            (row) =>
+              String(row.volumes ? (JSON.parse(row.volumes) as number[]) : row.volume === null ? [] : [row.volume]) === volume &&
+              !(byIsbn.has(row.isbn) && recordOf(each) && row.bnf_id === recordOf(each)),
+          );
+          if (!stored.some(({ isbn }) => isbn === each.isbn) && claims.length === 0) added.push({ each, target });
+        }
       }
-    }
+      return added;
+    });
     let fromInventaire: Map<string, Facts>;
     try {
       fromInventaire = await inventaireEditions(options.fetch, added.map(({ each }) => each.isbn));
     } catch (error) {
       return fail(error);
     }
-    for (const { each, target } of added) {
-      const merged = merge(each.isbn, [each.facts, ...(fromInventaire.get(each.isbn) ? [fromInventaire.get(each.isbn)!] : [])]);
-      // The Series this Catalog gives it must be the line's; the size was checked above.
-      const edition = merged?.edition;
-      const editionPrefix = edition && prefixOf(edition);
-      if (merged && editionPrefix && samePrefix(target, editionPrefix)) store(merged.edition, merged.record, target);
-    }
-    for (const each of new Set([line, ...picked.keys()]))
-      db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(each, now().toISOString());
+    // Merging finds or makes the Series, in a transaction of its own.
+    const merged = added.map(({ each, target }) => ({
+      target,
+      found: merge(each.isbn, [each.facts, ...(fromInventaire.get(each.isbn) ? [fromInventaire.get(each.isbn)!] : [])]),
+    }));
+    inTransaction(db, () => {
+      move();
+      for (const { target, found } of merged) {
+        // The Series this Catalog gives it must be the line's; the size was checked above.
+        const editionPrefix = found && prefixOf(found.edition);
+        if (found && editionPrefix && samePrefix(target, editionPrefix)) store(found.edition, found.record, target);
+      }
+      for (const each of new Set([line, ...picked.keys()]))
+        db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(each, now().toISOString());
+    });
     failedAt.delete(line);
+  }
+
+  // What `run` gives, with every change it made to the Catalog file undone.
+  function undone<T>(run: () => T): T {
+    db.exec('savepoint undone');
+    try {
+      return run();
+    } finally {
+      db.exec('rollback to undone');
+      db.exec('release undone');
+    }
   }
 
   // A missing or unusable picture is not remembered: the next request asks again.

@@ -695,6 +695,20 @@ describe('Overlapping BnF Series records are separate Edition Lines (ADR 0010, a
     expect(names(after.lines)).toEqual(['Glénat 1993-2008', 'Glénat 2001-2004', 'Glénat 2003-2008']);
   });
 
+  test('when Inventaire is down during a fill, no Edition moves to the line of its record and the sources rest for an hour', async () => {
+    const { catalog, reopen } = setup();
+    await answerEdition(catalog, dragonBall1993[2]);
+    const down = recordedFetch(['inventaire.io']);
+    const offline = reopen(down.fetch);
+
+    expect((await answerOf(offline, dragonBall1993[2])).volumes).toHaveLength(1);
+    const asked = down.calls.length;
+    await answerOf(offline, dragonBall1993[2]);
+
+    expect(asked).toBeGreaterThan(0);
+    expect(down.calls).toHaveLength(asked);
+  });
+
   test('Naruto (Kana) stays one line', async () => {
     const { volumes, lines } = await answerOf(setup().catalog, naruto1);
 
