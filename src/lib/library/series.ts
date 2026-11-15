@@ -93,7 +93,7 @@ export function earlierAnchor(follow: Follow, library: Library, line: Edition[],
   return before[0]?.isbn;
 }
 
-// filled = owned and read, outlined = owned not read, outlined with the read
+// filled = owned and read, outlined on a grey fill = owned not read, outlined with the read
 // mark = read not owned (borrowed, given away), dashed grey = not owned. A
 // Volume after the latest one owned looks like a Missing Volume; the counts
 // tell them apart. New and Upcoming Volumes (cobalt) need release dates the
@@ -116,8 +116,6 @@ export interface SeriesStanding {
   // Whole numbers before the latest Volume owned that the Catalog has no
   // Edition of: not missing (no ISBN to buy), shown apart.
   unknown: number[];
-  // The first Volume after the latest one owned that the Catalog knows; null when there is none.
-  next: number | null;
   spines: Spine[];
 }
 
@@ -127,13 +125,11 @@ export interface SeriesStanding {
 export function seriesStanding(volumes: Edition[], library: Library): SeriesStanding {
   const numbered = byVolume(volumes);
   const { owned, read } = ownedAndRead(numbered, library);
-  const latest = Math.max(0, ...owned);
   return {
     owned: owned.length,
     read: read.length,
     missing: missingVolumes(volumes, library),
     unknown: unknownVolumes(numbered, owned),
-    next: numbered.find(([volume]) => volume > latest)?.[0] ?? null,
     spines: numbered.map(([volume, printings]) => ({
       volume,
       state: spineState(owned.includes(volume), read.includes(volume)),
@@ -143,6 +139,28 @@ export function seriesStanding(volumes: Edition[], library: Library): SeriesStan
         printings[0],
     })),
   };
+}
+
+// One entry of the Missing list on the Series page: a run of Missing Volumes
+// ("1–12"), or one number the Catalog has no Edition of.
+export interface MissingRange {
+  first: number;
+  last: number;
+  unknown: boolean;
+}
+
+// The Missing list in Volume order: runs of Missing Volumes, and apart each
+// number the Catalog lacks (each has its own sheet), which cuts a run.
+export function missingRanges({ missing, unknown }: Pick<SeriesStanding, 'missing' | 'unknown'>): MissingRange[] {
+  const known = missing.flatMap(({ volume }) => (volume === null ? [] : [{ volume, unknown: false }]));
+  const listed = [...known, ...unknown.map((volume) => ({ volume, unknown: true }))].sort((a, b) => a.volume - b.volume);
+  const ranges: MissingRange[] = [];
+  for (const { volume, unknown: lacking } of listed) {
+    const run = ranges.at(-1);
+    if (run && !run.unknown && !lacking && run.last === volume - 1) run.last = volume;
+    else ranges.push({ first: volume, last: volume, unknown: lacking });
+  }
+  return ranges;
 }
 
 // As Series Onboarding: a number from 1000 is likely a year read as a Volume,
@@ -172,6 +190,15 @@ function ownedAndRead(numbered: [number, Edition[]][], library: Library): { owne
 export function seriesCover<Volume extends Edition>(volumes: Volume[]): Volume | undefined {
   const printings = byVolume(volumes).flatMap(([, each]) => each);
   return printings.find(({ cover }) => cover) ?? printings[0] ?? volumes[0];
+}
+
+// The cover of the Series page: the printing the reader owns of the highest
+// Volume they own, cover or not. Undefined when they own none (the page then
+// uses seriesCover). Library Series mode keeps seriesCover.
+export function latestOwned(volumes: Edition[], library: Library): Edition | undefined {
+  return byVolume(volumes)
+    .flatMap(([, printings]) => printings.filter((each) => isOwned(each, library)).slice(0, 1))
+    .at(-1);
 }
 
 // The Missing Volumes (glossary) of a Series: numbered Volumes before the

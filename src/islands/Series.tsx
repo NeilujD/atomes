@@ -25,11 +25,12 @@ import {
   collectedVolumes,
   dropSeries,
   followSeries,
+  latestOwned,
+  missingRanges,
   seriesCover,
   seriesStanding,
   switchLine,
   type CatalogAsk,
-  type SeriesStanding,
   type Spine,
 } from '../lib/library/series';
 import { bought, deleteToBuy, handAdd, saveToBuy } from '../lib/library/to-buy';
@@ -287,7 +288,10 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const standing = seriesStanding(volumes, library);
   const following = follow?.status === 'following';
   const from = Number(follow?.fromVolume);
-  const cover = seriesCover(volumes) ?? anchor;
+  // The latest Volume the reader owns; none owned, the Series cover (as in Library Series mode).
+  const cover = latestOwned(volumes, library) ?? seriesCover(volumes) ?? anchor;
+  // One spine width for the whole Series: room for the widest number (series.astro).
+  const digits = String(standing.spines.at(-1)?.volume ?? 0).length;
   const spine = standing.spines.find(({ volume }) => volume === chosen);
   const onToBuy = spine !== undefined && library.toBuy.some(({ value }) => value.isbn === spine.edition.isbn);
   const seriesTitle = edition.series.title;
@@ -306,7 +310,10 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
     setSelected([]);
     await afterCorrection();
   };
+  // The Series title is the page heading: the view title of the frame, as on the Book page (one h1).
   document.title = `${edition.series.title} · Atomes`;
+  const viewTitle = document.querySelector('[data-view-title]');
+  if (viewTitle) viewTitle.textContent = seriesTitle;
 
   return (
     <div class="series">
@@ -320,7 +327,9 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
             <span class="series-tag">{lineLabel(lineName(anchorLine), pageLanguage())}</span>
             {following && Number.isInteger(from) && from > 1 && <span class="series-tag">{t('series.from-volume', from)}</span>}
           </p>
-          <h1 class="series-title">{edition.series.title}</h1>
+          <p class="series-title" aria-hidden="true">
+            {seriesTitle}
+          </p>
           <p class="series-authors">{anchor.authors.join(', ')}</p>
 
           <dl class="series-counts" aria-label={t('series.standing')}>
@@ -328,7 +337,6 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
             <Count value={standing.read} label={t('series.read')} />
             <Count value={standing.missing.length} label={t('series.missing')} />
             {standing.unknown.length > 0 && <Count value={standing.unknown.length} label={t('series.unknown')} />}
-            <Count value={standing.next ?? '—'} label={t('series.next')} />
           </dl>
 
           <div class="series-actions">
@@ -406,21 +414,23 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
             {t('series.missing-title')}
           </h2>
           <ul class="series-missing-list">
-            {missingList(standing).map(({ volume, unknown }) => (
-              <li key={volume}>
+            {missingRanges(standing).map(({ first, last, unknown }) => (
+              <li key={first}>
                 {unknown ? (
                   <button
                     class="series-missing-unknown"
                     type="button"
-                    data-volume={volume}
+                    data-volume={first}
                     aria-haspopup="dialog"
-                    aria-label={t('series.unknown-volume', volume)}
-                    onClick={() => setScanning(volume)}
+                    aria-label={t('series.unknown-volume', first)}
+                    onClick={() => setScanning(first)}
                   >
-                    {volume}
+                    {first}
                   </button>
+                ) : first === last ? (
+                  first
                 ) : (
-                  volume
+                  `${first}–${last}`
                 )}
               </li>
             ))}
@@ -450,7 +460,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
             </button>
           )}
         </div>
-        <ol class="series-spines">
+        <ol class="series-spines" style={`--spine-digits: ${digits}`}>
           {standing.spines.map(({ volume, state, edition: printing }) => (
             <li key={volume} class="series-spine" data-state={state}>
               {/* Desktop: the cover above the spine while the mouse is on it. A tap only opens the sheet. */}
@@ -593,14 +603,7 @@ function followOf(library: Library, edition: Edition | undefined): Follow | unde
   return library.follows.find(({ rkey }) => isSeries(series, rkey))?.value;
 }
 
-// The Missing list in Volume order: the Missing Volumes and, apart, the
-// numbers the Catalog has no Edition of.
-function missingList({ missing, unknown }: SeriesStanding): { volume: number; unknown: boolean }[] {
-  const known = missing.flatMap(({ volume }) => (volume === null ? [] : [{ volume, unknown: false }]));
-  return [...known, ...unknown.map((volume) => ({ volume, unknown: true }))].sort((a, b) => a.volume - b.volume);
-}
-
-function Count({ value, label }: { value: number | string; label: string }) {
+function Count({ value, label }: { value: number; label: string }) {
   return (
     // The number shows above its label (CSS); a `dl` group keeps the term first.
     <div class="series-count">

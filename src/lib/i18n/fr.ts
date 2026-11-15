@@ -371,7 +371,6 @@ export const fr: typeof en = {
   'series.owned': 'possédés',
   'series.read': 'lus',
   'series.missing': 'manquants',
-  'series.next': 'suivant',
   'series.follow': 'Suivre',
   'series.stop-following': 'Arrêter de suivre',
   'series.line-years': (first, last) => (first === last ? `${first}` : `${first}–${last}`),

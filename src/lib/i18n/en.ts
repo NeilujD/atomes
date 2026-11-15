@@ -369,7 +369,6 @@ export const en = {
   'series.owned': 'owned',
   'series.read': 'read',
   'series.missing': 'missing',
-  'series.next': 'next',
   'series.follow': 'Follow',
   'series.stop-following': 'Stop following',
   'series.line-years': (first: number, last: number) => (first === last ? `${first}` : `${first}–${last}`),

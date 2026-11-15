@@ -71,7 +71,7 @@ async function seriesPage(
     scan,
   };
   render(<Series isbn={lineA[2].isbn} sources={sources} />);
-  await screen.findByRole('heading', { name: 'Blacksad' });
+  await screen.findByRole('region', { name: 'Volumes' });
   return {
     follows: () => stored(followCollection).map(({ value }) => value as Follow),
     keys: () => stored(followCollection).map(({ rkey }) => rkey),
@@ -92,11 +92,31 @@ describe('Series page', () => {
     await seriesPage('following');
 
     expect(screen.getByText('Following')).toBeTruthy();
-    expect([count('owned'), count('read'), count('missing'), count('next')]).toEqual(['2', '1', '1', '4']);
+    expect([count('owned'), count('read'), count('missing')]).toEqual(['2', '1', '1']);
+    expect(screen.queryByText('next', { selector: 'dt' })).toBeNull();
     expect(missingList()).toEqual(['2']);
     expect(screen.queryByText('not in the Catalog', { selector: 'dt' })).toBeNull();
     expect(screen.getByText('They are on your To Buy list.')).toBeTruthy();
     expect(['Volume 1: read', 'Volume 2: not owned', 'Volume 3: owned, not read', 'Volume 4: not owned'].map((name) => screen.getByText(name))).toHaveLength(4);
+  });
+
+  test('the Series title is the one level-1 heading: the view title of the frame', async () => {
+    // AppShell's view title (src/layouts/AppShell.astro).
+    document.body.insertAdjacentHTML('afterbegin', '<h1 data-view-title>Series</h1>');
+    await seriesPage('following');
+
+    expect(screen.getAllByRole('heading', { level: 1 }).map(({ textContent }) => textContent)).toEqual(['Blacksad']);
+    document.body.innerHTML = '';
+  });
+
+  test('the Missing list shows runs of Volumes as ranges; a Volume the Catalog lacks stays apart, as a button', async () => {
+    // The Catalog has no Volume 3; the Copy of lineA[2] is Volume 6 here. Missing: 2, 4, 5.
+    const six = volume(3, 'A', { volumes: [6], volume: 6 });
+    const line = [...[1, 2, 4, 5].map((n) => volume(n, 'A')), six];
+    await seriesPage('following', [...line, ...lineB], blacksad.id, [line, lineB]);
+
+    expect(missingList()).toEqual(['2', '3', '4–5']);
+    expect(screen.getByRole('button', { name: 'Volume 3, not in the Catalog yet' })).toBeTruthy();
   });
 
   test('"Stop following" drops the Series, and Follow follows it again', async () => {
@@ -133,7 +153,7 @@ describe('Series page', () => {
     expect(follows()[0]).toMatchObject({ anchorIsbn: lineB[3].isbn, fromVolume: '4', status: 'following' });
     expect(screen.getByText('Dark Horse · 2011–2015')).toBeTruthy();
     // Volumes 1 to 3 stay in line A (Volume 2 still missing); 4 and 5 come from line B.
-    await waitFor(() => expect([count('owned'), count('missing'), count('next')]).toEqual(['2', '1', '4']));
+    await waitFor(() => expect([count('owned'), count('missing')]).toEqual(['2', '1']));
   });
 
   test('the page names the Edition Line by its publisher and years', async () => {
