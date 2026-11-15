@@ -409,6 +409,14 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
 
   // Gives the Edition as stored: its Work may be dropped (shared-works.ts).
   function store(edition: Edition, record: string | undefined, line = lineOf(edition, record)): Edition {
+    write(edition, record, line);
+    dropSharedWorksOf(edition.isbn);
+    return toEdition(editionRow(edition.isbn)!);
+  }
+
+  // Stores the Edition with no check of shared Works: a fill checks its
+  // Series once, after every Edition it adds.
+  function write(edition: Edition, record: string | undefined, line: string | null): void {
     const series = edition.series && byIdentifier(edition.series.id);
     db.prepare(
       `insert or replace into edition (isbn, title, volume_title, authors, publisher, language, format, cover, work_id,
@@ -435,8 +443,6 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       edition.fetchedAt,
     );
     db.prepare('delete from miss where isbn = ?').run(edition.isbn);
-    dropSharedWorksOf(edition.isbn);
-    return toEdition(editionRow(edition.isbn)!);
   }
 
   // One Work per Volume number, in the Series where readers see the Edition
@@ -648,8 +654,9 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       for (const { target, found } of merged) {
         // The Series this Catalog gives it must be the line's; the size was checked above.
         const editionPrefix = found && prefixOf(found.edition);
-        if (found && editionPrefix && samePrefix(target, editionPrefix)) store(found.edition, found.record, target);
+        if (found && editionPrefix && samePrefix(target, editionPrefix)) write(found.edition, found.record, target);
       }
+      dropSharedWorks(db, Number(series.slice(0, -1)));
       for (const each of new Set([line, ...picked.keys()]))
         db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(each, now().toISOString());
     });

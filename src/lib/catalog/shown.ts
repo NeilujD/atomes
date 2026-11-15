@@ -3,11 +3,17 @@
 // Series and Edition Line where the sources put the anchor. A Correction that
 // keeps the Volume number keeps the Volumes the Edition holds: an omnibus
 // moved to another line stays "Tomes 1-2".
-export const shownEditions = `(select e.isbn, e.title, e.volume_title, e.authors, e.publisher, e.language, e.format, e.cover,
-    e.work_id, e.work_title, e.year, e.bnf_id, e.sources, e.fetched_at,
-    iif(c.isbn is null, e.series, coalesce(c.series, a.series)) as series,
-    iif(c.isbn is null, e.edition_line, coalesce(c.edition_line, a.edition_line)) as edition_line,
-    iif(c.isbn is null, e.volume, c.volume) as volume,
-    iif(c.isbn is null, e.volumes, iif(c.volume is null, '[]', iif(c.volume = e.volume, e.volumes, json_array(c.volume)))) as volumes,
-    c.isbn is not null as corrected
-  from edition e left join series_correction c on c.isbn = e.isbn left join edition a on a.isbn = c.anchor)`;
+// Editions with no Correction come straight from `edition`, so a query on
+// the Edition Line, which SQLite passes into both parts, uses its index.
+const sourceColumns = `e.isbn, e.title, e.volume_title, e.authors, e.publisher, e.language, e.format, e.cover,
+    e.work_id, e.work_title, e.year, e.bnf_id, e.sources, e.fetched_at`;
+export const shownEditions = `(select ${sourceColumns}, e.series, e.edition_line, e.volume, e.volumes, 0 as corrected
+    from edition e where e.isbn not in (select isbn from series_correction)
+  union all
+  select ${sourceColumns},
+    coalesce(c.series, a.series) as series,
+    coalesce(c.edition_line, a.edition_line) as edition_line,
+    c.volume as volume,
+    iif(c.volume is null, '[]', iif(c.volume = e.volume, e.volumes, json_array(c.volume))) as volumes,
+    1 as corrected
+    from series_correction c join edition e on e.isbn = c.isbn left join edition a on a.isbn = c.anchor)`;
