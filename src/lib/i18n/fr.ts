@@ -116,7 +116,7 @@ export const fr: typeof en = {
 
   // Partage (Réglages, page d'un livre ; glossaire : Shared, Private)
   'sharing.title': 'Partage',
-  'sharing.hint': "Tout est privé tant que vous ne le partagez pas. Ce qui est partagé va sur votre compte AT Protocol, où tout le monde peut le lire. Les exemplaires, les prêts et la liste À acheter ne sont jamais partagés.",
+  'sharing.hint': 'Exemplaires, prêts et À acheter ne sont jamais partagés.',
   'sharing.readingStatuses': 'Statuts de lecture',
   'sharing.follows': 'Séries suivies',
   'sharing.labels': 'Étiquettes',
