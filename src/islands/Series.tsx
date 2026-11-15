@@ -35,6 +35,7 @@ import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
 import { toast } from '../lib/toast';
 import { Cover } from './Cover';
+import { SeriesLabels } from './SeriesLabels';
 
 export interface Sources extends CatalogAsk {
   // Undefined when signed out.
@@ -316,6 +317,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               </button>
             )}
           </div>
+          <SeriesLabels series={edition.series} sources={sources} />
         </div>
       </div>
 

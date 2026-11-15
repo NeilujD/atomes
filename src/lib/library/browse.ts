@@ -2,8 +2,8 @@
 // toolbar (search, Search in, Sort, filters, count, Clear all). Pure, so the
 // rules are tested in Node; src/islands/Library.tsx only renders them.
 import { compareText, t, type Language } from '../i18n/i18n';
-import { labelsAtoZ, type Label } from './label';
-import { bookPage, ownsWork, type Editions, type Library } from './model';
+import { labelsAtoZ, onSeries, type Label } from './label';
+import { bookPage, ownsWork, workEdition, type Editions, type Library } from './model';
 import { statuses, type Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -19,7 +19,7 @@ export interface LibraryBook {
   status: Status;
   // The reader has a Copy of it (ownsWork, model.ts); else it is here by its Reading Status only.
   owned: boolean;
-  // The keys of the Labels that list this Work.
+  // The keys of the Labels that list this Work or its Series.
   labels: string[];
   // Its first Copy, else its Reading Status for a Work the reader does not own.
   addedAt: string;
@@ -38,6 +38,8 @@ export function libraryBooks(library: Library, editions: Editions, labels: Saved
     if (!page) return [];
     const copies = library.copies.filter(({ value }) => value.works.includes(work)).map(({ value }) => value.createdAt);
     const statusAt = library.readingStatuses.find(({ rkey }) => rkey === work)?.value.updatedAt ?? '';
+    // Unknown until the Catalog answers for its Edition: no Series Label until then.
+    const series = workEdition(work, library, editions)?.series;
     return {
       work,
       title: page.title,
@@ -48,7 +50,7 @@ export function libraryBooks(library: Library, editions: Editions, labels: Saved
       cover: page.cover,
       status: page.status,
       owned: ownsWork(work, library),
-      labels: labels.filter(({ value }) => value.works.includes(work)).map(({ rkey }) => rkey),
+      labels: labels.filter(({ value }) => value.works.includes(work) || onSeries(value, series)).map(({ rkey }) => rkey),
       addedAt: copies.length > 0 ? copies.reduce((first, each) => (each < first ? each : first)) : statusAt,
     };
   });

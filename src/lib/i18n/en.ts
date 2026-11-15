@@ -241,6 +241,13 @@ export const en = {
   'labels.delete-label': (name: string) => `Delete the Label ${name}`,
   'labels.delete-ask': (name: string) => `Delete the Label ${name} from every book?`,
   'labels.cancel': 'Cancel',
+  'labels.series-mark': 'From the Series',
+  'labels.series-hint': 'Labels from the Series are removed on the Series page.',
+  'labels.add-series': 'Label',
+  'labels.series-title': 'Labels of the Series',
+  'labels.series-remove': (name: string) => `Remove the Label ${name} from this Series`,
+  'labels.series-new': 'New Label for the Series',
+  'labels.series-applies': 'A Label on the Series goes on every Volume, also the ones you add later.',
 
   // Series Onboarding
   'onboarding.title': 'Series Onboarding',

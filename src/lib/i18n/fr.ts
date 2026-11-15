@@ -240,6 +240,13 @@ export const fr: typeof en = {
   'labels.delete-label': (name) => `Supprimer l’étiquette ${name}`,
   'labels.delete-ask': (name) => `Supprimer l’étiquette ${name} de tous les livres ?`,
   'labels.cancel': 'Annuler',
+  'labels.series-mark': 'Vient de la série',
+  'labels.series-hint': 'Les étiquettes de la série se retirent sur la page de la série.',
+  'labels.add-series': 'Étiquette',
+  'labels.series-title': 'Étiquettes de la série',
+  'labels.series-remove': (name) => `Retirer l’étiquette ${name} de cette série`,
+  'labels.series-new': 'Nouvelle étiquette pour la série',
+  'labels.series-applies': 'Une étiquette sur la série va sur chaque tome, aussi ceux que vous ajouterez.',
 
   // Series Onboarding
   'onboarding.title': 'Ajout d’une série',
