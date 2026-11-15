@@ -20,6 +20,7 @@ function fakeServer(start: SharingState) {
   const client: SharingClient = {
     load: () => Promise.resolve({ state }),
     setShared: () => Promise.resolve({ failed: true }),
+    setPrivateWorks: () => Promise.resolve({ failed: true }),
     setPrivate: (id, keep) => {
       kept.push([id, keep]);
       if (server.next) return Promise.resolve(server.next);

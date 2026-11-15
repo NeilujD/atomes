@@ -1,19 +1,23 @@
 // The Series page, a Preact island (ADR 0014): where the reader stands in one
 // Series, and follow, switch Edition Line, stop following (glossary: Followed
 // Series, Dropped Series, Edition Line). Each spine opens a Volume sheet: I
-// bought it, Mark read, Open. The rules are in src/lib/library/series.ts;
-// this file only renders and saves.
+// bought it, Mark read, Open. "Select" starts bulk select
+// (src/islands/Selection.tsx): a tap on a spine picks its Volume. A tap on a
+// Volume the Catalog lacks opens the sheet that scans its ISBN (VolumeScan.tsx).
+// The rules are in src/lib/library/series.ts; this file only renders and saves.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
-import type { Edition } from '../lib/catalog/catalog';
+import type { Edition, LineSummary } from '../lib/catalog/catalog';
 import { coverUrl, lookupEditions, lookupVolumes } from '../lib/catalog/client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
-import { saveCopy } from '../lib/library/copy';
+import { takeAddedCopies } from '../lib/library/added-copies';
+import { deleteCopy, saveCopy } from '../lib/library/copy';
 import { saveFollow, type Follow } from '../lib/library/follow';
 import { isSeries, readIsbn } from '../lib/library/ids';
 import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
-import { bookHref, editionLabel, statusChange, type Library } from '../lib/library/model';
+import { lineName } from '../lib/catalog/lines';
+import { bookHref, lineLabel, statusChange, type Library } from '../lib/library/model';
 import { followOnRead } from '../lib/library/onboarding';
 import { saveReadingStatus } from '../lib/library/reading-status';
 import {
@@ -21,28 +25,40 @@ import {
   collectedVolumes,
   dropSeries,
   followSeries,
+  latestOwned,
+  missingRanges,
   seriesCover,
   seriesStanding,
   switchLine,
   type CatalogAsk,
   type Spine,
 } from '../lib/library/series';
-import { bought, deleteToBuy } from '../lib/library/to-buy';
+import { bought, deleteToBuy, handAdd, saveToBuy } from '../lib/library/to-buy';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
 import { toast } from '../lib/toast';
 import { Cover } from './Cover';
+import { liveSelection, SelectionBar, type SelectionSources } from './Selection';
+import { SeriesLabels } from './SeriesLabels';
+import { liveVolumeScan, VolumeScan, type VolumeScanSources } from './VolumeScan';
 
 export interface Sources extends CatalogAsk {
   // Undefined when signed out.
   open(): Promise<Space | undefined>;
+  // Every Edition Line of the Series of `isbn`, named; undefined when the Catalog cannot say.
+  lines(isbn: string): Promise<LineSummary[] | undefined>;
+  selection?: SelectionSources;
+  scan?: VolumeScanSources;
 }
 
 const live: Sources = {
   open: async () => (await openOwnSpace())?.space,
   volumes: async (isbn) => (await lookupVolumes(isbn))?.volumes,
   editions: lookupEditions,
+  lines: async (isbn) => (await lookupVolumes(isbn))?.lines,
+  selection: liveSelection,
+  scan: liveVolumeScan,
 };
 
 // `isbn`: an Edition of the Series, from the link (`seriesHref`).
@@ -56,12 +72,19 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const [message, setMessage] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [switching, setSwitching] = useState(false);
+  // The Edition Lines of the Series, to switch to by name.
+  const [seriesLines, setSeriesLines] = useState<LineSummary[]>([]);
   const [typed, setTyped] = useState('');
   const [problem, setProblem] = useState<string>();
   // The Volume whose sheet is open, and the one whose cover shows above its spine (mouse hover).
   const [chosen, setChosen] = useState<number>();
   const [peek, setPeek] = useState<{ volume: number; align: PeekAlign }>();
   const sheet = useRef<HTMLDialogElement>(null);
+  // Bulk select: on or off, and the Volumes picked, in the order of the taps.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
+  // The Volume the Catalog lacks whose sheet is open.
+  const [scanning, setScanning] = useState<number>();
 
   const space = useRef<Space | undefined>(undefined);
   const listing = useRef<{ refresh: () => Promise<void> } | undefined>(undefined);
@@ -88,6 +111,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
       // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
       if (!own) return;
       space.current = own;
+      offerUndo();
       listing.current = freshListing(
         async () => {
           const read = await loadLibrary(own);
@@ -104,6 +128,20 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
         fail,
       );
       await listing.current.refresh();
+    }
+
+    // Series Onboarding opened this page: say what it added, with Undo for the
+    // Copies it added (only those: their record keys came with them).
+    function offerUndo() {
+      const added = takeAddedCopies(sessionStorage);
+      if (!added) return;
+      const undo = () =>
+        void save(async (own) => {
+          const states: WriteState[] = [];
+          for (const rkey of added.rkeys) states.push(await deleteCopy(own, rkey));
+          return worstState(states);
+        });
+      toast(added.text, added.rkeys.length > 0 ? { action: { label: t('common.undo'), run: undo } } : {});
     }
 
     // The Edition Line of the linked Edition, then the lines the reader collects.
@@ -172,6 +210,13 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
     });
   }
 
+  // A Volume read and not owned is not on To Buy (glossary): the reader puts it there by hand.
+  function addToBuy({ edition }: Spine) {
+    if (!library) return;
+    const added = handAdd(edition.isbn, library, editions.current, new Date());
+    if ('toBuy' in added) void save((own) => saveToBuy(own, added.toBuy));
+  }
+
   // As on the Book page: marking a Volume read follows its Series.
   function markRead({ edition }: Spine) {
     if (!library) return;
@@ -191,11 +236,25 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
     sheet.current?.showModal();
   }
 
+  function openSwitch(follow: Follow) {
+    setSwitching(!switching);
+    if (switching) return;
+    sources
+      .lines(follow.anchorIsbn)
+      .then((found) => setSeriesLines(found ?? []))
+      .catch(() => setSeriesLines([]));
+  }
+
   async function switchTo(event: Event, follow: Follow) {
     event.preventDefault();
     const read = readIsbn(typed);
     if ('problem' in read) return setProblem(t(`isbn.${read.problem}`));
-    const edition = (await sources.editions([read.isbn]).catch(() => new Map<string, Edition>())).get(read.isbn);
+    await switchFrom(read.isbn, follow);
+  }
+
+  // A named line switches from its first Volume, a typed ISBN from its Volume.
+  async function switchFrom(isbn: string, follow: Follow) {
+    const edition = (await sources.editions([isbn]).catch(() => new Map<string, Edition>())).get(isbn);
     const result = switchLine(follow, edition, lines.current.get(follow.anchorIsbn) ?? [], new Date());
     if ('problem' in result) return setProblem(t(`series.switch-${result.problem}`));
     setProblem(undefined);
@@ -222,13 +281,39 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const follow = followOf(library, edition);
   const volumes = (follow && collectedVolumes(follow, library, lines.current, editions.current)) ?? lines.current.get(isbn) ?? [];
   const anchor = follow ? (lines.current.get(follow.anchorIsbn)?.find((each) => each.isbn === follow.anchorIsbn) ?? edition) : edition;
+  const anchorLine = lines.current.get(anchor.isbn) ?? volumes;
+  const otherLines = seriesLines.filter((line) => !anchorLine.some(({ isbn: one }) => one === line.anchor));
+  // The Edition Line a printing is in, by name (the Volume sheet): after a switch, Volumes come from two lines.
+  const lineOf = (printing: Edition) => lineLabel(lineName([...lines.current.values()].find((line) => line.some(({ isbn: one }) => one === printing.isbn)) ?? [printing]));
   const standing = seriesStanding(volumes, library);
   const following = follow?.status === 'following';
   const from = Number(follow?.fromVolume);
-  const cover = seriesCover(volumes) ?? anchor;
+  // The latest Volume the reader owns; none owned, the Series cover (as in Library Series mode).
+  const cover = latestOwned(volumes, library) ?? seriesCover(volumes) ?? anchor;
+  // One spine width for the whole Series: room for the widest number (series.astro).
+  const digits = String(standing.spines.at(-1)?.volume ?? 0).length;
   const spine = standing.spines.find(({ volume }) => volume === chosen);
+  const onToBuy = spine !== undefined && library.toBuy.some(({ value }) => value.isbn === spine.edition.isbn);
   const seriesTitle = edition.series.title;
+  const pick = (volume: number) => setSelected(selected.includes(volume) ? selected.filter((each) => each !== volume) : [...selected, volume]);
+  const picked = standing.spines
+    .filter(({ volume }) => selected.includes(volume))
+    .map(({ edition: printing }) => ({ work: printing.work.id, isbn: printing.isbn, edition: printing }));
+  // After a Series Correction the Edition Lines changed: the page asks the Catalog again.
+  const afterCorrection = async () => {
+    lines.current.clear();
+    editions.current.clear();
+    await listing.current?.refresh();
+  };
+  const afterSave = async (moved: Edition[] = []) => {
+    if (moved.length === 0) return listing.current?.refresh();
+    setSelected([]);
+    await afterCorrection();
+  };
+  // The Series title is the page heading: the view title of the frame, as on the Book page (one h1).
   document.title = `${edition.series.title} · Atomes`;
+  const viewTitle = document.querySelector('[data-view-title]');
+  if (viewTitle) viewTitle.textContent = seriesTitle;
 
   return (
     <div class="series">
@@ -239,23 +324,25 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
             <span class="series-tag" data-following={following ? '' : undefined}>
               {following ? t('series.following') : follow ? t('series.dropped') : t('series.not-followed')}
             </span>
-            <span class="series-tag">{editionLabel(anchor, pageLanguage())}</span>
+            <span class="series-tag">{lineLabel(lineName(anchorLine), pageLanguage())}</span>
             {following && Number.isInteger(from) && from > 1 && <span class="series-tag">{t('series.from-volume', from)}</span>}
           </p>
-          <h1 class="series-title">{edition.series.title}</h1>
+          <p class="series-title" aria-hidden="true">
+            {seriesTitle}
+          </p>
           <p class="series-authors">{anchor.authors.join(', ')}</p>
 
           <dl class="series-counts" aria-label={t('series.standing')}>
             <Count value={standing.owned} label={t('series.owned')} />
             <Count value={standing.read} label={t('series.read')} />
             <Count value={standing.missing.length} label={t('series.missing')} />
-            <Count value={standing.next ?? '—'} label={t('series.next')} />
+            {standing.unknown.length > 0 && <Count value={standing.unknown.length} label={t('series.unknown')} />}
           </dl>
 
           <div class="series-actions">
             {following && follow ? (
               <>
-                <button class="button" type="button" disabled={saving} aria-expanded={switching} onClick={() => setSwitching(!switching)}>
+                <button class="button" type="button" disabled={saving} aria-expanded={switching} onClick={() => openSwitch(follow)}>
                   {t('series.switch')}
                 </button>
                 <button class="button button-quiet" type="button" disabled={saving} onClick={() => saveChange(dropSeries(follow, new Date()))}>
@@ -264,7 +351,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               </>
             ) : (
               <button
-                class="button button-primary"
+                class="button button-accent"
                 type="button"
                 disabled={saving}
                 onClick={() => {
@@ -276,11 +363,24 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               </button>
             )}
           </div>
+          <SeriesLabels series={edition.series} sources={sources} />
         </div>
       </div>
 
       {switching && follow && (
         <form class="series-switch" onSubmit={(event) => void switchTo(event, follow)} noValidate>
+          {otherLines.length > 0 && (
+            <fieldset class="series-lines">
+              <legend class="series-label">{t('series.switch-lines')}</legend>
+              <div class="series-switch-row">
+                {otherLines.map((line) => (
+                  <button key={line.anchor} class="button" type="button" disabled={saving} onClick={() => void switchFrom(line.anchor, follow)}>
+                    {lineLabel(line)}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
           <label class="series-label" for="series-isbn">
             {t('series.switch-label')}
           </label>
@@ -308,28 +408,59 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
         </form>
       )}
 
-      {standing.missing.length > 0 && (
+      {(standing.missing.length > 0 || standing.unknown.length > 0) && (
         <section class="series-missing" aria-labelledby="series-missing-title">
           <h2 class="series-missing-title" id="series-missing-title">
-            {t('series.missing-title', standing.missing.map(({ volume }) => volume).join(', '))}
+            {t('series.missing-title')}
           </h2>
-          <p class="series-hint">
-            {following ? (
-              <>
-                {t('series.missing-on-to-buy')} <a href="/to-buy">{t('nav.to-buy')}</a>
-              </>
-            ) : (
-              t('series.missing-follow')
-            )}
-          </p>
+          <ul class="series-missing-list">
+            {missingRanges(standing).map(({ first, last, unknown }) => (
+              <li key={first}>
+                {unknown ? (
+                  <button
+                    class="series-missing-unknown"
+                    type="button"
+                    data-volume={first}
+                    aria-haspopup="dialog"
+                    aria-label={t('series.unknown-volume', first)}
+                    onClick={() => setScanning(first)}
+                  >
+                    {first}
+                  </button>
+                ) : first === last ? (
+                  first
+                ) : (
+                  `${first}–${last}`
+                )}
+              </li>
+            ))}
+          </ul>
+          {standing.missing.length > 0 && (
+            <p class="series-hint">
+              {following ? (
+                <>
+                  {t('series.missing-on-to-buy')} <a href="/to-buy">{t('nav.to-buy')}</a>
+                </>
+              ) : (
+                t('series.missing-follow')
+              )}
+            </p>
+          )}
         </section>
       )}
 
       <section aria-labelledby="series-volumes">
-        <h2 class="series-group-title" id="series-volumes">
-          {t('series.volumes')}
-        </h2>
-        <ol class="series-spines">
+        <div class="series-group-head">
+          <h2 class="series-group-title" id="series-volumes">
+            {t('series.volumes')}
+          </h2>
+          {!selecting && (
+            <button class="button button-quiet" type="button" onClick={() => setSelecting(true)}>
+              {t('select.start')}
+            </button>
+          )}
+        </div>
+        <ol class="series-spines" style={`--spine-digits: ${digits}`}>
           {standing.spines.map(({ volume, state, edition: printing }) => (
             <li key={volume} class="series-spine" data-state={state}>
               {/* Desktop: the cover above the spine while the mouse is on it. A tap only opens the sheet. */}
@@ -341,8 +472,9 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               <button
                 class="series-spine-button"
                 type="button"
-                aria-haspopup="dialog"
-                onClick={() => open(volume)}
+                aria-haspopup={selecting ? undefined : 'dialog'}
+                aria-pressed={selecting ? selected.includes(volume) : undefined}
+                onClick={() => (selecting ? pick(volume) : open(volume))}
                 onPointerEnter={(event) => event.pointerType === 'mouse' && setPeek({ volume, align: peekAlign(event.currentTarget) })}
                 onPointerLeave={() => setPeek(undefined)}
               >
@@ -354,6 +486,31 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
           ))}
         </ol>
       </section>
+
+      {selecting && space.current && (
+        <SelectionBar
+          picked={picked}
+          onAll={() => setSelected(standing.spines.map(({ volume }) => volume))}
+          onDone={() => {
+            setSelecting(false);
+            setSelected([]);
+          }}
+          space={space.current}
+          library={library}
+          onSaved={afterSave}
+          sources={sources.selection ?? liveSelection}
+        />
+      )}
+
+      {scanning !== undefined && (
+        <VolumeScan
+          volume={scanning}
+          anchor={anchor.isbn}
+          onChanged={afterCorrection}
+          onClose={() => setScanning(undefined)}
+          sources={sources.scan ?? liveVolumeScan}
+        />
+      )}
 
       {/* Escape closes it, as a tap on the backdrop does. */}
       <dialog
@@ -376,14 +533,21 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
                 {spine.edition.volumeTitle ?? spine.edition.title}
               </h2>
               <p>{t('book.volume', spine.volume)}</p>
+              <p class="series-hint">{lineOf(spine.edition)}</p>
               <p class="series-hint">{t('series.state', spine.state)}</p>
+              {spine.state === 'read-not-owned' && onToBuy && <p class="series-hint">{t('series.on-to-buy')}</p>}
               <div class="series-actions">
+                {spine.state === 'read-not-owned' && !onToBuy && (
+                  <button class="button button-primary" type="button" disabled={saving} aria-busy={saving ? 'true' : undefined} onClick={() => addToBuy(spine)}>
+                    {t('series.add-to-buy')}
+                  </button>
+                )}
                 {spine.state === 'not-owned' && (
                   <button class="button button-primary" type="button" disabled={saving} aria-busy={saving ? 'true' : undefined} onClick={() => buy(spine)}>
                     {t('tobuy.bought')}
                   </button>
                 )}
-                {spine.state !== 'read' && (
+                {spine.state !== 'read' && spine.state !== 'read-not-owned' && (
                   <button class="button" type="button" disabled={saving} onClick={() => markRead(spine)}>
                     {t('series.mark-read')}
                   </button>
@@ -439,7 +603,7 @@ function followOf(library: Library, edition: Edition | undefined): Follow | unde
   return library.follows.find(({ rkey }) => isSeries(series, rkey))?.value;
 }
 
-function Count({ value, label }: { value: number | string; label: string }) {
+function Count({ value, label }: { value: number; label: string }) {
   return (
     // The number shows above its label (CSS); a `dl` group keeps the term first.
     <div class="series-count">

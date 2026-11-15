@@ -3,6 +3,8 @@
 // Line, stop following; each spine opens a Volume sheet (src/islands/Series.tsx). `?isbn=<an Edition of the
 // Series>` (seriesHref). Rendered on the device: it reads the Library.
 import AppShell from '../layouts/AppShell.astro';
+import '../styles/correction.css';
+import '../styles/selection.css';
 import Series, { SeriesSkeleton } from '../islands/Series';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
@@ -69,9 +71,12 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     color: var(--ink);
   }
 
+  /* The heading is the view title (Series.tsx): this large title is content, as on the Book page. */
   .series-title {
     font-size: 40px;
+    font-weight: 700;
     line-height: 1.1;
+    letter-spacing: -0.02em;
   }
 
   .series-authors {
@@ -110,6 +115,83 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     gap: 8px;
   }
 
+  /* Labels on the Series (src/islands/SeriesLabels.tsx): chips as on the Book page. */
+  .series-labels,
+  .series-labels-add {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .series-labels-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .series-label-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    min-height: var(--row);
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: calc(var(--row) / 2);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  li.series-label-chip {
+    padding-right: 0;
+  }
+
+  .series-label-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+
+  .series-label-remove {
+    display: grid;
+    place-items: center;
+    width: var(--row);
+    height: var(--row);
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--secondary);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .series-label-add {
+    border-style: dashed;
+    color: var(--secondary);
+    cursor: pointer;
+  }
+
+  .series-label-add:hover:not(:disabled),
+  .series-label-remove:hover:not(:disabled) {
+    background: var(--soft);
+    color: var(--ink);
+  }
+
+  .series-label-add:disabled,
+  .series-label-remove:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
   .series-switch {
     display: flex;
     flex-direction: column;
@@ -119,6 +201,22 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
   .series-label {
     font-size: 14px;
     font-weight: 600;
+  }
+
+  /* The other Edition Lines, by name, above the ISBN field. */
+  .series-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    margin: 0 0 8px;
+    padding: 0;
+    border: 0;
+  }
+
+  .series-lines legend {
+    padding: 0;
+    margin-bottom: 6px;
   }
 
   .series-switch-row .field {
@@ -144,7 +242,40 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
 
   .series-missing-title {
     font-size: 15px;
-    font-variant-numeric: tabular-nums;
+  }
+
+  /* The ranges read as one line of text, in normal weight: "1–12, 13, 14–55".
+     On many lines, a gap between them: the hatched Volumes do not touch. */
+  .series-missing-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 0;
+    margin: 6px 0 8px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .series-missing-list li:not(:last-child)::after {
+    content: ',\00a0';
+  }
+
+  /* Not in the Catalog: hatched, as the unknown tile of Series Onboarding. A tap target of 24 px (WCAG 2.5.8). */
+  .series-missing-unknown {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0 4px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: repeating-linear-gradient(135deg, transparent 0 5px, var(--soft) 5px 7px);
+    color: var(--secondary);
+    font: inherit;
+    cursor: help;
+  }
+
+  .series-missing-unknown:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .series-group-title {
@@ -153,14 +284,18 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     font-weight: 600;
   }
 
-  /* The spine row: filled = read, outlined = owned not read, dashed grey = not owned. */
+  /* The spine row: filled = owned and read, outlined on a grey fill = owned not read, outlined with the read mark =
+     read not owned, dashed grey = not owned. One column width for the whole Series, from its widest number
+     (--spine-digits, Series.tsx), so the rows line up past Volume 99. */
   .series-spines {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, max(24px, calc(var(--spine-digits, 2) * 1ch + 10px)));
     gap: 2px 0;
     margin: 0;
     padding: 0;
     list-style: none;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
   }
 
   .series-spine {
@@ -173,6 +308,7 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     flex-direction: column;
     align-items: center;
     gap: 2px;
+    width: 100%;
     min-width: 24px;
     /* 6 px on top: room for the 4 px lift inside the button and its focus ring. */
     padding: 6px 5px 2px;
@@ -245,8 +381,30 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     background: var(--ink);
   }
 
+  /* Owned, not read: a grey fill, so it stands out among the dashed Volumes not owned. Grey, no colour role. */
+  .series-spine[data-state='owned'] .series-spine-bar {
+    background: var(--off);
+  }
+
   .series-spine[data-state='not-owned'] .series-spine-bar {
     border: 1.5px dashed var(--off);
+  }
+
+  /* The read mark: an ink dot at the foot of the outlined spine. */
+  .series-spine[data-state='read-not-owned'] .series-spine-bar {
+    position: relative;
+  }
+
+  .series-spine[data-state='read-not-owned'] .series-spine-bar::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink);
+    transform: translateX(-50%);
   }
 
   /* The Volume sheet: from the bottom on the phone, a card on desktop. */

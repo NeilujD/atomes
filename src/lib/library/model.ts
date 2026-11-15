@@ -1,6 +1,7 @@
 // The Library model: the reader's records and Catalog data in, what a screen
 // shows out. Pure: no Space, no network, so every rule here is tested alone.
 import type { Edition } from '../catalog/catalog';
+import type { LineName } from '../catalog/lines';
 import { coverUrl } from '../catalog/client';
 import { pageLanguage, translator, type Language } from '../i18n/i18n';
 import type { Copy } from './copy';
@@ -151,6 +152,21 @@ export function isOwned(edition: Pick<Edition, 'isbn' | 'work'>, library: Librar
   return library.copies.some(({ value }) => value.isbn === edition.isbn || value.works.includes(edition.work.id));
 }
 
+// When the reader added their first Copy of an Edition or of its Work (the
+// isOwned rule): the date Shelf Check shows. Undefined when they own none.
+export function addedOn(edition: Pick<Edition, 'isbn' | 'work'>, library: Library): string | undefined {
+  return library.copies
+    .filter(({ value }) => value.isbn === edition.isbn || value.works.includes(edition.work.id))
+    .map(({ value }) => value.createdAt)
+    .sort()[0];
+}
+
+// "Owned" for a Work of the Library, by the rule above: a Copy lists the
+// Work, or is the Edition of its Reading Status (saved as `isbn:`).
+export function ownsWork(work: string, library: Library): boolean {
+  return bookIsbns(work, library).some((isbn) => isOwned({ isbn, work: { id: work, title: '' } }, library));
+}
+
 // The Reading Status to save when the reader picks `chosen` for a Work, or
 // undefined when it is the current one: saving it again would drop its finish
 // date, and "unread" with no record is already true (ADR 0010). A new status
@@ -174,10 +190,21 @@ function currentReadingStatus(work: string, library: Library): ReadingStatus | u
 // UNIMARC 101 $a and Open Library give ISO 639-2/B codes; Intl names BCP 47 ones.
 const bcp47: Record<string, string> = { fre: 'fr', eng: 'en', jpn: 'ja', ger: 'de', spa: 'es', ita: 'it', kor: 'ko' };
 
+// The name of an Edition Line (glossary): its publisher and the years of its
+// Editions, "Glénat · 1993–2000" (ADR 0010, amendment 2026-11-14).
+export function lineLabel(name: LineName, uiLanguage: Language = pageLanguage()): string {
+  const years = name.first !== null && name.last !== null ? translator(uiLanguage)('series.line-years', name.first, name.last) : null;
+  return [name.publisher, years].filter(Boolean).join(' · ');
+}
+
 // The book's language is named in the UI language: "French", "français".
 export function editionLabel(edition: Edition | undefined, uiLanguage: Language = pageLanguage()): string {
   if (!edition) return '';
-  const code = edition.language && bcp47[edition.language];
-  const language = code ? new Intl.DisplayNames(uiLanguage, { type: 'language' }).of(code) : edition.language;
-  return [edition.publisher, language, edition.format].filter(Boolean).join(' · ');
+  return [edition.publisher, languageName(edition, uiLanguage), edition.format].filter(Boolean).join(' · ');
+}
+
+// The language of an Edition in the words of the UI ("French"), else its code as the source gave it.
+export function languageName({ language }: Pick<Edition, 'language'>, uiLanguage: Language = pageLanguage()): string | null {
+  const code = language && bcp47[language];
+  return code ? (new Intl.DisplayNames(uiLanguage, { type: 'language' }).of(code) ?? language) : language;
 }

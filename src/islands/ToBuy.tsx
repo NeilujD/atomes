@@ -46,6 +46,7 @@ export function ToBuy({ sources }: { sources: Sources }) {
   const [problem, setProblem] = useState<string>();
 
   const space = useRef<Space | undefined>(undefined);
+  const sheet = useRef<HTMLDialogElement>(null);
   const listing = useRef<{ refresh: () => Promise<void> } | undefined>(undefined);
   // Catalog answers kept for this visit, so an offline reload keeps the titles.
   // Edition Lines by anchor ISBN.
@@ -163,6 +164,7 @@ export function ToBuy({ sources }: { sources: Sources }) {
     }
     setProblem(undefined);
     setTyped('');
+    sheet.current?.close();
     void save('add', (own) => saveToBuy(own, result.toBuy));
   }
 
@@ -181,50 +183,65 @@ export function ToBuy({ sources }: { sources: Sources }) {
   const row = (item: ToBuyItem) => (
     <Row key={item.isbn} item={item} saving={saving} onBuy={() => buy(item)} onRemove={() => remove(item)} />
   );
+  const empty = list.followed.length === 0 && list.byHand.length === 0;
   return (
     <div class="to-buy">
-      <p class="to-buy-hint">{t('tobuy.private')}</p>
-      <form class="to-buy-add" onSubmit={add} noValidate>
-        <label class="to-buy-label" for="to-buy-isbn">
-          {t('tobuy.add-label')}
-        </label>
-        <div class="to-buy-add-row">
-          <input
-            class="field"
-            id="to-buy-isbn"
-            inputMode="numeric"
-            autoComplete="off"
-            value={typed}
-            aria-invalid={problem ? 'true' : undefined}
-            aria-describedby="to-buy-isbn-hint"
-            onInput={(event) => setTyped(event.currentTarget.value)}
-          />
-          <button class="button" type="submit" disabled={saving !== undefined} aria-busy={saving === 'add' ? 'true' : undefined}>
-            {t('tobuy.add')}
-          </button>
-        </div>
-        <p class="to-buy-hint" id="to-buy-isbn-hint" data-error={problem ? '' : undefined}>
-          {problem ?? t('tobuy.add-hint')}
-        </p>
-      </form>
+      {empty && <p class="to-buy-empty">{t('tobuy.empty')}</p>}
 
-      <section class="to-buy-group" aria-labelledby="to-buy-followed">
-        <h2 class="to-buy-group-title" id="to-buy-followed">
-          {t('tobuy.followed')}
-        </h2>
-        {list.followed.length === 0 ? (
-          <p class="to-buy-empty">{t('tobuy.followed-empty')}</p>
-        ) : (
-          bySeries(list.followed).map((group, index) => <Series key={group.id} group={group} id={`to-buy-series-${index}`} row={row} />)
-        )}
-      </section>
+      {list.followed.length > 0 && (
+        <section class="to-buy-group" aria-labelledby="to-buy-followed">
+          <h2 class="to-buy-group-title" id="to-buy-followed">
+            {t('tobuy.followed')}
+          </h2>
+          {bySeries(list.followed).map((group, index) => (
+            <Series key={group.id} group={group} id={`to-buy-series-${index}`} row={row} />
+          ))}
+        </section>
+      )}
 
-      <section class="to-buy-group" aria-labelledby="to-buy-by-hand">
-        <h2 class="to-buy-group-title" id="to-buy-by-hand">
-          {t('tobuy.by-hand')}
-        </h2>
-        {list.byHand.length === 0 ? <p class="to-buy-empty">{t('tobuy.by-hand-empty')}</p> : <Paged items={list.byHand} row={row} />}
-      </section>
+      {list.byHand.length > 0 && (
+        <section class="to-buy-group" aria-labelledby="to-buy-by-hand">
+          <h2 class="to-buy-group-title" id="to-buy-by-hand">
+            {t('tobuy.by-hand')}
+          </h2>
+          <Paged items={list.byHand} row={row} />
+        </section>
+      )}
+
+      {/* Opened by the "+" of the view header (to-buy.astro). A tap on the
+          backdrop closes it, as Escape does. A problem stays next to the field. */}
+      <dialog
+        ref={sheet}
+        id="to-buy-add-sheet"
+        class="to-buy-sheet"
+        aria-label={t('tobuy.add-label')}
+        onClose={() => setProblem(undefined)}
+        onClick={(event) => event.target === event.currentTarget && event.currentTarget.close()}
+      >
+        <form class="to-buy-add" onSubmit={add} noValidate>
+          <label class="to-buy-label" for="to-buy-isbn">
+            {t('tobuy.add-label')}
+          </label>
+          <div class="to-buy-add-row">
+            <input
+              class="field"
+              id="to-buy-isbn"
+              inputMode="numeric"
+              autoComplete="off"
+              value={typed}
+              aria-invalid={problem ? 'true' : undefined}
+              aria-describedby="to-buy-isbn-hint"
+              onInput={(event) => setTyped(event.currentTarget.value)}
+            />
+            <button class="button button-accent" type="submit" disabled={saving !== undefined} aria-busy={saving === 'add' ? 'true' : undefined}>
+              {t('tobuy.add')}
+            </button>
+          </div>
+          <p class="to-buy-hint" id="to-buy-isbn-hint" data-error={problem ? '' : undefined}>
+            {problem ?? t('tobuy.add-hint')}
+          </p>
+        </form>
+      </dialog>
     </div>
   );
 }

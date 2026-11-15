@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { afterEach, describe, expect, test } from 'vitest';
-import { labelCollection, saveLabel, type Label } from '../lib/library/label';
+import { labelCollection, saveLabel, type Label, type SeriesIds } from '../lib/library/label';
 import { memorySpace } from '../lib/library/memory-space.fake';
 import { reconnectEvent } from '../lib/network';
 import { BookLabels } from './BookLabels';
@@ -10,21 +10,53 @@ const dune = 'wd:Q190192';
 const fondation = 'wd:Q753894';
 const label = (name: string, works: string[]): Label => ({ name, works, createdAt: '2026-11-05T10:00:00.000Z' });
 
-// The Book page of Dune. The reader has `labels`; `saved` gives what the store holds, as [name, Works].
-async function duneLabels(labels: Label[] = []) {
+// The Dune cycle, the Series of Dune.
+const cycle: SeriesIds = { id: 'wd:Q3041974', sameAs: [] };
+
+// The Book page of Dune, in `series` when the Catalog knows it. The reader has `labels`; `saved` gives what the store holds, as [name, Works].
+async function duneLabels(labels: Label[] = [], series: SeriesIds | null = null) {
   const { space, stored } = memorySpace();
   for (const each of labels) await saveLabel(space, each);
-  render(<BookLabels work={dune} sources={{ open: () => Promise.resolve(space) }} />);
-  await screen.findByRole('textbox', { name: 'New Label' });
+  render(<BookLabels work={dune} sources={{ open: () => Promise.resolve(space), series: () => Promise.resolve(series) }} />);
+  await screen.findByRole('button', { name: 'Label' });
   return { space, saved: () => stored(labelCollection).map(({ value }) => [(value as Label).name, (value as Label).works]) };
 }
 
 afterEach(cleanup);
 
 describe('Labels on the Book page', () => {
+  test('a Label on the Series of the book shows with a Series mark, with no Remove: the Series page removes it', async () => {
+    await duneLabels([{ ...label('Space opera', []), series: [cycle.id] }, label('Classics', [fondation])], cycle);
+
+    const chip = (await screen.findByText('Space opera')).closest('li')!;
+    expect(chip.textContent).toContain('From the Series');
+    expect(screen.queryByRole('button', { name: 'Remove the Label Space opera from this book' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Space opera' })).toBeNull();
+    expect(screen.getByText('Labels from the Series are removed on the Series page.')).toBeTruthy();
+    expect(screen.queryByText('No Label on this book.')).toBeNull();
+  });
+
+  test('a Series Label stays off a book whose Series the Catalog does not know', async () => {
+    await duneLabels([{ ...label('Space opera', []), series: [cycle.id] }]);
+
+    expect(screen.getByText('No Label on this book.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Space opera' })).toBeTruthy();
+  });
+
+  test('the New Label field stays closed until "+ Label" is tapped, then takes the focus', async () => {
+    await duneLabels();
+
+    expect(screen.queryByRole('textbox', { name: 'New Label' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Label' }));
+
+    expect(screen.getByRole('button', { name: 'Label' }).getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'New Label' }));
+  });
+
   test('a typed name makes a Label on this book and shows it', async () => {
     const { saved } = await duneLabels();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Label' }));
     fireEvent.input(screen.getByRole('textbox', { name: 'New Label' }), { target: { value: 'Sci-fi' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
@@ -36,6 +68,7 @@ describe('Labels on the Book page', () => {
   test('a name with no letter saves nothing and says what is missing', async () => {
     const { saved } = await duneLabels();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Label' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
     expect(screen.getByText('Type a name for the Label.')).toBeTruthy();

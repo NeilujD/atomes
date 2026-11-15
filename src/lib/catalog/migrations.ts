@@ -169,8 +169,88 @@ const titleKeysWithoutSpaces: Step = (db) => {
 // of a joint publisher name ("Dargaud Bénélux-Kana", then "Kana").
 const forgetFills: Step = (db) => db.exec('delete from line_fill');
 
+// One Work per Volume number (ADR 0010 amendment 2026-11-14, CORE-92): the
+// Works sources gave to Editions of different Volume numbers in one Series are
+// dropped for that Series, and remembered (shared-works.ts). Reader records
+// that name them are repaired once by scripts/repair-shared-works.ts. The rule
+// is copied here as it was, on the schema of this step: shared-works.ts reads
+// tables and columns that later steps add.
+const oneWorkPerVolume: Step = (db) => {
+  db.exec(`
+    create table if not exists dropped_work (
+      work_id text not null,
+      series integer not null references series (n),
+      primary key (work_id, series)
+    );
+  `);
+  type Row = { series: number; work_id: string; volume: number | null; volumes: string | null };
+  const rows = db.prepare("select series, work_id, volume, volumes from edition where series is not null and work_id not like 'isbn:%'").all() as Row[];
+  const byWork = new Map<string, { series: number; work: string; volumes: number[][] }>();
+  for (const row of rows) {
+    const id = `${row.series} ${row.work_id}`;
+    const found = byWork.get(id) ?? { series: row.series, work: row.work_id, volumes: [] };
+    found.volumes.push(row.volumes ? (JSON.parse(row.volumes) as number[]) : row.volume === null ? [] : [row.volume]);
+    byWork.set(id, found);
+  }
+  for (const { series, work, volumes } of byWork.values()) {
+    const numbered = volumes.filter((each) => each.length > 0);
+    const across = numbered.some((a, i) => numbered.slice(i + 1).some((b) => !a.some((volume) => b.includes(volume))));
+    if (across) db.prepare('insert or ignore into dropped_work (work_id, series) values (?, ?)').run(work, series);
+  }
+  db.exec(`update edition set work_id = 'isbn:' || isbn, work_title = title
+    where exists (select 1 from dropped_work d where d.series = edition.series and d.work_id = edition.work_id)`);
+};
+
+// Overlapping BnF Series records are separate Edition Lines, named by their
+// years (ADR 0010 amendment 2026-11-14, CORE-95): an Edition keeps its year
+// and its BnF Series record, and the Edition Line key ends with the record
+// that names the line (empty until a fill knows it). Which lines mix records
+// is not known before a fill, so every Edition Line fills again; the fill
+// gives the listed Editions their year and record, and moves them.
+const lineRecords: Step = (db) => {
+  db.exec(`
+    alter table edition add column year integer;
+    alter table edition add column bnf_id text;
+    update edition set edition_line = edition_line || '|'
+      where edition_line is not null and length(edition_line) - length(replace(edition_line, '|', '')) = 3;
+    delete from line_fill;
+  `);
+};
+
+// Series Corrections (ADR 0017, CORE-103): a reader's Series, Edition Line
+// and Volume number for one Edition, laid over the source data of `edition`
+// on every read, so a fill never overwrites one and deleting it gives the
+// source data back. The Edition joins the Edition Line of `anchor` (an ISBN
+// in it), or, for a Series made by hand, the line `edition_line` of `series`.
+// `account` and `created_at` let the owner find a wrong Correction; they never
+// leave the instance.
+const seriesCorrections: Step = (db) =>
+  db.exec(`
+    create table if not exists series_correction (
+      isbn text primary key,
+      anchor text,
+      series integer references series (n),
+      edition_line text,
+      volume real,
+      account text not null,
+      created_at text not null,
+      check ((anchor is not null and series is null and edition_line is null) or (anchor is null and series is not null and edition_line is not null))
+    );
+    create index if not exists series_correction_anchor on series_correction (anchor);
+  `);
+
 // Add a step at the end; never edit or remove one.
-const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes, titleKeysWithoutSpaces, forgetFills];
+const steps: Step[] = [
+  catalogV0,
+  sameAs,
+  omnibusVolumes,
+  lineSizes,
+  titleKeysWithoutSpaces,
+  forgetFills,
+  oneWorkPerVolume,
+  lineRecords,
+  seriesCorrections,
+];
 
 export function migrate(db: DatabaseSync): void {
   const { user_version: done } = db.prepare('pragma user_version').get() as { user_version: number };

@@ -1,43 +1,38 @@
 // The Library screen, a Preact island (ADR 0014): every book in Grid, List
 // (LibraryList.tsx) or Cover flow (LibraryCoverFlow.tsx), under one toolbar
 // (search, Search in, Sort, filters, count, Clear all, the Books / Series
-// switch and the mode switch).
-// On the phone the controls open in a sheet.
+// switch and the mode switch, one icon on the phone).
+// On the phone the controls open in a sheet. "Select" starts bulk select
+// (src/islands/Selection.tsx): a tap picks a book instead of opening it.
 // The rules are in src/lib/library/browse.ts; this file only renders them.
 import type { ComponentChildren } from 'preact';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
-import type { Edition } from '../lib/catalog/catalog';
 import { coverUrl, lookupEditions } from '../lib/catalog/client';
-import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
-import { allBooks, browse, clearAll, libraryBooks, liveQuery, volumeLine, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
-import { listLabels, type Label } from '../lib/library/label';
+import { browse, clearAll, libraryBooks, liveQuery, searchIns, sorts, volumeLine, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
+import type { FlowMove } from '../lib/library/flow';
 import { letterGroups } from '../lib/library/letters';
-import { loadLibrary, waitingCount } from '../lib/library/library';
+import { savedLibraryState, type LibraryState } from '../lib/library/library-state';
 import { groupings, modes, readGrouping, readMode, saveGrouping, saveMode, type Grouping, type Mode } from '../lib/library/mode';
-import { bookHref, type Library as LibraryRecords } from '../lib/library/model';
-import type { Saved } from '../lib/library/records';
+import { bookHref, bookIsbns, workEdition } from '../lib/library/model';
 import { seriesHref } from '../lib/library/series';
 import { librarySeries, seriesCards, type LibrarySeries } from '../lib/library/series-mode';
-import { isNetworkFailure } from '../lib/network';
-import { freshListing } from '../lib/space/fresh-listing';
-import { spaceErrorMessage, type Space } from '../lib/space/space';
-import { toast } from '../lib/toast';
 import { Cover } from './Cover';
 import { LibraryCoverFlow } from './LibraryCoverFlow';
+import { useLibraryListing, type ListingSources } from './library-listing';
 import { LetterIndex, LibraryList } from './LibraryList';
+import { liveSelection, SelectionBar, type PickedBook, type SelectionSources } from './Selection';
 
 // Where the screen reads from: the reader's Library store and the Catalog.
-export interface Sources {
-  // Undefined when signed out.
-  open(): Promise<Space | undefined>;
-  editions(isbns: string[]): Promise<Map<string, Edition>>;
+export interface Sources extends ListingSources {
+  selection?: SelectionSources;
 }
 
 const live: Sources = {
   open: async () => (await openOwnSpace())?.space,
   editions: lookupEditions,
+  selection: liveSelection,
 };
 
 export default function LibraryIsland() {
@@ -47,63 +42,66 @@ export default function LibraryIsland() {
 // The phone frame ends at 960 px (docs/design/ui-direction.md).
 const desktop = '(min-width: 960px)';
 
+// The Library state of this history entry (src/lib/library/library-state.ts),
+// so the way back from a Book or a Series finds the Library as it was. Other
+// keys of the entry stay.
+const entry = (): Record<string, unknown> => (typeof history.state === 'object' && history.state !== null ? (history.state as Record<string, unknown>) : {});
+const savedState = () => savedLibraryState(entry().library);
+const remember = (part: Partial<LibraryState>) => history.replaceState({ ...entry(), library: { ...savedState(), ...part } }, '');
+// Phone: the page scrolls. Desktop: the panel of AppShell does.
+const panel = () => document.querySelector('[data-frame="panel"]');
+
 export function Library({ sources }: { sources: Sources }) {
-  const [read, setRead] = useState<{ library: LibraryRecords; labels: Saved<Label>[] }>();
-  // In place of the grid when there is none to show (signed out, or the first read failed).
-  const [message, setMessage] = useState<string>();
-  const [asked, setQuery] = useState<LibraryQuery>(allBooks);
+  // The Labels too: the Library shows and filters by them.
+  const { read, message, editions, space, refresh } = useLibraryListing(sources, { labels: true });
+  const [saved] = useState(savedState);
+  const [asked, setQuery] = useState<LibraryQuery>(saved.query);
+  // Where the reader moved the Cover flow to (src/lib/library/flow.ts).
+  const [moved, setMoved] = useState<FlowMove | undefined>(saved.flow);
   const [grouping, setGrouping] = useState<Grouping>(readGrouping);
   const [mode, setMode] = useState<Mode>(readMode);
   const wide = useMedia(desktop);
-  // Catalog answers kept for this visit, so an offline reload keeps the titles.
-  const editions = useRef(new Map<string, Edition>());
-  const loaded = useRef(false);
+  // Bulk select: on or off, and the Works picked, in the order of the taps.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
 
+  useEffect(() => remember({ query: asked, flow: moved }), [asked, moved]);
+
+  // The scroll is the island's to put back, once the books are drawn.
+  // Kept as the page goes: at `pageswap` where there is one, since Chrome makes
+  // the page shorter by `pagehide` during a page transition, which cuts the
+  // scroll; at `pagehide` in a browser with no `pageswap`.
   useEffect(() => {
-    // No network: the connection status says it, and the listing tries again.
-    function fail(error: unknown) {
-      const network = isNetworkFailure(error);
-      if (network) reportNetwork(false);
-      if (!loaded.current) setMessage(spaceErrorMessage(error));
-      else if (!network) toast(spaceErrorMessage(error), { error: true });
-    }
+    history.scrollRestoration = 'manual';
+    let kept = false;
+    const keep = () => {
+      if (kept) return;
+      kept = true;
+      remember({ scroll: { page: scrollY, panel: panel()?.scrollTop ?? 0 } });
+    };
+    // Back from the back/forward cache: the next departure keeps the scroll again.
+    const shown = () => (kept = false);
+    addEventListener('pageswap', keep);
+    addEventListener('pagehide', keep);
+    addEventListener('pageshow', shown);
+    return () => {
+      removeEventListener('pageswap', keep);
+      removeEventListener('pagehide', keep);
+      removeEventListener('pageshow', shown);
+    };
+  }, []);
+  // Before the first paint with the books: the cover of a Book flying home
+  // (src/lib/page-transition.ts) lands in its slot only if the slot is in sight.
+  const scrolled = useRef(false);
+  useLayoutEffect(() => {
+    if (!read || scrolled.current) return;
+    scrolled.current = true;
+    scrollTo(0, saved.scroll.page);
+    panel()?.scrollTo(0, saved.scroll.panel);
+  }, [read, saved]);
 
-    async function start() {
-      const own = await sources.open();
-      // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
-      if (!own) return;
-      const listing = freshListing(
-        async () => {
-          const [records, labels] = await Promise.all([loadLibrary(own), listLabels(own)]);
-          await askCatalog(records.library);
-          return { library: records.library, labels: labels.records, stale: records.stale || labels.stale, waiting: await waitingCount(own) };
-        },
-        (fresh) => {
-          // Stale: the store did not answer, so this is the copy on this device.
-          reportNetwork(!fresh.stale);
-          reportWaiting(fresh.waiting);
-          loaded.current = true;
-          setMessage(undefined);
-          setRead({ library: fresh.library, labels: fresh.labels });
-        },
-        fail,
-      );
-      await listing.refresh();
-    }
-
-    // The Editions of the Copies and Reading Statuses, when not asked yet. One
-    // the Catalog cannot answer for now shows its ISBN, and is asked again on the next read.
-    async function askCatalog(library: LibraryRecords) {
-      const isbns = [...library.copies, ...library.readingStatuses].map(({ value }) => value.isbn);
-      const unknown = isbns.filter((isbn) => !editions.current.has(isbn));
-      for (const [isbn, edition] of await sources.editions(unknown)) editions.current.set(isbn, edition);
-    }
-
-    start().catch(fail);
-  }, [sources]);
-
-  const books = useMemo(() => read && libraryBooks(read.library, editions.current, read.labels), [read]);
-  const series = useMemo(() => read && books && librarySeries(books, read.library, editions.current), [read, books]);
+  const books = useMemo(() => read && libraryBooks(read.library, editions, read.labels), [read, editions]);
+  const series = useMemo(() => read && books && librarySeries(books, read.library, editions), [read, books, editions]);
 
   if (message) {
     return (
@@ -133,24 +131,28 @@ export function Library({ sources }: { sources: Sources }) {
   // no mode switch and no letter index; the mode is kept for the way back.
   const byBooks = grouping === 'books';
   const listed = byBooks && mode === 'list' ? letterGroups(found.books, query.sort, pageLanguage()) : undefined;
-  const modeSwitch = byBooks && (
-    <Segmented
-      name="library-mode"
-      label={t('library.mode')}
-      choices={modes}
-      chosen={mode}
-      text={(each) => t(`library.mode.${each}`)}
-      onChange={(chosen) => {
-        saveMode(chosen);
-        setMode(chosen);
-      }}
-    />
-  );
+  const choose = (chosen: Mode) => {
+    saveMode(chosen);
+    setMode(chosen);
+  };
+  // Desktop: a switch with the three words. Phone: one icon (CORE-110).
+  const modeSwitch =
+    byBooks &&
+    (wide ? (
+      <Segmented name="library-mode" label={t('library.mode')} choices={modes} chosen={mode} text={(each) => t(`library.mode.${each}`)} onChange={choose} />
+    ) : (
+      <ModeMenu mode={mode} onChange={choose} />
+    ));
   const change = (part: Partial<LibraryQuery>) => setQuery({ ...query, ...part });
   const clear = () => setQuery(clearAll(query));
+  // Series mode counts its cards, out of the Series of the whole Library (CORE-116).
+  const cards = grouping === 'series' && seriesCards(found.books, series, query.sort, pageLanguage());
+  const shown = cards ? cards.length : found.books.length;
+  // The count shows only while a search or a filter is on (CORE-110). Its live
+  // region stays, empty and hidden, so a screen reader hears the first count.
   const count = (
-    <p class="library-count" role="status">
-      {t('library.count', found.books.length, found.total, found.filtered)}
+    <p class={found.filtered ? 'library-count' : 'visually-hidden'} role="status">
+      {found.filtered && (cards ? t('library.count-series', shown, new Set(series.values()).size, true) : t('library.count', shown, found.total, true))}
     </p>
   );
   const clearButton = found.filtered && (
@@ -164,13 +166,18 @@ export function Library({ sources }: { sources: Sources }) {
     setGrouping(chosen);
   };
   const groupingSwitch = <Segmented name="library-grouping" label={t('library.grouping')} choices={groupings} chosen={grouping} text={(each) => t(`library.grouping.${each}`)} onChange={group} />;
-  const cards = grouping === 'series' && seriesCards(found.books, series, query.sort, pageLanguage());
+  const pick = (work: string) => setSelected(selected.includes(work) ? selected.filter((each) => each !== work) : [...selected, work]);
+  const picked = selected.map((work): PickedBook => ({ work, isbn: bookIsbns(work, read.library)[0] ?? '', edition: workEdition(work, read.library, editions) }));
+  const selectButton = !selecting && (
+    <button class="button button-quiet library-select" type="button" onClick={() => setSelecting(true)}>
+      {t('select.start')}
+    </button>
+  );
 
   return (
     <div class="library">
       <div class="library-toolbar">
         {!wide && groupingSwitch}
-        {!wide && modeSwitch}
         <div class="library-search-row">
           <div class="library-search">
             <label class="visually-hidden" for="library-search">
@@ -192,15 +199,20 @@ export function Library({ sources }: { sources: Sources }) {
               {count}
               {clearButton}
               {modeSwitch}
+              {selectButton}
             </>
           ) : (
-            <Sheet query={query} found={found} change={change} />
+            <>
+              <Sheet query={query} found={found} change={change} show={cards ? t('library.show-series', shown) : t('library.show', shown)} />
+              {modeSwitch}
+              {selectButton}
+            </>
           )}
         </div>
         {wide ? (
           <Controls query={query} found={found} change={change} />
         ) : (
-          <div class="library-count-row">
+          <div class={found.filtered ? 'library-count-row' : 'visually-hidden'}>
             {count}
             {clearButton}
           </div>
@@ -208,27 +220,54 @@ export function Library({ sources }: { sources: Sources }) {
         {listed && <LetterIndex index={listed.index} />}
       </div>
 
-      {found.books.length === 0 ? (
+      {shown === 0 && !found.filtered ? (
+        // Series mode with no book in a Series: nothing to clear.
+        <p class="library-message">{t('library.no-series')}</p>
+      ) : shown === 0 ? (
         <div class="library-no-match">
-          <p>{t('library.no-match')}</p>
+          <p>{t(cards ? 'library.no-series-match' : 'library.no-match')}</p>
           <button class="button" type="button" onClick={clear}>
             {t('library.clear-all')}
           </button>
         </div>
+      ) : selecting ? (
+        // Bulk select: the books the filter shows, in a grid whatever the mode, each a toggle.
+        <ul class="library-grid">
+          {found.books.map((book) => (
+            <Book key={book.work} book={book} picked={selected.includes(book.work)} onPick={() => pick(book.work)} />
+          ))}
+        </ul>
       ) : cards ? (
         <ul class="library-grid">
-          {cards.map((card) => ('series' in card ? <SeriesCard key={`series ${card.series.cover.isbn}`} series={card.series} /> : <Book key={card.book.work} book={card.book} />))}
+          {cards.map((each) => (
+            <SeriesCard key={`series ${each.cover.isbn}`} series={each} />
+          ))}
         </ul>
       ) : listed ? (
         <LibraryList groups={listed.groups} />
       ) : mode === 'flow' ? (
-        <LibraryCoverFlow books={found.books} />
+        <LibraryCoverFlow books={found.books} moved={moved} onMove={setMoved} wide={wide} />
       ) : (
         <ul class="library-grid">
           {found.books.map((book) => (
             <Book key={book.work} book={book} />
           ))}
         </ul>
+      )}
+      {selecting && space && (
+        <SelectionBar
+          picked={picked}
+          onAll={() => setSelected([...new Set([...selected, ...found.books.map(({ work }) => work)])])}
+          onDone={() => {
+            setSelecting(false);
+            setSelected([]);
+          }}
+          space={space}
+          library={read.library}
+          // After Move to Series: the Catalog's new answers, so the books show their new Series.
+          onSaved={refresh}
+          sources={sources.selection ?? liveSelection}
+        />
       )}
     </div>
   );
@@ -240,12 +279,11 @@ interface ControlsProps {
   change: (part: Partial<LibraryQuery>) => void;
 }
 
-const searchIns: SearchIn[] = ['all', 'title', 'author', 'series', 'volumeTitle'];
-const sorts: SortBy[] = ['title', 'author', 'series', 'added'];
-
 // Search in, Sort, the author and Series filters, and the chips: in the
 // toolbar on desktop, in the sheet on the phone.
 function Controls({ query, found, change }: ControlsProps) {
+  // With no search or filter on, each count is the Library itself: none shows (CORE-110).
+  const shown = (count: number) => (found.filtered ? count : undefined);
   return (
     <div class="library-controls">
       <div class="library-selects">
@@ -282,14 +320,25 @@ function Controls({ query, found, change }: ControlsProps) {
       </div>
       <div class="library-chips" role="group" aria-label={t('library.status')}>
         {found.statuses.map(({ status, count }) => (
-          <Chip key={status ?? 'all'} name={status ? t(`status.${status}`) : t('library.all-statuses')} count={count} pressed={query.status === status} onClick={() => change({ status })} />
+          <Chip key={status ?? 'all'} name={status ? t(`status.${status}`) : t('library.all-statuses')} count={shown(count)} pressed={query.status === status} onClick={() => change({ status })} />
+        ))}
+      </div>
+      <div class="library-chips" role="group" aria-label={t('library.ownership')}>
+        {found.owned.map(({ owned, count }) => (
+          <Chip
+            key={String(owned)}
+            name={owned === null ? t('library.all-owned') : t(owned ? 'library.owned' : 'library.not-owned')}
+            count={shown(count)}
+            pressed={query.owned === owned}
+            onClick={() => change({ owned })}
+          />
         ))}
       </div>
       {/* Labels are made on the Book page (CORE-35); with none, no row. */}
       {found.labels.length > 1 && (
         <div class="library-chips" role="group" aria-label={t('library.label')}>
           {found.labels.map(({ label, name, count }) => (
-            <Chip key={label ?? 'all'} name={label ? name : t('library.all-labels')} count={count} pressed={query.label === label} onClick={() => change({ label })} />
+            <Chip key={label ?? 'all'} name={label ? name : t('library.all-labels')} count={shown(count)} pressed={query.label === label} onClick={() => change({ label })} />
           ))}
         </div>
       )}
@@ -298,9 +347,10 @@ function Controls({ query, found, change }: ControlsProps) {
 }
 
 // The phone: one button opens the controls in a sheet; it shows how many are on.
-function Sheet({ query, found, change }: ControlsProps) {
+// `show`: its button, which says how many books or Series show.
+function Sheet({ query, found, change, show }: ControlsProps & { show: string }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const on = [query.searchIn !== 'all', query.author, query.series, query.status, query.label].filter(Boolean).length;
+  const on = [query.searchIn !== 'all', query.author, query.series, query.status, query.label, query.owned !== null].filter(Boolean).length;
   return (
     <>
       <button class="button library-filters" type="button" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
@@ -321,7 +371,7 @@ function Sheet({ query, found, change }: ControlsProps) {
       >
         <Controls query={query} found={found} change={change} />
         <button class="button button-primary library-show" type="button" onClick={() => dialog.current?.close()}>
-          {t('library.show', found.books.length)}
+          {show}
         </button>
       </dialog>
     </>
@@ -339,17 +389,18 @@ function Select({ id, label, value, onChange, children }: { id: string; label: s
   );
 }
 
-function Chip({ name, count, pressed, onClick }: { name: string; count: number; pressed: boolean; onClick: () => void }) {
+function Chip({ name, count, pressed, onClick }: { name: string; count: number | undefined; pressed: boolean; onClick: () => void }) {
   return (
     <button class="library-chip" type="button" aria-pressed={pressed} onClick={onClick}>
       <span class="library-chip-name">{name}</span>
-      <span class="library-chip-count">{count}</span>
+      {count !== undefined && <span class="library-chip-count">{count}</span>}
     </button>
   );
 }
 
-// One choice among a few: the Books / Series switch and the Grid / List / Cover
-// flow switch. Desktop: in the search row. Phone: each a row of its own.
+// One choice among a few: the Books / Series switch and, on desktop, the Grid /
+// List / Cover flow switch. Desktop: in the search row. Phone: Books / Series
+// is a row of its own.
 function Segmented<Choice extends string>({
   name,
   label,
@@ -377,16 +428,78 @@ function Segmented<Choice extends string>({
   );
 }
 
-function Book({ book }: { book: LibraryBook }) {
+// The phone: Grid / List / Cover flow in the search row, as one icon, the
+// mode's own. A tap opens the system menu of a native select, as the Reading
+// Status chip does (CORE-105); a screen reader hears "View, Grid".
+function ModeMenu({ mode, onChange }: { mode: Mode; onChange: (mode: Mode) => void }) {
+  return (
+    <span class="library-view">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        {modeIcons[mode]}
+      </svg>
+      <select
+        aria-label={t('library.mode')}
+        value={mode}
+        onChange={(event) => {
+          const chosen = modes.find((each) => each === event.currentTarget.value);
+          if (chosen) onChange(chosen);
+        }}
+      >
+        {modes.map((each) => (
+          <option key={each} value={each}>
+            {t(`library.mode.${each}`)}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+// Lucide's layout-grid, list and gallery-horizontal (https://lucide.dev, ISC),
+// drawn here: an island cannot use the Astro icons of src/components/icons.ts.
+const modeIcons: Record<Mode, ComponentChildren> = {
+  grid: (
+    <>
+      <rect width="7" height="7" x="3" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="14" rx="1" />
+      <rect width="7" height="7" x="3" y="14" rx="1" />
+    </>
+  ),
+  list: <path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13" />,
+  flow: (
+    <>
+      <path d="M2 3v18M22 3v18" />
+      <rect width="12" height="18" x="6" y="3" rx="2" />
+    </>
+  ),
+};
+
+// In bulk select (`onPick`), a toggle that picks the book instead of a link to it.
+function Book({ book, picked, onPick }: { book: LibraryBook; picked?: boolean; onPick?: () => void }) {
   const volume = volumeLine(book);
   const line = [volume, book.authors.join(', ')].filter(Boolean).join(' · ');
+  // Read with no Copy: a grey cover and a quiet mark (CORE-100), no colour role.
+  const name = book.owned ? 'library-book' : 'library-book library-not-owned';
+  const content = (
+    <>
+      <Cover class="library-cover" src={book.cover} title={book.title} series={book.series} volumeTitle={book.volumeTitle} volume={volume} />
+      <span class="library-book-title">{book.title}</span>
+      {line && <span class="library-book-line">{line}</span>}
+      {!book.owned && <span class="library-book-line">{t('library.not-owned')}</span>}
+    </>
+  );
   return (
     <li>
-      <a class="library-book" href={bookHref(book.work)}>
-        <Cover class="library-cover" src={book.cover} title={book.title} series={book.series} volumeTitle={book.volumeTitle} volume={volume} />
-        <span class="library-book-title">{book.title}</span>
-        {line && <span class="library-book-line">{line}</span>}
-      </a>
+      {onPick ? (
+        <button class={`${name} library-pick`} type="button" aria-pressed={picked} onClick={onPick}>
+          {content}
+        </button>
+      ) : (
+        <a class={name} href={bookHref(book.work)}>
+          {content}
+        </a>
+      )}
     </li>
   );
 }

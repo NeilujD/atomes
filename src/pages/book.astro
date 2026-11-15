@@ -5,6 +5,7 @@ import Icon from '../components/Icon.astro';
 import BookLabels from '../islands/BookLabels';
 import WorkPrivacy from '../islands/WorkPrivacy';
 import AppShell from '../layouts/AppShell.astro';
+import '../styles/correction.css';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
 const t = translator(requestLanguage(Astro.request));
@@ -57,21 +58,20 @@ const choices = [
           <p class="title" data-title aria-hidden="true"></p>
           <p class="line" data-volume-title></p>
           <p class="line strong" data-authors></p>
-          <p class="line" data-series></p>
+          <!-- "Series: X · Volume N · Change" (Series Correction, src/islands/SeriesCorrection.tsx). -->
+          <div class="line series-line" data-series-line>
+            <span data-series></span><span data-series-correction></span>
+          </div>
         </div>
 
         <section class="group" aria-labelledby="status-title">
           <h2 class="group-title" id="status-title">{t('book.reading-status')}</h2>
-          <div class="segmented" role="radiogroup" aria-labelledby="status-title" data-status>
-            {
-              choices.map((choice) => (
-                <label class="segment">
-                  <input type="radio" name="status" value={choice.value} />
-                  <span>{choice.label}</span>
-                </label>
-              ))
-            }
-          </div>
+          <span class="status-chip">
+            <select aria-labelledby="status-title" data-status>
+              {choices.map((choice) => <option value={choice.value}>{choice.label}</option>)}
+            </select>
+            <Icon name="chevron-down" />
+          </span>
           <div class="finished" data-finished hidden>
             <label class="label" for="finished-at">{t('book.finished-on')}</label>
             <input class="field" id="finished-at" type="date" data-finished-at />
@@ -108,10 +108,22 @@ const choices = [
           <p class="strong" data-edition></p>
           <p class="hint" data-isbn></p>
         </div>
-        <button class="button button-quiet" type="button" data-remove>
-          <Icon name="trash" />
-          <span>{t('book.remove')}</span>
-        </button>
+        <!-- Lend opens the Lend form; "…" opens the menu with Remove, which destroys (Undo in its toast). -->
+        <div class="copy-actions">
+          <button class="button button-quiet" type="button" data-lend-open>
+            <Icon name="handshake" />
+            <span>{t('book.lend')}</span>
+          </button>
+          <button class="button button-quiet icon-only" type="button" data-more>
+            <Icon name="ellipsis" />
+          </button>
+          <div class="copy-menu" popover data-menu>
+            <button class="button button-quiet button-danger copy-menu-item" type="button" data-remove>
+              <Icon name="trash" />
+              <span>{t('book.remove')}</span>
+            </button>
+          </div>
+        </div>
       </div>
       <!-- An open Loan: who has the Copy, since when. -->
       <div class="loan" data-loan hidden>
@@ -124,7 +136,7 @@ const choices = [
           <span>{t('book.mark-returned')}</span>
         </button>
       </div>
-      <form class="lend" data-lend>
+      <form class="lend" data-lend hidden>
         <label class="lend-field">
           <span class="label">{t('book.lend-to')}</span>
           <input
@@ -138,6 +150,9 @@ const choices = [
           />
         </label>
         <button class="button" type="submit" data-lend-button>{t('book.lend')}</button>
+        <button class="button button-quiet icon-only" type="button" aria-label={t('book.lend-cancel')} data-lend-cancel>
+          <Icon name="x" />
+        </button>
       </form>
       <details class="past-loans" data-past-loans hidden>
         <summary class="hint" data-past-loans-title></summary>
@@ -148,25 +163,27 @@ const choices = [
 </AppShell>
 
 <script>
+  import { h, render as renderIsland } from 'preact';
+  import { SeriesCorrection } from '../islands/SeriesCorrection';
   import { openOwnSpace } from '../lib/auth/server-client';
   import type { Edition } from '../lib/catalog/catalog';
-  import { lookupEditions } from '../lib/catalog/client';
+  import { lookupEditions, refreshCorrected } from '../lib/catalog/client';
   import { showCover } from '../lib/cover';
-  import { deleteCopy } from '../lib/library/copy';
   import { isEditionWork, isWorkId } from '../lib/library/ids';
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { saveFollow } from '../lib/library/follow';
   import { pageLanguage, t } from '../lib/i18n/i18n';
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
-  import { deleteLoan, saveLoan } from '../lib/library/loan';
-  import { bookIsbns, bookPage, lend, loansOf, returnLoans, statusChange, type BookPage, type Library } from '../lib/library/model';
+  import { saveLoan } from '../lib/library/loan';
+  import { bookIsbns, bookPage, lend, returnLoans, statusChange, type BookPage, type Library } from '../lib/library/model';
   import { followOnRead } from '../lib/library/onboarding';
+  import { removeCopy, type Removed } from '../lib/library/remove-copy';
   import { saveReadingStatus, statuses, type ReadingStatus } from '../lib/library/reading-status';
   import { seriesHref, suggestsDrop } from '../lib/library/series';
   import { isNetworkFailure } from '../lib/network';
   import { freshListing } from '../lib/space/fresh-listing';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
-  import { toast } from '../lib/toast';
+  import { toast, type ToastAction } from '../lib/toast';
 
   const pageBox = document.querySelector<HTMLElement>('[data-page]')!;
   const message = document.querySelector<HTMLElement>('[data-message]')!;
@@ -174,7 +191,7 @@ const choices = [
   const skeleton = document.querySelector<HTMLElement>('[data-skeleton]')!;
   const article = document.querySelector<HTMLElement>('[data-book]')!;
   const cover = document.querySelector<HTMLElement>('[data-book-cover]')!;
-  const statusRadios = article.querySelectorAll<HTMLInputElement>('[data-status] input[name="status"]');
+  const statusSelect = article.querySelector<HTMLSelectElement>('[data-status]')!;
   const finished = article.querySelector<HTMLElement>('[data-finished]')!;
   const finishedAt = article.querySelector<HTMLInputElement>('[data-finished-at]')!;
   const copyList = article.querySelector<HTMLUListElement>('[data-copies]')!;
@@ -263,19 +280,30 @@ const choices = [
     article.querySelector('[data-volume-title]')!.textContent = page.volumeTitle ?? '';
     article.querySelector('[data-authors]')!.textContent = page.authors.join(', ');
     // The Series name opens the Series page, when the Catalog knows the Series.
+    // A book the Catalog knows ends the line with "Change" (Series Correction).
     const seriesLine = article.querySelector<HTMLElement>('[data-series]')!;
     const seriesName = page.series && page.series !== page.title ? page.series : '';
-    const seriesPage = editions.get(page.isbn)?.series ? seriesHref(page.isbn) : undefined;
-    seriesLine.replaceChildren(
-      ...[
-        seriesPage ? Object.assign(document.createElement('a'), { href: seriesPage, textContent: page.series ?? '' }) : seriesName,
-        volume,
-      ]
-        .filter(Boolean)
-        .flatMap((part, index) => (index === 0 ? [part] : [' · ', part])),
+    const known = editions.get(page.isbn);
+    const seriesPage = known?.series ? seriesHref(page.isbn) : undefined;
+    const parts = [
+      seriesPage ? Object.assign(document.createElement('a'), { href: seriesPage, textContent: page.series ?? '' }) : seriesName,
+      volume,
+    ].filter(Boolean);
+    seriesLine.replaceChildren(...parts.flatMap((part, index) => (index === 0 ? [part] : [' · ', part])), ...(known && parts.length ? [' · '] : []));
+    article.querySelector<HTMLElement>('[data-series-line]')!.hidden = !known && parts.length === 0;
+    renderIsland(
+      known
+        ? h(SeriesCorrection, {
+            // A new answer starts the sheet again from it.
+            key: `${known.series?.id}|${known.volume}|${known.corrected}`,
+            editions: [known],
+            onCorrected: ([edition], text) => corrected(edition, text),
+          })
+        : null,
+      article.querySelector<HTMLElement>('[data-series-correction]')!,
     );
 
-    for (const radio of statusRadios) radio.checked = radio.value === page.status;
+    statusSelect.value = page.status;
     finished.hidden = page.status !== 'read';
     finishedAt.value = page.finishedAt?.slice(0, 10) ?? '';
 
@@ -289,15 +317,26 @@ const choices = [
     article.querySelector<HTMLAnchorElement>('[data-add-copy]')!.href = `/check?isbn=${page.isbn}`;
   }
 
+  // The Catalog gives the Edition a Series Correction made or deleted: this
+  // page and this device show it at once.
+  function corrected(edition: Edition, text: string) {
+    editions.set(edition.isbn, edition);
+    void refreshCorrected(edition.isbn);
+    toast(text);
+    render();
+  }
+
   function copyRow(copy: BookPage['copies'][number]): HTMLLIElement {
     const row = copyTemplate.content.firstElementChild!.cloneNode(true) as HTMLLIElement;
     row.querySelector('[data-edition]')!.textContent = copy.edition || t('book.edition-unknown');
     row.querySelector('[data-isbn]')!.textContent = t('book.isbn', copy.isbn);
-    // Lent: who has it and Mark returned. Not lent: the Lend form.
+    // Lent: who has it and Mark returned. Not lent: Lend, which opens the Lend form.
     const loan = row.querySelector<HTMLElement>('[data-loan]')!;
     const lendForm = row.querySelector<HTMLFormElement>('[data-lend]')!;
+    const lendOpen = row.querySelector<HTMLButtonElement>('[data-lend-open]')!;
     loan.hidden = !copy.loan;
-    lendForm.hidden = !!copy.loan;
+    lendOpen.hidden = !!copy.loan;
+    lendOpen.setAttribute('aria-label', t('book.lend-copy', copy.isbn));
     if (copy.loan) {
       loan.querySelector('[data-loan-text]')!.textContent = t('book.lent', copy.loan.borrower, shortDate(copy.loan.lentAt));
       const back = loan.querySelector<HTMLButtonElement>('[data-return]')!;
@@ -306,6 +345,17 @@ const choices = [
     }
     const input = lendForm.querySelector<HTMLInputElement>('input[name="borrower"]')!;
     lendForm.querySelector('[data-lend-button]')!.setAttribute('aria-label', t('book.lend-copy', copy.isbn));
+    // The form takes the place of Lend while it is open, so one button only is named "Lend the Copy…".
+    const showLend = (open: boolean) => {
+      lendForm.hidden = !open;
+      lendOpen.hidden = open;
+      (open ? input : lendOpen).focus();
+    };
+    lendOpen.addEventListener('click', () => showLend(true));
+    lendForm.querySelector('[data-lend-cancel]')!.addEventListener('click', () => showLend(false));
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') showLend(false);
+    });
     lendForm.addEventListener('submit', (event) => {
       event.preventDefault();
       if (!input.value.trim()) {
@@ -329,9 +379,32 @@ const choices = [
       }),
     );
 
+    // "…": a menu under the button (over it in the lower half of the screen,
+    // clear of the tab bar), closed by a tap outside or Escape. It follows the
+    // button when the page or the panel scrolls.
+    const more = row.querySelector<HTMLButtonElement>('[data-more]')!;
+    const menu = row.querySelector<HTMLElement>('[data-menu]')!;
+    more.setAttribute('aria-label', t('book.copy-more', copy.isbn));
+    more.popoverTargetElement = menu;
+    const place = () => {
+      const box = more.getBoundingClientRect();
+      const above = box.bottom > innerHeight / 2;
+      menu.style.top = above ? 'auto' : `${box.bottom + 4}px`;
+      menu.style.bottom = above ? `${innerHeight - box.top + 4}px` : 'auto';
+      menu.style.right = `${document.documentElement.clientWidth - box.right}px`;
+    };
+    menu.addEventListener('beforetoggle', (event) => {
+      if ((event as ToggleEvent).newState === 'open') {
+        place();
+        addEventListener('scroll', place, { capture: true, passive: true });
+      } else removeEventListener('scroll', place, { capture: true });
+    });
     const remove = row.querySelector<HTMLButtonElement>('[data-remove]')!;
     remove.setAttribute('aria-label', t('book.remove-copy', copy.isbn));
-    remove.addEventListener('click', () => void save(() => removeCopy(copy.rkey), remove));
+    remove.addEventListener('click', () => {
+      menu.hidePopover();
+      void removeWithUndo(copy.rkey, more);
+    });
     return row;
   }
 
@@ -347,7 +420,12 @@ const choices = [
 
   // One change at a time: the book is inert while it saves (no dimming), and
   // the button that started it, if any, shows a spinner.
-  async function save(change: (space: Space) => Promise<WriteState | undefined>, button?: HTMLButtonElement | null) {
+  // `then` gives the toast of a sent change its own text, and an action unless the change is refused.
+  async function save(
+    change: (space: Space) => Promise<WriteState | undefined>,
+    button?: HTMLButtonElement | null,
+    then: { sent?: string; action?: ToastAction } = {},
+  ) {
     const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
     article.inert = true;
     button?.setAttribute('aria-busy', 'true');
@@ -355,7 +433,8 @@ const choices = [
       const state = await change(space);
       if (state) {
         closeWaiting();
-        const close = toast(await savedText(space, state), { error: state === 'refused' });
+        const text = state === 'sent' && then.sent ? then.sent : await savedText(space, state);
+        const close = toast(text, { error: state === 'refused', action: state === 'refused' ? undefined : then.action });
         if (state === 'waiting') {
           closeWaiting = close;
           sendLater();
@@ -393,37 +472,43 @@ const choices = [
     return worstState(states);
   }
 
-  // A removed Copy takes its Loans with it: they hold names of people who are not readers.
-  async function removeCopy(copy: string) {
-    const loans = await Promise.all(loansOf(copy, library).map(({ rkey }) => deleteLoan(space, rkey)));
-    return worstState([...loans, await deleteCopy(space, copy)]);
+  // Remove asks nothing first: its toast offers Undo, which puts back the same Copy and its Loans.
+  async function removeWithUndo(copy: string, button: HTMLButtonElement) {
+    let undo: Removed['undo'] | undefined;
+    await save(
+      async (own) => {
+        const removed = await removeCopy(own, copy, library);
+        undo = removed.undo;
+        return removed.state;
+      },
+      button,
+      { sent: t('book.copy-removed'), action: { label: t('common.undo'), run: () => undo && void save(undo) } },
+    );
   }
 
   function readingStatus(): ReadingStatus | undefined {
     return library.readingStatuses.find(({ rkey }) => rkey === work)?.value;
   }
 
-  for (const radio of statusRadios) {
-    radio.addEventListener('change', () => {
-      const chosen = statuses.find((status) => status === radio.value);
-      if (!page || !chosen) return;
-      const now = new Date();
-      const change = statusChange(work, page.isbn, chosen, library, now);
-      if (!change) return;
-      // Marking a Volume read follows its Series (glossary: Followed Series).
-      const edition = editions.get(page.isbn);
-      const follow = followOnRead(edition, chosen, library, now);
-      // Abandoning a Volume of a Followed Series suggests dropping the Series; the Series page does it.
-      const suggest = suggestsDrop(edition, chosen, library) && edition?.series;
-      const isbn = page.isbn;
-      void save(async () => {
-        const state = await saveReadingStatus(space, change);
-        return follow ? worstState([state, await saveFollow(space, follow)]) : state;
-      }).then(() => {
-        if (suggest) toast(t('series.drop-suggest', suggest.title), { link: { href: seriesHref(isbn), label: t('series.open') } });
-      });
+  statusSelect.addEventListener('change', () => {
+    const chosen = statuses.find((status) => status === statusSelect.value);
+    if (!page || !chosen) return;
+    const now = new Date();
+    const change = statusChange(work, page.isbn, chosen, library, now);
+    if (!change) return;
+    // Marking a Volume read follows its Series (glossary: Followed Series).
+    const edition = editions.get(page.isbn);
+    const follow = followOnRead(edition, chosen, library, now);
+    // Abandoning a Volume of a Followed Series suggests dropping the Series; the Series page does it.
+    const suggest = suggestsDrop(edition, chosen, library) && edition?.series;
+    const isbn = page.isbn;
+    void save(async () => {
+      const state = await saveReadingStatus(space, change);
+      return follow ? worstState([state, await saveFollow(space, follow)]) : state;
+    }).then(() => {
+      if (suggest) toast(t('series.drop-suggest', suggest.title), { link: { href: seriesHref(isbn), label: t('series.open') } });
     });
-  }
+  });
 
   finishedAt.addEventListener('change', () => {
     const current = readingStatus();
@@ -650,6 +735,43 @@ const choices = [
     min-width: 0;
   }
 
+  .copy-actions {
+    flex: none;
+    display: flex;
+    align-items: center;
+  }
+
+  .copy-actions [hidden] {
+    display: none;
+  }
+
+  /* "…" and the Cancel of the Lend form: square buttons. */
+  .icon-only {
+    width: var(--row);
+    padding: 0;
+  }
+
+  /* The menu of a Copy, in the top layer under its "…" (placed by the script). */
+  .copy-menu {
+    inset: auto;
+    margin: 0;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 8px 24px var(--page-shadow);
+  }
+
+  .copy-menu-item {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .copy-menu-item:hover:not(:disabled) {
+    background: var(--soft);
+  }
+
   .loan,
   .lend {
     display: flex;
@@ -674,11 +796,13 @@ const choices = [
     font-weight: 600;
   }
 
+  /* With Lend and Cancel, on one row at 390 px. */
   .lend-field {
-    flex: 1 1 200px;
+    flex: 1 1 160px;
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
   }
 
   .lend-field .field {
@@ -759,6 +883,20 @@ const choices = [
 
 <style is:global>
   /* Global: the Labels and Visibility islands render on the device, outside this page's scoped styles. */
+
+  /* "Change" ends the Series line: a quiet text button, its tap target taller than the text. */
+  .series-change {
+    margin: -12px -4px;
+    padding: 12px 4px;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
   .work-privacy {
     align-self: stretch;
     display: flex;
@@ -855,7 +993,22 @@ const choices = [
     color: var(--ink);
   }
 
-  /* One of the reader's other Labels: a tap puts it on this book. */
+  /* From the Series: no Remove here, a small Series mark instead (the Series page removes it). */
+  li.labels-chip-series {
+    padding-right: 12px;
+  }
+
+  .labels-chip-mark {
+    display: inline-flex;
+    color: var(--secondary);
+  }
+
+  /* The reader's other Labels sit in the row of "+ Label". */
+  .labels-others {
+    display: contents;
+  }
+
+  /* One of the reader's other Labels: a tap puts it on this book. "+ Label" opens the New Label field. */
   .labels-chip-add {
     border-style: dashed;
     cursor: pointer;
@@ -879,11 +1032,6 @@ const choices = [
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-
-  .labels-label {
-    font-size: 14px;
-    font-weight: 600;
   }
 
   .labels-row {

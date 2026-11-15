@@ -54,6 +54,18 @@ const row = (name: string, text: string) => group(name).getAllByText(text)[0].cl
 async function openSeries(name: string) {
   fireEvent.click(await screen.findByRole('button', { name }));
 }
+// The "+" of the view header (to-buy.astro) opens this sheet; checked in e2e/to-buy.spec.ts.
+function openAddSheet() {
+  const sheet = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
+  sheet.showModal();
+  return sheet;
+}
+function addByIsbn(typed: string) {
+  const sheet = openAddSheet();
+  fireEvent.input(within(sheet).getByLabelText('Add a book by its ISBN'), { target: { value: typed } });
+  fireEvent.submit(within(sheet).getByRole('button', { name: 'Add' }).closest('form')!);
+  return sheet;
+}
 
 afterEach(cleanup);
 
@@ -96,10 +108,27 @@ describe('To Buy screen', () => {
     expect(stored(copyCollection).map(({ value }) => (value as { isbn: string }).isbn)).toContain(isbns[1]);
   });
 
-  test('a reader who owns every Volume of the Series they follow is told the rule', async () => {
-    await screenWithLibrary([1, 2, 3, 4, 5]);
+  test('the first group is at the top: adding by ISBN waits in a sheet', async () => {
+    await screenWithLibrary();
+    await screen.findByRole('button', { name: /^Blacksad/ });
 
-    expect(await screen.findByText(/^Nothing to buy in the Series you follow\./)).toBeTruthy();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.queryByText(/Only you see/)).toBeNull();
+  });
+
+  test('a group with nothing to buy does not show', async () => {
+    await screenWithLibrary([1, 2, 3, 4, 5]);
+    await screen.findByRole('region', { name: 'Added by hand' });
+
+    expect(screen.queryByRole('region', { name: followed })).toBeNull();
+  });
+
+  test('a reader with nothing to buy is told, in one sentence, what the list shows and who sees it', async () => {
+    const { space } = memorySpace();
+    render(<ToBuy sources={{ open: () => Promise.resolve(space), volumes: () => Promise.resolve(undefined), editions: () => Promise.resolve(new Map()) }} />);
+
+    expect(await screen.findByText(/^Nothing to buy: .* and only you see them\.$/)).toBeTruthy();
+    expect(screen.queryByRole('region')).toBeNull();
   });
 
   test('an Edition added by hand appears, and Remove takes it off', async () => {
@@ -108,10 +137,10 @@ describe('To Buy screen', () => {
 
     // A book of no Followed Series.
     const other = '9782505000013';
-    fireEvent.input(screen.getByLabelText('Add a book by its ISBN'), { target: { value: '978-2-505-00001-3' } });
-    fireEvent.submit(screen.getByRole('button', { name: 'Add' }).closest('form')!);
+    const sheet = addByIsbn('978-2-505-00001-3');
     expect(await group('Added by hand').findAllByText(`ISBN ${other}`)).not.toHaveLength(0);
-    expect(screen.getByLabelText('Add a book by its ISBN')).toHaveProperty('value', '');
+    expect(sheet.open).toBe(false);
+    expect(within(sheet).getByLabelText('Add a book by its ISBN')).toHaveProperty('value', '');
 
     fireEvent.click(within(row('Added by hand', `ISBN ${dune}`)).getByRole('button', { name: 'Remove' }));
 
@@ -123,11 +152,11 @@ describe('To Buy screen', () => {
     const { stored } = await screenWithLibrary();
     await screen.findByRole('button', { name: /^Blacksad/ });
 
-    fireEvent.input(screen.getByLabelText('Add a book by its ISBN'), { target: { value: isbns[0] } });
-    fireEvent.submit(screen.getByRole('button', { name: 'Add' }).closest('form')!);
+    const sheet = addByIsbn(isbns[0]);
 
-    expect(screen.getByText('You already have this book.')).toBeTruthy();
-    expect(screen.getByLabelText('Add a book by its ISBN').getAttribute('aria-invalid')).toBe('true');
+    expect(sheet.open).toBe(true);
+    expect(within(sheet).getByText('You already have this book.')).toBeTruthy();
+    expect(within(sheet).getByLabelText('Add a book by its ISBN').getAttribute('aria-invalid')).toBe('true');
     expect(stored(toBuyCollection).map(({ rkey }) => rkey)).toEqual([dune]);
   });
 

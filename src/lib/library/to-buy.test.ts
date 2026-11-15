@@ -5,6 +5,7 @@ import type { Follow } from './follow';
 import { loadLibrary } from './library';
 import { memorySpace } from './memory-space.fake';
 import type { Library } from './model';
+import type { ReadingStatus } from './reading-status';
 import { lexicons, type Saved } from './records';
 import { missingVolumes } from './series';
 import { bought, bySeries, deleteToBuy, handAdd, listToBuy, saveToBuy, toBuyCollection, toBuyList, type ToBuy } from './to-buy';
@@ -126,6 +127,29 @@ describe('Volumes of the Followed Series on To Buy', () => {
     const after = { ...before, copies: [...before.copies, { rkey: 'new', value: copy }] };
 
     expect(followedIsbns(after)).toEqual([isbns[2], isbns[4]]);
+  });
+
+  test('a Volume read and not owned (borrowed) is not on the list, before or after the latest one owned', () => {
+    const read = (n: number): Saved<ReadingStatus> => ({
+      rkey: volume(n).work.id,
+      value: { work: volume(n).work.id, isbn: isbns[n - 1], status: 'read', updatedAt: '2026-11-07T10:00:00.000Z' },
+    });
+
+    expect(followedIsbns(library({ follows: [follow('following')], copies: owns(1, 2, 4), readingStatuses: [read(3), read(5)] }))).toEqual([]);
+  });
+
+  test('a Volume read and not owned, added by hand, is on the list by hand', () => {
+    const read: Saved<ReadingStatus> = {
+      rkey: volume(3).work.id,
+      value: { work: volume(3).work.id, isbn: isbns[2], status: 'read', updatedAt: '2026-11-07T10:00:00.000Z' },
+    };
+    const each = library({ follows: [follow('following')], copies: owns(1, 2, 4), readingStatuses: [read] });
+    const added = handAdd(isbns[2], each, new Map(), now);
+    if (!('toBuy' in added)) throw new Error(added.problem);
+
+    const list = toBuyList({ ...each, toBuy: [{ rkey: isbns[2], value: added.toBuy }] }, lines, new Map([[isbns[2], volume(3)]]), 'en');
+
+    expect(list.byHand.map(({ isbn, volume: n }) => [isbn, n])).toEqual([[isbns[2], 3]]);
   });
 
   test('a dropped Series, or one never followed, shows no Volume', () => {

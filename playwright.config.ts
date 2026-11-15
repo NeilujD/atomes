@@ -15,6 +15,12 @@ export default defineConfig({
   testDir: 'e2e',
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
+  // CI: the dev server sends every module on its own, and WebKit draws with no
+  // GPU. Its first page change from the animated Shelf Check result screen to
+  // Series Onboarding was measured at up to 4.5 s (Linux WebKit, Playwright
+  // image), past the default 5 s once the page has to draw. Real phones draw
+  // with a GPU. A passing check takes no longer; only a failing one waits more.
+  expect: { timeout: process.env.CI ? 10_000 : 5_000 },
   use: {
     baseURL: origin,
     locale: 'en-US',
@@ -45,6 +51,7 @@ export default defineConfig({
     // Made for this run only: no secret is stored, and these settings win over `.env.local`.
     env: {
       CATALOG_SOURCES: 'recorded',
+      DEV_TOOLBAR: 'off',
       DATA_DIR: 'data-e2e',
       PORT: String(port),
       ALLOWED_DIDS: allReaders().join(','),

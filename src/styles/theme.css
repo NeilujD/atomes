@@ -17,6 +17,12 @@
   --secondary-base: light-dark(#5c606a, #a3a7b0);
   --line-base: light-dark(#e3e3de, #2c2f36);
   --off-base: light-dark(#c9cac4, #4a4e57);
+  /*
+   * Danger, a muted red: the text or icon of an action that destroys, nothing
+   * else (no fills, not errors). On the panel: 6.6:1 light, 7.8:1 dark; 11.0:1
+   * and 10.6:1 in high contrast (theme.test.ts keeps it at 4.5:1 or more).
+   */
+  --danger-base: light-dark(#a8322b, #ef9a92);
   /* Caution, offline only: the app still works, partly (ink 6.5:1 light, 7.9:1 dark on the tint). */
   --caution: light-dark(#7a4f00, #f2c14e);
   --caution-tint: light-dark(#fcefc9, #3a2f12);
@@ -28,6 +34,19 @@
   --camera: #23252b;
   --camera-ink: #ffffff;
   --camera-control: rgb(255 255 255 / 0.14);
+  /*
+   * The Shelf Check result screen (check.astro, CORE-120): always dark, not
+   * themed, like the camera. Green says the reader does not own the book,
+   * orange that they do; these two colours are for this screen only. Dark
+   * text on an accent button; theme.test.ts keeps every pair at 4.5:1 or more.
+   */
+  --shelf-ground: #0e0f0c;
+  --shelf-ink: #f3f1ea;
+  --shelf-on-accent: #0e0f0c;
+  --shelf-go: #3ddc97;
+  --shelf-go-deep: #1f8f5f;
+  --shelf-owned: #ff9f43;
+  --shelf-owned-deep: #c2561b;
 
   /*
    * Contrast: how far secondary text, lines and inactive controls move toward
@@ -39,6 +58,7 @@
   --secondary: color-mix(in oklab, var(--ink) var(--contrast), var(--secondary-base));
   --line: color-mix(in oklab, var(--ink) var(--contrast), var(--line-base));
   --off: color-mix(in oklab, var(--ink) var(--contrast), var(--off-base));
+  --danger: color-mix(in oklab, var(--ink) var(--contrast), var(--danger-base));
 
   --font: 'Schibsted Grotesk Variable', 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
@@ -141,7 +161,7 @@ a {
   background: var(--soft);
 }
 
-/* One per screen: the action the screen is for. */
+/* Ink fill: a confirm, or the action of a sheet. The primary action of a screen is `.button-accent`. */
 .button-primary,
 .button-primary:hover:not(:disabled) {
   border-color: var(--ink);
@@ -153,6 +173,19 @@ a {
   border-color: transparent;
   background: transparent;
   color: var(--secondary);
+}
+
+/* The one primary action of a screen: cobalt text, icon and 1 px outline, never a fill. */
+.button-accent {
+  --busy-ink: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* An action that destroys: muted red text and icon, nothing else. */
+.button-danger {
+  --busy-ink: var(--danger);
+  color: var(--danger);
 }
 
 .field {
@@ -382,6 +415,49 @@ a {
 .segment:has(input:focus-visible) {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* The Reading Status: one small chip, a native select (the system picker on a
+   phone) drawn as a Label chip, with a chevron. Line and ink, never cobalt. */
+.status-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.status-chip select {
+  appearance: none;
+  field-sizing: content;
+  max-width: 100%;
+  min-height: var(--row);
+  margin: 0;
+  padding: 0 30px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--row) / 2);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.status-chip select:hover:not(:disabled) {
+  background: var(--soft);
+}
+
+.status-chip select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.status-chip svg {
+  position: absolute;
+  right: 10px;
+  color: var(--secondary);
+  pointer-events: none;
 }
 
 /* A checkbox drawn as a switch: ink when on. */

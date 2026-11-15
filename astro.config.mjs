@@ -1,6 +1,7 @@
 // @ts-check
 import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
+import process from 'node:process';
 import { URL } from 'node:url';
 import { defineConfig } from 'astro/config';
 import node from '@astrojs/node';
@@ -36,6 +37,10 @@ export default defineConfig({
   }),
   // Preact islands for interactive data screens (ADR 0014).
   integrations: [preact(), precacheAppShell()],
+  // E2E turns the dev toolbar off: its module imports, cut off when a test
+  // leaves the page, log page errors that the specs count as failures.
+  // https://docs.astro.build/en/reference/configuration-reference/#devtoolbarenabled
+  devToolbar: { enabled: process.env.DEV_TOOLBAR !== 'off' },
   // Content-Security-Policy of the pages (ADR 0013), with a hash for each inline
   // script and style. Astro sends it as a response header on pages rendered on
   // demand, and not in `astro dev`. The middleware (src/lib/server/security.ts)

@@ -1,13 +1,16 @@
 ---
 // Check a book: scan the barcode or type the ISBN, see the Shelf Check answer
-// (owned, read, missing from a Followed Series, or not in the Library), then
-// Quick Add: say if it is read, add it. The barcode is read on the device
-// (ADR 0003). Offline (CORE-37), the answer comes from this device only: the
-// Library copy and the Catalog data kept for it (src/lib/catalog/device.ts);
-// no ISBN is sent, and a Copy added waits in the write queue. The Atomes
-// server only gets the ISBN to look up, never the answer (ADR 0001).
+// (owned, read, missing from a Followed Series, or not in the Library) on the
+// result screen (CORE-120), then Quick Add from it. The barcode is read on the
+// device (ADR 0003). Offline (CORE-37), the answer comes from this device
+// only: the Library copy and the Catalog data kept for it
+// (src/lib/catalog/device.ts); no ISBN is sent, and a Copy added waits in the
+// write queue. The Atomes server only gets the ISBN to look up, never the
+// answer (ADR 0001). An ISBN the Catalog does not know: the reader types the
+// book in the form of this page.
 import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
+import '../styles/shelf-check-result.css';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
 const t = translator(requestLanguage(Astro.request));
@@ -39,11 +42,14 @@ const answers = [
       </button>
       <div class="camera-bottom">
         <p class="camera-text" data-camera-text aria-live="polite">{t('add.camera-starting')}</p>
-        <button class="camera-type" type="button" data-camera-close>
-          <Icon name="keyboard" />
-          <span>{t('add.type-isbn')}</span>
-        </button>
+        <!-- A small link: the camera is what the reader came for (CORE-97). -->
+        <button class="camera-type" type="button" data-camera-close>{t('add.type-isbn')}</button>
       </div>
+    </dialog>
+
+    <!-- The result screen of a book the Catalog knows (src/islands/ShelfCheckResult.tsx). -->
+    <dialog class="result" data-result aria-label={t('check.result')}>
+      <div class="result-root" data-result-root></div>
     </dialog>
 
     <form class="isbn-form" data-isbn-form>
@@ -68,6 +74,7 @@ const answers = [
       <p class="hint" data-kept hidden>{t('check.kept')}</p>
     </form>
 
+    <!-- While the book and the Library are read: the result screen opens after. -->
     <div class="book" data-skeleton hidden aria-hidden="true">
       <div class="cover book-cover skeleton"></div>
       <div class="book-text skeleton-text">
@@ -77,21 +84,14 @@ const answers = [
       </div>
     </div>
 
+    <!-- A book the Catalog does not know: the reader types it. -->
     <form class="preview" data-add-form hidden>
-      <div class="book" data-preview>
-        <div class="cover book-cover" data-cover></div>
-        <div class="book-text">
-          <h2 class="book-title" data-title>{t('add.book')}</h2>
-          <p class="book-line" data-authors></p>
-          <p class="book-line" data-series></p>
-          <p class="book-meta" data-edition></p>
-        </div>
-      </div>
+      <!-- The Shelf Check answer (src/islands/ShelfCheckAnswer.tsx), first: a
+           placeholder holds its place until the Library is read. -->
+      <div class="answer" data-answer hidden></div>
 
-      <!-- A book the Catalog does not know: the reader types it. Disabled (so not
-           required) while a Catalog book is shown. maxlength keeps each field
-           inside the Copy lexicon (bookDetails). -->
-      <fieldset class="details" data-details hidden disabled>
+      <!-- maxlength keeps each field inside the Copy lexicon (bookDetails). -->
+      <fieldset class="details" data-details>
         <legend class="details-title">{t('add.type-book')}</legend>
         <p class="hint" data-details-isbn></p>
         <label class="details-field">
@@ -118,39 +118,27 @@ const answers = [
         <div data-find></div>
       </fieldset>
 
-      <!-- The Shelf Check answer (src/islands/ShelfCheckAnswer.tsx), once the Library is read. -->
-      <div class="answer" data-answer hidden></div>
-
-      <!-- Hidden offline for a book this device has no Catalog data for: check online later. -->
-      <div class="add-actions" data-add-actions>
-        <fieldset class="question">
-          <legend class="label">{t('add.read-question')}</legend>
-          <div class="segmented">
-            {
-              answers.map((answer) => (
-                <label class="segment">
-                  <input type="radio" name="status" value={answer.value} checked={answer.value === 'unread'} />
-                  <span>{answer.label}</span>
-                </label>
-              ))
-            }
-          </div>
-        </fieldset>
-
-        <div class="private">
-          <Icon name="lock" size={18} />
-          <div>
-            <p class="private-title">{t('add.private')}</p>
-            <p class="hint">{t('add.private-hint')}</p>
-          </div>
-        </div>
-
-        <!-- Main action when the reader does not own the book; Add another Copy when they do. -->
-        <button class="button button-primary add" type="submit">
-          <Icon name="book-plus" />
-          <span data-add-label>{t('add.submit')}</span>
-        </button>
+      <div class="question">
+        <label class="label" for="read-status">{t('add.read-question')}</label>
+        <span class="status-chip">
+          <select id="read-status" name="status">
+            {answers.map((answer) => <option value={answer.value}>{answer.label}</option>)}
+          </select>
+          <Icon name="chevron-down" />
+        </span>
       </div>
+
+      <!-- Main action when the reader does not own the book; Add another Copy when they do. -->
+      <button class="button button-accent add" type="submit">
+        <Icon name="book-plus" />
+        <span data-add-label>{t('add.submit')}</span>
+      </button>
+
+      <!-- One quiet line: a Copy is never Shared, so there is nothing to change yet. -->
+      <p class="private-line">
+        <Icon name="lock" size={14} />
+        <span>{t('add.private')}</span>
+      </p>
     </form>
   </div>
 </AppShell>
@@ -159,11 +147,11 @@ const answers = [
   import { h, render } from 'preact';
   import { FindInBnf } from '../islands/FindInBnf';
   import { ShelfCheckAnswer } from '../islands/ShelfCheckAnswer';
+  import { ShelfCheckResult } from '../islands/ShelfCheckResult';
   import { openOwnSpace } from '../lib/auth/server-client';
   import type { Edition } from '../lib/catalog/catalog';
   import { coverUrl, lookupEdition, lookupVolumes } from '../lib/catalog/client';
   import { deviceCatalog } from '../lib/catalog/device';
-  import { showCover } from '../lib/cover';
   import { saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
   import { editionWork, readIsbn } from '../lib/library/ids';
   import { cameraProblem, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
@@ -171,10 +159,11 @@ const answers = [
   import { t } from '../lib/i18n/i18n';
   import { saveFollow } from '../lib/library/follow';
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
-  import { bookHref, currentStatus, editionLabel, statusChange, type Library } from '../lib/library/model';
+  import { addedOn, bookHref, currentStatus, statusChange, type Library } from '../lib/library/model';
   import { followOnRead, noOnboarding } from '../lib/library/onboarding';
-  import { saveReadingStatus, statuses } from '../lib/library/reading-status';
-  import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
+  import { saveReadingStatus, statuses, type Status } from '../lib/library/reading-status';
+  import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, readerLine, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
+  import { followSeries } from '../lib/library/series';
   import { latestOnly } from '../lib/latest';
   import { lockWhileSaving } from '../lib/save-lock';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
@@ -189,16 +178,23 @@ const answers = [
   const addForm = document.querySelector<HTMLFormElement>('[data-add-form]')!;
   const addButton = addForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const answer = addForm.querySelector<HTMLElement>('[data-answer]')!;
-  const addActions = addForm.querySelector<HTMLElement>('[data-add-actions]')!;
   const kept = isbnForm.querySelector<HTMLElement>('[data-kept]')!;
-  const radios = addForm.querySelectorAll<HTMLInputElement>('input[name="status"]');
-  const preview = addForm.querySelector<HTMLElement>('[data-preview]')!;
+  const statusSelect = addForm.querySelector<HTMLSelectElement>('select[name="status"]')!;
+  // The reader can answer before the Library has loaded: that answer wins over the Library's.
+  let statusChosen = false;
+  statusSelect.addEventListener('change', () => (statusChosen = true));
   const details = addForm.querySelector<HTMLFieldSetElement>('[data-details]')!;
   const detailsProblem = details.querySelector<HTMLElement>('[data-details-problem]')!;
   const detail = (name: keyof TypedFields) => details.querySelector<HTMLInputElement>(`input[name="${name}"]`)!;
   const typed = () =>
     typedDetails({ title: detail('title').value, authors: detail('authors').value, series: detail('series').value, volume: detail('volume').value });
   const find = details.querySelector<HTMLElement>('[data-find]')!;
+  const scanButton = document.querySelector<HTMLButtonElement>('[data-scan]')!;
+  const camera = document.querySelector<HTMLDialogElement>('[data-camera]')!;
+  const video = camera.querySelector<HTMLVideoElement>('[data-video]')!;
+  const cameraText = camera.querySelector<HTMLElement>('[data-camera-text]')!;
+  const resultDialog = document.querySelector<HTMLDialogElement>('[data-result]')!;
+  const resultRoot = resultDialog.querySelector<HTMLElement>('[data-result-root]')!;
 
   // The Space opens once; undefined when signed out.
   const own = openOwnSpace();
@@ -206,7 +202,9 @@ const answers = [
   const device = deviceCatalog({});
   // Lookups can answer out of order (offline ones too): only the latest shows.
   const startLookUp = latestOnly();
-  // The book on the form: a Catalog Edition, or an ISBN the Catalog does not
+  // Where a lookup came from: after Add, the reader goes back there.
+  type Origin = 'scan' | 'typed';
+  // The book looked up: a Catalog Edition, or an ISBN the Catalog does not
   // know, which the reader types (its Work is then `isbn:<isbn>`, ADR 0010).
   interface Book {
     isbn: string;
@@ -219,7 +217,22 @@ const answers = [
     check: ShelfCheck;
     library: Library;
   }
-  let library: Library = { copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] };
+  // The result screen: the book, its answer, and where its actions stand.
+  interface Result {
+    book: Book;
+    // The title with no Edition (offline, no Catalog data here).
+    title: string;
+    from: Origin;
+    check: ShelfCheck;
+    offline: boolean;
+    cover: string | null;
+    seriesLoading: boolean;
+    following: boolean;
+    saving?: 'add' | 'read';
+  }
+  let result: Result | undefined;
+  const noLibrary = (): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] });
+  let library = noLibrary();
   let sending = false;
 
   // A problem, in the hint line; no argument puts the hint back. Only a wrong
@@ -236,7 +249,7 @@ const answers = [
     else button.removeAttribute('aria-busy');
   }
 
-  async function lookUp() {
+  async function lookUp(from: Origin) {
     const current = startLookUp();
     const read = readIsbn(isbnInput.value);
     addForm.hidden = true;
@@ -260,16 +273,16 @@ const answers = [
     if (!current()) return;
     if ('offline' in asked) {
       reportNetwork(false);
-      return lookUpOnDevice(isbn, current);
+      return lookUpOnDevice(isbn, from, current);
     }
     if ('unavailable' in asked) return problem(t('add.sources-down'));
     reportNetwork(true);
     // notFound: no book source knows this ISBN, so the reader types the book.
-    await ('found' in asked ? show(asked.found) : showUnknown(isbn));
+    await ('found' in asked ? show(asked.found, from) : showUnknown(isbn));
   }
 
   // The Shelf Check with no network, from this device only (shelf-check.ts).
-  async function lookUpOnDevice(isbn: string, current: () => boolean) {
+  async function lookUpOnDevice(isbn: string, from: Origin, current: () => boolean) {
     const space = await openSpaceOrSay();
     if (!space) return;
     let onDevice: Library;
@@ -283,54 +296,165 @@ const answers = [
     const { check, edition } = await deviceShelfCheck(isbn, onDevice, device);
     if (!current()) return;
     const given = { check, library: onDevice };
-    if (edition) return show(edition, given, current);
+    if (edition) return show(edition, from, given, current);
     // No Catalog data for this ISBN here: the answer only, with what the reader typed on a Copy, if any.
     const title = onDevice.copies.find(({ value }) => value.isbn === isbn && value.details)?.value.details?.title ?? t('book.isbn', isbn);
-    showCover(addForm.querySelector<HTMLElement>('[data-cover]')!, { src: null, title, series: null, volumeTitle: null, volume: '' });
-    fillPreview(title, '', '', '');
-    await ready({ isbn, work: editionWork(isbn) }, given);
+    await showResult({ isbn, work: editionWork(isbn) }, from, { title, cover: null, onDevice: given });
   }
 
-  function fillPreview(title: string, authors: string, series: string, edition: string) {
-    addForm.querySelector('[data-title]')!.textContent = title;
-    addForm.querySelector('[data-authors]')!.textContent = authors;
-    addForm.querySelector('[data-series]')!.textContent = series;
-    addForm.querySelector('[data-edition]')!.textContent = edition;
-  }
-
-  async function show(found: Edition, onDevice?: OnDevice, current = () => true) {
+  async function show(found: Edition, from: Origin, onDevice?: OnDevice, current = () => true) {
     // Offline, only a cover this device has: asking for another would send the ISBN.
     const cover = !onDevice || (await device.hasCover(found.isbn));
     if (!current()) return;
-    showCover(addForm.querySelector<HTMLElement>('[data-cover]')!, {
-      src: cover ? coverUrl(found) : null,
-      title: found.title,
-      series: found.series?.title ?? null,
-      volumeTitle: found.volumeTitle,
-      volume: found.volumes.length > 0 ? t('book.volumes', found.volumes) : '',
-    });
-    fillPreview(
-      found.title,
-      found.authors.join(', '),
-      [
-        found.series && found.series.title !== found.title ? found.series.title : '',
-        found.volumes.length > 0 ? t('book.volumes', found.volumes) : '',
-        found.volumeTitle ?? '',
-      ]
-        .filter(Boolean)
-        .join(' · '),
-      [editionLabel(found), t('book.isbn', found.isbn)].filter(Boolean).join(' · '),
-    );
-    await ready({ isbn: found.isbn, work: found.work.id, edition: found }, onDevice);
+    await showResult({ isbn: found.isbn, work: found.work.id, edition: found }, from, { title: found.title, cover: cover ? coverUrl(found) : null, onDevice });
   }
 
+  // The result screen for a book the Catalog knows, once the Library tells
+  // the answer: the screen opens in its colour. `onDevice`: the answer
+  // offline, already made from this device.
+  async function showResult(next: Book, from: Origin, { title, cover, onDevice }: { title: string; cover: string | null; onDevice?: OnDevice }) {
+    book = next;
+    addForm.hidden = true;
+    render(null, find);
+    let check: ShelfCheck;
+    let seriesLoading = false;
+    if (onDevice) {
+      library = onDevice.library;
+      check = onDevice.check;
+    } else {
+      skeleton.hidden = false;
+      const read = await readLibrary();
+      library = read ?? noLibrary();
+      // A Followed Series: its Edition Line tells whether this Volume is missing.
+      const anchor = read && followedLine(next.edition, library);
+      const line = anchor ? await editionLine(anchor) : undefined;
+      if (book !== next) return;
+      skeleton.hidden = true;
+      // No Library to read (no copy on this device and no network): this device cannot tell.
+      check = read ? shelfCheck(next.isbn, next.edition, library, line) : { kind: 'unknown', status: 'unread', followed: null };
+      seriesLoading = read !== undefined && seriesLineComes(next);
+    }
+    result = { book: next, title, from, check, offline: onDevice !== undefined, cover, seriesLoading, following: false };
+    showResultScreen();
+    openResult();
+    if (seriesLoading) await addSeriesLine(next);
+  }
+
+  // Draws the result screen again, with `change`.
+  function showResultScreen(change: Partial<Result> = {}) {
+    if (!result) return;
+    const shown = (result = { ...result, ...change });
+    render(
+      h(ShelfCheckResult, {
+        // A new book: a new screen, its motion from the start.
+        key: shown.book.isbn,
+        book: { ...shown.book, title: shown.title },
+        check: shown.check,
+        cover: shown.cover,
+        addedAt: addedOn({ isbn: shown.book.isbn, work: { id: shown.book.work, title: '' } }, library),
+        seriesLoading: shown.seriesLoading,
+        following: shown.following,
+        saving: shown.saving,
+        canScan: !scanButton.hidden,
+        onClose: () => resultDialog.close(),
+        onScan: () => {
+          resultDialog.close();
+          void scan();
+        },
+        onAdd: (read: boolean) => void addFromResult(shown, read),
+        onFollow: () => void follow(shown),
+      }),
+      resultRoot,
+    );
+  }
+
+  // Over Check a book, as a modal (Escape closes it). Browser Back closes it
+  // too: it has its own history entry.
+  let resultEntry = false;
+  function openResult() {
+    if (!resultDialog.open) resultDialog.showModal();
+    toastsInto(resultDialog);
+    if (!resultEntry) {
+      history.pushState({ shelfCheck: true }, '');
+      resultEntry = true;
+    }
+    // Screen readers say the answer first.
+    resultDialog.querySelector<HTMLElement>('[data-result-answer]')?.focus();
+  }
+
+  resultDialog.addEventListener('cancel', (event) => {
+    if (result?.saving) event.preventDefault();
+  });
+  resultDialog.addEventListener('close', () => {
+    result = undefined;
+    render(null, resultRoot);
+    toastsBack();
+    if (resultEntry) {
+      resultEntry = false;
+      history.back();
+    }
+  });
+  addEventListener('popstate', () => {
+    if (!resultEntry) return;
+    resultEntry = false;
+    resultDialog.close();
+  });
+  // Back from Series Onboarding can show the page again from the browser cache, mid-save.
+  addEventListener('pageshow', (event) => {
+    if (event.persisted && result?.saving) resultDialog.close();
+  });
+
+  // A modal dialog makes the page under it inert and hides it: while the
+  // result screen or the camera is open, the toasts show in it.
+  const toasts = document.querySelector<HTMLElement>('[data-toasts]');
+  const toastsHome = toasts?.parentElement;
+  const toastsNext = toasts?.nextSibling ?? null;
+  function toastsInto(dialog: HTMLDialogElement) {
+    if (toasts) dialog.append(toasts);
+  }
+  function toastsBack() {
+    if (!toasts || !toastsHome) return;
+    const open = [resultDialog, camera].find((each) => each.open);
+    if (open) open.append(toasts);
+    else toastsHome.insertBefore(toasts, toastsNext);
+  }
+
+  // A book the Catalog does not know: the form where the reader types it,
+  // under the Shelf Check answer for its ISBN.
   async function showUnknown(isbn: string) {
     details.querySelector('[data-details-isbn]')!.textContent = t('add.unknown-isbn', isbn);
     fillDetails({ title: '' });
     // A new search for each ISBN: nothing stays from the one before.
     render(null, find);
-    render(h(FindInBnf, { isbn, typed, onChosen: (edition) => void show(edition), onTyped: fillDetails }), find);
-    await ready({ isbn, work: editionWork(isbn) });
+    render(h(FindInBnf, { isbn, typed, onChosen: (edition) => void show(edition, 'typed'), onTyped: fillDetails }), find);
+    const next: Book = { isbn, work: editionWork(isbn) };
+    book = next;
+    statusSelect.value = 'unread';
+    statusChosen = false;
+    // Its place is kept while the Library loads: the form below does not jump.
+    render(h('div', { class: 'skeleton answer-skeleton', 'aria-hidden': 'true' }), answer);
+    answer.hidden = false;
+    showAction(false);
+    addForm.hidden = false;
+    detail('title').focus();
+
+    const read = await readLibrary();
+    library = read ?? noLibrary();
+    if (book !== next) return;
+    // No Library to read: the status starts at "Not yet", and no answer.
+    if (!read) {
+      answer.hidden = true;
+      return;
+    }
+    const check = shelfCheck(isbn, undefined, library, undefined);
+    answer.dataset.kind = check.kind;
+    render(h(ShelfCheckAnswer, { check, work: next.work }), answer);
+    showAction(check.kind === 'owned');
+    // Abandoned is not an answer here: no choice keeps it (no option selected).
+    if (!statusChosen) statusSelect.value = currentStatus(next.work, library);
+    // Another Copy of a book typed before: start from what the reader typed then.
+    const before = library.copies.find(({ value }) => value.isbn === isbn && value.details)?.value.details;
+    if (before && !detail('title').value) fillDetails(before);
   }
 
   function fillDetails(typed: BookDetails) {
@@ -341,70 +465,86 @@ const answers = [
     detailsProblem.textContent = '';
   }
 
-  // Shows the form for this book, then starts from what the Library already
-  // has. `onDevice`: the answer offline, already made from this device.
-  async function ready(next: Book, onDevice?: OnDevice) {
-    book = next;
-    // Offline with no Catalog data: the answer only, nothing to type or add.
-    const answerOnly = !next.edition && onDevice !== undefined;
-    const typing = !next.edition && !answerOnly;
-    if (!typing) render(null, find);
-    preview.hidden = typing;
-    details.hidden = !typing;
-    details.disabled = !typing;
-    addActions.hidden = answerOnly;
-    for (const radio of radios) radio.checked = radio.value === 'unread';
-    answer.hidden = true;
-    showAction(false);
-    addForm.hidden = false;
-    if (!answerOnly) (typing ? detail('title') : addButton).focus();
-
-    let check: ShelfCheck;
-    if (onDevice) {
-      library = onDevice.library;
-      check = onDevice.check;
-    } else {
-      // Already in the Library: start from its Reading Status, and say so.
-      const space = await openSpaceOrSay();
-      if (!space) return;
-      let line: Edition[] | undefined;
-      try {
-        const loaded = await loadLibrary(space);
-        library = loaded.library;
-        reportNetwork(!loaded.stale);
-        reportWaiting(await waitingCount(space));
-        // A Followed Series: its Edition Line tells whether this Volume is
-        // missing; the one kept on this device when the Catalog cannot say now.
-        const anchor = followedLine(next.edition, library);
-        line = anchor ? ((await lookupVolumes(anchor).catch(() => undefined))?.volumes ?? (await device.line(anchor))) : undefined;
-      } catch {
-        // No copy on this device and no network: the status starts at "Not yet", and no answer.
-        library = { copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] };
-        return;
-      }
-      if (book !== next) return;
-      check = shelfCheck(next.isbn, next.edition, library, line);
+  // The Library, read again (and what the connection status says of it);
+  // undefined signed out, or with no copy on this device and no network.
+  async function readLibrary(): Promise<Library | undefined> {
+    const space = await openSpaceOrSay();
+    if (!space) return undefined;
+    try {
+      const loaded = await loadLibrary(space);
+      reportNetwork(!loaded.stale);
+      reportWaiting(await waitingCount(space));
+      return loaded.library;
+    } catch {
+      return undefined;
     }
-    showAnswer(check, next);
-    // Abandoned is not an answer here: no choice keeps it.
-    const status = currentStatus(next.work, library);
-    for (const radio of radios) radio.checked = radio.value === status;
-    // Another Copy of a book typed before: start from what the reader typed then.
-    const before = library.copies.find(({ value }) => value.isbn === next.isbn && value.details)?.value.details;
-    if (typing && before && !detail('title').value) fillDetails(before);
   }
 
-  // The Shelf Check answer, and the action that fits it.
-  function showAnswer(check: ShelfCheck, shown: Book) {
-    answer.dataset.kind = check.kind;
-    render(h(ShelfCheckAnswer, { check, work: shown.work, volumes: shown.edition?.volumes ?? [] }), answer);
-    answer.hidden = false;
-    showAction(check.kind === 'owned');
+  // The Edition Line of `anchor` (`/volumes`); the one kept on this device
+  // when the Catalog cannot say now.
+  async function editionLine(anchor: string): Promise<Edition[] | undefined> {
+    return (await lookupVolumes(anchor).catch(() => undefined))?.volumes ?? (await device.line(anchor));
+  }
+
+  // A Series not followed: its Series card comes after the answer, which
+  // does not need its Edition Line. Asking it online also leaves it in the
+  // service worker cache of a built app: the same check offline shows it too.
+  // Its place is kept from the first answer (seriesLoading).
+  async function addSeriesLine(shown: Book) {
+    const line = await editionLine(readerLine(shown.edition, library)!);
+    if (result?.book === shown) showResultScreen({ check: shelfCheck(shown.isbn, shown.edition, library, line), seriesLoading: false });
+  }
+
+  function seriesLineComes(shown: Book): boolean {
+    return readerLine(shown.edition, library) !== undefined && followedLine(shown.edition, library) === undefined;
+  }
+
+  // Follow from the Series card: the Series in the Edition Line of this book,
+  // then the check again (the book can now be a Missing Volume).
+  async function follow({ book: shown, check, offline }: Result) {
+    const change = shown.edition && followSeries(shown.edition, undefined, new Date());
+    const space = await openSpaceOrSay();
+    if (!change || !space) return;
+    const still = () => result?.book === shown;
+    showResultScreen({ following: true });
+    try {
+      const state = await saveFollow(space, change);
+      if (state !== 'refused') reportNetwork(state === 'sent');
+      reportWaiting(await waitingCount(space));
+      if (state !== 'sent') toast(await savedText(space, state), { error: state === 'refused' });
+      if (state === 'waiting') sendLater(space);
+      const loaded = (await loadLibrary(space)).library;
+      if (!still()) return;
+      library = loaded;
+      const again = offline
+        ? (await deviceShelfCheck(shown.isbn, library, device)).check
+        : shelfCheck(shown.isbn, shown.edition, library, await editionLine(change.anchorIsbn));
+      if (still()) showResultScreen({ check: again, following: false });
+    } catch (error) {
+      toast(spaceErrorMessage(error), { error: true });
+      if (still()) showResultScreen({ check, following: false });
+    }
+  }
+
+  // Sends the waiting saves once the PDS can be reached; `sent` says so.
+  function sendLater(space: Space, sent: () => void = () => toast(t('saved.sent'))) {
+    if (sending) return;
+    sending = true;
+    sendWhenOnline(
+      space,
+      () => {
+        sending = false;
+        reportNetwork(true);
+        reportWaiting(0);
+        sent();
+      },
+      (error) => toast(spaceErrorMessage(error), { error: true }),
+    );
   }
 
   // Add to Library is the main action; for a book the reader owns, Add another Copy is secondary.
   function showAction(owned: boolean) {
-    addButton.classList.toggle('button-primary', !owned);
+    addButton.classList.toggle('button-accent', !owned);
     addButton.querySelector('[data-add-label]')!.textContent = t(owned ? 'book.add-copy' : 'add.submit');
   }
 
@@ -418,20 +558,11 @@ const answers = [
     return undefined;
   }
 
-  // Runs with the screen locked (lockWhileSaving): 'leave' when Series
-  // Onboarding opens, else the element to focus once the screen is back.
-  async function add(): Promise<'leave' | HTMLElement | undefined> {
-    const current = book;
-    if (!current) return;
-    const fields = current.edition ? undefined : typed();
-    if (fields && 'problem' in fields) {
-      detailsProblem.textContent = fields.problem;
-      return;
-    }
-    const typedBook = fields?.details;
+  // Saves a Copy of `current`, and the Reading Status `chosen` (with the
+  // follow it brings, followOnRead). 'leave' when Series Onboarding opens;
+  // 'saved' once a toast says it; undefined when nothing was saved.
+  async function saveCopyOf(current: Book, chosen: Status | undefined, typedBook?: BookDetails): Promise<'leave' | 'saved' | undefined> {
     const title = current.edition?.title ?? typedBook?.title ?? t('book.isbn', current.isbn);
-    const checked = [...radios].find((radio) => radio.checked)?.value;
-    const chosen = statuses.find((status) => status === checked);
     const space = await openSpaceOrSay();
     if (!space) return;
     try {
@@ -450,8 +581,11 @@ const answers = [
 
       // A Series with no follow: ask which other Volumes the reader has. Series
       // Onboarding asks the Catalog for them. Only after a sent save: offline
-      // or refused, the Copy is enough.
-      const why = state === 'sent' && current.edition ? noOnboarding(current.edition, library) : 'no-series';
+      // or refused, the Copy is enough. A followed Series with no Volume in
+      // the Library yet (Follow tapped before Add) still asks.
+      const anchor = followedLine(current.edition, library);
+      const line = state === 'sent' && anchor ? await editionLine(anchor) : undefined;
+      const why = state === 'sent' && current.edition ? noOnboarding(current.edition, library, line) : 'no-series';
       if (why === undefined) {
         location.assign(`/onboarding?isbn=${isbn}`);
         return 'leave';
@@ -459,38 +593,61 @@ const answers = [
       const seriesTitle = current.edition?.series?.title ?? '';
       const note = why === 'no-series' ? '' : t(`add.no-onboarding.${why}`, seriesTitle);
 
-      addForm.hidden = true;
-      book = undefined;
-      isbnInput.value = '';
       const link = { href: bookHref(work), label: t('link.book-page') };
       const close = toast([t('add.added', title), await savedText(space, state), note].filter(Boolean).join(' '), {
         link,
         error: state === 'refused',
       });
-      if (state === 'waiting' && !sending) {
-        sending = true;
-        sendWhenOnline(
-          space,
-          () => {
-            sending = false;
-            reportNetwork(true);
-            reportWaiting(0);
-            close();
-            toast(`${t('add.added', title)} ${t('saved.sent')}`, { link });
-          },
-          (error) => toast(spaceErrorMessage(error), { error: true }),
-        );
+      if (state === 'waiting') {
+        sendLater(space, () => {
+          close();
+          toast(`${t('add.added', title)} ${t('saved.sent')}`, { link });
+        });
       }
-      return isbnInput;
+      return 'saved';
     } catch (error) {
       toast(spaceErrorMessage(error), { error: true });
     }
   }
 
-  const scanButton = document.querySelector<HTMLButtonElement>('[data-scan]')!;
-  const camera = document.querySelector<HTMLDialogElement>('[data-camera]')!;
-  const video = camera.querySelector<HTMLVideoElement>('[data-video]')!;
-  const cameraText = camera.querySelector<HTMLElement>('[data-camera-text]')!;
+  // The typed form, with the screen locked (lockWhileSaving): 'leave' when
+  // Series Onboarding opens, else the element to focus once the screen is back.
+  async function add(): Promise<'leave' | HTMLElement | undefined> {
+    const current = book;
+    if (!current) return;
+    const fields = typed();
+    if ('problem' in fields) {
+      detailsProblem.textContent = fields.problem;
+      return;
+    }
+    const chosen = statuses.find((status) => status === statusSelect.value);
+    const done = await saveCopyOf(current, chosen, fields.details);
+    if (done !== 'saved') return done;
+    addForm.hidden = true;
+    book = undefined;
+    isbnInput.value = '';
+    return isbnInput;
+  }
+
+  // Add to Library, Add and mark as read (`read`), Add another Copy. Once
+  // saved, with no Series Onboarding, the screen closes and the reader goes
+  // back to where the lookup came from: the camera, or the ISBN field.
+  async function addFromResult(shown: Result, read: boolean) {
+    if (result?.book !== shown.book || result.saving) return;
+    showResultScreen({ saving: read ? 'read' : 'add' });
+    const done = await saveCopyOf(shown.book, read ? 'read' : undefined);
+    if (done === 'leave') return;
+    if (done !== 'saved') {
+      if (result?.book === shown.book) showResultScreen({ saving: undefined });
+      return;
+    }
+    book = undefined;
+    isbnInput.value = '';
+    resultDialog.close();
+    if (shown.from === 'scan' && !scanButton.hidden) void scan();
+    else isbnInput.focus();
+  }
+
   // Aborted when the camera view closes, for any reason (Close, Escape, a book found).
   let scanning = new AbortController();
   let later: ReturnType<typeof setTimeout> | undefined;
@@ -520,6 +677,7 @@ const answers = [
     scanning = new AbortController();
     const { signal } = scanning;
     camera.showModal();
+    toastsInto(camera);
     let stream: MediaStream;
     try {
       stream = await openCamera();
@@ -555,7 +713,7 @@ const answers = [
         if (signal.aborted) return; // closed by hand in the meantime
         camera.close();
         isbnInput.value = read.isbn;
-        void lookUp();
+        void lookUp('scan');
       }, 600);
       return true;
     }
@@ -584,11 +742,38 @@ const answers = [
     clearTimeout(later);
     scanning.abort();
     video.srcObject = null;
+    toastsBack();
   });
+
+  // From the Check tab or "Check a book" (CORE-97): in a shop, the scanner is
+  // what the reader wants, so the camera opens with no other tap. `scan=1`
+  // leaves the address at once: a reload or a Back does not open it again.
+  // No tap is needed to ask for the camera, in Safari as in Chrome
+  // (getUserMedia needs no user gesture, unlike sound); still to check in the
+  // installed app on an iPhone.
+  const address = new URL(location.href);
+  if (address.searchParams.get('scan') === '1') {
+    address.searchParams.delete('scan');
+    history.replaceState(history.state, '', address);
+    whenScreenShows(() => (scanButton.hidden ? typeInstead(t('camera.failed')) : void scan()));
+  }
+
+  // The gate (src/lib/auth/gate-boot.ts) may still hide the screen: a modal
+  // camera view would show over it, maybe before the sign-in screen.
+  function whenScreenShows(then: () => void) {
+    const root = document.documentElement;
+    if (!root.dataset.gate) return then();
+    const gate = new MutationObserver(() => {
+      if (root.dataset.gate) return;
+      gate.disconnect();
+      then();
+    });
+    gate.observe(root, { attributes: true, attributeFilter: ['data-gate'] });
+  }
 
   isbnForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    void lookUp();
+    void lookUp('typed');
   });
   isbnInput.addEventListener('input', () => {
     if (hint.hasAttribute('data-error')) problem();
@@ -622,7 +807,7 @@ const answers = [
   const given = new URLSearchParams(location.search).get('isbn');
   if (given) {
     isbnInput.value = given;
-    void lookUp();
+    void lookUp('typed');
   }
 </script>
 
@@ -775,19 +960,14 @@ const answers = [
     }
   }
 
-  .camera-close,
-  .camera-type {
+  .camera-close {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
     border: 0;
     background: var(--camera-control);
     color: var(--camera-ink);
     cursor: pointer;
-  }
-
-  .camera-close {
     place-self: start end;
     width: 44px;
     height: 44px;
@@ -812,12 +992,18 @@ const answers = [
     text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
   }
 
+  /* A small link, still a 44 px tap target. */
   .camera-type {
     min-height: 44px;
-    padding: 0 16px;
-    border-radius: 22px;
-    font-size: 15px;
-    font-weight: 600;
+    padding: 0 12px;
+    border: 0;
+    background: none;
+    color: var(--camera-ink);
+    font-size: 14px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
+    cursor: pointer;
   }
 
   .isbn-form {
@@ -842,13 +1028,12 @@ const answers = [
     font-variant-numeric: tabular-nums;
   }
 
-  .hint,
-  .book-meta {
+  .hint {
     color: var(--secondary);
     font-size: 13px;
   }
 
-  /* No danger colour in the palette (ui-direction: colour roles): ink and weight. */
+  /* An error keeps ink and weight; --danger is for actions that destroy, not errors (ui-direction: colour roles). */
   .hint[data-error] {
     color: var(--ink);
     font-weight: 600;
@@ -903,18 +1088,6 @@ const answers = [
     min-width: 0;
   }
 
-  .book-title {
-    font-size: 22px;
-  }
-
-  .book-line {
-    font-size: 14px;
-  }
-
-  .book-line:empty {
-    display: none;
-  }
-
   .details {
     display: flex;
     flex-direction: column;
@@ -955,28 +1128,18 @@ const answers = [
   .question {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-
-  .question legend {
-    margin-bottom: 8px;
-  }
-
-  .private {
-    display: flex;
     align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: var(--radius-panel);
-    background: var(--soft);
+    gap: 8px;
   }
 
-  .private-title {
-    font-size: 15px;
-    font-weight: 600;
+  .private-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: -8px;
+    font-size: 13px;
+    color: var(--secondary);
   }
 
   .add {
@@ -992,13 +1155,35 @@ const answers = [
     border: 1px solid var(--line);
   }
 
-  /* The question, Private and the add button, as if not wrapped. */
-  .add-actions {
-    display: contents;
+  /* With a book on screen, the ISBN hint lines step aside; a problem stays. */
+  .quick-add:has(.preview:not([hidden])) .isbn-form .hint:not([data-error]) {
+    display: none;
   }
 
-  .add-actions[hidden] {
-    display: none;
+  /* The Shelf Check result screen (ui-direction: Camera): the whole screen on
+     the phone, over the tab bar; always dark, not themed. Its content is the
+     island ShelfCheckResult, styled in the global block below. */
+  .result {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    background: var(--shelf-ground);
+    color: var(--shelf-ink);
+    /* Theme tokens inside (focus ring, the default cover, toasts) take their dark value. */
+    color-scheme: dark;
+  }
+
+  .result::backdrop {
+    background: var(--scrim);
+  }
+
+  .result-root {
+    height: 100%;
   }
 
   /* Desktop: one narrow column in the middle of the panel. */
@@ -1009,6 +1194,14 @@ const answers = [
 
     .cover {
       width: 104px;
+    }
+
+    /* Desktop: the result screen is a phone-sized card in the middle of the darkened window. */
+    .result {
+      width: 420px;
+      height: min(844px, calc(100dvh - 48px));
+      margin: auto;
+      border-radius: var(--radius-panel);
     }
 
     /* Desktop: the camera is a card in the middle of the window. */
@@ -1028,6 +1221,17 @@ const answers = [
     font-weight: 700;
   }
 
+  /* New is cobalt (ui-direction.md, "Colour roles"); owned stays ink. */
+  [data-kind='new'] .answer-title {
+    color: var(--accent);
+  }
+
+  /* Holds the place of the answer title while the Library loads. */
+  .answer-skeleton {
+    width: 60%;
+    height: 22px;
+  }
+
   .answer-text {
     color: var(--secondary);
     font-size: 13px;
@@ -1035,51 +1239,6 @@ const answers = [
 
   .answer-link {
     font-size: 14px;
-  }
-
-  /* The spine row of a Missing Volume (as on the Series page): filled = read,
-     outlined = owned not read, dashed grey = not owned. */
-  .answer-spines {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 0;
-    margin: 8px 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .answer-spine {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    min-width: 20px;
-    color: var(--secondary);
-    font-size: 10px;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .answer-spine-bar {
-    width: 10px;
-    height: 32px;
-    border-radius: 2px;
-    border: 1.5px solid var(--ink);
-  }
-
-  .answer-spine[data-state='read'] .answer-spine-bar {
-    background: var(--ink);
-  }
-
-  .answer-spine[data-state='not-owned'] .answer-spine-bar {
-    border: 1.5px dashed var(--off);
-  }
-
-  /* This book: its number in ink, underlined. */
-  .answer-spine[aria-current='true'] {
-    color: var(--ink);
-    font-weight: 700;
-    text-decoration: underline;
-    text-underline-offset: 2px;
   }
 
   /* Global: FindInBnf renders on the device, outside this page's scoped styles. */

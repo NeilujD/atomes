@@ -1,8 +1,9 @@
 // The browser side of the Catalog API (api.ts). Sends the ISBN and nothing
 // else (ADR 0001), except for an ISBN no source knows: then the title and
-// publisher the reader typed, and the book they picked (ADR 0010, CORE-40).
+// publisher the reader typed, and the book they picked (ADR 0010, CORE-40),
+// and for a Series Correction (ADR 0017).
 // Rejects like fetch when the Atomes server cannot be reached.
-import type { Choice, Edition, Lookup, SearchFound } from './catalog';
+import type { Choice, Correction, Edition, LineSummary, Lookup, SearchFound, SeriesFound } from './catalog';
 
 // The cover of an Edition, served by the Atomes server (api.ts): the browser
 // never asks a book source, which would learn who looks at which book.
@@ -41,13 +42,16 @@ export async function lookupEditions(isbns: string[]): Promise<Map<string, Editi
 }
 
 // The Volumes the Catalog knows in the Edition Line of `isbn` (its anchor
-// Edition first looked up), by Volume number. Undefined when the Catalog does
-// not know the ISBN or cannot answer.
-export async function lookupVolumes(isbn: string): Promise<{ series: Edition['series']; volumes: Edition[] } | undefined> {
+// Edition first looked up), by Volume number, and every Edition Line of its
+// Series (none in an answer kept from before CORE-95). Undefined when the
+// Catalog does not know the ISBN or cannot answer.
+export async function lookupVolumes(
+  isbn: string,
+): Promise<{ series: Edition['series']; volumes: Edition[]; lines: LineSummary[] } | undefined> {
   const response = await fetch(volumesPath(isbn));
   if (!response.ok) return undefined;
-  const answer = (await response.json()) as { series: Edition['series']; volumes: Answered[] };
-  return { series: answer.series, volumes: answer.volumes.map(withVolumes) };
+  const answer = (await response.json()) as { series: Edition['series']; volumes: Answered[]; lines?: LineSummary[] };
+  return { series: answer.series, volumes: answer.volumes.map(withVolumes), lines: answer.lines ?? [] };
 }
 
 export type SearchAnswer = { found: SearchFound } | { signedOut: true } | { unavailable: true };
@@ -78,4 +82,46 @@ export async function chooseEdition(isbn: string, choice: Choice): Promise<Choos
   if (response.status === 401) return { signedOut: true };
   const body = (await response.json().catch(() => ({}))) as { reason?: string };
   return response.status === 422 && body.reason === 'no-shared-work' ? { noSharedWork: true } : { failed: true };
+}
+
+export type CorrectionAnswer = { found: Edition } | { signedOut: true } | { tooMany: true } | { failed: true };
+
+const correctionPath = (isbn: string) => `${editionPath(isbn)}/correction`;
+
+async function correctionAnswer(response: Response): Promise<CorrectionAnswer> {
+  if (response.ok) return { found: withVolumes((await response.json()) as Answered) };
+  if (response.status === 401) return { signedOut: true };
+  return response.status === 429 ? { tooMany: true } : { failed: true };
+}
+
+// A reader's Series Correction of the Edition (ADR 0017): every reader of the instance gets it.
+export async function correctEdition(isbn: string, correction: Correction): Promise<CorrectionAnswer> {
+  const response = await fetch(correctionPath(isbn), {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(correction),
+  });
+  return correctionAnswer(response);
+}
+
+// "Back to the sources": the Edition as the sources give it.
+export async function uncorrectEdition(isbn: string): Promise<CorrectionAnswer> {
+  return correctionAnswer(await fetch(correctionPath(isbn), { method: 'DELETE' }));
+}
+
+export type SeriesAnswer = { found: SeriesFound[] } | { signedOut: true } | { failed: true };
+
+// The Series of this Catalog by title, with their Edition Lines.
+export async function findSeries(title: string): Promise<SeriesAnswer> {
+  const response = await fetch(`/api/catalog/series?${new URLSearchParams({ title })}`);
+  if (response.ok) return { found: ((await response.json()) as { series: SeriesFound[] }).series };
+  return response.status === 401 ? { signedOut: true } : { failed: true };
+}
+
+// After a Series Correction, this device asks again for the Edition and its
+// Edition Line: the service worker keeps the new answers (network first),
+// for Shelf Check offline too (device.ts). The line it left is asked again
+// when a page shows it.
+export async function refreshCorrected(isbn: string): Promise<void> {
+  await Promise.all([fetch(editionPath(isbn)), fetch(volumesPath(isbn))]).catch(() => undefined);
 }

@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A word the reader attaches to Works to group and filter them.",
+      "description": "A word the reader attaches to Works or to a Series to group and filter them.",
       "key": "tid",
       "record": {
         "type": "object",
@@ -15,6 +15,12 @@
             "type": "array",
             "maxLength": 5000,
             "description": "Catalog identifiers of the Works that carry this Label, each once.",
+            "items": { "type": "string", "maxLength": 128 }
+          },
+          "series": {
+            "type": "array",
+            "maxLength": 5000,
+            "description": "Catalog identifiers of the Series that carry this Label, each once. The Label applies to every Work of these Series, including Volumes added later.",
             "items": { "type": "string", "maxLength": 128 }
           },
           "createdAt": { "type": "string", "format": "datetime" }

@@ -1,12 +1,15 @@
 ---
-// Series Onboarding (glossary): after Quick Add of the first Volume of a
-// Series, the reader says which Volumes they own and have read, and whether
-// to follow the Edition Line. `?isbn=<the Edition just added>`. A Flow screen
+// Series Onboarding (glossary): after Quick Add of a Volume of a new Series,
+// the reader says which Volumes they own and have read, and whether to follow
+// the Edition Line. From a later Volume it asks first: "Do you own 1–N?". `?isbn=<the Edition just added>`. A Flow screen
 // (ui-direction): no sidebar or tab bar. Rules: src/lib/library/onboarding.ts.
+// A tap on a Volume the Catalog lacks opens the sheet that scans its ISBN
+// (src/islands/VolumeScan.tsx); the reader's choices stay meanwhile.
 import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
+import '../styles/correction.css';
 
 const t = translator(requestLanguage(Astro.request));
 
@@ -29,17 +32,31 @@ const steppers = [
 
     <form class="onboarding" data-form hidden>
       <div class="intro">
-        <span class="tag"><Icon name="layers" size={14} />{t('onboarding.new-series')}</span>
-        <h1 class="title" id="onboarding-title" data-heading>{t('onboarding.heading')}</h1>
+        <div class="intro-top">
+          <span class="tag"><Icon name="layers" size={14} />{t('onboarding.new-series')}</span>
+          <!-- Leaves like Skip: not now. -->
+          <a class="close" href="/" aria-label={t('common.close')} data-skip><Icon name="x" /></a>
+        </div>
+        <h1 class="title" id="onboarding-title" tabindex="-1" data-heading>{t('onboarding.heading')}</h1>
         <p class="hint" data-intro></p>
       </div>
 
-      <div class="ranges">
+      <!-- From a later Volume: asked before the ranges and the tiles. -->
+      <div class="ask" role="group" aria-labelledby="ask-question" data-ask hidden>
+        <p class="ask-question" id="ask-question" data-ask-question></p>
+        <div class="ask-answers">
+          <button class="button" type="button" data-answer="yes">{t('onboarding.ask-yes')}</button>
+          <button class="button" type="button" data-answer="some">{t('onboarding.ask-some')}</button>
+          <button class="button" type="button" data-answer="no">{t('onboarding.ask-no')}</button>
+        </div>
+      </div>
+
+      <div class="ranges" data-after-ask>
         {
           steppers.map((stepper) => (
             <div class="stepper" data-stepper={stepper.name}>
               <div class="stepper-text">
-                <label class="stepper-label" for={`${stepper.name}-value`}>
+                <label class="stepper-label" for={`${stepper.name}-value`} data-label>
                   {stepper.label}
                 </label>
                 <button class="shortcut" type="button" data-shortcut>
@@ -66,7 +83,7 @@ const steppers = [
         }
       </div>
 
-      <div class="volumes">
+      <div class="volumes" data-after-ask>
         <div class="tap-mode">
           <span class="tap-mode-label" id="tap-mode-label">{t('onboarding.tap-changes')}</span>
           <div class="segmented" role="radiogroup" aria-labelledby="tap-mode-label" data-tap-mode>
@@ -80,18 +97,15 @@ const steppers = [
             </label>
           </div>
         </div>
-        <div class="tiles" role="group" aria-label={t('onboarding.tiles')} data-tiles></div>
-        <p class="hint" aria-live="polite" data-unknown-note hidden>
-          <span data-unknown-text></span>
-          <a href="/check">{t('onboarding.scan-it')}</a>
-        </p>
         <ul class="legend" aria-hidden="true">
           <li><span class="tile tile-sample read owned"></span>{t('onboarding.legend-read')}</li>
           <li><span class="tile tile-sample owned"></span>{t('onboarding.legend-owned')}</li>
           <li><span class="tile tile-sample"></span>{t('onboarding.legend-missing')}</li>
           <li><span class="tile tile-sample read"></span>{t('onboarding.legend-read-not-owned')}</li>
           <li><span class="tile tile-sample unknown"></span>{t('onboarding.legend-unknown')}</li>
+          <li><span class="tile tile-sample owned kept"></span>{t('onboarding.legend-kept')}</li>
         </ul>
+        <div class="tiles" role="group" aria-label={t('onboarding.tiles')} data-tiles></div>
         <p class="hint" data-known></p>
       </div>
 
@@ -106,37 +120,49 @@ const steppers = [
 
       <div class="actions">
         <a class="button button-quiet" href="/" data-skip>{t('onboarding.skip')}</a>
-        <button class="button button-primary" type="submit">
+        <button class="button button-accent" type="submit">
           <Icon name="check" />
           <span>{t('onboarding.save')}</span>
         </button>
       </div>
     </form>
+    <!-- The sheet of a Volume the Catalog lacks: out of the form, its buttons save nothing here. -->
+    <div data-volume-scan></div>
   </section>
 </AppShell>
 
 <script>
+  import { h, render as renderIsland } from 'preact';
+  import { VolumeScan } from '../islands/VolumeScan';
   import { openOwnSpace } from '../lib/auth/server-client';
   import { lookupVolumes } from '../lib/catalog/client';
   import { reportNetwork, reportWaiting } from '../lib/connection';
+  import { handOverAddedCopies } from '../lib/library/added-copies';
   import { saveCopy } from '../lib/library/copy';
   import { saveFollow } from '../lib/library/follow';
   import { t } from '../lib/i18n/i18n';
   import { loadLibrary, savedText, waitingCount, worstState } from '../lib/library/library';
-  import { editionLabel, type Library } from '../lib/library/model';
+  import { lineName } from '../lib/catalog/lines';
+  import { lineLabel, type Library } from '../lib/library/model';
+  import { notNow } from '../lib/library/not-now';
   import {
+    answer,
     onboardingSave,
+    sameAsOwned,
     seriesOnboarding,
     step,
     tapTile,
     typedVolume,
     volumeTiles,
     withRange,
+    type Answer,
     type Choices,
     type Onboarding,
     type TapMode,
+    type Tile,
   } from '../lib/library/onboarding';
   import { saveReadingStatus } from '../lib/library/reading-status';
+  import { seriesHref } from '../lib/library/series';
   import { isNetworkFailure } from '../lib/network';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
   import { toast } from '../lib/toast';
@@ -146,23 +172,33 @@ const steppers = [
   const progressText = progress.querySelector<HTMLElement>('[data-progress-text]')!;
   const progressLink = progress.querySelector<HTMLAnchorElement>('[data-progress-link]')!;
   const form = card.querySelector<HTMLFormElement>('[data-form]')!;
+  const heading = form.querySelector<HTMLElement>('[data-heading]')!;
+  const ask = form.querySelector<HTMLElement>('[data-ask]')!;
+  const afterAsk = [...form.querySelectorAll<HTMLElement>('[data-after-ask]')];
   const tileBox = form.querySelector<HTMLElement>('[data-tiles]')!;
-  const unknownNote = form.querySelector<HTMLElement>('[data-unknown-note]')!;
   const followSwitch = form.querySelector<HTMLInputElement>('input[name="follow"]')!;
   const saveButton = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
-  const skip = form.querySelector<HTMLAnchorElement>('[data-skip]')!;
+  // Skip and the close icon: "not now".
+  const skips = [...form.querySelectorAll<HTMLAnchorElement>('[data-skip]')];
+  const scanBox = card.querySelector<HTMLElement>('[data-volume-scan]')!;
 
   const isbn = new URLSearchParams(location.search).get('isbn') ?? '';
   const bookHref = (work: string) => `/book?work=${encodeURIComponent(work)}`;
   // Long enough to read the result; the book lands in the slot meanwhile.
   const doneMs = matchMedia('(prefers-reduced-motion: reduce)').matches ? 900 : 1400;
+  // More tiles than this fold into ranges of `rangeSize`, opened on tap.
+  const mostTiles = 30;
+  const rangeSize = 10;
+  const skipped = notNow(localStorage);
 
   let space: Space;
   let library: Library;
-  let onboarding: Onboarding;
+  let onboarding: Onboarding | undefined;
   let choices: Choices;
-  // What a tap on a tile changes: "Tap changes: Owned | Read".
+  // What a tap on a tile marks: "Tapping marks: Owned | Read".
   let mode: TapMode = 'owned';
+  // The ranges of tiles the reader opened, by their first Volume.
+  const opened = new Set<number>();
 
   // The flow cannot go on: say why, with a way out.
   function stop(text: string, link = { href: '/', label: t('link.home') }) {
@@ -176,67 +212,112 @@ const steppers = [
   }
 
   const steppers = [...form.querySelectorAll<HTMLElement>('[data-stepper]')];
-  const valueOf = (stepper: HTMLElement) => (stepper.dataset.stepper === 'owned' ? choices.ownedUpTo : choices.readUpTo);
+  const kindOf = (stepper: HTMLElement) => stepper.dataset.stepper as TapMode;
+  const valueOf = (stepper: HTMLElement) => (kindOf(stepper) === 'owned' ? choices.ownedUpTo : choices.readUpTo);
+  // The shortcut of each stepper: "Up to N" and "Same as owned".
+  const shortcut = (shown: Onboarding, stepper: HTMLElement): Choices =>
+    kindOf(stepper) === 'owned' ? withRange(choices, 'owned', shown.steps.at(-1)!) : sameAsOwned(shown, library, choices);
 
-  function setRange(stepper: HTMLElement, value: number) {
-    choices = withRange(choices, stepper.dataset.stepper as TapMode, value);
-  }
-
-  function render() {
+  function render(shown: Onboarding) {
+    const tilesOf = (some: Choices) => volumeTiles(shown, library, some);
+    const tiles = tilesOf(choices);
     for (const stepper of steppers) {
       const value = valueOf(stepper);
       const field = stepper.querySelector<HTMLInputElement>('[data-value]')!;
       // Not while the reader types in it: the caret would jump.
       if (document.activeElement !== field) field.value = String(value);
+      const owned = kindOf(stepper) === 'owned';
+      stepper.querySelector('[data-label]')!.textContent =
+        value === 0 ? t(owned ? 'onboarding.own-none' : 'onboarding.read-none') : t(owned ? 'onboarding.own-up-to' : 'onboarding.read-up-to');
+      // A shortcut that changes nothing is noise.
+      const after = tilesOf(shortcut(shown, stepper));
+      stepper.querySelector<HTMLElement>('[data-shortcut]')!.hidden = tiles.every(
+        (tile, index) => tile.owned === after[index].owned && tile.read === after[index].read,
+      );
       const [less, more] = stepper.querySelectorAll<HTMLButtonElement>('[data-by]');
-      less.disabled = value <= onboarding.steps[0];
-      more.disabled = value >= onboarding.steps.at(-1)!;
+      less.disabled = value <= shown.steps[0];
+      more.disabled = value >= shown.steps.at(-1)!;
     }
     tileBox.setAttribute('aria-label', t(mode === 'owned' ? 'onboarding.tiles' : 'onboarding.tiles-read'));
+    const grouped = tiles.length > mostTiles;
+    tileBox.classList.toggle('grouped', grouped);
     tileBox.replaceChildren(
-      ...volumeTiles(onboarding, library, choices).map((tile) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'tile';
-        button.textContent = String(tile.volume);
-        button.dataset.volume = String(tile.volume);
-        // No Catalog Edition: no ISBN, so no record. A tap says why, with Scan it.
-        if (tile.isbn === null) {
-          button.classList.add('unknown');
-          button.setAttribute('aria-label', t('onboarding.tile-unknown', tile.volume));
-          return button;
-        }
-        button.classList.toggle('owned', tile.owned);
-        button.classList.toggle('read', tile.read);
-        button.dataset.isbn = tile.isbn;
-        const state = tile.read ? (tile.owned ? 'read' : 'read-not-owned') : tile.owned ? 'owned' : 'missing';
-        button.setAttribute('aria-label', t('onboarding.tile', tile.volume, state, tile.kept));
-        button.setAttribute('aria-pressed', String(mode === 'owned' ? tile.owned : tile.read));
-        // A Copy or a read Reading Status already saved stays: onboarding only adds.
-        if (mode === 'owned' ? tile.kept : tile.keptRead) button.setAttribute('aria-disabled', 'true');
-        return button;
-      }),
+      ...(grouped
+        ? Array.from({ length: Math.ceil(tiles.length / rangeSize) }, (_, index) =>
+            tileRange(tiles.slice(index * rangeSize, (index + 1) * rangeSize)),
+          )
+        : tiles.map(tileButton)),
     );
+  }
+
+  function tileButton(tile: Tile): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tile';
+    button.textContent = String(tile.volume);
+    button.dataset.volume = String(tile.volume);
+    // No Catalog Edition: no ISBN, so no record. A tap opens the sheet that scans its ISBN.
+    if (tile.isbn === null) {
+      button.classList.add('unknown');
+      button.setAttribute('aria-label', t('onboarding.tile-unknown', tile.volume));
+      button.setAttribute('aria-haspopup', 'dialog');
+      return button;
+    }
+    button.classList.toggle('owned', tile.owned);
+    button.classList.toggle('read', tile.read);
+    button.classList.toggle('kept', tile.kept);
+    button.dataset.isbn = tile.isbn;
+    const state = tile.read ? (tile.owned ? 'read' : 'read-not-owned') : tile.owned ? 'owned' : 'missing';
+    button.setAttribute('aria-label', t('onboarding.tile', tile.volume, state, tile.kept));
+    button.setAttribute('aria-pressed', String(mode === 'owned' ? tile.owned : tile.read));
+    // A Copy or a read Reading Status already saved stays: onboarding only adds. A tap says why.
+    if (mode === 'owned' ? tile.kept : tile.keptRead) button.setAttribute('aria-disabled', 'true');
+    return button;
+  }
+
+  // A long Series: ranges of ten that open on tap, each saying how many are owned and read.
+  function tileRange(tiles: Tile[]): HTMLDetailsElement {
+    const first = tiles[0].volume;
+    const range = document.createElement('details');
+    range.className = 'tile-range';
+    range.dataset.first = String(first);
+    range.open = opened.has(first);
+    const summary = document.createElement('summary');
+    const name = document.createElement('span');
+    name.className = 'tile-range-name';
+    name.textContent = t('onboarding.range', first, tiles.at(-1)!.volume);
+    const count = document.createElement('span');
+    count.className = 'tile-range-count';
+    count.textContent = t('onboarding.range-count', tiles.filter(({ owned }) => owned).length, tiles.filter(({ read }) => read).length);
+    summary.append(name, count);
+    const grid = document.createElement('div');
+    grid.className = 'tile-grid';
+    grid.append(...tiles.map(tileButton));
+    range.append(summary, grid);
+    return range;
   }
 
   for (const stepper of steppers) {
     for (const button of stepper.querySelectorAll<HTMLButtonElement>('[data-by]')) {
       button.addEventListener('click', () => {
-        setRange(stepper, step(onboarding.steps, valueOf(stepper), button.dataset.by === '1' ? 1 : -1));
-        render();
+        if (!onboarding) return;
+        choices = withRange(choices, kindOf(stepper), step(onboarding.steps, valueOf(stepper), button.dataset.by === '1' ? 1 : -1));
+        render(onboarding);
       });
     }
     stepper.querySelector('[data-shortcut]')!.addEventListener('click', () => {
-      setRange(stepper, stepper.dataset.stepper === 'owned' ? onboarding.steps.at(-1)! : choices.ownedUpTo);
-      render();
+      if (!onboarding) return;
+      choices = shortcut(onboarding, stepper);
+      render(onboarding);
     });
     const field = stepper.querySelector<HTMLInputElement>('[data-value]')!;
     // The tiles follow the typing; the field shows the kept value when left.
     field.addEventListener('input', () => {
+      if (!onboarding) return;
       const value = typedVolume(onboarding.steps, field.value);
       if (value === undefined) return;
-      setRange(stepper, value);
-      render();
+      choices = withRange(choices, kindOf(stepper), value);
+      render(onboarding);
     });
     // Only the field, not the tiles: a tap on a tile blurs the field first, and
     // tiles drawn again under the finger would lose that tap.
@@ -251,37 +332,110 @@ const steppers = [
     });
   }
 
+  // A tap answers at the tile: it changes, or a toast says why it cannot.
   tileBox.addEventListener('click', (event) => {
     const tile = (event.target as Element).closest<HTMLButtonElement>('button.tile');
-    if (!tile) return;
-    if (tile.classList.contains('unknown')) {
-      unknownNote.querySelector('[data-unknown-text]')!.textContent = t('onboarding.unknown-volume', Number(tile.dataset.volume));
-      unknownNote.hidden = false;
+    if (!tile || !onboarding) return;
+    const volume = Number(tile.dataset.volume);
+    if (tile.classList.contains('unknown')) return openScan(onboarding, volume);
+    if (!tile.dataset.isbn) return;
+    if (tile.getAttribute('aria-disabled') === 'true') {
+      toast(t(mode === 'owned' ? 'onboarding.locked' : 'onboarding.locked-read', volume));
       return;
     }
-    if (!tile.dataset.isbn || tile.getAttribute('aria-disabled') === 'true') return;
-    choices = tapTile(choices, mode, tile.dataset.isbn);
-    render();
+    choices = tapTile(onboarding, library, choices, mode, tile.dataset.isbn);
+    render(onboarding);
     tileBox.querySelector<HTMLButtonElement>(`[data-volume="${tile.dataset.volume}"]`)?.focus();
   });
 
+  // `toggle` does not bubble: listen on the way down.
+  tileBox.addEventListener(
+    'toggle',
+    (event) => {
+      const range = event.target as HTMLDetailsElement;
+      const first = Number(range.dataset.first);
+      if (range.open) opened.add(first);
+      else opened.delete(first);
+    },
+    true,
+  );
+
   form.querySelector('[data-tap-mode]')!.addEventListener('change', (event) => {
     mode = (event.target as HTMLInputElement).value as TapMode;
-    render();
+    if (onboarding) render(onboarding);
   });
 
   followSwitch.addEventListener('change', () => {
     choices = { ...choices, follow: followSwitch.checked };
   });
 
-  async function save() {
-    const plan = onboardingSave(onboarding, library, choices, new Date());
-    const done = bookHref(onboarding.anchor.work.id);
+  // "Do you own Volumes 1–N?": the answer sets the range, then the ranges and the tiles show.
+  function showChoices(asking: boolean) {
+    ask.hidden = !asking;
+    for (const each of afterAsk) each.hidden = asking;
+  }
+
+  for (const button of ask.querySelectorAll<HTMLButtonElement>('[data-answer]')) {
+    button.addEventListener('click', () => {
+      if (!onboarding) return;
+      const said = button.dataset.answer as Answer;
+      choices = answer(onboarding, choices, said);
+      render(onboarding);
+      showChoices(false);
+      // Some: the reader taps the Volumes they own. Else the ranges come first.
+      const next =
+        said === 'some'
+          ? tileBox.querySelector<HTMLElement>('button.tile:not([aria-disabled]), summary')
+          : steppers[0].querySelector<HTMLElement>('[data-by]:not(:disabled)');
+      next?.focus();
+    });
+  }
+
+  // The sheet of an unknown Volume. After its Series Correction (and after
+  // Undo) the Edition Line is asked again; the choices stay: they are by ISBN
+  // and by number, and the new Volume follows the ranges like the others.
+  function openScan(shown: Onboarding, volume: number) {
+    const close = () => {
+      renderIsland(null, scanBox);
+      tileBox.querySelector<HTMLButtonElement>(`[data-volume="${volume}"]`)?.focus();
+    };
+    renderIsland(h(VolumeScan, { volume, anchor: shown.anchor.isbn, onChanged: () => newLine(shown.anchor), onClose: close }), scanBox);
+  }
+
+  async function newLine(anchor: Onboarding['anchor']) {
+    const answered = await lookupVolumes(anchor.isbn).catch(() => undefined);
+    if (!answered) return toast(t('add.lookup-unreachable'), { error: true });
+    onboarding = seriesOnboarding(anchor, answered.volumes, library);
+    showUnknown(onboarding);
+    render(onboarding);
+  }
+
+  // The Catalog knows only the Volumes someone looked up: say how many
+  // numbers get no Copy.
+  function showUnknown(shown: Onboarding) {
+    const unknown = volumeTiles(shown, library, choices).filter(({ isbn }) => isbn === null).length;
+    form.querySelector('[data-known]')!.textContent = unknown > 0 ? t('onboarding.unknown', unknown) : '';
+  }
+
+  for (const skip of skips) {
+    skip.addEventListener('click', () => {
+      if (onboarding) skipped.remember(onboarding.series, new Date());
+    });
+  }
+
+  async function save(saved: Onboarding) {
+    const plan = onboardingSave(saved, library, choices, new Date());
+    const done = seriesHref(saved.anchor.isbn);
     saveButton.disabled = true;
     saveButton.setAttribute('aria-busy', 'true');
     try {
       const states: WriteState[] = [];
-      for (const copy of plan.copies) states.push((await saveCopy(space, copy)).state);
+      const rkeys: string[] = [];
+      for (const copy of plan.copies) {
+        const written = await saveCopy(space, copy);
+        rkeys.push(written.rkey);
+        states.push(written.state);
+      }
       for (const readingStatus of plan.readingStatuses) states.push(await saveReadingStatus(space, readingStatus));
       if (plan.follow) states.push(await saveFollow(space, plan.follow));
       const state = worstState(states);
@@ -292,15 +446,15 @@ const steppers = [
       reportNetwork(state === 'sent');
       reportWaiting(await waitingCount(space));
       const added = plan.copies.length;
+      const text = [added === 0 ? t('onboarding.saved') : t('onboarding.added', added), states.length > 0 ? t(`saved.${state}`) : '']
+        .filter(Boolean)
+        .join(' ');
       card.dataset.state = 'done';
       form.hidden = true;
       progress.hidden = false;
-      progressText.textContent = [
-        added === 0 ? t('onboarding.saved') : t('onboarding.added', added),
-        states.length > 0 ? t(`saved.${state}`) : '',
-      ]
-        .filter(Boolean)
-        .join(' ');
+      progressText.textContent = text;
+      // The Series page says it again, with Undo for exactly these Copies.
+      handOverAddedCopies(sessionStorage, { rkeys, text });
       setTimeout(() => location.replace(done), state === 'waiting' ? doneMs * 2 : doneMs);
     } catch (error) {
       toast(spaceErrorMessage(error), { error: true });
@@ -312,7 +466,7 @@ const steppers = [
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    void save();
+    if (onboarding) void save(onboarding);
   });
 
   async function start() {
@@ -320,44 +474,50 @@ const steppers = [
     // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
     if (!own) return;
     space = own.space;
-    let answer: Awaited<ReturnType<typeof lookupVolumes>>;
+    let answered: Awaited<ReturnType<typeof lookupVolumes>>;
     try {
       const [loaded, volumes] = await Promise.all([loadLibrary(space), lookupVolumes(isbn)]);
       library = loaded.library;
-      answer = volumes;
+      answered = volumes;
       reportNetwork(!loaded.stale);
     } catch (error) {
       if (isNetworkFailure(error)) reportNetwork(false);
       return stop(t('onboarding.volumes-failed'));
     }
-    const anchor = answer?.volumes.find((each) => each.isbn === isbn);
+    const anchor = answered?.volumes.find((each) => each.isbn === isbn);
     if (!anchor?.series || anchor.volume === null) {
       return stop(t('onboarding.no-series'), anchor && { href: bookHref(anchor.work.id), label: t('link.book-page') });
     }
-    onboarding = seriesOnboarding(anchor, answer!.volumes, library);
-    choices = onboarding.start;
+    // Skipped less than 30 days ago on this device: not now, the Book page.
+    if (skipped.said(anchor.series, new Date())) return location.replace(bookHref(anchor.work.id));
+    const shown = seriesOnboarding(anchor, answered!.volumes, library);
+    onboarding = shown;
+    choices = shown.start;
 
-    const series = onboarding.series.title;
+    const series = shown.series.title;
     document.title = `${series} · Atomes`;
-    form.querySelector('[data-heading]')!.textContent = t('onboarding.heading-series', series);
+    heading.textContent = t('onboarding.heading-series', series);
     form.querySelector('[data-intro]')!.textContent = t('onboarding.intro', series, anchor.volumes);
-    const line = editionLabel(anchor);
+    const line = lineLabel(lineName(answered!.volumes));
     form.querySelector('[data-edition-line]')!.textContent = line
       ? t('onboarding.in-edition', line)
       : t('onboarding.in-added-edition');
-    // The Catalog knows only the Volumes someone looked up: say how many
-    // numbers get no Copy.
-    const unknown = volumeTiles(onboarding, library, choices).filter(({ isbn }) => isbn === null).length;
-    form.querySelector('[data-known]')!.textContent = unknown > 0 ? t('onboarding.unknown', unknown) : '';
+    showUnknown(shown);
     const all = form.querySelector<HTMLButtonElement>('[data-stepper="owned"] [data-shortcut]')!;
-    all.textContent = t('onboarding.up-to', onboarding.steps.at(-1)!);
+    all.textContent = t('onboarding.up-to', shown.steps.at(-1)!);
     followSwitch.checked = choices.follow;
-    skip.href = bookHref(anchor.work.id);
-    render();
+    for (const skip of skips) skip.href = bookHref(anchor.work.id);
+    // A long Series: the range of the added Volume starts open.
+    const addedAt = shown.steps.indexOf(Math.min(...anchor.volumes)) - 1;
+    if (addedAt >= 0) opened.add(shown.steps[1 + addedAt - (addedAt % rangeSize)]);
+    if (shown.ask) form.querySelector('[data-ask-question]')!.textContent = t('onboarding.ask', shown.ask.upTo);
+    showChoices(shown.ask !== undefined);
+    render(shown);
     progress.hidden = true;
     form.hidden = false;
     card.dataset.state = 'ready';
-    form.querySelector<HTMLInputElement>('#owned-value')?.focus();
+    // The heading, not a field: the phone keyboard stays closed.
+    heading.focus();
   }
 
   start().catch((error: unknown) => stop(spaceErrorMessage(error)));
@@ -379,8 +539,7 @@ const steppers = [
   }
 
   .progress[hidden],
-  .onboarding[hidden],
-  .volumes .hint[hidden] {
+  .onboarding[hidden] {
     display: none;
   }
 
@@ -408,6 +567,30 @@ const steppers = [
     gap: 10px;
   }
 
+  .intro-top {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  /* Close: the way out on a Flow screen, with no frame around it. */
+  .close {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin: -10px -10px -10px 0;
+    border-radius: var(--radius-control);
+    color: var(--secondary);
+  }
+
+  .close:hover {
+    background: var(--soft);
+    color: var(--ink);
+  }
+
   .tag {
     display: inline-flex;
     align-items: center;
@@ -425,10 +608,40 @@ const steppers = [
     text-wrap: balance;
   }
 
+  /* Focused on load so screen readers start here; not a control, so no ring. */
+  .title:focus {
+    outline: none;
+  }
+
   .hint {
     color: var(--secondary);
     font-size: 14px;
     text-wrap: pretty;
+  }
+
+  .ask {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--surface);
+  }
+
+  .ask-question {
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  .ask-answers {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .ask-answers .button {
+    min-height: 44px;
   }
 
   .ranges {
@@ -512,17 +725,58 @@ const steppers = [
     font-weight: 600;
   }
 
-  .tiles {
-    display: flex;
-    flex-wrap: wrap;
+  .tiles,
+  .tiles :global(.tile-grid) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
     gap: 8px;
   }
 
+  /* A long Series: ranges of ten, opened on tap. */
+  .tiles.grouped {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tiles :global(.tile-range) {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--surface);
+  }
+
+  .tiles :global(.tile-range summary) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .tiles :global(.tile-range-count) {
+    color: var(--secondary);
+    font-weight: 400;
+  }
+
+  .tiles :global(.tile-range[open] summary) {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .tiles :global(.tile-range .tile-grid) {
+    padding: 12px;
+  }
+
   /* The Volume spine motif (HANDOFF): filled = read, outlined = owned not
-     read, dashed grey = missing. Read but not owned: filled, dashed edge. */
+     read, dashed grey = missing. Read but not owned: filled, dashed edge.
+     Secondary, not ink: 50 filled tiles must not outshout Save. */
   .tiles :global(.tile),
   .tile-sample {
-    width: 44px;
+    position: relative;
+    width: 100%;
     height: 44px;
     box-sizing: border-box;
     border: 1.5px dashed var(--off);
@@ -538,21 +792,35 @@ const steppers = [
 
   .tiles :global(.tile.owned),
   .tile-sample.owned {
-    border: 1.5px solid var(--ink);
+    border: 1.5px solid var(--secondary);
     background: var(--soft);
     color: var(--ink);
   }
 
   .tiles :global(.tile.read),
   .tile-sample.read {
-    background: var(--ink);
+    background: var(--secondary);
     color: var(--surface);
   }
 
   .tiles :global(.tile.read:not(.owned)),
   .tile-sample.read:not(.owned) {
     border: 1.5px dashed var(--surface);
-    box-shadow: 0 0 0 1.5px var(--ink);
+    box-shadow: 0 0 0 1.5px var(--secondary);
+  }
+
+  /* In Library (a Copy saved already): a dot in the corner; a tap says why it is locked. */
+  .tiles :global(.tile.kept)::after,
+  .tile-sample.kept::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink);
+    box-shadow: 0 0 0 1.5px var(--surface);
   }
 
   /* No Catalog Edition for this number: hatched, it cannot change. */
@@ -565,7 +833,7 @@ const steppers = [
   }
 
   .tiles :global(.tile[aria-disabled='true']) {
-    cursor: default;
+    cursor: help;
   }
 
   .tiles :global(.tile:focus-visible) {
@@ -591,6 +859,7 @@ const steppers = [
   }
 
   .legend .tile-sample {
+    flex: none;
     width: 14px;
     height: 14px;
     border-radius: 3px;
@@ -659,9 +928,10 @@ const steppers = [
     .onboarding {
       display: grid;
       grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
-      grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+      grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
       grid-template-areas:
         'intro volumes'
+        'ask volumes'
         'ranges volumes'
         'follow volumes'
         '. volumes'
@@ -671,6 +941,10 @@ const steppers = [
 
     .intro {
       grid-area: intro;
+    }
+
+    .ask {
+      grid-area: ask;
     }
 
     .ranges {
@@ -722,6 +996,7 @@ const steppers = [
     .tiles {
       min-height: 0;
       overflow-y: auto;
+      align-content: start;
       margin: -4px;
       padding: 4px;
     }

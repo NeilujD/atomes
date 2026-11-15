@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
 import type { Copy } from './copy';
 import type { Loan } from './loan';
-import { bookIsbns, bookPage, isOwned, lend, returnLoans, statusChange, type Library } from './model';
+import { addedOn, bookIsbns, bookPage, isOwned, languageName, lend, lineLabel, ownsWork, returnLoans, statusChange, type Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -281,6 +281,41 @@ describe('Is owned', () => {
   });
 });
 
+describe('Added on', () => {
+  test('the date of the first Copy of the Edition or of its Work; none with no Copy', () => {
+    const copies = [
+      copy('3m2b', { createdAt: '2026-11-09T10:00:00.000Z' }),
+      copy('3m2a', { works: ['wd:Q1', work], isbn: '9782344068922', createdAt: '2026-11-02T10:00:00.000Z' }),
+      copy('3m2c', { works: ['wd:Q190192'], isbn: '9782266320542', createdAt: '2026-10-01T10:00:00.000Z' }),
+    ];
+
+    expect(addedOn(onePiece56, library({ copies }))).toBe('2026-11-02T10:00:00.000Z');
+    expect(addedOn(onePiece56, library({ readingStatuses: [status('read')] }))).toBeUndefined();
+  });
+});
+
+describe('Language name', () => {
+  test('a code the sources give, in the words of the UI; an unknown code as it is; none', () => {
+    expect(languageName(onePiece56, 'en')).toBe('French');
+    expect(languageName(onePiece56, 'fr')).toBe('français');
+    expect(languageName({ language: 'xyz' }, 'en')).toBe('xyz');
+    expect(languageName({ language: null }, 'en')).toBeNull();
+  });
+});
+
+describe('Owns a Work', () => {
+  test('a Copy, an omnibus Copy, or a Copy of the Edition read before the Catalog knew its Work: owned', () => {
+    expect(ownsWork(work, library({ copies: [copy('3m2a')] }))).toBe(true);
+    expect(ownsWork(work, library({ copies: [copy('3m2a', { works: ['wd:Q1', work], isbn: '9782344068922' })] }))).toBe(true);
+    expect(ownsWork(work, library({ copies: [copy('3m2a', { works: [`isbn:${onePiece56.isbn}`] })], readingStatuses: [status('read')] }))).toBe(true);
+  });
+
+  test('read with no Copy, or a Copy of another Work: not owned', () => {
+    expect(ownsWork(work, library({ readingStatuses: [status('read')] }))).toBe(false);
+    expect(ownsWork(work, library({ copies: [copy('3m2b', { works: ['wd:Q190192'], isbn: '9782266320542' })] }))).toBe(false);
+  });
+});
+
 function loan(rkey: string, copyKey: string, borrower: string, lentAt: string, returnedAt?: string): Saved<Loan> {
   return { rkey, value: { copy: copyKey, borrower, lentAt, ...(returnedAt ? { returnedAt } : {}), createdAt: lentAt } };
 }
@@ -320,3 +355,16 @@ function status(value: Status, finishedAt?: string): Saved<ReadingStatus> {
     value: { work, isbn: onePiece56.isbn, status: value, finishedAt, updatedAt: '2026-11-05T10:00:00.000Z' },
   };
 }
+
+describe('Edition Line name (glossary: Edition Line)', () => {
+  test('publisher and the years of its Editions, in the UI language', () => {
+    expect(lineLabel({ publisher: 'Glénat', first: 1993, last: 2000 }, 'en')).toBe('Glénat · 1993–2000');
+    expect(lineLabel({ publisher: 'Glénat', first: 1993, last: 2000 }, 'fr')).toBe('Glénat · 1993–2000');
+  });
+
+  test('one year once; no year known: the publisher only; no publisher: the years only', () => {
+    expect(lineLabel({ publisher: 'Kana', first: 2002, last: 2002 }, 'en')).toBe('Kana · 2002');
+    expect(lineLabel({ publisher: 'Kana', first: null, last: null }, 'en')).toBe('Kana');
+    expect(lineLabel({ publisher: null, first: 2002, last: 2010 }, 'en')).toBe('2002–2010');
+  });
+});

@@ -16,8 +16,8 @@ describe('dictionaries', () => {
     expect(translator('fr')('nav.library')).toBe('Bibliothèque');
     expect(translator('en')('nav.library')).toBe('Library');
     expect(translator('fr')('book.volume', 12)).toBe('Tome 12');
-    expect(translator('en')('onboarding.added', 2)).toBe('2 more Volumes are in your Library.');
-    expect(translator('fr')('onboarding.added', 1)).toBe('1 tome de plus est dans votre bibliothèque.');
+    expect(translator('en')('onboarding.added', 2)).toBe('2 Copies added.');
+    expect(translator('fr')('onboarding.added', 1)).toBe('1 exemplaire ajouté.');
   });
 
   test('page scripts read English when there is no page (tests in Node)', () => {

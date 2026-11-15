@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
-import { checkAccess, clientIp, createIpLimit, type CatalogAccess } from './access';
+import { checkAccess, checkBackToSources, checkWrite, clientIp, createIpLimit, type CatalogAccess } from './access';
 
 const request = (headers: Record<string, string> = {}) => new Request('http://catalog.test/api/catalog/editions/9782723478991', { headers });
 
 function setup(signedIn = false) {
   let clock = 0;
-  const access: CatalogAccess = {
+  const access: Pick<CatalogAccess, 'limit' | 'signedIn'> = {
     limit: createIpLimit({ max: 3, windowMs: 60_000, now: () => clock }),
     signedIn: () => signedIn,
   };
@@ -66,5 +66,53 @@ describe('ISBN lookups: a limit per IP address', () => {
     const { access } = setup(false);
 
     expect(checkAccess(request(), '127.0.0.1', access)).toEqual({ signedIn: false });
+  });
+});
+
+describe('Series Corrections: signed-in readers only, with a limit per Account', () => {
+  function writes(account: string | undefined) {
+    let clock = 0;
+    const access: Pick<CatalogAccess, 'account' | 'writes'> = {
+      account: () => account,
+      writes: createIpLimit({ max: 2, windowMs: 60_000, now: () => clock }),
+    };
+    return { access, wait: (ms: number) => (clock += ms) };
+  }
+  const statusOf = (result: ReturnType<typeof checkWrite>) => ('refused' in result ? result.refused.status : 200);
+
+  test('a signed-out request is refused (401)', () => {
+    expect(statusOf(checkWrite(request(), writes(undefined).access))).toBe(401);
+  });
+
+  test('a signed-in request gives its Account', () => {
+    expect(checkWrite(request(), writes('did:plc:reader').access)).toEqual({ account: 'did:plc:reader' });
+  });
+
+  test('over the limit the answer is 429 with Retry-After, whatever the address; another Account is not limited', () => {
+    const { access, wait } = writes('did:plc:reader');
+    const from = (ip: string) => request({ 'x-forwarded-for': ip });
+
+    expect([1, 2].map((i) => statusOf(checkWrite(from(`203.0.113.${i}`), access)))).toEqual([200, 200]);
+    wait(15_000);
+    const over = checkWrite(from('203.0.113.3'), access);
+
+    expect(statusOf(over)).toBe(429);
+    expect('refused' in over && over.refused.headers.get('retry-after')).toBe('45');
+    expect(statusOf(checkWrite(request(), { ...access, account: () => 'did:plc:another' }))).toBe(200);
+    wait(45_000);
+    expect(statusOf(checkWrite(from('203.0.113.3'), access))).toBe(200);
+  });
+
+  // Undo of a bulk Move to Series sends many back at once (CORE-109): the
+  // reader's own Corrections go back free. Another reader's count, or one
+  // reader could undo every Correction of the instance at no cost.
+  test('"Back to the sources" is signed-in only; free for a Correction of the same Account, counted for another', () => {
+    expect(statusOf(checkBackToSources(request(), writes(undefined).access, 'did:plc:reader'))).toBe(401);
+    const { access } = writes('did:plc:reader');
+
+    expect([1, 2, 3].map(() => statusOf(checkBackToSources(request(), access, 'did:plc:reader')))).toEqual([200, 200, 200]);
+    expect([1, 2, 3].map(() => statusOf(checkBackToSources(request(), access, 'did:plc:another')))).toEqual([200, 200, 429]);
+    expect(statusOf(checkBackToSources(request(), access, undefined))).toBe(429);
+    expect(checkBackToSources(request(), access, 'did:plc:reader')).toEqual({ account: 'did:plc:reader' });
   });
 });

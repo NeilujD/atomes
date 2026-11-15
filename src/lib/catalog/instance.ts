@@ -21,11 +21,15 @@ const recorded =
 let instance: Catalog | undefined;
 let access: Promise<CatalogAccess> | undefined;
 
-// One request per second on average for each signed-out IP address.
+// One request per second on average for each signed-out IP address. 200
+// Series Corrections an hour for each Account: a long Series moved at once
+// fits (bulk select, CORE-109), a runaway script does not.
 export function catalogAccess(): Promise<CatalogAccess> {
   access ??= authDeps().then((deps) => ({
     limit: createIpLimit({ max: 60, windowMs: 60_000 }),
     signedIn: (request) => readerOf(request, deps) !== undefined,
+    account: (request) => readerOf(request, deps)?.did,
+    writes: createIpLimit({ max: 200, windowMs: 3600_000 }),
   }));
   return access;
 }

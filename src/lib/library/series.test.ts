@@ -6,7 +6,20 @@ import { memorySpace } from './memory-space.fake';
 import type { Library } from './model';
 import type { ReadingStatus } from './reading-status';
 import { lexicons, type Saved } from './records';
-import { askCollected, collectedVolumes, dropSeries, followSeries, missingVolumes, seriesCover, seriesStanding, suggestsDrop, switchLine } from './series';
+import {
+  askCollected,
+  collectedVolumes,
+  dropSeries,
+  followSeries,
+  latestOwned,
+  missingRanges,
+  missingVolumes,
+  notOwnedVolumes,
+  seriesCover,
+  seriesStanding,
+  suggestsDrop,
+  switchLine,
+} from './series';
 
 const blacksad = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
 
@@ -61,7 +74,7 @@ const follow = (change: Partial<Follow> = {}): Follow => ({
 const library = (change: Partial<Library> = {}): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [], ...change });
 
 describe('Where the reader stands in a Series', () => {
-  test('counts Volumes owned, read and missing, and the next Volume after the latest one owned', () => {
+  test('counts Volumes owned, read and missing', () => {
     const each = library({
       copies: owns(lineA, 1, 2, 4),
       readingStatuses: [status(lineA[0], 'read'), status(lineA[2], 'read'), status(lineA[3], 'reading')],
@@ -70,33 +83,57 @@ describe('Where the reader stands in a Series', () => {
     const standing = seriesStanding(lineA, each);
 
     expect(standing.owned).toBe(3);
-    // Volume 3 is read but not owned (borrowed): it counts as read, and it is still missing.
+    // Volume 3 is read but not owned (borrowed): it counts as read, and it is not missing.
     expect(standing.read).toBe(2);
-    expect(standing.missing.map(({ volume: n }) => n)).toEqual([3]);
-    expect(standing.next).toBe(5);
+    expect(standing.missing).toEqual([]);
   });
 
-  test('spines: filled when read, outlined when owned and not read, dashed grey when not owned, before or after the latest one owned', () => {
-    const each = library({ copies: owns(lineA, 1, 2, 4), readingStatuses: [status(lineA[0], 'read'), status(lineA[2], 'read')] });
+  test('a Missing Volume is one the reader does not own and has not read', () => {
+    const each = library({ copies: owns(lineA, 1, 4), readingStatuses: [status(lineA[2], 'read'), status(lineA[1], 'reading')] });
+
+    expect(missingVolumes(lineA, each).map(({ volume: n }) => n)).toEqual([2]);
+  });
+
+  test('spines: filled when owned and read, outlined when owned and not read, outlined with the read mark when read and not owned, dashed grey when not owned', () => {
+    const each = library({
+      copies: owns(lineA, 1, 2, 4),
+      readingStatuses: [status(lineA[0], 'read'), status(lineA[2], 'read'), status(lineA[5], 'read')],
+    });
 
     expect(seriesStanding(lineA, each).spines.map(({ volume: n, state }) => `${n} ${state}`)).toEqual([
       '1 read',
       '2 owned',
-      '3 read',
+      '3 read-not-owned',
       '4 owned',
       '5 not-owned',
-      '6 not-owned',
+      '6 read-not-owned',
     ]);
   });
 
-  test('no Volume owned: nothing is missing, and the next one is the first', () => {
+  test('no Volume owned: nothing is missing', () => {
     const standing = seriesStanding(lineA, library());
 
-    expect(standing).toMatchObject({ owned: 0, read: 0, missing: [], next: 1 });
+    expect(standing).toMatchObject({ owned: 0, read: 0, missing: [] });
   });
 
-  test('every Volume owned: no next Volume', () => {
-    expect(seriesStanding(lineA, library({ copies: owns(lineA, 1, 2, 3, 4, 5, 6) })).next).toBeNull();
+  test('one Work per Volume number (ADR 0010, amendment 2026-11-14): a Copy and a Reading Status of Volume 2 change Volume 2 only', () => {
+    // The Catalog dropped the Work a source gave Volumes 2 to 6: each has its own `isbn:` Work.
+    const dropped = 'inv:91e782c2fc0f67739836a22c452f3623';
+    const line = lineA.map((each) => (each.volume === 1 ? each : { ...each, work: { id: `isbn:${each.isbn}`, title: each.title } }));
+    // A Copy saved before the repair still names the dropped Work: it owns its own Edition only.
+    const oldCopy: Saved<Copy> = { rkey: 'copy-old', value: { isbn: line[1].isbn, works: [dropped], createdAt: '2026-11-06T11:00:00.000Z' } };
+
+    const standing = seriesStanding(line, library({ copies: [oldCopy], readingStatuses: [status(line[1], 'read')] }));
+
+    expect(standing.spines.map(({ volume: n, state }) => `${n} ${state}`)).toEqual([
+      '1 not-owned',
+      '2 read',
+      '3 not-owned',
+      '4 not-owned',
+      '5 not-owned',
+      '6 not-owned',
+    ]);
+    expect(standing).toMatchObject({ owned: 1, read: 1 });
   });
 
   test('two printings of a Volume make one spine; a Volume with no number makes none', () => {
@@ -113,6 +150,48 @@ describe('Where the reader stands in a Series', () => {
     const reprint = volume(2, 'A', { isbn: isbn('979109999099') });
 
     expect(missingVolumes([...lineA, reprint], library({ copies: [...owns(lineA, 1, 4), copy(reprint)] })).map(({ volume: n }) => n)).toEqual([3]);
+  });
+
+  test('a Volume the Catalog lacks before the latest one owned is listed as unknown, apart from the Missing Volumes, and not on To Buy', () => {
+    // The Catalog has no Edition of Volume 3 (BnF has no record).
+    const gap = lineA.filter(({ volume: n }) => n !== 3);
+    const each = library({ copies: owns(lineA, 1, 5) });
+
+    const standing = seriesStanding(gap, each);
+
+    expect(standing.unknown).toEqual([3]);
+    expect(standing.missing.map(({ volume: n }) => n)).toEqual([2, 4]);
+    expect(notOwnedVolumes(gap, each).map(({ volume: n }) => n)).toEqual([2, 4, 6]);
+  });
+
+  test('no Volume is unknown after the latest one owned, nor up to a number that is a year', () => {
+    const gap = lineA.filter(({ volume: n }) => n !== 5);
+    // Volume "2003": a year read as a Volume number.
+    const year = volume(2003, 'A', { isbn: isbn('979109999997') });
+
+    expect(seriesStanding(gap, library({ copies: owns(lineA, 1, 4) })).unknown).toEqual([]);
+    expect(seriesStanding([...lineA, year], library({ copies: [...owns(lineA, 1, 2), copy(year)] })).unknown).toEqual([]);
+  });
+});
+
+describe('The Missing list, as ranges', () => {
+  const range = ({ first, last, unknown }: { first: number; last: number; unknown: boolean }) => `${first}-${last}${unknown ? '?' : ''}`;
+
+  test('runs of Missing Volumes make ranges; a Volume the Catalog lacks stands alone and cuts a run', () => {
+    // Volume 4 is not in the Catalog; the reader owns Volume 6 only.
+    const gap = lineA.filter(({ volume: n }) => n !== 4);
+
+    expect(missingRanges(seriesStanding(gap, library({ copies: owns(lineA, 6) }))).map(range)).toEqual(['1-3', '4-4?', '5-5']);
+  });
+
+  test('two Volumes the Catalog lacks side by side stay apart: each opens its own sheet', () => {
+    const gaps = lineA.filter(({ volume: n }) => n !== 2 && n !== 3);
+
+    expect(missingRanges(seriesStanding(gaps, library({ copies: owns(lineA, 1, 5) }))).map(range)).toEqual(['2-2?', '3-3?', '4-4']);
+  });
+
+  test('nothing missing: no range', () => {
+    expect(missingRanges(seriesStanding(lineA, library({ copies: owns(lineA, 1, 2) })))).toEqual([]);
   });
 });
 
@@ -370,5 +449,24 @@ describe('Series cover rule', () => {
     const omnibus = volume(1, 'A', { isbn: isbn('979109999097'), volumes: [1, 2], cover: 'https://covers.test/1-2.jpg' });
 
     expect(seriesCover([lineA[0], omnibus, covered(2)])?.isbn).toBe(omnibus.isbn);
+  });
+});
+
+describe('The cover of the Series page: the latest Volume the reader owns', () => {
+  test('the printing the reader owns of their highest Volume, even with no cover', () => {
+    const covered = lineA.map((each) => ({ ...each, cover: `https://covers.test/${each.isbn}.jpg` }));
+    const reprint = volume(3, 'A', { isbn: isbn('979109999099'), work: { id: 'wd:Q2999998', title: 'Blacksad 3' } });
+
+    expect(latestOwned([...covered, reprint], library({ copies: [...owns(covered, 1), copy(reprint)] }))?.isbn).toBe(reprint.isbn);
+  });
+
+  test('an omnibus owned counts for each of its Volumes', () => {
+    const omnibus = volume(5, 'A', { isbn: isbn('979109999097'), volumes: [5, 6], work: { id: 'wd:Q2999999', title: 'Blacksad 5-6' } });
+
+    expect(latestOwned([...lineA, omnibus], library({ copies: [...owns(lineA, 1), copy(omnibus)] }))?.isbn).toBe(omnibus.isbn);
+  });
+
+  test('no Volume owned: none (the page shows the Series cover)', () => {
+    expect(latestOwned(lineA, library())).toBeUndefined();
   });
 });
