@@ -110,6 +110,83 @@ const isbn = Astro.url.searchParams.get('isbn') ?? '';
     gap: 8px;
   }
 
+  /* Labels on the Series (src/islands/SeriesLabels.tsx): chips as on the Book page. */
+  .series-labels,
+  .series-labels-add {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .series-labels-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .series-label-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    min-height: var(--row);
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: calc(var(--row) / 2);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  li.series-label-chip {
+    padding-right: 0;
+  }
+
+  .series-label-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+
+  .series-label-remove {
+    display: grid;
+    place-items: center;
+    width: var(--row);
+    height: var(--row);
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--secondary);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .series-label-add {
+    border-style: dashed;
+    color: var(--secondary);
+    cursor: pointer;
+  }
+
+  .series-label-add:hover:not(:disabled),
+  .series-label-remove:hover:not(:disabled) {
+    background: var(--soft);
+    color: var(--ink);
+  }
+
+  .series-label-add:disabled,
+  .series-label-remove:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
   .series-switch {
     display: flex;
     flex-direction: column;

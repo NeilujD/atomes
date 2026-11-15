@@ -74,8 +74,9 @@ const categoryOf = (collection: string) => categoryNames.find((category) => cate
 
 // The record as anyone may read it, or undefined when it stays Private. A
 // Reading Status is keyed by its Work (ADR 0010): the key and the `work` field
-// both count. A Label with Works, all of them Private, stays Private: its name
-// could tell the Work. A Label with no Work at all is Shared.
+// both count. A Label with Works, all of them Private, stays Private even on a
+// Series: its name and its Series could tell the Work. A Label with no Work at
+// all (on a Series only, or empty) is Shared, with its Private Works left out.
 function publicValue(collection: string, rkey: string, value: unknown, privateWorks: ReadonlySet<string>): object | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const record = value as Record<string, unknown>;

@@ -1,5 +1,6 @@
 // The Labels section of the Book page, a Preact island (ADR 0014): the Labels
-// this Work carries, the reader's others to add in one tap, a field for a new
+// this Work carries, the ones it gets from its Series (removed on the Series
+// page only, src/islands/SeriesLabels.tsx), the reader's others to add in one tap, a field for a new
 // one, and where every Label is renamed or deleted. Labels are saved in the
 // reader's Library store, Private unless the reader shares them in Settings
 // (src/islands/Sharing.tsx). The rules are in src/lib/library/label.ts; this
@@ -7,10 +8,12 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
+import { lookupEditions } from '../lib/catalog/client';
 import { pageLanguage, t } from '../lib/i18n/i18n';
 import { isWorkId } from '../lib/library/ids';
-import { attach, deleteLabel, detach, labelFor, listLabels, renamed, saveLabel, workLabels, type Label } from '../lib/library/label';
-import { savedText, sendWhenOnline, waitingCount } from '../lib/library/library';
+import { attach, deleteLabel, detach, labelFor, listLabels, renamed, saveLabel, workLabels, type Label, type SeriesIds } from '../lib/library/label';
+import { loadLibrary, savedText, sendWhenOnline, waitingCount } from '../lib/library/library';
+import { bookIsbns, workEdition } from '../lib/library/model';
 import type { Saved } from '../lib/library/records';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
@@ -20,10 +23,16 @@ import { toast } from '../lib/toast';
 export interface Sources {
   // Undefined when signed out.
   open(): Promise<Space | undefined>;
+  // The Series of the Work, as the Catalog knows it from the reader's Edition; null when it cannot say.
+  series(work: string, own: Space): Promise<SeriesIds | null>;
 }
 
 const live: Sources = {
   open: async () => (await openOwnSpace())?.space,
+  series: async (work, own) => {
+    const { library } = await loadLibrary(own, () => undefined);
+    return workEdition(work, library, await lookupEditions(bookIsbns(work, library)))?.series ?? null;
+  },
 };
 
 // `?work=<Catalog identifier>`, as the Book page reads it.
@@ -39,6 +48,7 @@ type Save = (change: Change) => void;
 
 export function BookLabels({ work, sources }: { work: string; sources: Sources }) {
   const [labels, setLabels] = useState<Saved<Label>[]>();
+  const [series, setSeries] = useState<SeriesIds | null>(null);
   const [saving, setSaving] = useState(false);
   const [typed, setTyped] = useState('');
   const [problem, setProblem] = useState<string>();
@@ -63,6 +73,8 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
       // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
       if (!own) return;
       space.current = own;
+      // Offline or unknown to the Catalog: the Work shows its own Labels only.
+      sources.series(work, own).then(setSeries, () => undefined);
       listing.current = freshListing(
         async () => ({ ...(await listLabels(own)), waiting: await waitingCount(own) }),
         (read) => {
@@ -130,12 +142,18 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
     save(async (own) => (await saveLabel(own, change.label, change.rkey)).state);
   }
 
-  const { carried, others, all } = workLabels(work, labels, pageLanguage());
+  const { carried, fromSeries, others, all } = workLabels(work, labels, pageLanguage(), series);
 
   return (
     <div class="labels">
-      {carried.length > 0 ? (
+      {carried.length + fromSeries.length > 0 ? (
         <ul class="labels-chips">
+          {fromSeries.map(({ rkey, value }) => (
+            <li key={rkey} class="labels-chip labels-chip-series">
+              <span class="labels-chip-name">{value.name}</span>
+              <SeriesMark />
+            </li>
+          ))}
           {carried.map(({ rkey, value }) => (
             <li key={rkey} class="labels-chip">
               <span class="labels-chip-name">{value.name}</span>
@@ -154,6 +172,7 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
       ) : (
         <p class="labels-hint">{t('labels.none')}</p>
       )}
+      {fromSeries.length > 0 && <p class="labels-hint">{t('labels.series-hint')}</p>}
 
       {others.length > 0 && (
         <div class="labels-chips" role="group" aria-label={t('labels.yours')}>
@@ -209,6 +228,20 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
         </details>
       )}
     </div>
+  );
+}
+
+// The Layers icon (Lucide), the Series mark of the app (Series Onboarding tag).
+function SeriesMark() {
+  return (
+    <span class="labels-chip-mark">
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
+        <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
+        <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
+      </svg>
+      <span class="visually-hidden">{t('labels.series-mark')}</span>
+    </span>
   );
 }
 

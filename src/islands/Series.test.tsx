@@ -5,6 +5,7 @@ import type { Edition } from '../lib/catalog/catalog';
 import { handOverAddedCopies, takeAddedCopies } from '../lib/library/added-copies';
 import { copyCollection, saveCopy, type Copy } from '../lib/library/copy';
 import { followCollection, saveFollow, type Follow } from '../lib/library/follow';
+import { labelCollection, saveLabel, type Label } from '../lib/library/label';
 import { memorySpace } from '../lib/library/memory-space.fake';
 import { bookHref } from '../lib/library/model';
 import { readingStatusCollection, saveReadingStatus, type ReadingStatus } from '../lib/library/reading-status';
@@ -42,9 +43,10 @@ const lineB = [1, 2, 3, 4, 5].map((n) => volume(n, 'B'));
 const all = [...lineA, ...lineB];
 
 // The reader owns Volumes 1 and 3 of line A and read Volume 1; `follow` says how they follow Blacksad,
-// in a record saved under `followed`. `lines` are the Edition Lines the Catalog answers.
-async function seriesPage(follow?: Follow['status'], editions: Edition[] = all, followed = blacksad.id, lines = [lineA, lineB]) {
+// in a record saved under `followed`. `lines` are the Edition Lines the Catalog answers. The reader has `labels`.
+async function seriesPage(follow?: Follow['status'], editions: Edition[] = all, followed = blacksad.id, lines = [lineA, lineB], labels: Label[] = []) {
   const { space, stored } = memorySpace();
+  for (const each of labels) await saveLabel(space, each);
   if (follow) await saveFollow(space, { series: followed, anchorIsbn: lineA[0].isbn, status: follow, updatedAt: '2026-11-06T11:00:00.000Z' });
   for (const n of [1, 3]) await saveCopy(space, { isbn: lineA[n - 1].isbn, works: [lineA[n - 1].work.id], createdAt: '2026-11-06T11:00:00.000Z' });
   await saveReadingStatus(space, { work: lineA[0].work.id, isbn: lineA[0].isbn, status: 'read', updatedAt: '2026-11-07T10:00:00.000Z' });
@@ -66,6 +68,7 @@ async function seriesPage(follow?: Follow['status'], editions: Edition[] = all, 
     copies: () => stored(copyCollection).map(({ value }) => value as Copy),
     statuses: () => stored(readingStatusCollection).map(({ value }) => value as ReadingStatus),
     toBuy: () => stored(toBuyCollection).map(({ value }) => value as ToBuy),
+    labels: () => stored(labelCollection).map(({ value }) => value as Label),
   };
 }
 
@@ -174,6 +177,34 @@ describe('Series page of a follow saved under an older identifier (same_as, ADR 
 
     expect(keys()).toEqual([minted]);
     expect(follows()).toEqual([expect.objectContaining({ series: minted, status: 'dropped' })]);
+  });
+});
+
+describe('Labels on the Series page', () => {
+  const createdAt = '2026-11-05T10:00:00.000Z';
+
+  test('"+ Label" puts a new Label on the Series, and its chip takes it off the Series only', async () => {
+    const { labels } = await seriesPage('following');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Label' }));
+    fireEvent.input(screen.getByRole('textbox', { name: 'New Label for the Series' }), { target: { value: 'Noir' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    const remove = await screen.findByRole('button', { name: 'Remove the Label Noir from this Series' });
+    expect(labels()).toEqual([expect.objectContaining({ name: 'Noir', works: [], series: [blacksad.id] })]);
+
+    fireEvent.click(remove);
+    await waitFor(() => expect(labels()).toEqual([expect.objectContaining({ name: 'Noir', works: [], series: [] })]));
+  });
+
+  test('one of the reader’s Labels goes on the Series in one tap and keeps its Works', async () => {
+    const { labels } = await seriesPage('following', all, blacksad.id, [lineA, lineB], [{ name: 'Cats', works: [lineA[0].work.id], createdAt }]);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Label' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cats' }));
+
+    expect(await screen.findByRole('button', { name: 'Remove the Label Cats from this Series' })).toBeTruthy();
+    expect(labels()).toEqual([expect.objectContaining({ name: 'Cats', works: [lineA[0].work.id], series: [blacksad.id] })]);
   });
 });
 

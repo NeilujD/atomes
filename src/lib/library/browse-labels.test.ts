@@ -87,3 +87,65 @@ describe('Labels in the Library', () => {
     expect(liveQuery(asked, [sciFi, manga])).toEqual(asked);
   });
 });
+
+// One Piece as the Catalog names it now; a Label may hold its older identifier.
+const onePieceSeries = { id: 'wd:Q673', title: 'One Piece', sameAs: ['inv:0123456789abcdef0123456789abcdef'] };
+const onePieceVolume = (n: number, isbn: string): Edition => ({
+  ...edition(isbn, 'One Piece'),
+  work: { id: `wd:Q9000${n}`, title: `One Piece ${n}` },
+  series: onePieceSeries,
+  volumes: [n],
+  volume: n,
+});
+const volume1 = onePieceVolume(1, '9782723488525');
+const volume2 = onePieceVolume(2, '9782723489898');
+const seriesLabel = (rkey: string, name: string, series: string[], works: Edition[] = []): Saved<Label> => ({
+  rkey,
+  value: { name, works: works.map((each) => each.work.id), series, createdAt: '2026-11-01T00:00:00.000Z' },
+});
+
+// The Library of a reader with Copies of Dune and `volumes`, as the Catalog answered `known`.
+function seriesReader(volumes: Edition[], labels: Saved<Label>[], known = new Map([dune, ...volumes].map((each) => [each.isbn, each]))) {
+  const library: Library = { copies: [dune, ...volumes].map(copy), readingStatuses: [], follows: [], loans: [], toBuy: [] };
+  return libraryBooks(library, known, labels);
+}
+// The Works the filter on Label `rkey` finds.
+const filtered = (books: ReturnType<typeof libraryBooks>, labels: Saved<Label>[], rkey: string) =>
+  browse(books, labels, { ...allBooks, label: rkey }, 'fr').books.map(({ work }) => work);
+
+describe('Labels on a Series in the Library', () => {
+  test('a Work matches the filter by its own Label', () => {
+    const labels = [seriesLabel('3lbsh', 'Shōnen', [], [volume2])];
+
+    expect(filtered(seriesReader([volume1, volume2], labels), labels, '3lbsh')).toEqual([volume2.work.id]);
+  });
+
+  test('every Work of the Series matches the filter through its Series, and a Volume added later too', () => {
+    const labels = [seriesLabel('3lbsh', 'Shōnen', [onePieceSeries.id])];
+
+    expect(filtered(seriesReader([volume1], labels), labels, '3lbsh')).toEqual([volume1.work.id]);
+    expect(filtered(seriesReader([volume1, volume2], labels), labels, '3lbsh')).toEqual([volume1.work.id, volume2.work.id]);
+  });
+
+  test('a Series Label saved under an older `sameAs` identifier finds the Series', () => {
+    const labels = [seriesLabel('3lbsh', 'Shōnen', onePieceSeries.sameAs)];
+
+    expect(filtered(seriesReader([volume1, volume2], labels), labels, '3lbsh')).toEqual([volume1.work.id, volume2.work.id]);
+  });
+
+  test('the chip counts each Work once, whether it carries the Label or gets it from its Series', () => {
+    const labels = [seriesLabel('3lbsh', 'Shōnen', [onePieceSeries.id], [volume1])];
+
+    expect(browse(seriesReader([volume1, volume2], labels), labels, allBooks, 'fr').labels.map(({ name, count }) => [name, count])).toEqual([
+      ['', 3],
+      ['Shōnen', 2],
+    ]);
+  });
+
+  test('a Work whose Edition the Catalog has not answered yet shows no Series Label, and the others still do', () => {
+    const labels = [seriesLabel('3lbsh', 'Shōnen', [onePieceSeries.id])];
+    const books = seriesReader([volume1, volume2], labels, new Map([dune, volume1].map((each) => [each.isbn, each])));
+
+    expect(filtered(books, labels, '3lbsh')).toEqual([volume1.work.id]);
+  });
+});
