@@ -1,6 +1,7 @@
 // @ts-check
 import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
+import process from 'node:process';
 import { URL } from 'node:url';
 import { defineConfig } from 'astro/config';
 import node from '@astrojs/node';
