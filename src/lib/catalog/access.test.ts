@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
-import { checkAccess, clientIp, createIpLimit, type CatalogAccess } from './access';
+import { checkAccess, checkWrite, clientIp, createIpLimit, type CatalogAccess } from './access';
 
 const request = (headers: Record<string, string> = {}) => new Request('http://catalog.test/api/catalog/editions/9782723478991', { headers });
 
 function setup(signedIn = false) {
   let clock = 0;
-  const access: CatalogAccess = {
+  const access: Pick<CatalogAccess, 'limit' | 'signedIn'> = {
     limit: createIpLimit({ max: 3, windowMs: 60_000, now: () => clock }),
     signedIn: () => signedIn,
   };
@@ -66,5 +66,40 @@ describe('ISBN lookups: a limit per IP address', () => {
     const { access } = setup(false);
 
     expect(checkAccess(request(), '127.0.0.1', access)).toEqual({ signedIn: false });
+  });
+});
+
+describe('Series Corrections: signed-in readers only, with a limit per Account', () => {
+  function writes(account: string | undefined) {
+    let clock = 0;
+    const access: Pick<CatalogAccess, 'account' | 'writes'> = {
+      account: () => account,
+      writes: createIpLimit({ max: 2, windowMs: 60_000, now: () => clock }),
+    };
+    return { access, wait: (ms: number) => (clock += ms) };
+  }
+  const statusOf = (result: ReturnType<typeof checkWrite>) => ('refused' in result ? result.refused.status : 200);
+
+  test('a signed-out request is refused (401)', () => {
+    expect(statusOf(checkWrite(request(), writes(undefined).access))).toBe(401);
+  });
+
+  test('a signed-in request gives its Account', () => {
+    expect(checkWrite(request(), writes('did:plc:reader').access)).toEqual({ account: 'did:plc:reader' });
+  });
+
+  test('over the limit the answer is 429 with Retry-After, whatever the address; another Account is not limited', () => {
+    const { access, wait } = writes('did:plc:reader');
+    const from = (ip: string) => request({ 'x-forwarded-for': ip });
+
+    expect([1, 2].map((i) => statusOf(checkWrite(from(`203.0.113.${i}`), access)))).toEqual([200, 200]);
+    wait(15_000);
+    const over = checkWrite(from('203.0.113.3'), access);
+
+    expect(statusOf(over)).toBe(429);
+    expect('refused' in over && over.refused.headers.get('retry-after')).toBe('45');
+    expect(statusOf(checkWrite(request(), { ...access, account: () => 'did:plc:another' }))).toBe(200);
+    wait(45_000);
+    expect(statusOf(checkWrite(from('203.0.113.3'), access))).toBe(200);
   });
 });

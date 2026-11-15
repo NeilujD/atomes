@@ -1,7 +1,8 @@
 // The Catalog (ADR 0004, 0007, 0010): answers "what is this ISBN?" from its own
 // SQLite file, and asks the open sources only on a miss. It also serves covers,
 // so the reader's browser never asks a source for one (ADR 0001). It stores
-// books only: no reader identity, no Library data.
+// books only, no Library data; the one reader identity is the Account kept
+// with each Series Correction (ADR 0017), which no answer holds.
 import { DatabaseSync } from 'node:sqlite';
 import { editionWork, seriesIdRank } from '../library/ids';
 import { key, seriesKey, type Facts, type SourceName } from './facts';
@@ -53,6 +54,9 @@ export interface Edition {
   // `reader`: no source knows the ISBN, a reader picked its Series (CORE-40).
   sources: EditionSource[];
   fetchedAt: string;
+  // A reader's Series Correction sets its Series, Edition Line and Volume
+  // (ADR 0017): "Back to the sources" deletes it. Never says who made it.
+  corrected?: true;
 }
 
 export type EditionSource = SourceName | 'reader';
@@ -103,6 +107,33 @@ export type Chosen =
   | { badAnchor: 'unknown' | 'no-series' | 'no-shared-work' }
   | { unavailable: true };
 
+// A Series Correction (ADR 0017): Volume `volume` (or none) in the Edition
+// Line of `anchor`, an ISBN in that line, or in a Series the reader makes.
+export type Correction = ({ anchor: string } | { newSeries: NewSeries }) & { volume: number | null };
+
+// A Series made by hand, and its first Edition Line: the publisher, language
+// (as the sources give it: "fre") and book size in cm, when known.
+export interface NewSeries {
+  title: string;
+  publisher: string;
+  language: string;
+  height: number | null;
+}
+
+export type Corrected =
+  | { found: Edition }
+  // No source knows the ISBN, nor a reader's pick (`choose`).
+  | { notFound: true }
+  // `anchor` is not in this Catalog, or in no Series.
+  | { badAnchor: 'unknown' | 'no-series' }
+  | { unavailable: true };
+
+// A Series of this Catalog whose title holds the words searched, and its Edition Lines.
+export interface SeriesFound {
+  series: Series;
+  lines: LineSummary[];
+}
+
 export interface Cover {
   type: string;
   bytes: Uint8Array<ArrayBuffer>;
@@ -127,6 +158,16 @@ export interface Catalog {
   // instance gets it; a later choice replaces it, and so does a source that
   // learns the ISBN, whole (no merge).
   choose(isbn: string, choice: Choice): Promise<Chosen>;
+  // Keeps a reader's Series Correction of an Edition (ADR 0017), with the
+  // Account that made it; it replaces an earlier one. Every reader of the
+  // instance gets it, over the source data, which a fill keeps up to date.
+  correct(isbn: string, correction: Correction, account: string): Promise<Corrected>;
+  // "Back to the sources": deletes the Series Correction of the ISBN, if any.
+  // Not found when the Catalog has no Edition for it.
+  uncorrect(isbn: string): Edition | undefined;
+  // The Series of this Catalog whose title holds `text` (case, accents and
+  // spaces ignored), each with its Edition Lines; at most `maxFound`.
+  findSeries(text: string): SeriesFound[];
   // The cover of the Edition, fetched once from its source and kept.
   cover(isbn: string): Promise<CoverLookup>;
   // The Series of an identifier, its main one or a same_as one (ADR 0010);
@@ -177,13 +218,25 @@ type EditionRow = {
   bnf_id: string | null;
   sources: string;
   fetched_at: string;
+  corrected: number;
 };
 
 // Every identifier of a Series but its main one, oldest link first.
 const sameAsOf = (n: string) =>
   `(select json_group_array(id) from (select id from series_link where series = ${n} and id != series.id order by rowid))`;
+// The Editions as readers see them (ADR 0017): the source data, with each
+// Series Correction laid over it. A Correction with an anchor is in the
+// Series and Edition Line where the sources put the anchor.
+const shownEditions = `(select e.isbn, e.title, e.volume_title, e.authors, e.publisher, e.language, e.format, e.cover,
+    e.work_id, e.work_title, e.year, e.bnf_id, e.sources, e.fetched_at,
+    iif(c.isbn is null, e.series, coalesce(c.series, a.series)) as series,
+    iif(c.isbn is null, e.edition_line, coalesce(c.edition_line, a.edition_line)) as edition_line,
+    iif(c.isbn is null, e.volume, c.volume) as volume,
+    iif(c.isbn is null, e.volumes, iif(c.volume is null, '[]', json_array(c.volume))) as volumes,
+    c.isbn is not null as corrected
+  from edition e left join series_correction c on c.isbn = e.isbn left join edition a on a.isbn = c.anchor)`;
 const selectEdition = `select edition.*, series.id as series_id, series.title as series_title, ${sameAsOf('series.n')} as same_as
-  from edition left join series on series.n = edition.series`;
+  from ${shownEditions} as edition left join series on series.n = edition.series`;
 const selectSeries = `select series.n, series.id, series.title, series.bnf_id, ${sameAsOf('series.n')} as same_as from series`;
 
 type SeriesRow = { n: number; id: string; title: string; bnf_id: string | null; same_as: string };
@@ -201,6 +254,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
 
   const editionRow = (isbn: string) => db.prepare(`${selectEdition} where edition.isbn = ?`).get(isbn) as EditionRow | undefined;
   const age = (iso: string) => now().getTime() - Date.parse(iso);
+  const mint = () => `atomes:${options.host}:${ulid(now())}`;
 
   const seriesRow = (where: string, value: string | number) =>
     db.prepare(`${selectSeries} where ${where}`).get(value) as SeriesRow | undefined;
@@ -234,7 +288,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
 
       let n: number;
       if (!byId && !other) {
-        const id = shared?.id ?? `atomes:${options.host}:${ulid(now())}`;
+        const id = shared?.id ?? mint();
         n = Number(db.prepare('insert into series (id, title, bnf_id) values (?, ?, ?)').run(id, title, bnfId).lastInsertRowid);
         db.prepare('insert into series_link (id, series) values (?, ?)').run(id, n);
       } else if (byId) {
@@ -273,6 +327,12 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       const line = `${keep.n}${each.edition_line.slice(each.edition_line.indexOf('|'))}`;
       db.prepare('update edition set series = ?, edition_line = ? where isbn = ?').run(keep.n, line, each.isbn);
     }
+    // So do the Series Corrections into it.
+    db.prepare(`update series_correction set series = ?, edition_line = ? || substr(edition_line, instr(edition_line, '|')) where series = ?`).run(
+      keep.n,
+      String(keep.n),
+      drop.n,
+    );
     db.prepare('insert or ignore into dropped_work (work_id, series) select work_id, ? from dropped_work where series = ?').run(keep.n, drop.n);
     db.prepare('delete from dropped_work where series = ?').run(drop.n);
     db.prepare('delete from series where n = ?').run(drop.n);
@@ -293,8 +353,10 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const series = edition.series && byIdentifier(edition.series.id);
     return series ? linePrefix(series.n, edition) : null;
   };
+  // Where the sources put an Edition, and where readers see it (Series Corrections included).
   const lineAt = (isbn: string) =>
     (db.prepare('select edition_line from edition where isbn = ?').get(isbn) as { edition_line: string | null } | undefined)?.edition_line ?? null;
+  const shownLineAt = (isbn: string) => editionRow(isbn)?.edition_line ?? null;
 
   // An Edition stays in its line while its Series and size fit it; else it
   // joins the line that holds its BnF Series `record`, else the line of its
@@ -480,7 +542,9 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const groupIds = new Set(groups.values());
     const prefix = line.split('|').slice(0, 3).join('|');
     const series = prefix.slice(0, prefix.indexOf('|') + 1);
-    const ofKey = (db.prepare(`${selectEdition} where substr(edition.edition_line, 1, ?) = ?`).all(series.length, series) as EditionRow[]).filter(
+    // The source data only: a Series Correction lies over it whatever the fill does.
+    type KeyRow = Pick<EditionRow, 'isbn' | 'edition_line' | 'bnf_id'>;
+    const ofKey = (db.prepare('select isbn, edition_line, bnf_id from edition where substr(edition_line, 1, ?) = ?').all(series.length, series) as KeyRow[]).filter(
       (row) => samePrefix(row.edition_line!, prefix) && lineHeight(row.edition_line!) === height,
     );
     // A group keeps the key it has already, under either name of the publisher.
@@ -537,10 +601,11 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     }
 
     // One the Catalog has already wins, unless it is a printing of the same
-    // record that the median year leaves out: then both stay.
+    // record that the median year leaves out: then both stay. A Volume a
+    // reader moved in counts; one moved out does not.
     const added: { each: Listed; target: string }[] = [];
     for (const [target, volumes] of picked) {
-      const stored = db.prepare('select isbn, volume, volumes, bnf_id from edition where edition_line = ?').all(target) as {
+      const stored = db.prepare(`select isbn, volume, volumes, bnf_id from ${shownEditions} where edition_line = ?`).all(target) as {
         isbn: string;
         volume: number | null;
         volumes: string | null;
@@ -668,10 +733,76 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       fetchedAt: now().toISOString(),
     };
     // A chosen Volume joins the Edition Line of its anchor, whatever its size.
-    store(edition, undefined, edition.series ? (lineAt(anchor.isbn) ?? lineOf(edition, undefined)) : null);
+    store(edition, undefined, edition.series ? (shownLineAt(anchor.isbn) ?? lineOf(edition, undefined)) : null);
     // The sources are asked again a day later (lookup).
     db.prepare('insert or replace into miss (isbn, checked_at) values (?, ?)').run(isbn, edition.fetchedAt);
     return { found: edition };
+  }
+
+  type Target = { anchor: string; series: null; line: null } | { anchor: null; series: number; line: string };
+
+  async function correct(isbn: string, correction: Correction, account: string): Promise<Corrected> {
+    const known = await lookup(isbn);
+    if (!('found' in known)) return known;
+    // A source was down and the answer is not stored: nothing to lay the Correction over yet.
+    if (!editionRow(isbn)) return { unavailable: true };
+    let target: Target | undefined;
+    if ('anchor' in correction) {
+      const anchor = editionRow(correction.anchor);
+      if (!anchor) return { badAnchor: 'unknown' };
+      if (!anchor.series_id || !anchor.edition_line) return { badAnchor: 'no-series' };
+      // An anchor a reader corrected is where its own Correction puts it.
+      const its = db.prepare('select anchor, series, edition_line as line from series_correction where isbn = ?').get(anchor.isbn) as Target | undefined;
+      target = its ?? { anchor: anchor.isbn, series: null, line: null };
+    }
+    inTransaction(db, () => {
+      if ('newSeries' in correction) {
+        const { title, height } = correction.newSeries;
+        const id = mint();
+        const n = Number(db.prepare('insert into series (id, title) values (?, ?)').run(id, title).lastInsertRowid);
+        db.prepare('insert into series_link (id, series) values (?, ?)').run(id, n);
+        addTitleKey(n, title);
+        // Its first Edition Line.
+        target = { anchor: null, series: n, line: lineKey(linePrefix(n, correction.newSeries), height ?? undefined) };
+      }
+      db.prepare(
+        `insert or replace into series_correction (isbn, anchor, series, edition_line, volume, account, created_at)
+          values (?, ?, ?, ?, ?, ?, ?)`,
+      ).run(isbn, target!.anchor, target!.series, target!.line, correction.volume, account, now().toISOString());
+    });
+    return { found: toEdition(editionRow(isbn)!) };
+  }
+
+  function uncorrect(isbn: string): Edition | undefined {
+    db.prepare('delete from series_correction where isbn = ?').run(isbn);
+    const row = editionRow(isbn);
+    return row && toEdition(row);
+  }
+
+  // Every Edition Line of Series `n`, the earliest first.
+  function linesOf(n: number): LineSummary[] {
+    const rows = db
+      .prepare(`${selectEdition} where edition.series = ? and edition.edition_line is not null order by edition.volume is null, edition.volume, edition.isbn`)
+      .all(n) as EditionRow[];
+    const lines = new Map<string, EditionRow[]>();
+    for (const row of rows) lines.set(row.edition_line!, [...(lines.get(row.edition_line!) ?? []), row]);
+    return [...lines.values()]
+      .map((each): LineSummary => ({ anchor: each[0].isbn, ...lineName(each) }))
+      .sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity) || (a.anchor < b.anchor ? -1 : 1));
+  }
+
+  // A title that is the words searched comes first. A Series with no Edition
+  // Line is left out: no Edition can join it.
+  function findSeries(text: string): SeriesFound[] {
+    const wanted = seriesKey(text);
+    if (!wanted) return [];
+    const rows = db
+      .prepare(
+        `${selectSeries} where series.n in (select series from series_title where instr(title_key, ?) > 0)
+          order by exists (select 1 from series_title t where t.series = series.n and t.title_key = ?) desc, series.n limit ?`,
+      )
+      .all(wanted, wanted, maxFound) as SeriesRow[];
+    return rows.map((row) => ({ series: toSeries(row), lines: linesOf(row.n) })).filter(({ lines }) => lines.length > 0);
   }
 
   return {
@@ -679,35 +810,27 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     cover,
     search,
     choose,
+    correct,
+    uncorrect,
+    findSeries,
     link,
     series: (id) => {
       const row = byIdentifier(id);
       return row && toSeries(row);
     },
     async volumes(edition, { fill }) {
-      const anchor = db.prepare('select edition_line from edition where isbn = ?').get(edition.isbn) as
-        | { edition_line: string | null }
-        | undefined;
-      const line = anchor?.edition_line;
+      const line = shownLineAt(edition.isbn);
       if (!line || !edition.series) return [edition];
       if (fill) await fillOnce({ ...edition, series: edition.series }, line);
       // The fill may move the anchor to the line of its BnF Series record.
       const rows = db
         .prepare(`${selectEdition} where edition.edition_line = ? order by edition.volume is null, edition.volume, edition.isbn`)
-        .all(lineAt(edition.isbn) ?? line) as EditionRow[];
+        .all(shownLineAt(edition.isbn) ?? line) as EditionRow[];
       return rows.map(toEdition);
     },
     lines(edition) {
       const series = edition.series && byIdentifier(edition.series.id);
-      if (!series) return [];
-      const rows = db
-        .prepare(`${selectEdition} where edition.series = ? and edition.edition_line is not null order by edition.volume is null, edition.volume, edition.isbn`)
-        .all(series.n) as EditionRow[];
-      const lines = new Map<string, EditionRow[]>();
-      for (const row of rows) lines.set(row.edition_line!, [...(lines.get(row.edition_line!) ?? []), row]);
-      return [...lines.values()]
-        .map((each): LineSummary => ({ anchor: each[0].isbn, ...lineName(each) }))
-        .sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity) || (a.anchor < b.anchor ? -1 : 1));
+      return series ? linesOf(series.n) : [];
     },
     close: () => db.close(),
   };
@@ -733,6 +856,7 @@ function toEdition(row: EditionRow): Edition {
     year: row.year,
     sources: JSON.parse(row.sources) as EditionSource[],
     fetchedAt: row.fetched_at,
+    ...(row.corrected ? { corrected: true as const } : {}),
   };
 }
 

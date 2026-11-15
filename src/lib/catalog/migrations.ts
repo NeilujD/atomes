@@ -202,8 +202,40 @@ const lineRecords: Step = (db) => {
   `);
 };
 
+// Series Corrections (ADR 0017, CORE-103): a reader's Series, Edition Line
+// and Volume number for one Edition, laid over the source data of `edition`
+// on every read, so a fill never overwrites one and deleting it gives the
+// source data back. The Edition joins the Edition Line of `anchor` (an ISBN
+// in it), or, for a Series made by hand, the line `edition_line` of `series`.
+// `account` and `created_at` let the owner find a wrong Correction; they never
+// leave the instance.
+const seriesCorrections: Step = (db) =>
+  db.exec(`
+    create table if not exists series_correction (
+      isbn text primary key,
+      anchor text,
+      series integer references series (n),
+      edition_line text,
+      volume real,
+      account text not null,
+      created_at text not null,
+      check ((anchor is not null and series is null and edition_line is null) or (anchor is null and series is not null and edition_line is not null))
+    );
+    create index if not exists series_correction_anchor on series_correction (anchor);
+  `);
+
 // Add a step at the end; never edit or remove one.
-const steps: Step[] = [catalogV0, sameAs, omnibusVolumes, lineSizes, titleKeysWithoutSpaces, forgetFills, oneWorkPerVolume, lineRecords];
+const steps: Step[] = [
+  catalogV0,
+  sameAs,
+  omnibusVolumes,
+  lineSizes,
+  titleKeysWithoutSpaces,
+  forgetFills,
+  oneWorkPerVolume,
+  lineRecords,
+  seriesCorrections,
+];
 
 export function migrate(db: DatabaseSync): void {
   const { user_version: done } = db.prepare('pragma user_version').get() as { user_version: number };

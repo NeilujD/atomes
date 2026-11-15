@@ -12,8 +12,16 @@
 //   a signed-in reader looks for an ISBN no source knows by its title (CORE-40).
 // PUT /api/catalog/editions/{isbn} Choice   → 200 Edition, 400, 401, 409, 422,
 //   503: a signed-in reader picks the Series (or Work) of an ISBN no source knows.
+// PUT /api/catalog/editions/{isbn}/correction Correction → 200 Edition, 400,
+//   401, 404, 422, 429, 503: a signed-in reader's Series Correction (ADR 0017).
+// DELETE /api/catalog/editions/{isbn}/correction → 200 Edition, 400, 401, 404,
+//   429: "Back to the sources".
+// GET /api/catalog/series?title=            → 200 { series: SeriesFound[] },
+//   400, 401: the Series of this Catalog by title, for a Series Correction.
+// A Correction is the only request that sends who asks (the session cookie):
+// the routes check it and a write limit per Account (access.ts).
 import { isIsbn13 } from '../library/ids';
-import type { Catalog, Choice, Edition } from './catalog';
+import type { Catalog, Choice, Correction, Edition } from './catalog';
 
 const json = (status: number, body: unknown) => Response.json(body, { status });
 
@@ -87,6 +95,60 @@ function readChoice(body: unknown): Choice | undefined {
   const okNames = names?.length !== undefined && names.length <= 20 && names.every((name) => typeof name === 'string' && name.trim() && name.length <= 300);
   if (typeof anchor !== 'string' || !isIsbn13(anchor) || !text || !okVolume || !okNames) return undefined;
   return { anchor, volume: typeof volume === 'number' ? volume : null, title: text, authors: (names as string[]).map((name) => name.trim()) };
+}
+
+// A Series Correction from the body, or undefined when it is not one. The
+// language is a code as the sources give it ("fre"); the book size in cm.
+function readCorrection(body: unknown): Correction | undefined {
+  if (typeof body !== 'object' || body === null) return undefined;
+  const { anchor, newSeries, volume } = body as Record<string, unknown>;
+  const okVolume = volume === null || (typeof volume === 'number' && volume > 0 && volume < 10_000);
+  if (!okVolume) return undefined;
+  if (typeof anchor === 'string' && newSeries === undefined) return isIsbn13(anchor) ? { anchor, volume } : undefined;
+  if (anchor !== undefined || typeof newSeries !== 'object' || newSeries === null) return undefined;
+  const { title, publisher, language, height } = newSeries as Record<string, unknown>;
+  const text = (raw: unknown) => (typeof raw === 'string' ? typedText(raw) : undefined);
+  const [okTitle, okPublisher] = [text(title), text(publisher)];
+  const okLanguage = typeof language === 'string' && /^[a-z]{3}$/.test(language);
+  const okHeight = height === null || (typeof height === 'number' && height >= 5 && height <= 100);
+  if (!okTitle || !okPublisher || !okLanguage || !okHeight) return undefined;
+  return { newSeries: { title: okTitle, publisher: okPublisher, language, height }, volume };
+}
+
+const invalidCorrection = () =>
+  json(400, {
+    error: 'InvalidCorrection',
+    message: 'Send a Volume number or null, and an anchor ISBN-13 or a new Series (title, publisher, language, height).',
+  });
+
+// The Account is kept with the Correction, never in an answer (ADR 0017).
+export async function answerCorrect(catalog: Catalog, raw: string | undefined, body: unknown, account: string) {
+  const isbn = parseIsbn(raw);
+  if (!isIsbn13(isbn)) return invalidIsbn();
+  const correction = readCorrection(body);
+  if (!correction) return invalidCorrection();
+  const corrected = await catalog.correct(isbn, correction, account);
+  if ('found' in corrected) return json(200, corrected.found);
+  if ('notFound' in corrected) return json(404, { error: 'NotFound', isbn, message: 'No open source knows this ISBN.' });
+  if ('badAnchor' in corrected)
+    return json(422, { error: 'BadAnchor', reason: corrected.badAnchor, message: 'The chosen book is in no Edition Line of this Catalog.' });
+  return unavailable(isbn);
+}
+
+export function answerUncorrect(catalog: Catalog, raw: string | undefined) {
+  const isbn = parseIsbn(raw);
+  if (!isIsbn13(isbn)) return invalidIsbn();
+  const edition = catalog.uncorrect(isbn);
+  return edition ? json(200, edition) : json(404, { error: 'NotFound', isbn, message: 'The Catalog has no Edition for this ISBN.' });
+}
+
+// The Series of this Catalog by title, with their Edition Lines: what a Series
+// Correction picks from. Signed-in readers only, as the Correction itself.
+export function answerFindSeries(catalog: Catalog, url: URL, { signedIn }: { signedIn: boolean }) {
+  if (!signedIn) return signedOut();
+  const title = typedText(url.searchParams.get('title'));
+  if (!title) return json(400, { error: 'InvalidSearch', message: 'Send a title, 300 characters at most.' });
+  return json(200, { series: catalog.findSeries(title) });
 }
 
 export async function answerChoose(catalog: Catalog, raw: string | undefined, body: unknown, { signedIn }: { signedIn: boolean }) {

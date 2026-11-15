@@ -46,6 +46,12 @@ export function createIpLimit({ max, windowMs, now = Date.now }: { max: number; 
 export interface CatalogAccess {
   limit: IpLimit;
   signedIn: (request: Request) => boolean;
+  // The Account of the request, undefined when signed out. Today the DID of
+  // its session: Atomes Accounts (ADR 0016) come later.
+  account: (request: Request) => string | undefined;
+  // Series Corrections per Account (ADR 0017): every reader sees them, so one
+  // Account may not write many at once.
+  writes: IpLimit;
 }
 
 // `refused` (429) when a signed-out client is over its limit. Else whether the
@@ -53,7 +59,7 @@ export interface CatalogAccess {
 export function checkAccess(
   request: Request,
   peer: string | undefined,
-  { limit, signedIn }: CatalogAccess,
+  { limit, signedIn }: Pick<CatalogAccess, 'limit' | 'signedIn'>,
 ): { refused: Response } | { signedIn: boolean } {
   if (signedIn(request)) return { signedIn: true };
   const wait = limit.take(clientIp(request, peer) ?? 'unknown');
@@ -62,6 +68,22 @@ export function checkAccess(
     refused: Response.json(
       { error: 'TooManyRequests', message: 'Too many ISBN lookups from this address. Try again later, or sign in.' },
       { status: 429, headers: { 'retry-after': String(wait), 'cache-control': 'no-store' } },
+    ),
+  };
+}
+
+// A Series Correction: `refused` (401) when signed out, (429) when the
+// Account is over its limit. Else the Account to keep with the Correction.
+export function checkWrite(request: Request, { account, writes }: Pick<CatalogAccess, 'account' | 'writes'>): { refused: Response } | { account: string } {
+  const who = account(request);
+  const headers = { 'cache-control': 'no-store' };
+  if (!who) return { refused: Response.json({ error: 'SignedOut', message: 'Sign in to correct the Catalog.' }, { status: 401, headers }) };
+  const wait = writes.take(who);
+  if (wait === undefined) return { account: who };
+  return {
+    refused: Response.json(
+      { error: 'TooManyRequests', message: 'Too many Series Corrections. Try again later.' },
+      { status: 429, headers: { ...headers, 'retry-after': String(wait) } },
     ),
   };
 }
