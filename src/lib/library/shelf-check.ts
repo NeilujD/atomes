@@ -7,7 +7,7 @@ import { isNetworkFailure } from '../network';
 import { editionWork, isSeries } from './ids';
 import { currentStatus, isOwned, type Library } from './model';
 import type { Status } from './reading-status';
-import { missingVolumes, seriesStanding, type Spine } from './series';
+import { missingVolumes, seriesStanding } from './series';
 
 // owned: a Copy of the Edition or of its Work. missing: a Missing Volume of a
 // Followed Series. read: a Reading Status other than unread, and no Copy
@@ -21,19 +21,21 @@ export interface ShelfCheck {
   status: Status;
   // The Followed Series the book is a Volume of, if any.
   followed: Series | null;
-  // Missing only: the spine row of the Edition Line.
-  spines?: Spine[];
   // A Volume of a Series: where the reader stands in their Edition Line
   // (readerLine). Absent for a book of no Series, or when that line could not
   // be asked (offline, not on this device).
   series?: SeriesLine;
 }
 
-// The quiet line under the answer: "You have 3 of 112 · 54 missing".
+// The Series card of the answer: "3 owned · 1 read", a segment per Volume,
+// and "You have 3 of 112 · 54 missing".
 export interface SeriesLine {
-  // Volumes owned, and Missing Volumes, as on the Series page (seriesStanding).
+  // Volumes owned and read, and Missing Volumes, as on the Series page (seriesStanding).
   owned: number;
+  read: number;
   missing: number;
+  // The numbers of the Volumes owned.
+  ownedVolumes: number[];
   // The highest Volume number the Catalog lists: a Volume it lacks before it counts.
   total: number;
   // Neither followed nor dropped: the answer offers Follow.
@@ -73,7 +75,7 @@ export function shelfCheck(isbn: string, edition: Checked | undefined, library: 
   const series = line && seriesLine(edition?.series, line, library);
   const counts = series && { series };
   if (isOwned({ isbn, work: { id: work, title: '' } }, library)) return { kind: 'owned', status, followed, ...counts };
-  if (line && missing && followed) return { kind: 'missing', status, followed, spines: seriesStanding(line, library).spines, ...counts };
+  if (line && missing && followed) return { kind: 'missing', status, followed, ...counts };
   return { kind: status !== 'unread' ? 'read' : 'new', status, followed, ...counts };
 }
 
@@ -84,7 +86,29 @@ function seriesLine(series: Series | null | undefined, line: Edition[], library:
   const total = standing.spines.at(-1)?.volume;
   if (total === undefined) return undefined;
   const followable = !library.follows.some(({ rkey }) => isSeries(series, rkey));
-  return { owned: standing.owned, missing: standing.missing.length, total, followable };
+  const ownedVolumes = standing.spines.filter(({ state }) => state === 'owned' || state === 'read').map(({ volume }) => volume);
+  return { owned: standing.owned, read: standing.read, missing: standing.missing.length, ownedVolumes, total, followable };
+}
+
+// How the Series card draws the Edition Line: up to 30 Volumes, one segment
+// per Volume (owned, not owned, or this book); more, one bar filled to the
+// share owned, with a mark at this book (`at`, 0 to 1). `volumes`: the
+// Volumes of this book, none for a book with no number.
+export type SeriesBar = { segments: ('owned' | 'not-owned' | 'this')[] } | { ownedShare: number; at: number | undefined };
+
+export const mostSegments = 30;
+
+export function seriesBar({ total, ownedVolumes }: Pick<SeriesLine, 'total' | 'ownedVolumes'>, volumes: number[]): SeriesBar {
+  if (total > mostSegments) {
+    const first = volumes.find((volume) => volume >= 1 && volume <= total);
+    return { ownedShare: ownedVolumes.length / total, at: first === undefined ? undefined : (first - 0.5) / total };
+  }
+  return {
+    segments: Array.from({ length: total }, (_, at) => {
+      const volume = at + 1;
+      return volumes.includes(volume) ? 'this' : ownedVolumes.includes(volume) ? 'owned' : 'not-owned';
+    }),
+  };
 }
 
 // The Shelf Check with no network: from the Library on this device and the

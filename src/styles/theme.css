@@ -34,6 +34,19 @@
   --camera: #23252b;
   --camera-ink: #ffffff;
   --camera-control: rgb(255 255 255 / 0.14);
+  /*
+   * The Shelf Check result screen (check.astro, CORE-120): always dark, not
+   * themed, like the camera. Green says the reader does not own the book,
+   * orange that they do; these two colours are for this screen only. Dark
+   * text on an accent button; theme.test.ts keeps every pair at 4.5:1 or more.
+   */
+  --shelf-ground: #0e0f0c;
+  --shelf-ink: #f3f1ea;
+  --shelf-on-accent: #0e0f0c;
+  --shelf-go: #3ddc97;
+  --shelf-go-deep: #1f8f5f;
+  --shelf-owned: #ff9f43;
+  --shelf-owned-deep: #c2561b;
 
   /*
    * Contrast: how far secondary text, lines and inactive controls move toward

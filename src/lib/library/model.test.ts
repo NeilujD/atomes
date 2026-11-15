@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
 import type { Copy } from './copy';
 import type { Loan } from './loan';
-import { bookIsbns, bookPage, isOwned, lend, lineLabel, ownsWork, returnLoans, statusChange, type Library } from './model';
+import { addedOn, bookIsbns, bookPage, isOwned, languageName, lend, lineLabel, ownsWork, returnLoans, statusChange, type Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -278,6 +278,28 @@ describe('Is owned', () => {
   test('read with no Copy (borrowed), or a Copy of another Work, is not owned', () => {
     expect(isOwned(onePiece56, library({ readingStatuses: [status('read')] }))).toBe(false);
     expect(isOwned(onePiece56, library({ copies: [copy('3m2b', { works: ['wd:Q190192'], isbn: '9782266320542' })] }))).toBe(false);
+  });
+});
+
+describe('Added on', () => {
+  test('the date of the first Copy of the Edition or of its Work; none with no Copy', () => {
+    const copies = [
+      copy('3m2b', { createdAt: '2026-11-09T10:00:00.000Z' }),
+      copy('3m2a', { works: ['wd:Q1', work], isbn: '9782344068922', createdAt: '2026-11-02T10:00:00.000Z' }),
+      copy('3m2c', { works: ['wd:Q190192'], isbn: '9782266320542', createdAt: '2026-10-01T10:00:00.000Z' }),
+    ];
+
+    expect(addedOn(onePiece56, library({ copies }))).toBe('2026-11-02T10:00:00.000Z');
+    expect(addedOn(onePiece56, library({ readingStatuses: [status('read')] }))).toBeUndefined();
+  });
+});
+
+describe('Language name', () => {
+  test('a code the sources give, in the words of the UI; an unknown code as it is; none', () => {
+    expect(languageName(onePiece56, 'en')).toBe('French');
+    expect(languageName(onePiece56, 'fr')).toBe('français');
+    expect(languageName({ language: 'xyz' }, 'en')).toBe('xyz');
+    expect(languageName({ language: null }, 'en')).toBeNull();
   });
 });
 

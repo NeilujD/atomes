@@ -168,15 +168,21 @@ export const en = {
   'add.no-onboarding.dropped': (series: string) =>
     `You stopped following ${series}, so no question about its other Volumes.`,
   'check.title': 'Check a book',
-  'check.owned': 'In your Library',
+  // The answer of Shelf Check (the pill of the result screen, the line of a typed book).
+  'check.owned': 'Already in your Library',
   'check.missing': (series: string) => `Missing from ${series}`,
-  'check.missing-text': 'You own later Volumes of this Followed Series.',
-  'check.read': (status: string) => `${status}, but you have no Copy`,
+  'check.read': (status: string) => `${status}, not in your Library`,
   'check.new': 'Not in your Library',
-  'check.followed': (series: string) => `You follow ${series}.`,
+  'check.unknown': 'Cannot tell on this device',
   'check.status': (status: string) => `Reading Status: ${status}`,
   'check.unknown-text': 'This device does not know this book yet. Check online later.',
-  'check.spines': (series: string) => `Volumes of ${series}`,
+  // The result screen (CORE-120).
+  'check.result': 'Shelf Check',
+  'check.your-series': 'Your Series',
+  'check.series-counts': (owned: number, read: number) => `${owned} owned · ${read} read`,
+  'check.added-on': (date: string) => `Added on ${date}`,
+  'check.add-read': 'Add and mark as read',
+  'check.scan-another': 'Scan another book',
   // The Series line under the answer; nothing about missing when none is.
   'check.series-line': (owned: number, total: number, missing: number) => `You have ${owned} of ${total}${missing > 0 ? ` · ${missing} missing` : ''}`,
   'check.kept': 'Ready to check books offline: your Library and Followed Series are on this device.',

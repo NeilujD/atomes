@@ -152,6 +152,15 @@ export function isOwned(edition: Pick<Edition, 'isbn' | 'work'>, library: Librar
   return library.copies.some(({ value }) => value.isbn === edition.isbn || value.works.includes(edition.work.id));
 }
 
+// When the reader added their first Copy of an Edition or of its Work (the
+// isOwned rule): the date Shelf Check shows. Undefined when they own none.
+export function addedOn(edition: Pick<Edition, 'isbn' | 'work'>, library: Library): string | undefined {
+  return library.copies
+    .filter(({ value }) => value.isbn === edition.isbn || value.works.includes(edition.work.id))
+    .map(({ value }) => value.createdAt)
+    .sort()[0];
+}
+
 // "Owned" for a Work of the Library, by the rule above: a Copy lists the
 // Work, or is the Edition of its Reading Status (saved as `isbn:`).
 export function ownsWork(work: string, library: Library): boolean {
@@ -191,7 +200,11 @@ export function lineLabel(name: LineName, uiLanguage: Language = pageLanguage())
 // The book's language is named in the UI language: "French", "français".
 export function editionLabel(edition: Edition | undefined, uiLanguage: Language = pageLanguage()): string {
   if (!edition) return '';
-  const code = edition.language && bcp47[edition.language];
-  const language = code ? new Intl.DisplayNames(uiLanguage, { type: 'language' }).of(code) : edition.language;
-  return [edition.publisher, language, edition.format].filter(Boolean).join(' · ');
+  return [edition.publisher, languageName(edition, uiLanguage), edition.format].filter(Boolean).join(' · ');
+}
+
+// The language of an Edition in the words of the UI ("French"), else its code as the source gave it.
+export function languageName({ language }: Pick<Edition, 'language'>, uiLanguage: Language = pageLanguage()): string | null {
+  const code = language && bcp47[language];
+  return code ? (new Intl.DisplayNames(uiLanguage, { type: 'language' }).of(code) ?? language) : language;
 }

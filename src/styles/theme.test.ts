@@ -14,6 +14,13 @@ function pair(name: string): { light: Rgb; dark: Rgb } {
   return { light: hex(found[1]), dark: hex(found[2]) };
 }
 
+// A colour that is not themed (one value for both themes).
+function single(name: string): Rgb {
+  const found = new RegExp(`${name}:\\s*(#[0-9a-f]{6});`, 'i').exec(css);
+  if (!found) throw new Error(`No colour for ${name} in theme.css`);
+  return hex(found[1]);
+}
+
 function hex(value: string): Rgb {
   return [1, 3, 5].map((at) => parseInt(value.slice(at, at + 2), 16) / 255) as Rgb;
 }
@@ -88,5 +95,22 @@ describe('theme colours of actions', () => {
         expect(contrast(danger, soft[theme])).toBeGreaterThanOrEqual(4.5);
       });
     }
+  }
+});
+
+// The Shelf Check result screen is always dark (ui-direction: Camera).
+describe('theme colours of the Shelf Check result screen', () => {
+  const ground = single('--shelf-ground');
+  const ink = single('--shelf-ink');
+
+  it('text reads at 4.5:1 or more on its ground', () => {
+    expect(contrast(ink, ground)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  for (const accent of ['--shelf-go', '--shelf-owned']) {
+    it(`the button text reads at 4.5:1 or more on ${accent}, and ${accent} on the ground (the pill)`, () => {
+      expect(contrast(single('--shelf-on-accent'), single(accent))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(single(accent), ground)).toBeGreaterThanOrEqual(4.5);
+    });
   }
 });

@@ -50,7 +50,7 @@ export const test = base.extend<{ signIn: () => Promise<void>; devServerPage: vo
   ],
 });
 
-// Quick Add by ISBN on Check a book, as a reader who types it.
+// Quick Add by ISBN on Check a book, as a reader who types it: Add to Library on the result screen.
 export async function quickAdd(page: Page, isbn: string): Promise<void> {
   await page.goto('/check');
   await page.getByLabel('ISBN', { exact: true }).fill(isbn);

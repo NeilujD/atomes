@@ -3,33 +3,40 @@ import { expect, test } from './test';
 
 // The text colour of an action, and the colour a theme token paints, as the
 // browser computes them (ui-direction: colour roles).
-async function colourRole(action: Locator, token: '--accent' | '--danger' | '--ink') {
-  return action.evaluate((element, token) => {
-    const probe = document.createElement('span');
-    probe.style.color = `var(${token})`;
-    document.body.append(probe);
-    const colours = { action: getComputedStyle(element).color, token: getComputedStyle(probe).color };
-    probe.remove();
-    return colours;
-  }, token);
+type Token = '--accent' | '--danger' | '--ink' | '--shelf-go' | '--shelf-on-accent' | '--shelf-ink';
+
+async function colourRole(action: Locator, token: Token, property: 'color' | 'backgroundColor') {
+  return action.evaluate(
+    (element, [token, property]) => {
+      const probe = document.createElement('span');
+      probe.style.color = `var(${token})`;
+      document.body.append(probe);
+      const colours = { action: getComputedStyle(element)[property], token: getComputedStyle(probe).color };
+      probe.remove();
+      return colours;
+    },
+    [token, property] as const,
+  );
 }
 
-async function expectRole(action: Locator, token: '--accent' | '--danger' | '--ink') {
+async function expectRole(action: Locator, token: Token, property: 'color' | 'backgroundColor' = 'color') {
   await expect(action).toBeVisible();
-  const { action: colour, token: expected } = await colourRole(action, token);
-  expect(colour, `${token} on the action`).toBe(expected);
+  const { action: colour, token: expected } = await colourRole(action, token, property);
+  expect(colour, `${token} on the action (${property})`).toBe(expected);
 }
 
-test('Cobalt marks the primary action of each screen; the muted red marks Remove a Copy', async ({ page, signIn }) => {
+test('Cobalt marks the primary action of each screen, green and orange the Shelf Check result; the muted red marks Remove a Copy', async ({ page, signIn }) => {
   await signIn();
 
-  // Check a book, for a book the reader does not own: Add to Library is the primary action.
+  // The Shelf Check result, for a book the reader does not own: Add to Library is filled green, in dark text.
   // One Piece 56, Glénat: a recorded Catalog answer.
   await page.goto('/check');
   await page.getByLabel('ISBN', { exact: true }).fill('9782723478991');
   await page.getByRole('button', { name: 'Look up' }).click();
-  await expectRole(page.getByRole('button', { name: 'Add to Library' }), '--accent');
-  await page.getByRole('button', { name: 'Add to Library' }).click();
+  const add = page.getByRole('dialog', { name: 'Shelf Check' }).getByRole('button', { name: 'Add to Library' });
+  await expectRole(add, '--shelf-go', 'backgroundColor');
+  await expectRole(add, '--shelf-on-accent');
+  await add.click();
 
   // Series Onboarding: Save.
   await expect(page.getByText('Do you own Volumes 1–55?')).toBeVisible();
@@ -46,11 +53,11 @@ test('Cobalt marks the primary action of each screen; the muted red marks Remove
   await page.goto('/series?isbn=9782723478991');
   await expectRole(page.getByRole('button', { name: 'Follow', exact: true }), '--accent');
 
-  // Check a book, for a book the reader owns: Add another Copy is secondary, in ink.
+  // The Shelf Check result, for a book the reader owns: Add another Copy is secondary, in the screen's text colour.
   await page.goto('/check');
   await page.getByLabel('ISBN', { exact: true }).fill('9782723478991');
   await page.getByRole('button', { name: 'Look up' }).click();
-  await expectRole(page.getByRole('button', { name: 'Add another Copy' }), '--ink');
+  await expectRole(page.getByRole('dialog', { name: 'Shelf Check' }).getByRole('button', { name: 'Add another Copy' }), '--shelf-ink');
 
   // To Buy: the "+" that adds a book, and Add in its sheet.
   await page.goto('/to-buy');

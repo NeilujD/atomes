@@ -1,9 +1,9 @@
 import { expect, test } from './test';
 
-// The Series line of a Series not followed comes after the answer (it waits
-// for the Edition Line). Add to Library must not move when it comes: a tap
-// aimed at it would land elsewhere.
-test('Check a book: Add to Library stays in place when the Series line comes', async ({ page, signIn }) => {
+// The Series card of a Series not followed comes after the answer on the
+// result screen (it waits for the Edition Line). Add to Library must not move
+// when it comes: a tap aimed at it would land elsewhere.
+test('Check a book: Add to Library stays in place when the Series card comes', async ({ page, signIn }) => {
   await signIn();
   // Hold the Edition Line until Add to Library is on screen.
   let release = () => {};

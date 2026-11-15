@@ -6,12 +6,17 @@ const spyFamily16 = '9791042021030';
 // Unknown to every book source, and never seen by this device.
 const unknown = '9791099999993';
 
+// Looks the book up by its ISBN; a result screen still open closes first (Escape).
 async function check(page: Page, isbn: string) {
+  if (await page.getByRole('dialog', { name: 'Shelf Check' }).isVisible()) {
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Shelf Check' })).toBeHidden();
+  }
   await page.getByLabel('ISBN', { exact: true }).fill(isbn);
   await page.getByRole('button', { name: 'Look up' }).click();
 }
 
-test('Shelf Check: the answer comes first, on screen, with no scroll', async ({ page, signIn }) => {
+test('Shelf Check: the result screen opens over Check a book, the answer first, focused, with no scroll', async ({ page, signIn }) => {
   await signIn();
   // A whole phone screen (390 × 844), not only the part under the browser bars.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -19,35 +24,76 @@ test('Shelf Check: the answer comes first, on screen, with no scroll', async ({ 
   // One Piece 56, Glénat: a recorded Catalog answer, not in this reader's Library.
   await check(page, '9782723478991');
 
-  const answer = page.getByText('Not in your Library', { exact: true });
+  const screen = page.getByRole('dialog', { name: 'Shelf Check' });
+  const answer = screen.getByText('Not in your Library', { exact: true });
   await expect(answer).toBeInViewport({ ratio: 1 });
-  // Focus goes to the answer (screen readers), and the page did not scroll to Add.
+  // Focus goes to the answer (screen readers hear it first).
   await expect(page.locator(':focus')).toContainText('Not in your Library');
-  await expect(answer).toBeInViewport({ ratio: 1 });
-  // The answer is above the book it is about; the ISBN hint lines step aside.
-  const [answerBox, titleBox] = await Promise.all([answer.boundingBox(), page.getByRole('heading', { name: /One Piece/ }).boundingBox()]);
+  // The answer is above the book it is about.
+  const [answerBox, titleBox] = await Promise.all([answer.boundingBox(), screen.getByRole('heading', { name: 'One Piece, Volume 56' }).boundingBox()]);
   expect(answerBox!.y).toBeLessThan(titleBox!.y);
-  await expect(page.getByText('The 13 digits under the barcode, on the back cover.')).toBeHidden();
+  // Over the whole screen: the tab bar does not show over it.
+  const bottom = await page.evaluate(() => document.elementFromPoint(195, 838)?.closest('dialog')?.dataset.result);
+  expect(bottom).toBe('');
 });
 
-test('Shelf Check: the answer, the cover and Add fit in one phone screen, Private is one quiet line', async ({ page, signIn }) => {
+test('Shelf Check: the answer, the cover and Add fit in one phone screen, Private is one quiet chip', async ({ page, signIn }) => {
   await signIn();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/check');
-  // One Piece 56, Glénat: not in this reader's Library; its Series line comes too.
+  // One Piece 56, Glénat: not in this reader's Library; its Series card comes too.
   await check(page, '9782723478991');
-  await expect(page.getByText(/You have 0 of 113/)).toBeVisible();
+  const screen = page.getByRole('dialog', { name: 'Shelf Check' });
+  await expect(screen.getByText(/You have 0 of 113/)).toBeVisible();
 
-  await expect(page.getByText('Not in your Library', { exact: true })).toBeInViewport({ ratio: 1 });
-  await expect(page.locator('[data-preview] [data-cover]')).toBeInViewport({ ratio: 1 });
-  const add = page.getByRole('button', { name: 'Add to Library' });
-  await expect(add).toBeInViewport({ ratio: 1 });
-  // Above the tab bar, with room to spare: not hidden under it.
-  const [addBox, tabBarBox] = await Promise.all([add.boundingBox(), page.getByRole('navigation', { name: 'Main' }).boundingBox()]);
-  expect(addBox!.y + addBox!.height).toBeLessThan(tabBarBox!.y - 24);
+  await expect(screen.getByText('Not in your Library', { exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(screen.locator('.result-cover')).toBeInViewport({ ratio: 1 });
+  await expect(screen.getByRole('button', { name: 'Add to Library' })).toBeInViewport({ ratio: 1 });
+  await expect(screen.getByRole('button', { name: 'Add and mark as read' })).toBeInViewport({ ratio: 1 });
   // Copies are never Shared: nothing to explain or change, one word says it.
-  await expect(page.getByText('Private', { exact: true })).toBeVisible();
+  await expect(screen.getByText('Private', { exact: true })).toBeAttached();
   await expect(page.getByText(/Only you can see this book/)).toBeHidden();
+});
+
+test('Shelf Check: Back and Close leave the result screen, not the page; after Add, back to the ISBN field with a toast', async ({ page, signIn }) => {
+  await signIn();
+  await page.goto('/check');
+  // La Horde du Contrevent: a recorded standalone novel, not in this reader's Library.
+  const horde = '9782072927515';
+  await check(page, horde);
+  const screen = page.getByRole('dialog', { name: 'Shelf Check' });
+  await expect(screen.getByText('Not in your Library', { exact: true })).toBeVisible();
+
+  // Browser Back closes the screen and stays on Check a book.
+  await page.goBack();
+  await expect(screen).toBeHidden();
+  await expect(page).toHaveURL(/\/check$/);
+
+  // The close icon too, then Escape.
+  await check(page, horde);
+  await screen.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(screen).toBeHidden();
+  await check(page, horde);
+  await expect(screen).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(screen).toBeHidden();
+  await expect(page).toHaveURL(/\/check$/);
+
+  // Add: no Series, so no Series Onboarding. The screen closes, the reader is back where they typed.
+  await check(page, horde);
+  await screen.getByRole('button', { name: 'Add to Library' }).click();
+  await expect(screen).toBeHidden();
+  await expect(page.getByText(/is in your Library/)).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open its Book page' })).toBeVisible();
+  await expect(page.getByLabel('ISBN', { exact: true })).toBeFocused();
+  await expect(page.getByLabel('ISBN', { exact: true })).toHaveValue('');
+
+  // Checked again: owned, in orange words, with the date of the Copy and the title to its Book page.
+  await check(page, horde);
+  await expect(screen.getByText('Already in your Library', { exact: true })).toBeVisible();
+  await expect(screen.getByText(/^Added on /)).toBeAttached();
+  await expect(screen.getByRole('link', { name: /La horde du Contrevent/i })).toHaveAttribute('href', /\/book\?work=/);
+  await expect(screen.getByRole('button', { name: 'Add another Copy' })).toBeVisible();
 });
 
 test('Shelf Check offline: owned, missing and unknown books, and no ISBN leaves the device', async ({ page, context, browser, baseURL, signIn }) => {
@@ -83,20 +129,20 @@ test('Shelf Check offline: owned, missing and unknown books, and no ISBN leaves 
 
   // Owned: Volume 1 was never looked up on its own; the device has it from the Edition Line.
   await check(page, volume(1));
-  await expect(page.getByText('In your Library', { exact: true })).toBeVisible();
-  await expect(page.getByText('Reading Status: Not yet')).toBeVisible();
+  await expect(page.getByText('Already in your Library', { exact: true })).toBeVisible();
 
-  // Missing from the Series, with the spine row.
+  // Missing from the Series, with the Series card.
   await check(page, volume(3));
   await expect(page.getByText('Missing from Spy x Family')).toBeVisible();
-  const spines = page.getByRole('list', { name: 'Volumes of Spy x Family' });
-  await expect(spines.getByText('Volume 3: not owned')).toBeAttached();
-  await expect(spines.getByText('Volume 4: owned, not read')).toBeAttached();
+  const card = page.getByRole('region', { name: 'Your Series' });
+  await expect(card).toContainText('15 owned · 0 read');
+  await expect(card).toContainText('You have 15 of 16 · 1 missing');
 
-  // A book the device does not know: never a wrong answer.
+  // A book the device does not know: never a wrong answer, and no colour.
   await check(page, unknown);
-  await expect(page.getByText('Not in your Library', { exact: true })).toBeVisible();
+  await expect(page.getByText('Cannot tell on this device', { exact: true })).toBeVisible();
   await expect(page.getByText('This device does not know this book yet. Check online later.')).toBeVisible();
+  await expect(page.locator('.result-screen')).toHaveAttribute('data-tone', 'unknown');
   await expect(page.getByRole('button', { name: 'Add to Library' })).toBeHidden();
 
   const checked = [volume(1), volume(3), unknown];
@@ -127,7 +173,7 @@ test('Shelf Check: the Series line and Follow for a Series not followed; offline
 
   await page.goto('/check');
   await check(page, onePiece56);
-  await expect(page.getByText('In your Library', { exact: true })).toBeVisible();
+  await expect(page.getByText('Already in your Library', { exact: true })).toBeVisible();
   await expect(page.getByText('You have 1 of 113 · 54 missing')).toBeVisible();
 
   // Follow: the Series is followed in this Edition Line, so the device keeps
@@ -142,7 +188,7 @@ test('Shelf Check: the Series line and Follow for a Series not followed; offline
   // Airplane mode: the same line, from this device.
   await context.setOffline(true);
   await check(page, onePiece56);
-  await expect(page.getByText('Reading Status: Not yet')).toBeVisible();
+  await expect(page.getByText('Already in your Library', { exact: true })).toBeVisible();
   await expect(page.getByText('You have 1 of 113 · 54 missing')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Follow' })).toBeHidden();
 });
