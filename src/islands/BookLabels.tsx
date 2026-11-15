@@ -239,7 +239,7 @@ function EditRow({ label, labels, saving, save }: { label: Saved<Label>; labels:
       <li class="labels-edit-row">
         <p class="labels-ask">{t('labels.delete-ask', label.value.name)}</p>
         <div class="labels-row">
-          <button class="button" type="button" disabled={saving} onClick={() => void save((own) => deleteLabel(own, label.rkey))}>
+          <button class="button button-danger" type="button" disabled={saving} onClick={() => void save((own) => deleteLabel(own, label.rkey))}>
             {t('labels.delete')}
           </button>
           <button class="button button-quiet" type="button" onClick={() => setAsking(false)}>
@@ -266,7 +266,7 @@ function EditRow({ label, labels, saving, save }: { label: Saved<Label>; labels:
         <button class="button" type="submit" disabled={saving}>
           {t('labels.rename')}
         </button>
-        <button class="button button-quiet" type="button" disabled={saving} aria-label={t('labels.delete-label', label.value.name)} onClick={() => setAsking(true)}>
+        <button class="button button-quiet button-danger" type="button" disabled={saving} aria-label={t('labels.delete-label', label.value.name)} onClick={() => setAsking(true)}>
           {t('labels.delete')}
         </button>
       </form>

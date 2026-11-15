@@ -304,7 +304,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               </>
             ) : (
               <button
-                class="button button-primary"
+                class="button button-accent"
                 type="button"
                 disabled={saving}
                 onClick={() => {

@@ -142,7 +142,7 @@ const answers = [
         </div>
 
         <!-- Main action when the reader does not own the book; Add another Copy when they do. -->
-        <button class="button button-primary add" type="submit">
+        <button class="button button-accent add" type="submit">
           <Icon name="book-plus" />
           <span data-add-label>{t('add.submit')}</span>
         </button>
@@ -480,7 +480,7 @@ const answers = [
 
   // Add to Library is the main action; for a book the reader owns, Add another Copy is secondary.
   function showAction(owned: boolean) {
-    addButton.classList.toggle('button-primary', !owned);
+    addButton.classList.toggle('button-accent', !owned);
     addButton.querySelector('[data-add-label]')!.textContent = t(owned ? 'book.add-copy' : 'add.submit');
   }
 
@@ -942,7 +942,7 @@ const answers = [
     font-size: 13px;
   }
 
-  /* No danger colour in the palette (ui-direction: colour roles): ink and weight. */
+  /* An error keeps ink and weight; --danger is for actions that destroy, not errors (ui-direction: colour roles). */
   .hint[data-error] {
     color: var(--ink);
     font-weight: 600;
