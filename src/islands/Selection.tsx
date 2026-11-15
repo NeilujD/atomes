@@ -160,11 +160,11 @@ export function SelectionBar({ picked, onAll, onDone, space, library, onSaved, s
     toast(t('signedOut' in answer ? 'auth.session-ended' : 'unreachable' in answer ? 'sharing.unreachable' : 'sharing.failed'), { error: true });
   }
 
-  // The Catalog took every Correction: Undo sends back to the sources the
-  // Editions that had none before (moveUndo).
+  // The Catalog took these Corrections (all, or those before a refusal): Undo
+  // sends back to the sources the ones that had none before (moveUndo).
   function moved(found: Edition[], editions: Edition[]) {
     for (const { isbn } of found) void sources.refresh(isbn);
-    const back = moveUndo(editions);
+    const back = moveUndo(editions.filter(({ isbn }) => found.some((each) => each.isbn === isbn)));
     const undo = () =>
       void busyWith(async () => {
         const restored: Edition[] = [];

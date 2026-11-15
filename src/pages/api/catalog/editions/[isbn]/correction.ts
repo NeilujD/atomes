@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { checkWrite } from '../../../../../lib/catalog/access';
+import { checkBackToSources, checkWrite } from '../../../../../lib/catalog/access';
 import { answerCorrect, answerUncorrect } from '../../../../../lib/catalog/api';
 import { catalog, catalogAccess } from '../../../../../lib/catalog/instance';
 
@@ -12,8 +12,8 @@ export const PUT: APIRoute = async ({ params, request }) => {
   return answerCorrect(catalog(), params.isbn, body, write.account);
 };
 
-// "Back to the sources".
+// "Back to the sources": signed-in readers only, not counted in the limit.
 export const DELETE: APIRoute = async ({ params, request }) => {
-  const write = checkWrite(request, await catalogAccess());
+  const write = checkBackToSources(request, await catalogAccess());
   return 'refused' in write ? write.refused : answerUncorrect(catalog(), params.isbn);
 };
