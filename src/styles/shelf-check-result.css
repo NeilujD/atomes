@@ -37,10 +37,24 @@
   pointer-events: none;
 }
 
+/* Soft edges come from the gradient itself, on a box widened by 72 px on each
+   side (1.5 times the blur of the design): no blur filter. A blur on a moving
+   layer is drawn again on every frame; in WebKit with no GPU it held the
+   change to Series Onboarding for 5 s. */
 .result-blob {
+  --blob: var(--tone);
   position: absolute;
-  border-radius: 50%;
-  filter: blur(48px);
+  box-sizing: content-box;
+  margin: -72px;
+  padding: 72px;
+  background: radial-gradient(
+    circle closest-side,
+    color-mix(in oklab, var(--blob) 70%, transparent) 0%,
+    color-mix(in oklab, var(--blob) 48%, transparent) 30%,
+    color-mix(in oklab, var(--blob) 24%, transparent) 55%,
+    color-mix(in oklab, var(--blob) 7%, transparent) 78%,
+    transparent 100%
+  );
   will-change: transform;
 }
 
@@ -50,7 +64,6 @@
   width: 340px;
   height: 340px;
   opacity: 0.55;
-  background: radial-gradient(circle, var(--tone) 0%, transparent 68%);
   animation:
     atIntro1 1.1s cubic-bezier(0.16, 1, 0.3, 1) both,
     atDrift1 13s ease-in-out 1.1s infinite;
@@ -62,7 +75,6 @@
   width: 300px;
   height: 300px;
   opacity: 0.4;
-  background: radial-gradient(circle, var(--tone) 0%, transparent 68%);
   animation:
     atIntro2 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both,
     atDrift2 17s ease-in-out 1.25s infinite;
@@ -74,7 +86,7 @@
   width: 260px;
   height: 260px;
   opacity: 0.3;
-  background: radial-gradient(circle, var(--tone-deep) 0%, transparent 70%);
+  --blob: var(--tone-deep);
   animation:
     atIntro3 1.3s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both,
     atDrift3 11s ease-in-out 1.4s infinite;
@@ -185,9 +197,18 @@
   top: calc(var(--w) * -34 / 168);
   width: calc(var(--w) * 260 / 168);
   height: calc(var(--w) * 320 / 168);
-  border-radius: 50%;
-  filter: blur(30px);
-  background: radial-gradient(ellipse, var(--tone) 0%, transparent 65%);
+  /* As the blobs: soft edges from the gradient, 45 px wider on each side, no blur filter. */
+  box-sizing: content-box;
+  margin: -45px;
+  padding: 45px;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--tone) 70%, transparent) 0%,
+    color-mix(in oklab, var(--tone) 48%, transparent) 30%,
+    color-mix(in oklab, var(--tone) 24%, transparent) 55%,
+    color-mix(in oklab, var(--tone) 7%, transparent) 78%,
+    transparent 100%
+  );
   animation:
     atHaloIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) both,
     atBreathe 4.5s ease-in-out 1.2s infinite;

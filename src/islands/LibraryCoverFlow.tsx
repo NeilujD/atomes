@@ -141,7 +141,10 @@ interface Drag {
 
 // The motion of the flow: where it stands (`offset`), the drag, and the spring
 // to the book it comes to rest on (`to`), which is the book the Library keeps
-// (`position`, `commit`). `front` is the book in front while it moves.
+// (`position`, `commit`). `front` is the book the text, the slider and
+// `aria-current` name: under the finger during a drag, else the book the flow
+// goes to, at once (a screen reader hears where Next leads, not each cover
+// passed on the way).
 function useFlow(books: LibraryBook[], position: number, commit: (to: number) => void) {
   const stage = useRef<HTMLDivElement>(null);
   const [front, setFront] = useState(position);
@@ -152,13 +155,14 @@ function useFlow(books: LibraryBook[], position: number, commit: (to: number) =>
   const shownWorks = useRef(works);
 
   const draw = () => {
-    if (stage.current) setFront(paint(stage.current, motion.current.offset));
+    if (stage.current) paint(stage.current, motion.current.offset);
   };
 
   const animate = (to: number) => {
     const state = motion.current;
     cancelAnimationFrame(state.frame);
     state.to = to;
+    setFront(to);
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
       state.offset = to;
       state.speed = 0;
@@ -194,6 +198,7 @@ function useFlow(books: LibraryBook[], position: number, commit: (to: number) =>
       shownWorks.current = works;
       cancelAnimationFrame(state.frame);
       Object.assign(state, { offset: position, speed: 0, to: position });
+      setFront(position);
       draw();
     } else if (state.to !== position && !state.drag?.dragging) {
       animate(position);
@@ -248,7 +253,7 @@ function useFlow(books: LibraryBook[], position: number, commit: (to: number) =>
       if (!state.pending) {
         state.pending = requestAnimationFrame(() => {
           state.pending = 0;
-          draw();
+          if (element) setFront(paint(element, state.offset));
         });
       }
     };
