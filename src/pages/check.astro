@@ -133,19 +133,17 @@ const answers = [
           </span>
         </div>
 
-        <div class="private">
-          <Icon name="lock" size={18} />
-          <div>
-            <p class="private-title">{t('add.private')}</p>
-            <p class="hint">{t('add.private-hint')}</p>
-          </div>
-        </div>
-
         <!-- Main action when the reader does not own the book; Add another Copy when they do. -->
         <button class="button button-accent add" type="submit">
           <Icon name="book-plus" />
           <span data-add-label>{t('add.submit')}</span>
         </button>
+
+        <!-- One quiet line: a Copy is never Shared, so there is nothing to change yet. -->
+        <p class="private-line">
+          <Icon name="lock" size={14} />
+          <span>{t('add.private')}</span>
+        </p>
       </div>
     </form>
   </div>
@@ -1058,18 +1056,14 @@ const answers = [
     gap: 8px;
   }
 
-  .private {
+  .private-line {
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: var(--radius-panel);
-    background: var(--soft);
-  }
-
-  .private-title {
-    font-size: 15px;
-    font-weight: 600;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: -8px;
+    font-size: 13px;
+    color: var(--secondary);
   }
 
   .add {
@@ -1095,7 +1089,7 @@ const answers = [
     display: none;
   }
 
-  /* The question, Private and the add button, as if not wrapped. */
+  /* The question, the add button and the Private line, as if not wrapped. */
   .add-actions {
     display: contents;
   }

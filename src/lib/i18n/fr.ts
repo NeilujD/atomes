@@ -158,7 +158,6 @@ export const fr: typeof en = {
   'add.field-volume': 'Tome',
   'add.read-question': 'L’avez-vous lu ?',
   'add.private': 'Privé',
-  'add.private-hint': 'Personne d’autre que vous ne voit ce livre. Il est privé, enregistré sur ce serveur Atomes.',
   'add.submit': 'Ajouter à la bibliothèque',
   'add.sources-down': 'Les sources de livres ne répondent pas. Réessayez plus tard.',
   'add.lookup-unreachable': 'Impossible de joindre Atomes pour rechercher le livre. Vérifiez votre connexion et réessayez.',
