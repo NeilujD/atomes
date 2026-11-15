@@ -1051,6 +1051,19 @@ describe('Series Correction (ADR 0017)', () => {
     expect(catalog.lines(onePiece).map(({ anchor }) => anchor)).toContain(horde);
   });
 
+  test('an omnibus moved with its Volume number kept keeps every Volume it holds; another number makes it one Volume', async () => {
+    const { catalog } = clocked();
+    await answerEdition(catalog, onePiece56);
+    await answerEdition(catalog, dragonBallSuper1to2);
+
+    const moved = await edition(await answerCorrect(catalog, dragonBallSuper1to2, { anchor: onePiece56, volume: 1 }, account));
+
+    expect(moved).toMatchObject({ volume: 1, volumes: [1, 2], corrected: true });
+    expect((await answerOf(catalog, onePiece56, signedOut)).volumes.find((v) => v.isbn === dragonBallSuper1to2)?.volumes).toEqual([1, 2]);
+    const renumbered = await edition(await answerCorrect(catalog, dragonBallSuper1to2, { anchor: onePiece56, volume: 3 }, account));
+    expect(renumbered).toMatchObject({ volume: 3, volumes: [3] });
+  });
+
   // Dragon Ball 2 and 3 (1993): Inventaire gives them one Work (ADR 0010, amendment 2026-11-14).
   const [volume2, volume3] = [dragonBall1993[2], dragonBall1993[3]];
   const elsewhere = { title: 'Dragon Ball kanzenban', publisher: 'Glénat', language: 'fre', height: 18 };
