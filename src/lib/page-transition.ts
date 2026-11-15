@@ -123,7 +123,9 @@ function installPageTransitions(): void {
 
   addEventListener('pageswap', (event) => {
     const from = here();
-    write(fromKey, from);
+    // To another site the browser gives no activation (null): the next Atomes
+    // page opened from there has no Atomes page before it (src/lib/back.ts).
+    write(fromKey, event.activation === null ? null : from);
     write(coverKey, null);
     const entry = event.activation?.entry;
     if (!event.viewTransition || !entry?.url) return;

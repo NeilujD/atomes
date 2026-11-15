@@ -1056,9 +1056,12 @@ describe('Series Correction (ADR 0017)', () => {
     await answerCorrect(catalog, volume41, { anchor: line1993, volume: 43 }, 'did:plc:another-reader');
 
     expect(await edition(await answerEdition(catalog, volume41))).toMatchObject({ volume: 43, volumes: [43], corrected: true });
+    // The Account of the latest Correction decides whether going back is counted (access.ts).
+    expect(catalog.correctionAccount(volume41)).toBe('did:plc:another-reader');
     const back = answerUncorrect(catalog, volume41);
     expect(back.status).toBe(200);
     expect(await edition(back)).toEqual(before);
+    expect(catalog.correctionAccount(volume41)).toBeUndefined();
     expect((await answerOf(catalog, line1993)).volumes.find((v) => v.volume === 41)?.isbn).toBe(volume41);
     expect((await answerOf(catalog, line2003)).volumes.some((v) => v.isbn === volume41)).toBe(false);
   });

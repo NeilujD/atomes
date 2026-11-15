@@ -569,6 +569,52 @@ describe('Bulk select', () => {
     expect(screen.getAllByRole('button', { name: 'Undo' })).toHaveLength(1);
   });
 
+  test('Move to Series refused partway: the saved moves get their toast and Undo; Save again reuses the New Series made', async () => {
+    const corrections: [string, unknown][] = [];
+    const uncorrected: string[] = [];
+    // The second Correction is over the limit, once.
+    const answers = [true, false, true, true];
+    const correction: SelectionSources['correction'] = {
+      find: refuse,
+      correct: (isbn, asked) => {
+        const taken = answers.shift();
+        if (taken) corrections.push([isbn, asked]);
+        return Promise.resolve(taken ? { found: { ...books.find((each) => each.isbn === isbn)!, corrected: true } } : { tooMany: true });
+      },
+      uncorrect: (isbn) => {
+        uncorrected.push(isbn);
+        return Promise.resolve({ found: books.find((each) => each.isbn === isbn)! });
+      },
+    };
+    await libraryScreen(books, [], 'sent', { correction });
+    select('Astérix', 'Dune', 'La Horde');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Series' }));
+    fireEvent.click(sheet().getByRole('button', { name: 'New Series' }));
+    fireEvent.input(sheet().getByLabelText('Publisher'), { target: { value: 'Glénat' } });
+    fireEvent.click(sheet().getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('1 book moved. Every reader sees it.')).toBeTruthy();
+    expect(sheet().getByText('Too many Series Corrections for now. Try again in an hour.')).toBeTruthy();
+
+    fireEvent.click(sheet().getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('2 books moved. Every reader sees it.')).toBeTruthy();
+    const newSeries = { newSeries: { title: 'Astérix', publisher: 'Glénat', language: 'fre', height: null }, volume: null };
+    expect(corrections).toEqual([
+      [books[0].isbn, newSeries],
+      [books[1].isbn, { anchor: books[0].isbn, volume: null }],
+      [books[2].isbn, { anchor: books[0].isbn, volume: null }],
+    ]);
+
+    // Undo on the first toast turns back only the move it saved.
+    const first = screen.getByText('1 book moved. Every reader sees it.').closest('[data-toast]')!;
+    fireEvent.click(within(first as HTMLElement).getByRole('button', { name: 'Undo' }));
+
+    expect(await screen.findByText('Undone.')).toBeTruthy();
+    expect(uncorrected).toEqual([books[0].isbn]);
+  });
+
   test('keeps the picked Works Private in one request; Undo lets go only the ones it changed', async () => {
     const calls: [string[], boolean][] = [];
     const state = { shared: { readingStatuses: true, follows: false, labels: false }, privateWorks: [books[1].work.id], pending: false, canShare: true };

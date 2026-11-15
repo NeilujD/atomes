@@ -72,6 +72,10 @@ export function SeriesCorrection({ editions, button, onCorrected, sources = live
   const [height, setHeight] = useState(String(bookHeight(edition.format) ?? ''));
   const [problem, setProblem] = useState<string>();
   const [busy, setBusy] = useState(false);
+  // The Corrections the Catalog took from this sheet, by ISBN. Save again after
+  // a refusal sends only the others: a New Series is made once, and the books
+  // left join it.
+  const taken = useRef(new Map<string, string>());
 
   function open() {
     setStep({ search: true });
@@ -109,14 +113,16 @@ export function SeriesCorrection({ editions, button, onCorrected, sources = live
     setStep({ series });
   }
 
-  // One request after the other: the first refused one stops the rest and says why.
+  // One request after the other: the first refused one stops the rest and says
+  // why. The ones saved before it are handed back all the same (Undo, refresh).
   async function send(asks: (() => Promise<CorrectionAnswer>)[], text: string) {
     const found: Edition[] = [];
     for (const ask of asks) {
       const answer = await run(ask);
-      if (!answer) return;
-      if (!('found' in answer)) {
-        return setProblem(t('signedOut' in answer ? 'auth.session-ended' : 'tooMany' in answer ? 'correction.too-many' : 'correction.failed'));
+      if (!answer || !('found' in answer)) {
+        if (answer) setProblem(t('signedOut' in answer ? 'auth.session-ended' : 'tooMany' in answer ? 'correction.too-many' : 'correction.failed'));
+        if (found.length > 0) onCorrected(found, text);
+        return;
       }
       found.push(answer.found);
     }
@@ -151,14 +157,15 @@ export function SeriesCorrection({ editions, button, onCorrected, sources = live
     }
     // The Book page sends the Volume number as typed, even one the Catalog knew.
     const corrections: [string, Correction][] = bulk ? moveCorrections(editions, target, numbers) : [[edition.isbn, { ...target, volume: numbers[edition.isbn] }]];
-    void send(
-      corrections.map(
-        ([isbn, correction]) =>
-          () =>
-            sources.correct(isbn, correction),
-      ),
-      t('correction.saved'),
-    );
+    const asks = corrections
+      .map(([isbn, correction]) => [isbn, JSON.stringify(correction), correction] as const)
+      .filter(([isbn, key]) => taken.current.get(isbn) !== key)
+      .map(([isbn, key, correction]) => async () => {
+        const answer = await sources.correct(isbn, correction);
+        if ('found' in answer) taken.current.set(isbn, key);
+        return answer;
+      });
+    void send(asks, t('correction.saved'));
   }
 
   const names = new Intl.DisplayNames([pageLanguage()], { type: 'language' });

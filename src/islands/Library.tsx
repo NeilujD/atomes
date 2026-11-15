@@ -8,35 +8,24 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
-import type { Edition } from '../lib/catalog/catalog';
 import { coverUrl, lookupEditions } from '../lib/catalog/client';
-import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
 import { browse, clearAll, libraryBooks, liveQuery, searchIns, sorts, volumeLine, type Browsed, type LibraryBook, type LibraryQuery, type SearchIn, type SortBy } from '../lib/library/browse';
 import type { FlowMove } from '../lib/library/flow';
-import { listLabels, type Label } from '../lib/library/label';
 import { letterGroups } from '../lib/library/letters';
-import { loadLibrary, waitingCount } from '../lib/library/library';
 import { savedLibraryState, type LibraryState } from '../lib/library/library-state';
 import { groupings, modes, readGrouping, readMode, saveGrouping, saveMode, type Grouping, type Mode } from '../lib/library/mode';
-import { bookHref, bookIsbns, workEdition, type Library as LibraryRecords } from '../lib/library/model';
-import type { Saved } from '../lib/library/records';
+import { bookHref, bookIsbns, workEdition } from '../lib/library/model';
 import { seriesHref } from '../lib/library/series';
 import { librarySeries, seriesCards, type LibrarySeries } from '../lib/library/series-mode';
-import { isNetworkFailure } from '../lib/network';
-import { freshListing } from '../lib/space/fresh-listing';
-import { spaceErrorMessage, type Space } from '../lib/space/space';
-import { toast } from '../lib/toast';
 import { Cover } from './Cover';
 import { LibraryCoverFlow } from './LibraryCoverFlow';
+import { useLibraryListing, type ListingSources } from './library-listing';
 import { LetterIndex, LibraryList } from './LibraryList';
 import { liveSelection, SelectionBar, type PickedBook, type SelectionSources } from './Selection';
 
 // Where the screen reads from: the reader's Library store and the Catalog.
-export interface Sources {
-  // Undefined when signed out.
-  open(): Promise<Space | undefined>;
-  editions(isbns: string[]): Promise<Map<string, Edition>>;
+export interface Sources extends ListingSources {
   selection?: SelectionSources;
 }
 
@@ -63,9 +52,8 @@ const remember = (part: Partial<LibraryState>) => history.replaceState({ ...entr
 const panel = () => document.querySelector('[data-frame="panel"]');
 
 export function Library({ sources }: { sources: Sources }) {
-  const [read, setRead] = useState<{ library: LibraryRecords; labels: Saved<Label>[] }>();
-  // In place of the grid when there is none to show (signed out, or the first read failed).
-  const [message, setMessage] = useState<string>();
+  // The Labels too: the Library shows and filters by them.
+  const { read, message, editions, space, refresh } = useLibraryListing(sources, { labels: true });
   const [saved] = useState(savedState);
   const [asked, setQuery] = useState<LibraryQuery>(saved.query);
   // Where the reader moved the Cover flow to (src/lib/library/flow.ts).
@@ -73,58 +61,9 @@ export function Library({ sources }: { sources: Sources }) {
   const [grouping, setGrouping] = useState<Grouping>(readGrouping);
   const [mode, setMode] = useState<Mode>(readMode);
   const wide = useMedia(desktop);
-  // Catalog answers kept for this visit, so an offline reload keeps the titles.
-  const editions = useRef(new Map<string, Edition>());
-  const loaded = useRef(false);
-  const space = useRef<Space | undefined>(undefined);
-  const listing = useRef<{ refresh: () => Promise<void> } | undefined>(undefined);
   // Bulk select: on or off, and the Works picked, in the order of the taps.
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-
-  useEffect(() => {
-    // No network: the connection status says it, and the listing tries again.
-    function fail(error: unknown) {
-      const network = isNetworkFailure(error);
-      if (network) reportNetwork(false);
-      if (!loaded.current) setMessage(spaceErrorMessage(error));
-      else if (!network) toast(spaceErrorMessage(error), { error: true });
-    }
-
-    async function start() {
-      const own = await sources.open();
-      // No session: the gate (AppShell) is sending the visitor to the sign-in screen.
-      if (!own) return;
-      space.current = own;
-      listing.current = freshListing(
-        async () => {
-          const [records, labels] = await Promise.all([loadLibrary(own), listLabels(own)]);
-          await askCatalog(records.library);
-          return { library: records.library, labels: labels.records, stale: records.stale || labels.stale, waiting: await waitingCount(own) };
-        },
-        (fresh) => {
-          // Stale: the store did not answer, so this is the copy on this device.
-          reportNetwork(!fresh.stale);
-          reportWaiting(fresh.waiting);
-          loaded.current = true;
-          setMessage(undefined);
-          setRead({ library: fresh.library, labels: fresh.labels });
-        },
-        fail,
-      );
-      await listing.current.refresh();
-    }
-
-    // The Editions of the Copies and Reading Statuses, when not asked yet. One
-    // the Catalog cannot answer for now shows its ISBN, and is asked again on the next read.
-    async function askCatalog(library: LibraryRecords) {
-      const isbns = [...library.copies, ...library.readingStatuses].map(({ value }) => value.isbn);
-      const unknown = isbns.filter((isbn) => !editions.current.has(isbn));
-      for (const [isbn, edition] of await sources.editions(unknown)) editions.current.set(isbn, edition);
-    }
-
-    start().catch(fail);
-  }, [sources]);
 
   useEffect(() => remember({ query: asked, flow: moved }), [asked, moved]);
 
@@ -161,8 +100,8 @@ export function Library({ sources }: { sources: Sources }) {
     panel()?.scrollTo(0, saved.scroll.panel);
   }, [read, saved]);
 
-  const books = useMemo(() => read && libraryBooks(read.library, editions.current, read.labels), [read]);
-  const series = useMemo(() => read && books && librarySeries(books, read.library, editions.current), [read, books]);
+  const books = useMemo(() => read && libraryBooks(read.library, editions, read.labels), [read, editions]);
+  const series = useMemo(() => read && books && librarySeries(books, read.library, editions), [read, books, editions]);
 
   if (message) {
     return (
@@ -228,12 +167,7 @@ export function Library({ sources }: { sources: Sources }) {
   };
   const groupingSwitch = <Segmented name="library-grouping" label={t('library.grouping')} choices={groupings} chosen={grouping} text={(each) => t(`library.grouping.${each}`)} onChange={group} />;
   const pick = (work: string) => setSelected(selected.includes(work) ? selected.filter((each) => each !== work) : [...selected, work]);
-  const picked = selected.map((work): PickedBook => ({ work, isbn: bookIsbns(work, read.library)[0] ?? '', edition: workEdition(work, read.library, editions.current) }));
-  // After Move to Series: the Catalog's new answers, so the books show their new Series.
-  const afterSave = async (moved: Edition[] = []) => {
-    for (const edition of moved) editions.current.set(edition.isbn, edition);
-    await listing.current?.refresh();
-  };
+  const picked = selected.map((work): PickedBook => ({ work, isbn: bookIsbns(work, read.library)[0] ?? '', edition: workEdition(work, read.library, editions) }));
   const selectButton = !selecting && (
     <button class="button button-quiet library-select" type="button" onClick={() => setSelecting(true)}>
       {t('select.start')}
@@ -320,7 +254,7 @@ export function Library({ sources }: { sources: Sources }) {
           ))}
         </ul>
       )}
-      {selecting && space.current && (
+      {selecting && space && (
         <SelectionBar
           picked={picked}
           onAll={() => setSelected([...new Set([...selected, ...found.books.map(({ work }) => work)])])}
@@ -328,9 +262,10 @@ export function Library({ sources }: { sources: Sources }) {
             setSelecting(false);
             setSelected([]);
           }}
-          space={space.current}
+          space={space}
           library={read.library}
-          onSaved={afterSave}
+          // After Move to Series: the Catalog's new answers, so the books show their new Series.
+          onSaved={refresh}
           sources={sources.selection ?? liveSelection}
         />
       )}

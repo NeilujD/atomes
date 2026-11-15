@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { checkAccess, checkWrite, clientIp, createIpLimit, type CatalogAccess } from './access';
+import { checkAccess, checkBackToSources, checkWrite, clientIp, createIpLimit, type CatalogAccess } from './access';
 
 const request = (headers: Record<string, string> = {}) => new Request('http://catalog.test/api/catalog/editions/9782723478991', { headers });
 
@@ -101,5 +101,18 @@ describe('Series Corrections: signed-in readers only, with a limit per Account',
     expect(statusOf(checkWrite(request(), { ...access, account: () => 'did:plc:another' }))).toBe(200);
     wait(45_000);
     expect(statusOf(checkWrite(from('203.0.113.3'), access))).toBe(200);
+  });
+
+  // Undo of a bulk Move to Series sends many back at once (CORE-109): the
+  // reader's own Corrections go back free. Another reader's count, or one
+  // reader could undo every Correction of the instance at no cost.
+  test('"Back to the sources" is signed-in only; free for a Correction of the same Account, counted for another', () => {
+    expect(statusOf(checkBackToSources(request(), writes(undefined).access, 'did:plc:reader'))).toBe(401);
+    const { access } = writes('did:plc:reader');
+
+    expect([1, 2, 3].map(() => statusOf(checkBackToSources(request(), access, 'did:plc:reader')))).toEqual([200, 200, 200]);
+    expect([1, 2, 3].map(() => statusOf(checkBackToSources(request(), access, 'did:plc:another')))).toEqual([200, 200, 429]);
+    expect(statusOf(checkBackToSources(request(), access, undefined))).toBe(429);
+    expect(checkBackToSources(request(), access, 'did:plc:reader')).toEqual({ account: 'did:plc:reader' });
   });
 });

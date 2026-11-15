@@ -72,18 +72,40 @@ export function checkAccess(
   };
 }
 
+const headers = { 'cache-control': 'no-store' };
+
 // A Series Correction: `refused` (401) when signed out, (429) when the
 // Account is over its limit. Else the Account to keep with the Correction.
 export function checkWrite(request: Request, { account, writes }: Pick<CatalogAccess, 'account' | 'writes'>): { refused: Response } | { account: string } {
-  const who = account(request);
-  const headers = { 'cache-control': 'no-store' };
-  if (!who) return { refused: Response.json({ error: 'SignedOut', message: 'Sign in to correct the Catalog.' }, { status: 401, headers }) };
-  const wait = writes.take(who);
-  if (wait === undefined) return { account: who };
+  const signedIn = checkSignedIn(request, { account });
+  if ('refused' in signedIn) return signedIn;
+  const wait = writes.take(signedIn.account);
+  if (wait === undefined) return signedIn;
   return {
     refused: Response.json(
       { error: 'TooManyRequests', message: 'Too many Series Corrections. Try again later.' },
       { status: 429, headers: { ...headers, 'retry-after': String(wait) } },
     ),
   };
+}
+
+function checkSignedIn(request: Request, { account }: Pick<CatalogAccess, 'account'>): { refused: Response } | { account: string } {
+  const who = account(request);
+  if (!who) return { refused: Response.json({ error: 'SignedOut', message: 'Sign in to correct the Catalog.' }, { status: 401, headers }) };
+  return { account: who };
+}
+
+// "Back to the sources" for a Correction made by `madeBy`: signed-in only. The
+// reader's own Correction goes back free: the Undo of a bulk Move to Series
+// sends one per book, and counted it would stop halfway at the limit. Another
+// Account's Correction counts like a write, or one reader could undo every
+// Correction of the instance at no cost.
+export function checkBackToSources(
+  request: Request,
+  access: Pick<CatalogAccess, 'account' | 'writes'>,
+  madeBy: string | undefined,
+): { refused: Response } | { account: string } {
+  const signedIn = checkSignedIn(request, access);
+  if ('refused' in signedIn || signedIn.account === madeBy) return signedIn;
+  return checkWrite(request, access);
 }

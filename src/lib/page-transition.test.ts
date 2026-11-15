@@ -49,3 +49,15 @@ test('the inline script runs on its own, with no module around it', () => {
     dispatchEvent(new Event('pagereveal'));
   }).not.toThrow();
 });
+
+test('leaving for another site forgets the page before: back on Atomes, no Atomes page came just before', () => {
+  // A browser with page transitions; the Library was the page before.
+  Object.assign(window, { onpagereveal: null });
+  runInThisContext(pageTransitionScript);
+  sessionStorage.setItem('atomes-page-from', JSON.stringify('/library'));
+
+  // A navigation to another origin: the browser gives no activation.
+  dispatchEvent(Object.assign(new Event('pageswap'), { activation: null, viewTransition: null }));
+
+  expect(sessionStorage.getItem('atomes-page-from')).toBeNull();
+});

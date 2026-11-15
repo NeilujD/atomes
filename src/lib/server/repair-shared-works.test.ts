@@ -98,6 +98,21 @@ describe('the repair of one reader', () => {
     expect(repair.counts.privateWorks).toBe(1);
   });
 
+  test('a record whose Edition the Catalog now gives another real Work moves to that Work', () => {
+    // The record says Volume 1 under the dropped Work; the Catalog gives Volume 1 its own Work.
+    const repair = planRepair(
+      reader({ readingStatuses: [{ rkey: dropped, value: status(dropped, volume1) }], copies: [{ rkey: '3l2copy', value: copy(volume1, [dropped]) }] }),
+      droppedWorks,
+      workOf,
+    );
+
+    expect(repair.puts).toEqual([
+      { collection: readingStatusCollection, rkey: kept, value: status(kept, volume1) },
+      { collection: copyCollection, rkey: '3l2copy', value: copy(volume1, [kept]) },
+    ]);
+    expect(repair.deletes).toEqual([{ collection: readingStatusCollection, rkey: dropped }]);
+  });
+
   test('records on a Work the Catalog still gives their Edition are left alone', () => {
     const repair = planRepair(
       reader({ readingStatuses: [{ rkey: kept, value: status(kept, volume1) }], copies: [{ rkey: '3l2copy', value: copy(volume1, [kept]) }] }),

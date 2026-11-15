@@ -25,7 +25,7 @@ import type { Catalog, Choice, Correction, Edition } from './catalog';
 
 const json = (status: number, body: unknown) => Response.json(body, { status });
 
-const parseIsbn = (raw: string | undefined) => (raw ?? '').replace(/[\s-]/g, '');
+export const parseIsbn = (raw: string | undefined) => (raw ?? '').replace(/[\s-]/g, '');
 const invalidIsbn = () => json(400, { error: 'InvalidIsbn', message: 'Send an ISBN-13: 13 digits starting with 978 or 979.' });
 const unavailable = (isbn: string) =>
   json(503, { error: 'SourcesUnavailable', isbn, message: 'The book sources do not answer. Try again later.' });

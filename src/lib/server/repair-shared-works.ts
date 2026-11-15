@@ -6,10 +6,11 @@
 //
 // For each reader, a record whose Work the Catalog dropped, and no longer
 // gives to the record's Edition:
-// - a Reading Status moves to `isbn:<isbn>` of the Edition read: its record
-//   key is its Work, so the new record is put and the old one deleted. When a
-//   newer Reading Status is already there, it stays and the old one goes;
-// - a Copy's dropped Work becomes `isbn:<isbn>` of the Copy;
+// - a Reading Status moves to the Work the Catalog gives the Edition read now
+//   (`isbn:<isbn>` when it holds none): its record key is its Work, so the new
+//   record is put and the old one deleted. When a newer Reading Status is
+//   already there, it stays and the old one goes;
+// - a Copy's dropped Work becomes the Work of the Copy's Edition, the same way;
 // - a Label is listed, not changed: a dropped Work stands for many Editions;
 // - a Work kept Private (sharing.ts) is listed too; the Work of each Reading
 //   Status moved from it is kept Private, so a Private status stays Private.
@@ -57,6 +58,8 @@ const editionWork = (isbn: string) => `isbn:${isbn}`;
 // gives an ISBN now, undefined when it holds no Edition for it.
 export function planRepair(reader: ReaderRecords, dropped: ReadonlySet<string>, workOf: (isbn: string) => string | undefined): Repair {
   const stale = (work: string, isbn: unknown) => typeof isbn === 'string' && dropped.has(work) && workOf(isbn) !== work;
+  // The Work the Catalog gives the Edition now; its own `isbn:` Work when it holds none.
+  const workNow = (isbn: unknown) => workOf(text(isbn)) ?? editionWork(text(isbn));
   const puts: Repair['puts'] = [];
   const deletes: Repair['deletes'] = [];
   const added = new Set<string>();
@@ -66,7 +69,7 @@ export function planRepair(reader: ReaderRecords, dropped: ReadonlySet<string>, 
   for (const { rkey, value } of reader.readingStatuses) {
     const status = fields(value);
     if (!stale(rkey, status.isbn)) continue;
-    const target = editionWork(text(status.isbn));
+    const target = workNow(status.isbn);
     const there = statuses.get(target);
     if (!there || text(there.updatedAt) < text(status.updatedAt)) {
       const moved = { ...status, work: target };
@@ -85,7 +88,7 @@ export function planRepair(reader: ReaderRecords, dropped: ReadonlySet<string>, 
     const copy = fields(value);
     const works = Array.isArray(copy.works) ? copy.works.map(String) : [];
     if (!works.some((work) => stale(work, copy.isbn))) continue;
-    const repaired = [...new Set(works.map((work) => (stale(work, copy.isbn) ? editionWork(text(copy.isbn)) : work)))];
+    const repaired = [...new Set(works.map((work) => (stale(work, copy.isbn) ? workNow(copy.isbn) : work)))];
     puts.push({ collection: collections.copy, rkey, value: { ...copy, works: repaired } });
     changedCopies++;
   }

@@ -17,7 +17,9 @@ export interface Before {
 
 export function goesBack({ referrer, origin, from, entries }: Before): boolean {
   if (entries < 2) return false;
-  return (referrer !== '' && new URL(referrer).origin === origin) || from !== null;
+  // A referrer from another site wins over a page saved before leaving for it.
+  if (referrer !== '') return new URL(referrer).origin === origin;
+  return from !== null;
 }
 
 // Storage can be refused (private browsing): then no page before.

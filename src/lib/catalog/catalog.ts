@@ -166,6 +166,8 @@ export interface Catalog {
   // "Back to the sources": deletes the Series Correction of the ISBN, if any.
   // Not found when the Catalog has no Edition for it.
   uncorrect(isbn: string): Edition | undefined;
+  // The Account that made the Correction of this Edition, if any.
+  correctionAccount(isbn: string): string | undefined;
   // The Series of this Catalog whose title holds `text` (case, accents and
   // spaces ignored), each with its Edition Lines; at most `maxFound`.
   findSeries(text: string): SeriesFound[];
@@ -810,6 +812,10 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     return { found: toEdition(editionRow(isbn)!) };
   }
 
+  function correctionAccount(isbn: string): string | undefined {
+    return (db.prepare('select account from series_correction where isbn = ?').get(isbn) as { account: string } | undefined)?.account;
+  }
+
   function uncorrect(isbn: string): Edition | undefined {
     inTransaction(db, () => {
       db.prepare('delete from series_correction where isbn = ?').run(isbn);
@@ -852,6 +858,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     choose,
     correct,
     uncorrect,
+    correctionAccount,
     findSeries,
     link,
     series: (id) => {
