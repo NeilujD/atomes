@@ -29,7 +29,7 @@ import {
   type CatalogAsk,
   type Spine,
 } from '../lib/library/series';
-import { bought, deleteToBuy } from '../lib/library/to-buy';
+import { bought, deleteToBuy, handAdd, saveToBuy } from '../lib/library/to-buy';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
@@ -194,6 +194,13 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
     });
   }
 
+  // A Volume read and not owned is not on To Buy (glossary): the reader puts it there by hand.
+  function addToBuy({ edition }: Spine) {
+    if (!library) return;
+    const added = handAdd(edition.isbn, library, editions.current, new Date());
+    if ('toBuy' in added) void save((own) => saveToBuy(own, added.toBuy));
+  }
+
   // As on the Book page: marking a Volume read follows its Series.
   function markRead({ edition }: Spine) {
     if (!library) return;
@@ -267,6 +274,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const from = Number(follow?.fromVolume);
   const cover = seriesCover(volumes) ?? anchor;
   const spine = standing.spines.find(({ volume }) => volume === chosen);
+  const onToBuy = spine !== undefined && library.toBuy.some(({ value }) => value.isbn === spine.edition.isbn);
   const seriesTitle = edition.series.title;
   document.title = `${edition.series.title} · Atomes`;
 
@@ -430,13 +438,19 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               <p>{t('book.volume', spine.volume)}</p>
               <p class="series-hint">{lineOf(spine.edition)}</p>
               <p class="series-hint">{t('series.state', spine.state)}</p>
+              {spine.state === 'read-not-owned' && onToBuy && <p class="series-hint">{t('series.on-to-buy')}</p>}
               <div class="series-actions">
+                {spine.state === 'read-not-owned' && !onToBuy && (
+                  <button class="button button-primary" type="button" disabled={saving} aria-busy={saving ? 'true' : undefined} onClick={() => addToBuy(spine)}>
+                    {t('series.add-to-buy')}
+                  </button>
+                )}
                 {spine.state === 'not-owned' && (
                   <button class="button button-primary" type="button" disabled={saving} aria-busy={saving ? 'true' : undefined} onClick={() => buy(spine)}>
                     {t('tobuy.bought')}
                   </button>
                 )}
-                {spine.state !== 'read' && (
+                {spine.state !== 'read' && spine.state !== 'read-not-owned' && (
                   <button class="button" type="button" disabled={saving} onClick={() => markRead(spine)}>
                     {t('series.mark-read')}
                   </button>

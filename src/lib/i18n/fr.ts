@@ -372,11 +372,14 @@ export const fr: typeof en = {
   'series.missing-on-to-buy': 'Ils sont sur votre liste À acheter.',
   'series.missing-follow': 'Suivez la série pour les voir sur votre liste À acheter.',
   'series.volumes': 'Tomes',
-  'series.spine': (volume, state) => `Tome ${volume} : ${state === 'read' ? 'lu' : state === 'owned' ? 'possédé, non lu' : 'non possédé'}`,
+  'series.spine': (volume, state) =>
+    `Tome ${volume} : ${{ read: 'lu', owned: 'possédé, non lu', 'read-not-owned': 'lu, non possédé', 'not-owned': 'non possédé' }[state]}`,
   'series.drop-suggest': (series) => `Vous avez abandonné un tome de ${series}. Arrêter de suivre la série ?`,
   'series.open': 'Ouvrir la page de la série',
-  'series.state': (state) => (state === 'read' ? 'Lu' : state === 'owned' ? 'Possédé, non lu' : 'Non possédé'),
+  'series.state': (state) => ({ read: 'Lu', owned: 'Possédé, non lu', 'read-not-owned': 'Lu, non possédé', 'not-owned': 'Non possédé' })[state],
   'series.mark-read': 'Marquer lu',
+  'series.add-to-buy': 'Ajouter à À acheter',
+  'series.on-to-buy': 'Sur votre liste À acheter',
   'series.open-book': 'Ouvrir',
 
   // Bibliothèque (src/islands/Library.tsx)

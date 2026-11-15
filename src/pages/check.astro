@@ -1166,8 +1166,8 @@ const answers = [
     gap: 4px 12px;
   }
 
-  /* The spine row of a Missing Volume (as on the Series page): filled = read,
-     outlined = owned not read, dashed grey = not owned. */
+  /* The spine row of a Missing Volume (as on the Series page): filled = owned and read,
+     outlined = owned not read, outlined with the read mark = read not owned, dashed grey = not owned. */
   .answer-spines {
     display: flex;
     flex-wrap: wrap;
@@ -1201,6 +1201,22 @@ const answers = [
 
   .answer-spine[data-state='not-owned'] .answer-spine-bar {
     border: 1.5px dashed var(--off);
+  }
+
+  .answer-spine[data-state='read-not-owned'] .answer-spine-bar {
+    position: relative;
+  }
+
+  .answer-spine[data-state='read-not-owned'] .answer-spine-bar::after {
+    content: '';
+    position: absolute;
+    bottom: 3px;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--ink);
+    transform: translateX(-50%);
   }
 
   /* This book: its number in ink, underlined. */

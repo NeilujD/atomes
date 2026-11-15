@@ -93,11 +93,12 @@ export function earlierAnchor(follow: Follow, library: Library, line: Edition[],
   return before[0]?.isbn;
 }
 
-// filled = read, outlined = owned not read, dashed grey = not owned. A Volume
-// after the latest one owned looks like a Missing Volume; the counts tell them
-// apart. New and Upcoming Volumes (cobalt) need release dates the Catalog does
-// not have yet.
-export type SpineState = 'read' | 'owned' | 'not-owned';
+// filled = owned and read, outlined = owned not read, outlined with the read
+// mark = read not owned (borrowed, given away), dashed grey = not owned. A
+// Volume after the latest one owned looks like a Missing Volume; the counts
+// tell them apart. New and Upcoming Volumes (cobalt) need release dates the
+// Catalog does not have yet.
+export type SpineState = 'read' | 'owned' | 'read-not-owned' | 'not-owned';
 
 export interface Spine {
   volume: number;
@@ -119,13 +120,10 @@ export interface SeriesStanding {
 
 // Where the reader stands in the Volumes of a Series. A Volume is read when
 // the Work of one of its printings is; it can be read and not owned
-// (borrowed): then it is filled on the spine row and still missing.
+// (borrowed): then it is not missing (glossary: Missing Volume).
 export function seriesStanding(volumes: Edition[], library: Library): SeriesStanding {
   const numbered = byVolume(volumes);
-  const owned = numbered.filter(([, printings]) => printings.some((each) => isOwned(each, library))).map(([volume]) => volume);
-  const read = numbered
-    .filter(([, printings]) => printings.some((each) => currentStatus(each.work.id, library) === 'read'))
-    .map(([volume]) => volume);
+  const { owned, read } = ownedAndRead(numbered, library);
   const latest = Math.max(0, ...owned);
   return {
     owned: owned.length,
@@ -134,13 +132,25 @@ export function seriesStanding(volumes: Edition[], library: Library): SeriesStan
     next: numbered.find(([volume]) => volume > latest)?.[0] ?? null,
     spines: numbered.map(([volume, printings]) => ({
       volume,
-      state: read.includes(volume) ? 'read' : owned.includes(volume) ? 'owned' : 'not-owned',
+      state: spineState(owned.includes(volume), read.includes(volume)),
       edition:
         printings.find((each) => isOwned(each, library)) ??
         printings.find((each) => currentStatus(each.work.id, library) === 'read') ??
         printings[0],
     })),
   };
+}
+
+function spineState(owned: boolean, read: boolean): SpineState {
+  if (owned) return read ? 'read' : 'owned';
+  return read ? 'read-not-owned' : 'not-owned';
+}
+
+// The numbers of the Volumes owned (a printing is, isOwned) and read (the Work
+// of a printing is).
+function ownedAndRead(numbered: [number, Edition[]][], library: Library): { owned: number[]; read: number[] } {
+  const having = (rule: (printing: Edition) => boolean) => numbered.filter(([, printings]) => printings.some(rule)).map(([volume]) => volume);
+  return { owned: having((each) => isOwned(each, library)), read: having((each) => currentStatus(each.work.id, library) === 'read') };
 }
 
 // Series cover rule, shared by the Series page and the Library Series mode:
@@ -153,28 +163,30 @@ export function seriesCover<Volume extends Edition>(volumes: Volume[]): Volume |
 }
 
 // The Missing Volumes (glossary) of a Series: numbered Volumes before the
-// latest one the reader owns, of which they own no printing. One Edition per
+// latest one the reader owns, of which they own no printing and read none
+// (a Volume read and not owned is not missing). One Edition per
 // Volume, a single Volume before an omnibus; an omnibus that is the only
 // printing of two Missing Volumes is listed once. A Volume counts as owned by
 // ISBN or by Work (isOwned), so a Copy from another Edition Line of the Series
 // counts too.
 export function missingVolumes(volumes: Edition[], library: Library): Edition[] {
-  return notOwned(volumes, library, true);
+  return notOwnedNorRead(volumes, library, true);
 }
 
-// The numbered Volumes of an Edition Line that the reader does not own (To
-// Buy): the Missing Volumes and every Volume after the latest one owned. A
+// The numbered Volumes of an Edition Line that the reader does not own and has
+// not read (To Buy): the Missing Volumes and every Volume after the latest one
+// owned. A Volume read and not owned goes on To Buy only by hand. A
 // Volume the Catalog lists counts as in shops: it has no release dates yet.
 // One Edition per Volume, as for missingVolumes.
 export function notOwnedVolumes(volumes: Edition[], library: Library): Edition[] {
-  return notOwned(volumes, library, false);
+  return notOwnedNorRead(volumes, library, false);
 }
 
-function notOwned(volumes: Edition[], library: Library, beforeLatest: boolean): Edition[] {
+function notOwnedNorRead(volumes: Edition[], library: Library, beforeLatest: boolean): Edition[] {
   const numbered = byVolume(volumes);
-  const owned = numbered.filter(([, printings]) => printings.some((each) => isOwned(each, library))).map(([volume]) => volume);
+  const { owned, read } = ownedAndRead(numbered, library);
   const latest = beforeLatest ? Math.max(0, ...owned) : Infinity;
-  const listed = numbered.filter(([volume]) => volume < latest && !owned.includes(volume)).map(([, printings]) => printings[0]);
+  const listed = numbered.filter(([volume]) => volume < latest && !owned.includes(volume) && !read.includes(volume)).map(([, printings]) => printings[0]);
   return [...new Set(listed)];
 }
 
