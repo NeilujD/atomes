@@ -340,6 +340,15 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
     expect(volumes.filter((v) => v.volume !== null && v.volume <= 3).map((v) => v.volumes)).toEqual([[1], [1, 2, 3], [2], [3]]);
   });
 
+  test('an omnibus looked up before its single Volumes ends next to them too', async () => {
+    const { catalog } = setup();
+    await answerEdition(catalog, spyFamily1to3);
+
+    const volumes = await volumesOf(catalog, spyFamily16);
+
+    expect(volumes.filter((v) => v.volume !== null && v.volume <= 3).map((v) => v.volumes)).toEqual([[1], [1, 2, 3], [2], [3]]);
+  });
+
   test('BnF lists the omnibus Editions of an omnibus line, each once with all its Volumes', async () => {
     const { catalog } = setup();
 
@@ -693,6 +702,29 @@ describe('Overlapping BnF Series records are separate Edition Lines (ADR 0010, a
     expect(after.volumes.map((v) => v.volume)).toEqual(Array.from({ length: 21 }, (_, i) => i + 1));
     expect(after.volumes[0].isbn).toBe(followed);
     expect(names(after.lines)).toEqual(['Glénat 1993-2008', 'Glénat 2001-2004', 'Glénat 2003-2008']);
+  });
+
+  test('a fill from an omnibus leaves the single-Volume Edition Lines as they are', async () => {
+    const { catalog, file } = setup();
+    const before = await answerOf(catalog, dragonBall1993[2]);
+    // An omnibus "Tomes 1-2" in its own BnF Series record, looked up into the
+    // 1993 line (no Dragon Ball omnibus is recorded), and a week later.
+    const omnibus = '9782723400008';
+    const db = new DatabaseSync(file);
+    db.prepare(
+      `insert into edition (isbn, title, authors, publisher, language, format, work_id, work_title, series, volume, volumes,
+        edition_line, year, bnf_id, sources, fetched_at)
+      select ?, 'Dragon Ball, tomes 1-2', authors, publisher, language, format, 'isbn:' || ?, 'Dragon Ball, tomes 1-2', series, 1, '[1,2]',
+        edition_line, 1995, '99999999', sources, ? from edition where isbn = ?`,
+    ).run(omnibus, omnibus, new Date().toISOString(), before.lines[0].anchor);
+    db.exec('delete from line_fill');
+    db.close();
+
+    await answerOf(catalog, omnibus);
+
+    const after = await answerOf(catalog, dragonBall1993[2], signedOut);
+    expect(names(after.lines)).toEqual(names(before.lines));
+    expect((await answerOf(catalog, after.lines[1].anchor, signedOut)).volumes.map((v) => v.volume)).toEqual(Array.from({ length: 21 }, (_, i) => i + 1));
   });
 
   test('when Inventaire is down during a fill, no Edition moves to the line of its record and the sources rest for an hour', async () => {

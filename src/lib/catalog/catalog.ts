@@ -533,15 +533,18 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     // Overlapping records are separate Edition Lines (amendment 2026-11-14):
     // every Edition of this key moves to the line of its record's group.
     // Editions with no record join the first group; an Edition not listed
-    // keeps a line that is still a group's, else joins the first.
+    // keeps a line that is still a group's, else joins the first. An Edition
+    // of the other kind with a record is in a line of the other kind's groups:
+    // it keeps it, unless it shares the anchor's line, which this fill keys
+    // again; then it goes where an Edition with no record goes.
     const groups = recordGroups(ofKind.map((each) => ({ record: recordOf(each), volumes: each.facts.volumes! })));
     const firstGroup = groups.values().next().value;
     const groupIds = new Set(groups.values());
     const prefix = line.split('|').slice(0, 3).join('|');
     const series = prefix.slice(0, prefix.indexOf('|') + 1);
     // The source data only: a Series Correction lies over it whatever the fill does.
-    type KeyRow = Pick<EditionRow, 'isbn' | 'edition_line' | 'bnf_id'>;
-    const ofKey = (db.prepare('select isbn, edition_line, bnf_id from edition where substr(edition_line, 1, ?) = ?').all(series.length, series) as KeyRow[]).filter(
+    type KeyRow = Pick<EditionRow, 'isbn' | 'edition_line' | 'bnf_id' | 'volumes'>;
+    const ofKey = (db.prepare('select isbn, edition_line, bnf_id, volumes from edition where substr(edition_line, 1, ?) = ?').all(series.length, series) as KeyRow[]).filter(
       (row) => samePrefix(row.edition_line!, prefix) && lineHeight(row.edition_line!) === height,
     );
     // A group keeps the key it has already, under either name of the publisher.
@@ -555,14 +558,18 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       return group ? (keyOf.get(group) ?? lineKey(prefix, height, group)) : line;
     };
     const byIsbn = new Map(ofKind.map((each) => [each.isbn, each]));
+    const movedTo = (row: KeyRow, found: Listed | undefined, record: string | undefined) => {
+      const otherKind = !found && record && omnibus(row.volumes ? (JSON.parse(row.volumes) as number[]) : []) !== omnibus(anchor.volumes);
+      if (otherKind) return row.edition_line === line ? lineFor(undefined) : row.edition_line!;
+      const current = lineRecord(row.edition_line!);
+      return found || (record && groups.has(record)) || !current || !groupIds.has(current) ? lineFor(record) : row.edition_line!;
+    };
     const move = () => {
       for (const row of ofKey) {
         const found = byIsbn.get(row.isbn);
         const record = found ? recordOf(found) : (row.bnf_id ?? undefined);
-        const current = lineRecord(row.edition_line!);
-        const moved = found || (record && groups.has(record)) || !current || !groupIds.has(current) ? lineFor(record) : row.edition_line!;
         db.prepare('update edition set edition_line = ?, year = coalesce(?, year), bnf_id = coalesce(?, bnf_id) where isbn = ?').run(
-          moved,
+          movedTo(row, found, record),
           found?.year ?? null,
           record ?? null,
           row.isbn,
