@@ -538,14 +538,13 @@ export const en = {
   'select.unchanged': 'Nothing to change.',
   'select.undone': 'Undone.',
 
-  // Privacy notice (src/pages/privacy.astro, CORE-55). DRAFT: the owner approves
-  // this text. Words in [BRACKETS] are facts of the instance still to fill in.
+  // Privacy notice (src/pages/privacy.astro, CORE-55), approved by the owner on
+  // 2026-11-16. A change to it needs the owner's approval and a new date.
   'privacy.title': 'Privacy notice',
-  'privacy.draft': 'Draft: the owner of this instance has not approved this text yet.',
   'privacy.intro': 'This page tells what this Atomes instance keeps about you, who can read it, and how to take it with you or delete it.',
   'privacy.operator-heading': 'Who is responsible',
   'privacy.operator':
-    'This instance is run by [OPERATOR NAME]. The operator is the data controller for what the instance keeps. Contact: [OPERATOR CONTACT].',
+    'This instance is run by Julien Collard. The operator is the data controller for what the instance keeps. Contact: julien.collard14@gmail.com.',
   'privacy.stores-heading': 'What the instance keeps',
   'privacy.stores':
     'Your Account: an email address, the AT Protocol account you linked, or both. Your Library: Copies, Loans, Reading Statuses, Labels, Followed Series and To Buy. Your sharing choices. Your sessions, so you stay signed in. A Series Correction you make keeps your Account as its author.',
@@ -556,7 +555,7 @@ export const en = {
     'You, and the operator of this instance, who can read every Library it keeps. Nobody else, except what you share. To keep your Library from any operator, run your own instance.',
   'privacy.processors-heading': 'Who helps',
   'privacy.processors':
-    'Scaleway (Transactional Email, Paris, France) sends your Sign-in Codes: it receives your email address and the code, for this only. Every hour, an encrypted copy of the Library is sent to [BACKUP STORAGE] and kept for 30 days.',
+    'Scaleway (Transactional Email, Paris, France) sends your Sign-in Codes: it receives your email address and the code, for this only. Every hour, an encrypted copy of the Library is sent to Cloudflare R2 (Cloudflare, Inc.), in the EU jurisdiction, and kept for 30 days.',
   'privacy.shared-heading': 'What you share',
   'privacy.shared':
     'Shared records (Reading Statuses, Followed Series, Labels) go to your AT Protocol account, where anyone can read them. Nothing is Shared until you turn it on. Copies, Loans and To Buy are never Shared.',
@@ -565,7 +564,7 @@ export const en = {
     'The instance keeps this data to give you the service you asked for: your Library on all your devices. It never sells it and never uses it for advertising.',
   'privacy.rights-heading': 'Take it with you, or delete it',
   'privacy.rights':
-    'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account. The encrypted backups still hold it for up to 30 days. For any other request, write to [OPERATOR CONTACT].',
-  'privacy.updated': 'Last change: [DATE OF APPROVAL].',
+    'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account. The encrypted backups still hold it for up to 30 days. For any other request, write to julien.collard14@gmail.com.',
+  'privacy.updated': 'Last change: 16 November 2026.',
   'privacy.back': 'Back to Atomes',
 };

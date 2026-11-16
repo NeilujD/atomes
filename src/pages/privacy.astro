@@ -23,7 +23,6 @@ const sections = [
 <AppShell title={t('privacy.title')} flow>
   <article class="notice" aria-labelledby="privacy-title">
     <h1 class="title" id="privacy-title">{t('privacy.title')}</h1>
-    <p class="draft">{t('privacy.draft')}</p>
     <p>{t('privacy.intro')}</p>
     {
       sections.map(({ heading, texts }) => (
@@ -56,13 +55,6 @@ const sections = [
     letter-spacing: -0.03em;
   }
 
-  .draft {
-    padding: 8px 12px;
-    border-radius: var(--radius-control);
-    background: var(--soft);
-    font-size: 14px;
-    font-weight: 600;
-  }
 
   section {
     display: flex;

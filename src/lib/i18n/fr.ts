@@ -537,12 +537,11 @@ export const fr: typeof en = {
   'select.undone': 'Annulé.',
 
   'privacy.title': 'Politique de confidentialité',
-  'privacy.draft': 'Brouillon : le propriétaire de cette instance n’a pas encore validé ce texte.',
   'privacy.intro':
     'Cette page dit ce que cette instance Atomes garde sur vous, qui peut le lire, et comment l’emporter ou l’effacer.',
   'privacy.operator-heading': 'Qui est responsable',
   'privacy.operator':
-    'Cette instance est gérée par [NOM DE L’OPÉRATEUR]. L’opérateur est responsable du traitement des données que l’instance garde. Contact : [CONTACT DE L’OPÉRATEUR].',
+    'Cette instance est gérée par Julien Collard. L’opérateur est responsable du traitement des données que l’instance garde. Contact : julien.collard14@gmail.com.',
   'privacy.stores-heading': 'Ce que l’instance garde',
   'privacy.stores':
     'Votre compte : une adresse e-mail, le compte AT Protocol que vous avez lié, ou les deux. Votre bibliothèque : exemplaires, prêts, statuts de lecture, étiquettes, séries suivies et liste À acheter. Vos choix de partage. Vos sessions, pour rester connecté. Une correction de série que vous faites garde votre compte comme auteur.',
@@ -553,7 +552,7 @@ export const fr: typeof en = {
     'Vous, et l’opérateur de cette instance, qui peut lire toutes les bibliothèques qu’elle garde. Personne d’autre, sauf ce que vous partagez. Pour garder votre bibliothèque hors de portée de tout opérateur, hébergez votre propre instance.',
   'privacy.processors-heading': 'Qui aide',
   'privacy.processors':
-    'Scaleway (service Transactional Email, Paris, France) envoie vos codes de connexion : il reçoit votre adresse e-mail et le code, pour cela seulement. Chaque heure, une copie chiffrée de la bibliothèque part vers [STOCKAGE DES SAUVEGARDES] et y reste 30 jours.',
+    'Scaleway (service Transactional Email, Paris, France) envoie vos codes de connexion : il reçoit votre adresse e-mail et le code, pour cela seulement. Chaque heure, une copie chiffrée de la bibliothèque part vers Cloudflare R2 (Cloudflare, Inc.), dans la juridiction UE, et y reste 30 jours.',
   'privacy.shared-heading': 'Ce que vous partagez',
   'privacy.shared':
     'Les enregistrements partagés (statuts de lecture, séries suivies, étiquettes) vont sur votre compte AT Protocol, où tout le monde peut les lire. Rien n’est partagé tant que vous ne l’activez pas. Les exemplaires, les prêts et la liste À acheter ne sont jamais partagés.',
@@ -562,7 +561,7 @@ export const fr: typeof en = {
     'L’instance garde ces données pour vous rendre le service que vous avez demandé : votre bibliothèque sur tous vos appareils. Elle ne les vend jamais et ne s’en sert jamais pour de la publicité.',
   'privacy.rights-heading': 'L’emporter, ou l’effacer',
   'privacy.rights':
-    'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés. Les sauvegardes chiffrées la gardent encore 30 jours au plus. Pour toute autre demande, écrivez à [CONTACT DE L’OPÉRATEUR].',
-  'privacy.updated': 'Dernière modification : [DATE DE VALIDATION].',
+    'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés. Les sauvegardes chiffrées la gardent encore 30 jours au plus. Pour toute autre demande, écrivez à julien.collard14@gmail.com.',
+  'privacy.updated': 'Dernière modification : 16 novembre 2026.',
   'privacy.back': 'Retour à Atomes',
 };
