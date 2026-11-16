@@ -4,13 +4,15 @@
 // records; pass `lexiconRules` for the server's real check.
 import { handleLibraryRequest, libraryPath, type RecordRules } from '../server/library-api';
 import { createLibraryStore } from '../server/library-store';
+import { openDatabase } from '../server/migrate';
+import { librarySteps } from '../server/migrations';
 import type { FetchHandler } from './space';
 import type { FakeStoreServer } from './store-server.fake';
 
 const anyRecord: RecordRules = { isCollection: () => true, assertValid: () => {} };
 
 export function fakeInstance(owner: string, rules: RecordRules = anyRecord): FakeStoreServer & { calls: string[] } {
-  const store = createLibraryStore(':memory:');
+  const store = createLibraryStore(openDatabase(':memory:', librarySteps));
   const calls: string[] = [];
   const writes: string[] = [];
   const network: FakeStoreServer['network'] = { online: true };

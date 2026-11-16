@@ -1,13 +1,10 @@
-// The schema of the Catalog file, one step per change. Reader records hold
-// `atomes:` identifiers that this file minted (ADR 0010), so the file is not a
-// cache that can be thrown away: change the schema with a new step at the end
-// of `steps`, never by editing a step that has run. `pragma user_version`
-// counts the steps a file has run; each step runs in one transaction.
-import type { DatabaseSync } from 'node:sqlite';
+// The schema of the Catalog file, one step per change (server/migrate.ts).
+// Reader records hold `atomes:` identifiers that this file minted (ADR 0010),
+// so the file is not a cache that can be thrown away: change the schema with a
+// new step at the end of `catalogSteps`, never by editing a step that has run.
+import type { Step } from '../server/migrate';
 import { key } from './facts';
 import { bookHeight, placeLine } from './lines';
-
-type Step = (db: DatabaseSync) => void;
 
 // Catalog v0 (CORE-27, CORE-31). Files made before steps existed have
 // user_version 0 and these tables already.
@@ -240,7 +237,7 @@ const seriesCorrections: Step = (db) =>
   `);
 
 // Add a step at the end; never edit or remove one.
-const steps: Step[] = [
+export const catalogSteps: readonly Step[] = [
   catalogV0,
   sameAs,
   omnibusVolumes,
@@ -251,26 +248,3 @@ const steps: Step[] = [
   lineRecords,
   seriesCorrections,
 ];
-
-export function migrate(db: DatabaseSync): void {
-  const { user_version: done } = db.prepare('pragma user_version').get() as { user_version: number };
-  for (let i = done; i < steps.length; i++) {
-    inTransaction(db, () => {
-      steps[i](db);
-      db.exec(`pragma user_version = ${i + 1}`);
-    });
-  }
-}
-
-// All of `run` is written, or nothing.
-export function inTransaction<T>(db: DatabaseSync, run: () => T): T {
-  db.exec('begin');
-  try {
-    const result = run();
-    db.exec('commit');
-    return result;
-  } catch (error) {
-    db.exec('rollback');
-    throw error;
-  }
-}

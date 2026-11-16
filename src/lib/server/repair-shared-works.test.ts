@@ -8,6 +8,8 @@ import { copyCollection } from '../library/copy';
 import { labelCollection } from '../library/label';
 import { readingStatusCollection } from '../library/reading-status';
 import { createLibraryStore } from './library-store';
+import { openDatabase } from './migrate';
+import { librarySteps } from './migrations';
 import { publicRepo } from './public-repo';
 import { fakePublicRepo } from './public-repo.fake';
 import { collections, planRepair, repairSharedWorks, type ReaderRecords } from './repair-shared-works';
@@ -135,10 +137,10 @@ describe('the repair script on an instance', () => {
     await catalog.lookup(volume2);
     await catalog.lookup(volume3);
     catalog.close();
-    const library = createLibraryStore(join(dir, 'library.sqlite'));
+    const library = createLibraryStore(openDatabase(join(dir, 'library.sqlite'), librarySteps));
     const pds = fakePublicRepo(owner);
     const sharing = createSharing({
-      file: join(dir, 'library.sqlite'),
+      db: openDatabase(join(dir, 'library.sqlite'), librarySteps),
       library,
       access: { repoOf: () => Promise.resolve(publicRepo(pds.handler, owner)) },
     });

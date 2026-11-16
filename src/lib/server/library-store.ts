@@ -3,7 +3,7 @@
 // One generic table that mirrors atproto (DID, collection, record key, value),
 // so the move to Spaces is a copy. Every call is limited to one reader's DID.
 // Never logs a record value.
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 
 export interface StoredRecord {
   rkey: string;
@@ -50,30 +50,8 @@ export interface LibraryStore {
 // A device that has not synced for this long lists everything again.
 const tombstoneDays = 30;
 
-// `rev` grows with each write of a reader: a device asks for the records
-// changed since the last `rev` it has (ADR 0012). `purged` keeps, per reader,
-// the newest rev of a purged tombstone.
-const schema = `
-  create table if not exists record (
-    did text not null,
-    collection text not null,
-    rkey text not null,
-    value text,
-    rev integer not null,
-    updated_at text not null,
-    deleted integer not null default 0,
-    primary key (did, collection, rkey)
-  );
-  create index if not exists record_rev on record (did, rev);
-  create table if not exists purged (
-    did text primary key,
-    rev integer not null
-  );
-`;
-
-export function createLibraryStore(file: string, now: () => Date = () => new Date()): LibraryStore {
-  const db = new DatabaseSync(file);
-  db.exec(schema);
+// `db` has run `librarySteps` (migrations.ts). The store closes it.
+export function createLibraryStore(db: DatabaseSync, now: () => Date = () => new Date()): LibraryStore {
 
   const purgedRev = (did: string) => (db.prepare('select rev from purged where did = ?').get(did) as { rev: number } | undefined)?.rev ?? 0;
   // A purge never takes the rev back.

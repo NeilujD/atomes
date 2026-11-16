@@ -17,8 +17,8 @@
 // the Shared categories and the Works kept Private inside them. Each call is
 // limited to one reader's DID; nothing here takes a DID from a request.
 // Never logs a record value.
-import { DatabaseSync } from 'node:sqlite';
-import { inTransaction } from '../catalog/migrations';
+import type { DatabaseSync } from 'node:sqlite';
+import { inTransaction } from './migrate';
 import { categories, categoryNames, type Category, type SharingState } from '../sharing/categories';
 import type { LibraryStore } from './library-store';
 import type { PublicRepo } from './public-repo';
@@ -56,22 +56,6 @@ export interface Sharing {
   recordChanged(did: string, collection: string, rkey: string): Promise<void>;
   close(): void;
 }
-
-const schema = `
-  create table if not exists shared_category (
-    did text not null,
-    category text not null,
-    primary key (did, category)
-  );
-  create table if not exists private_work (
-    did text not null,
-    work text not null,
-    primary key (did, work)
-  );
-  create table if not exists sharing_pending (
-    did text primary key
-  );
-`;
 
 const categoryOf = (collection: string) => categoryNames.find((category) => categories[category] === collection);
 
@@ -113,9 +97,9 @@ export function logFailure(step: string, error: unknown) {
   console.warn(`Sharing ${step} failed: ${name}`);
 }
 
-export function createSharing({ file, library, access }: { file: string; library: LibraryStore; access: RepoAccess }): Sharing {
-  const db = new DatabaseSync(file);
-  db.exec(schema);
+// `db` is a connection to `library.sqlite` that has run `librarySteps`
+// (migrations.ts). Sharing closes it.
+export function createSharing({ db, library, access }: { db: DatabaseSync; library: LibraryStore; access: RepoAccess }): Sharing {
 
   const sharedOf = (did: string) => {
     const rows = db.prepare('select category from shared_category where did = ?').all(did) as { category: string }[];

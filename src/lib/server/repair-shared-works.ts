@@ -135,7 +135,7 @@ export function repairSharedWorks(dataDir: string, options: { dryRun: boolean })
   if (dropped.size === 0 || !existsSync(libraryFile)) return [];
 
   const db = new DatabaseSync(libraryFile);
-  const store = createLibraryStore(libraryFile);
+  const store = createLibraryStore(new DatabaseSync(libraryFile));
   try {
     // Wait for a write of the running server rather than fail.
     db.exec('pragma busy_timeout = 5000');

@@ -4,7 +4,7 @@
 //   with SESSION_ENCRYPTION_KEY, never in plain text.
 // - Browser sessions: the cookie value is stored only as its SHA-256 hash.
 import { createHash, randomBytes } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 import type { SecretBox } from './secret-box';
 
 // The store shape that `@atproto/oauth-client-node` asks for (`SimpleStore`).
@@ -49,38 +49,17 @@ const stateLifetimeMs = 3600 * 1000;
 // for a new sign-in after this.
 export const browserSessionLifetimeMs = 180 * 24 * 3600 * 1000;
 
-const schema = `
-  create table if not exists oauth_state (
-    key text primary key,
-    sealed text not null,
-    created_at integer not null
-  );
-  create table if not exists oauth_session (
-    did text primary key,
-    sealed text not null,
-    updated_at integer not null
-  );
-  create table if not exists browser_session (
-    token_hash text primary key,
-    did text not null,
-    handle text not null,
-    expires_at integer not null
-  );
-  create index if not exists browser_session_did on browser_session (did);
-`;
-
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export function createAuthStore(options: {
-  file: string;
+  // Has run `authSteps` (migrations.ts). The store closes it.
+  db: DatabaseSync;
   box: SecretBox;
   allowedDids: ReadonlySet<string>;
   now?: () => number;
 }): AuthStore {
-  const { box, allowedDids } = options;
+  const { db, box, allowedDids } = options;
   const now = options.now ?? Date.now;
-  const db = new DatabaseSync(options.file);
-  db.exec(schema);
 
   function sealed<T>(table: 'oauth_state' | 'oauth_session', keyColumn: 'key' | 'did', allow: (key: string) => void) {
     const timeColumn = table === 'oauth_state' ? 'created_at' : 'updated_at';

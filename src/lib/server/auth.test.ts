@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { callback, session, sessionCookie, signIn, signInAs, signOut, type AuthDeps, type OAuthPort } from './auth';
 import { createAuthStore, NotAllowedError, type AuthStore } from './auth-store';
+import { openDatabase } from './migrate';
+import { authSteps } from './migrations';
 import { secretBox } from './secret-box';
 
 const owner = 'did:plc:owner';
@@ -50,7 +52,7 @@ let revoked: string[];
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'atomes-auth-'));
   file = join(dir, 'auth.sqlite');
-  store = createAuthStore({ file, box: secretBox(randomBytes(32)), allowedDids: new Set([owner]) });
+  store = createAuthStore({ db: openDatabase(file, authSteps), box: secretBox(randomBytes(32)), allowedDids: new Set([owner]) });
   const fake = fakeOAuth(store);
   revoked = fake.revoked;
   deps = { oauth: fake.oauth, store, appOrigin: app };
@@ -135,7 +137,7 @@ describe('sign-in', () => {
   test('a DID taken off the list loses its open browser session', async () => {
     const cookie = cookieOf(await back(owner));
     store.close();
-    store = createAuthStore({ file, box: secretBox(randomBytes(32)), allowedDids: new Set() });
+    store = createAuthStore({ db: openDatabase(file, authSteps), box: secretBox(randomBytes(32)), allowedDids: new Set() });
 
     expect(session(withCookie('/api/session', cookie), { store }).status).toBe(401);
   });

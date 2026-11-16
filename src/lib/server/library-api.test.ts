@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { handleLibraryRequest, lexiconRules } from './library-api';
 import { createLibraryStore, type LibraryStore } from './library-store';
+import { openDatabase } from './migrate';
+import { librarySteps } from './migrations';
 
 const owner = 'did:plc:owner';
 const other = 'did:plc:other';
@@ -18,7 +20,7 @@ const status = (state: string) => ({
 let store: LibraryStore;
 
 beforeEach(() => {
-  store = createLibraryStore(':memory:');
+  store = createLibraryStore(openDatabase(':memory:', librarySteps));
 });
 
 afterEach(() => {
@@ -221,7 +223,7 @@ describe('sync', () => {
   test('after the tombstones are purged, a device with an older rev lists everything', async () => {
     let now = new Date('2026-11-01T00:00:00Z');
     store.close();
-    store = createLibraryStore(':memory:', () => now);
+    store = createLibraryStore(openDatabase(':memory:', librarySteps), () => now);
     await call(owner, 'PUT', `${collection}/a`, status('read'));
     const seen = await revOf(call(owner, 'PUT', `${collection}/b`, status('read')));
     await call(owner, 'DELETE', `${collection}/a`);

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createLibraryStore, type LibraryStore } from './library-store';
+import { openDatabase } from './migrate';
+import { librarySteps } from './migrations';
 import { publicRepo } from './public-repo';
 import { fakePublicRepo, type FakePublicRepo } from './public-repo.fake';
 import { createSharing, type Sharing } from './sharing';
@@ -16,12 +18,12 @@ let unreachable: boolean;
 let sharing: Sharing;
 
 beforeEach(() => {
-  library = createLibraryStore(':memory:');
+  library = createLibraryStore(openDatabase(':memory:', librarySteps));
   pds = new Map([owner, other].map((did) => [did, fakePublicRepo(did)]));
   noConsent = new Set();
   unreachable = false;
   sharing = createSharing({
-    file: ':memory:',
+    db: openDatabase(':memory:', librarySteps),
     library,
     access: {
       repoOf: (did) => {

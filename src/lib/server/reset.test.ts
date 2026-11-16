@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createLibraryStore } from './library-store';
+import { openDatabase } from './migrate';
+import { authSteps, librarySteps } from './migrations';
 import { publicRepo } from './public-repo';
 import { fakePublicRepo } from './public-repo.fake';
 import { emptyDatabases, resetRefusal } from './reset';
@@ -50,12 +52,25 @@ describe('emptyDatabases', () => {
     expect(state('catalog.sqlite')).toEqual({ rows: 0, version: 3 });
   });
 
+  test('keeps the migration version of library.sqlite and auth.sqlite', () => {
+    openDatabase(join(dir, 'library.sqlite'), librarySteps).close();
+    openDatabase(join(dir, 'auth.sqlite'), authSteps).close();
+
+    emptyDatabases(dir, { keepCatalog: true });
+
+    for (const name of ['library.sqlite', 'auth.sqlite']) {
+      const db = new DatabaseSync(join(dir, name));
+      expect(db.prepare('pragma user_version').get()).toEqual({ user_version: 1 });
+      db.close();
+    }
+  });
+
   test("empties the reader's sharing choices with the Library: Shared categories, Private Works, pending", async () => {
     const file = join(dir, 'library.sqlite');
     const did = 'did:plc:owner';
-    const library = createLibraryStore(file);
+    const library = createLibraryStore(openDatabase(file, librarySteps));
     const pds = fakePublicRepo(did);
-    const sharing = createSharing({ file, library, access: { repoOf: () => Promise.resolve(publicRepo(pds.handler, did)) } });
+    const sharing = createSharing({ db: openDatabase(file, librarySteps), library, access: { repoOf: () => Promise.resolve(publicRepo(pds.handler, did)) } });
     await sharing.setShared(did, 'labels', true);
     pds.network.online = false;
     await sharing.setPrivate(did, 'wd:Q1', true);

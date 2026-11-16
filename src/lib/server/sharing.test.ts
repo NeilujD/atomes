@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createLibraryStore, type LibraryStore } from './library-store';
+import { openDatabase } from './migrate';
+import { librarySteps } from './migrations';
 import { fakePublicRepo, type FakePublicRepo } from './public-repo.fake';
 import { publicRepo } from './public-repo';
 import { createSharing, NeedsConsentError, type Sharing } from './sharing';
@@ -24,11 +26,11 @@ let noConsent: Set<string>;
 let sharing: Sharing;
 
 beforeEach(() => {
-  library = createLibraryStore(':memory:');
+  library = createLibraryStore(openDatabase(':memory:', librarySteps));
   pds = new Map([owner, other].map((did) => [did, fakePublicRepo(did)]));
   noConsent = new Set();
   sharing = createSharing({
-    file: ':memory:',
+    db: openDatabase(':memory:', librarySteps),
     library,
     access: {
       repoOf: (did) => Promise.resolve(noConsent.has(did) ? undefined : publicRepo(pds.get(did)!.handler, did)),
@@ -295,7 +297,7 @@ describe('a change the PDS did not get', () => {
 });
 
 test('a record change never rejects, even when the sharing tables fail', async () => {
-  const broken = createSharing({ file: ':memory:', library, access: { repoOf: () => Promise.resolve(undefined) } });
+  const broken = createSharing({ db: openDatabase(':memory:', librarySteps), library, access: { repoOf: () => Promise.resolve(undefined) } });
   broken.close();
 
   await expect(broken.recordChanged(owner, 'app.atomes.readingStatus', onePiece)).resolves.toBeUndefined();

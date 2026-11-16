@@ -21,7 +21,8 @@ import {
   sameSize,
   type LineName,
 } from './lines';
-import { inTransaction, migrate } from './migrations';
+import { inTransaction, migrate } from '../server/migrate';
+import { catalogSteps } from './migrations';
 import { dropSharedWorks, losesWork } from './shared-works';
 import { shownEditions } from './shown';
 import type { Publisher, SourceFetch } from './sources';
@@ -242,7 +243,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   const db = new DatabaseSync(options.file);
   // WAL: the hourly backup reads a snapshot while the server keeps writing (docs/backups.md).
   db.exec('pragma journal_mode = wal');
-  migrate(db);
+  migrate(db, catalogSteps);
 
   const editionRow = (isbn: string) => db.prepare(`${selectEdition} where edition.isbn = ?`).get(isbn) as EditionRow | undefined;
   const age = (iso: string) => now().getTime() - Date.parse(iso);
