@@ -54,15 +54,15 @@ export function accountStore(): Accounts {
 
 export function authDeps(): Promise<AuthDeps & { client: NodeOAuthClient }> {
   auth ??= (async () => {
-    const { allowedDids, appOrigin, sessionKey } = settings();
-    const store = createAuthStore({ db: open('auth.sqlite'), box: secretBox(sessionKey), allowedDids, accounts: accountStore() });
+    const { appOrigin, sessionKey } = settings();
+    const store = createAuthStore({ db: open('auth.sqlite'), box: secretBox(sessionKey) });
     const client = await createOAuthClient(settings(), store);
     // Signed in again: send what waited for the session (sharing.ts).
     const onSignedIn = (account: AccountId) =>
       sharingService()
         .then((sharing) => sharing.signedIn(account))
         .catch((error: unknown) => logFailure('after sign-in', error));
-    return { oauth: oauthPort(client, allowedDids), store, accounts: accountStore(), appOrigin, client, onSignedIn };
+    return { oauth: oauthPort(client), store, accounts: accountStore(), appOrigin, client, onSignedIn };
   })();
   return auth;
 }

@@ -59,7 +59,8 @@ export const fr: typeof en = {
   'auth.signed-out-server-unreached':
     'Déconnecté sur cet appareil. Le serveur Atomes n’a pas pu être joint pour y fermer la session.',
   'auth.cancelled': 'La connexion a été annulée.',
-  'auth.not-allowed': 'Ce compte ne peut pas se connecter à ce serveur Atomes. Demandez à son propriétaire de l’ajouter.',
+  'auth.no-invite': 'Il vous faut une Invitation pour créer un compte sur ce serveur Atomes. Demandez-en une à son propriétaire.',
+  'auth.invite-used': 'Cette Invitation a déjà servi ou a expiré. Demandez-en une nouvelle au propriétaire de ce serveur Atomes.',
   'error.server-refused-request': (detail) => `Le serveur Atomes a refusé la requête : ${detail}`,
   'auth.session-ended': 'Votre session est terminée. Reconnectez-vous.',
   'auth.no-account': 'Aucun compte trouvé pour cet identifiant. Vérifiez l’orthographe.',
@@ -80,6 +81,7 @@ export const fr: typeof en = {
   'auth.account-deleted': 'Votre compte est supprimé.',
   'auth.account-deleted-shared-left':
     'Votre compte est supprimé, mais Atomes n’a pas pu joindre votre compte AT Protocol : vos enregistrements partagés (statuts de lecture, séries suivies, étiquettes) y sont encore. Supprimez-y les enregistrements app.atomes avec un outil AT Protocol, ou demandez-le à l’opérateur de cette instance.',
+  'signin.invite-kept': 'Invitation gardée. Connectez-vous pour créer votre compte.',
   'signout.title': 'Se déconnecter de cet appareil ?',
   'signout.text': 'Atomes efface votre bibliothèque de cet appareil. Les enregistrements encore en attente sont perdus.',
   'signout.cancel': 'Annuler',

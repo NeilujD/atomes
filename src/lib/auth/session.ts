@@ -89,7 +89,7 @@ export async function signOut(
 // What the server tells after a failed sign-in, as `?auth=` on the sign-in
 // screen (SignInResult in src/lib/server/auth.ts). Undefined for an unknown value.
 const results: Partial<Record<string, () => string>> = {
-  'not-allowed': () => t('auth.not-allowed'),
+  'no-invite': () => t('auth.no-invite'),
   cancelled: () => t('auth.cancelled'),
   'no-account': () => t('auth.no-account'),
   unreachable: () => t('auth.pds-unreachable'),
@@ -101,6 +101,22 @@ const results: Partial<Record<string, () => string>> = {
 
 export function signInResultMessage(result: string | null): string | undefined {
   return result === null ? undefined : results[result]?.();
+}
+
+// The Invite of an Invite link (`/sign-in#invite=<token>`): the server keeps
+// it in a cookie for the sign-in that follows. Gives what the screen tells.
+export async function keepInvite(fetch: (input: string, init?: RequestInit) => Promise<Response>, invite: string): Promise<string> {
+  try {
+    const response = await fetch('/api/invite', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ invite }),
+      credentials: 'same-origin',
+    });
+    return response.ok ? t('signin.invite-kept') : t('auth.invite-used');
+  } catch (error) {
+    return errorMessage(error);
+  }
 }
 
 export function errorMessage(error: unknown): string {

@@ -13,6 +13,7 @@ import { fakePublicRepo } from './public-repo.fake';
 import { publicRepo } from './public-repo';
 import { createAccounts, type AccountId, type Accounts, type Did } from './accounts';
 import { handleAccountRequest } from './account-data';
+import { makeInvite } from './invites';
 import { readerOf, sessionCookie, signInAs } from './auth';
 import { createAuthStore, type AuthStore } from './auth-store';
 import { createLibraryStore, type LibraryStore } from './library-store';
@@ -45,15 +46,10 @@ let repoOf: RepoAccess['repoOf'];
 function open() {
   repoOf = () => Promise.resolve(undefined);
   const access: RepoAccess = { repoOf: (did) => repoOf(did) };
-  catalog = createCatalog({ file: join(dir, 'catalog.sqlite'), fetch: () => Promise.reject(new TypeError('offline')), host: 'catalog.test' });
   const file = join(dir, 'library.sqlite');
   accounts = createAccounts(openDatabase(file, librarySteps));
-  auth = createAuthStore({
-    db: openDatabase(join(dir, 'auth.sqlite'), authSteps(accounts)),
-    box: secretBox(randomBytes(32)),
-    allowedDids: new Set([alice, bob]),
-    accounts,
-  });
+  catalog = createCatalog({ file: join(dir, 'catalog.sqlite'), fetch: () => Promise.reject(new TypeError('offline')), host: 'catalog.test', accounts });
+  auth = createAuthStore({ db: openDatabase(join(dir, 'auth.sqlite'), authSteps(accounts)), box: secretBox(randomBytes(32)) });
   library = createLibraryStore(openDatabase(file, librarySteps));
   sharing = createSharing({ db: openDatabase(file, librarySteps), library, access, didOf: (account) => accounts.identitiesOf(account).did });
 }
@@ -73,7 +69,7 @@ afterEach(() => {
 });
 
 function signedIn(did: Did): string {
-  const response = signInAs(new Request(`${app}/dev/sign-in-as?did=${encodeURIComponent(did)}`), { store: auth }, new Set([alice, bob]));
+  const response = signInAs(new Request(`${app}/dev/sign-in-as?did=${encodeURIComponent(did)}`), { store: auth, accounts });
   return /atomes_session=([^;]*)/.exec(response.headers.get('set-cookie')!)![1];
 }
 
@@ -134,10 +130,13 @@ function rowsHolding(values: readonly string[]): string[] {
   return found;
 }
 
-// What alice has on the instance: records, Shared choices, an email address,
-// an OAuth session, and Series Corrections under her Account and, from before
-// Accounts, under her DID.
+// What alice has on the instance: the Invite she signed up with, records,
+// Shared choices, an email address, an OAuth session, and a Series Correction.
 async function aliceEverywhere() {
+  const invites = new DatabaseSync(join(dir, 'library.sqlite'));
+  const { token: invite } = makeInvite(invites);
+  invites.close();
+  accounts.signIn(alice, invite);
   const a = signedIn(alice);
   const b = signedIn(bob);
   const account = accounts.ofDid(alice);
@@ -155,15 +154,14 @@ async function aliceEverywhere() {
     "insert into series_correction (isbn, anchor, volume, account, created_at) values (?, '9782723478991', 1, ?, '2026-11-16T10:00:00.000Z')",
   );
   correct.run('9780000000001', account);
-  correct.run('9780000000002', alice);
   correct.run('9780000000003', accounts.ofDid(bob));
   corrections.close();
   expect(rowsHolding([account, email, alice]).length).toBeGreaterThan(0);
-  return { a, b, account, email };
+  return { a, b, account, email, invite };
 }
 
 test('after a delete, no row of any table holds the Account ID, the email address or the DID; the other reader keeps everything', async () => {
-  const { a, b, account, email } = await aliceEverywhere();
+  const { a, b, account, email, invite } = await aliceEverywhere();
   const bobBefore = (await (await request(b, 'GET', '/api/account/export')).json()) as object;
 
   const response = await request(a, 'POST', '/api/account/delete');
@@ -173,9 +171,10 @@ test('after a delete, no row of any table holds the Account ID, the email addres
   expect(rowsHolding([account, email, alice])).toEqual([]);
   expect(readerOf(new Request(app, { headers: { cookie: `${sessionCookie}=${a}` } }), { store: auth })).toBeUndefined();
   expect({ ...((await (await request(b, 'GET', '/api/account/export')).json()) as object), exportedAt: 0 }).toEqual({ ...bobBefore, exportedAt: 0 });
-  // The Corrections stay: other readers use them.
-  expect(catalog.correctionAccount('9780000000001')).toBe('');
-  expect(catalog.correctionAccount('9780000000002')).toBe('');
+  // The Invite stays used: nobody signs up with it again.
+  expect(accounts.inviteIsOpen(invite)).toBe(false);
+  // The Corrections stay, with no author: other readers use them.
+  expect(catalog.correctionAccount('9780000000001')).toBeUndefined();
   expect(catalog.correctionAccount('9780000000003')).toBe(accounts.ofDid(bob));
 });
 

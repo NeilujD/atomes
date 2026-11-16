@@ -2,8 +2,10 @@
 // The sign-in screen (ADR 0013, amendment 2026-11-12): every other app screen
 // sends a visitor with no session here (the gate in AppShell), with the screen
 // asked as `?next=`. A Flow screen (ui-direction): no sidebar or tab bar.
-// The server sends a failed sign-in back here with `?auth=<result>`. The
-// service worker keeps this page by path: the script reads the query.
+// The server sends a failed sign-in back here with `?auth=<result>`. An Invite
+// link opens it as `/sign-in#invite=<token>`: the fragment never reaches a
+// server, and the script sends the token to /api/invite, then drops it from
+// the address. The service worker keeps this page by path: the script reads the query.
 import Mark from '../components/Mark.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
@@ -42,19 +44,23 @@ const t = translator(requestLanguage(Astro.request));
 <script>
   import { returnTarget } from '../lib/auth/return-to';
   import { createAuthClient } from '../lib/auth/server-client';
-  import { loadSession, signIn, signInResultMessage } from '../lib/auth/session';
+  import { keepInvite, loadSession, signIn, signInResultMessage } from '../lib/auth/session';
 
   const form = document.querySelector<HTMLFormElement>('[data-sign-in]')!;
   const handleInput = form.querySelector<HTMLInputElement>('input[name="handle"]')!;
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const error = document.querySelector<HTMLElement>('[data-error]')!;
 
-  // `?auth=` is read once, then dropped from the address, so a reload does not show it again.
+  // `?auth=` and `#invite=` are read once, then dropped from the address, so a
+  // reload does not show them again and the Invite is in no history entry.
   const url = new URL(location.href);
   const result = url.searchParams.get('auth');
+  const invite = new URLSearchParams(url.hash.slice(1)).get('invite');
   const next = returnTarget(url.searchParams.get('next'));
   url.searchParams.delete('auth');
+  url.hash = '';
   history.replaceState(history.state, '', url);
+  const inviteSaid = invite ? keepInvite((input, init) => fetch(input, init), invite) : Promise.resolve(undefined);
 
   function say(message: string | undefined) {
     error.textContent = message ?? '';
@@ -68,9 +74,9 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   // Signed in already (on this device, or offline with a saved account): back to the screen asked.
-  void loadSession(createAuthClient()).then((state) => {
+  void Promise.all([loadSession(createAuthClient()), inviteSaid]).then(([state, inviteMessage]) => {
     if (state.status === 'signed-in') return location.replace(next);
-    say(state.message ?? signInResultMessage(result));
+    say(state.message ?? inviteMessage ?? signInResultMessage(result));
   });
 
   form.addEventListener('submit', (event) => {

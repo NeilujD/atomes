@@ -23,7 +23,7 @@ export interface AccountDataDeps {
   // Ends the OAuth session of the DID on its PDS and here (OAuthPort.revoke).
   revoke: (did: Did) => Promise<void>;
   // The Catalog keeps a Series Correction for every reader, without its author.
-  catalog: { forgetAuthor(ids: readonly string[]): void };
+  catalog: { forgetAuthor(account: AccountId): void };
 }
 
 // Every record type of the lexicons (ADR 0010).
@@ -63,7 +63,7 @@ async function deleteAccount({ account, accounts, library, sharing, auth, revoke
   const { sharedLeft } = await sharing.forget(account);
   if (did) await revoke(did).catch(() => undefined);
   library.forget(account);
-  catalog.forgetAuthor(did ? [account, did] : [account]);
+  catalog.forgetAuthor(account);
   auth.forget(account, did);
   accounts.forget(account);
   return Response.json({ sharedLeft }, { headers: { ...noStore, 'set-cookie': sessionCookieHeader('', 0) } });

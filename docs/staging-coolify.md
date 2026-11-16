@@ -104,19 +104,17 @@ The server signs readers in as an OAuth confidential client and keeps their Priv
    node -e "const c=require('node:crypto');const {privateKey}=c.generateKeyPairSync('ec',{namedCurve:'P-256'});console.log(JSON.stringify({...privateKey.export({format:'jwk'}),kid:c.randomUUID(),alg:'ES256'}))"
    ```
 
-2. Find the DID of each account that may sign in: `curl -s 'https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=<handle>'`.
-3. In the app, **Environment Variables** ([environment variables](https://coolify.io/docs/applications/configuration/environment-variables)), add these variables. For each one: **Not available during build**, **Available in the container**. If the start stops with "OAUTH_PRIVATE_KEY must be an ES256 private JWK", the JSON was changed on the way in: paste it again as one line.
+2. In the app, **Environment Variables** ([environment variables](https://coolify.io/docs/applications/configuration/environment-variables)), add these variables. For each one: **Not available during build**, **Available in the container**. If the start stops with "OAUTH_PRIVATE_KEY must be an ES256 private JWK", the JSON was changed on the way in: paste it again as one line.
 
 | Name | Value |
 | --- | --- |
 | `PUBLIC_APP_ORIGIN` | `https://staging.<domain>` |
-| `ALLOWED_DIDS` | The DIDs that may sign in, separated by commas: `did:plc:…,did:plc:…` |
 | `SESSION_ENCRYPTION_KEY` | The `openssl` output |
 | `OAUTH_PRIVATE_KEY` | The `node` output (one line, starts with `{"kty":"EC"`) |
 | `APP_ENV` | `staging` (`production` in the production app) |
 
 - `PUBLIC_APP_ORIGIN` is the origin only: `https://`, the hostname, no path, no final `/`.
-- A DID that is not on `ALLOWED_DIDS` sees "This account may not sign in to this Atomes server" and the instance keeps nothing for it.
+- `SIGN_UP` is not needed: it is `invite` by default. A new Account needs an Invite: once the app runs, open **Terminal**, pick the app container and run `node scripts/invite.ts`. It prints a link that works once and for 14 days; send it to one person. A reader with no Account and no Invite sees "You need an Invite" and the instance keeps nothing for it. A reader who has an Account signs in with no Invite.
 - A new `SESSION_ENCRYPTION_KEY` signs every reader out: the stored sessions can no longer be read. A new `OAUTH_PRIVATE_KEY` makes the PDS refuse the old sessions at their next refresh. Change them only after a leak.
 - `APP_ENV` names the instance: outside `production`, every screen shows a grey Staging pill and the app has an orange icon and the name "Atomes Staging". A pull request preview shows Preview by itself. With no value, the app counts as staging; any other value stops the start.
 - Do not set `DATA_DIR`, `PORT` or `HOST`: the image defaults (`/data`, `4321`, `0.0.0.0`) are the right values.
@@ -144,7 +142,7 @@ There is no health check to set: Coolify uses the image's `HEALTHCHECK` (`GET /h
 1. In the app, check **Advanced > Deployment > Auto deploy** is **Deploy on push (webhooks)** ([auto deploy](https://coolify.io/docs/applications/sources/github/auto-deploy)). It is the default for an app made from a GitHub App.
 2. Turn on **Preview Deployments**: each pull request gets its own container on `https://<pr number>.staging.<domain>` (the default template `{{pr_id}}.{{domain}}`, covered by the `*.staging` record of step 2). Leave **Allow Public PR Deployments** off: with it on, a pull request from anyone would run its code on the host ([preview deployments](https://coolify.io/docs/applications/sources/github/preview-deploy)). Never turn previews on in the production app.
 
-   A preview has no settings of its own, so since v4.7.4 it gets the staging runtime variables. Sign-in works there with no manual step: on a preview, Coolify sets `COOLIFY_BRANCH=pull/<pr number>/head` and the preview URL in `COOLIFY_URL` (or `COOLIFY_FQDN`, by Coolify version), and the server takes its origin from that URL, not from `PUBLIC_APP_ORIGIN`. Each preview is then its own OAuth client (`client_id` on `https://<pr number>.staging.<domain>`), with the staging `OAUTH_PRIVATE_KEY`, `SESSION_ENCRYPTION_KEY` and `ALLOWED_DIDS`. A preview has its own volume: its Library store and Catalog start empty, and a staging sign-in does not carry over.
+   A preview has no settings of its own, so since v4.7.4 it gets the staging runtime variables. Sign-in works there with no manual step: on a preview, Coolify sets `COOLIFY_BRANCH=pull/<pr number>/head` and the preview URL in `COOLIFY_URL` (or `COOLIFY_FQDN`, by Coolify version), and the server takes its origin from that URL, not from `PUBLIC_APP_ORIGIN`. Each preview is then its own OAuth client (`client_id` on `https://<pr number>.staging.<domain>`), with the staging `OAUTH_PRIVATE_KEY`, `SESSION_ENCRYPTION_KEY`. A preview has its own volume: its Library store and Catalog start empty, and a staging sign-in does not carry over. To sign in there, make an Invite in the preview's **Terminal** (`node scripts/invite.ts`).
 3. Select **Deploy** once for the first build. From then on, each merge to `main` deploys.
 
 Coolify builds on the push, not on the CI result. `protect-main` only merges a pull request whose CI `check` job is green, so what Coolify builds has passed CI.
@@ -159,7 +157,7 @@ Coolify builds on the push, not on the CI result. `protect-main` only merges a p
    curl -s https://staging.<domain>/oauth/jwks.json                           # one public key: no "d" member
    ```
 
-2. **Phone sign-in.** On the phone, open `https://staging.<domain>`, add the app to the home screen, open it from there and sign in with a handle on `ALLOWED_DIDS`. Add a book, reload: the book is still there.
+2. **Phone sign-in.** On the phone, open `https://staging.<domain>`, add the app to the home screen, open it from there and sign in with an Account, or open an Invite link first. Add a book, reload: the book is still there.
 3. **Merge deploys with no manual step.** Merge a pull request to `main`. In the app's **Deployments**, a new deployment starts for the merge commit, with no click. When it ends, `/health` answers `200` again.
 4. **A pull request gets a preview.** Open a pull request from a branch of this repository. In the app's **Preview Deployments**, a deployment starts for it, and `curl -s -o /dev/null -w '%{http_code}\n' https://<pr number>.staging.<domain>/health` prints `200`. On the host, `docker volume ls` shows a separate volume for the preview: it must not use the staging volume. `curl -s https://<pr number>.staging.<domain>/oauth/client-metadata.json` shows `client_id` on the preview hostname; sign in there, add a book, sign out. Closing the pull request removes the preview.
 5. **Data survives a redeploy.**
@@ -174,7 +172,7 @@ Coolify builds on the push, not on the CI result. `protect-main` only merges a p
 
 ## Reset the data
 
-To start again with an empty instance (debugging, tests), empty its SQLite files. Every browser is signed out; the Library and the Catalog are empty. Records on the PDS do not change. The container keeps running: no restart.
+To start again with an empty instance (debugging, tests), empty its SQLite files. Every browser is signed out; the Accounts, the Invites, the Library and the Catalog are empty: make a new Invite to sign in again. Records on the PDS do not change. The container keeps running: no restart.
 
 ### A button in the dashboard (staging)
 

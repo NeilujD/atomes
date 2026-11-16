@@ -170,9 +170,8 @@ export interface Catalog {
   // The Account that made the Correction of this Edition, if any.
   correctionAccount(isbn: string): string | undefined;
   // A deleted Account (CORE-55): its Series Corrections stay, for every
-  // reader, with no author. `ids`: its Account ID and DID (older Corrections
-  // name the DID).
-  forgetAuthor(ids: readonly string[]): void;
+  // reader, with no author.
+  forgetAuthor(account: string): void;
   // The Series of this Catalog whose title holds `text` (case, accents and
   // spaces ignored), each with its Edition Lines; at most `maxFound`.
   findSeries(text: string): SeriesFound[];
@@ -824,12 +823,8 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     return row?.account ?? undefined;
   }
 
-  // `account` is not null (migrations.ts): '' is no author.
-  function forgetAuthor(ids: readonly string[]) {
-    const update = db.prepare("update series_correction set account = '' where account = ?");
-    inTransaction(db, () => {
-      for (const id of ids) update.run(id);
-    });
+  function forgetAuthor(account: string) {
+    db.prepare('update series_correction set account = null where account = ?').run(account);
   }
 
   function uncorrect(isbn: string): Edition | undefined {

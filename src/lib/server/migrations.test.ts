@@ -116,7 +116,7 @@ describe('library.sqlite made before Accounts', () => {
 
     const db = openDatabase(file, authSteps(accounts));
 
-    const store = createAuthStore({ db, box: secretBox(Buffer.alloc(32)), allowedDids: new Set([did]), accounts });
+    const store = createAuthStore({ db, box: secretBox(Buffer.alloc(32)) });
     expect(store.hasBrowserSessions(accounts.ofDid(did))).toBe(true);
     store.close();
     accounts.close();

@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { createAccounts, type Accounts, type Did } from './accounts';
-import { callback, session, sessionCookie, signIn, signInAs, signOut, type AuthDeps, type OAuthPort } from './auth';
-import { createAuthStore, NotAllowedError, type AuthStore } from './auth-store';
+import { callback, inviteCookie, keepInvite, session, sessionCookie, signIn, signInAs, signOut, type AuthDeps, type OAuthPort } from './auth';
+import { createAuthStore, type AuthStore } from './auth-store';
+import { inviteLifetimeMs, makeInvite } from './invites';
 import { openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
 import { secretBox } from './secret-box';
@@ -19,14 +20,15 @@ const dpopSecret = 'dpop-private-key-part';
 const app = 'https://atomes.test';
 
 // Stands for `@atproto/oauth-client-node`: the callback saves the OAuth session
-// in the session store before it answers, as the library does, so a store that
-// refuses the DID makes the callback fail. The PDS is never called. The return
+// in the session store before it answers, as the library does. The PDS is
+// never called; a handle names the DID `did:plc:<first label>`. The return
 // target makes the round trip as the library's app state does: kept on the
 // server under the OAuth `state`, given back by the callback.
 function fakeOAuth(store: AuthStore) {
   const revoked: string[] = [];
   const states = new Map<string, string>();
   const oauth: OAuthPort = {
+    didOf: (handle) => Promise.resolve(`did:plc:${handle.split('.')[0]}` as Did),
     authorize(handle, returnTo) {
       states.set('s', returnTo);
       return Promise.resolve(new URL(`https://pds.test/oauth/authorize?login_hint=${handle}`));
@@ -53,8 +55,7 @@ let revoked: string[];
 let library: DatabaseSync;
 let accounts: Accounts;
 
-const openStore = (allowedDids: Set<string>) =>
-  createAuthStore({ db: openDatabase(file, authSteps(accounts)), box: secretBox(randomBytes(32)), allowedDids, accounts });
+const openStore = () => createAuthStore({ db: openDatabase(file, authSteps(accounts)), box: secretBox(randomBytes(32)) });
 const accountCount = () => (library.prepare('select count(*) as n from account').get() as { n: number }).n;
 
 beforeEach(() => {
@@ -62,7 +63,9 @@ beforeEach(() => {
   file = join(dir, 'auth.sqlite');
   library = openDatabase(':memory:', librarySteps);
   accounts = createAccounts(library);
-  store = openStore(new Set([owner]));
+  // The owner has an Account already, as the migration of the allow-list made it.
+  accounts.ofDid(owner);
+  store = openStore();
   const fake = fakeOAuth(store);
   revoked = fake.revoked;
   deps = { oauth: fake.oauth, store, accounts, appOrigin: app };
@@ -75,9 +78,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const signInForm = (fields: Record<string, string>) =>
-  signIn(new Request(`${app}/oauth/sign-in`, { method: 'POST', body: new URLSearchParams(fields) }), deps);
-const back = (did: string) => callback(new Request(`${app}/oauth/callback?code=c&state=s&sub=${encodeURIComponent(did)}`), deps);
+const invited = (invite: string) => ({ cookie: `${inviteCookie}=${invite}` });
+const signInForm = (fields: Record<string, string>, headers: Record<string, string> = {}) =>
+  signIn(new Request(`${app}/oauth/sign-in`, { method: 'POST', body: new URLSearchParams(fields), headers }), deps);
+const back = (did: string, headers: Record<string, string> = {}) =>
+  callback(new Request(`${app}/oauth/callback?code=c&state=s&sub=${encodeURIComponent(did)}`, { headers }), deps);
+const keep = (invite: unknown) =>
+  keepInvite(new Request(`${app}/api/invite`, { method: 'POST', body: JSON.stringify({ invite }), headers: { origin: app } }), deps);
 const cookieOf = (response: Response) => /atomes_session=([^;]*)/.exec(response.headers.get('set-cookie') ?? '')?.[1];
 const withCookie = (path: string, cookie: string | undefined, init: RequestInit = {}) =>
   new Request(`${app}${path}`, { ...init, headers: { cookie: `${sessionCookie}=${cookie ?? ''}`, origin: app } });
@@ -93,7 +100,7 @@ describe('sign-in', () => {
     expect(response.headers.get('location')).toBe('https://pds.test/oauth/authorize?login_hint=owner.test');
   });
 
-  test('an allowed DID gets a browser session with a safe cookie, and nothing more', async () => {
+  test('a reader with an Account gets a browser session with a safe cookie, and nothing more', async () => {
     const response = await back(owner);
 
     expect(response.status).toBe(303);
@@ -105,28 +112,27 @@ describe('sign-in', () => {
     expect(JSON.stringify([...response.headers])).not.toContain(accessToken);
 
     const who = session(withCookie('/api/session', cookieOf(response)), deps);
-    // The Account, made at this first sign-in; never the DID.
+    // The Account, never the DID.
     expect(await who.json()).toEqual({ id: accounts.ofDid(owner), handle: 'owner.test' });
     expect(accounts.ofDid(owner)).not.toContain('did:');
   });
 
-  test('a DID that is not on the list gets a clear message, and no session is stored', async () => {
+  test('with no Invite, an unknown AT Protocol Account gets "you need an Invite", and nothing is kept', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const response = await back(stranger);
 
-    expect(response.headers.get('location')).toBe('/sign-in?auth=not-allowed');
+    expect(response.headers.get('location')).toBe('/sign-in?auth=no-invite');
     expect(response.headers.get('set-cookie')).toBeNull();
+    // The OAuth session the PDS gave ends at once.
+    expect(revoked).toEqual([stranger]);
     expect(await store.sessions().get(stranger)).toBeUndefined();
-    expect(accountCount()).toBe(0);
+    expect(accountCount()).toBe(1);
   });
 
-  test('a DID refused before the PDS page goes back with the same message', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    deps.oauth.authorize = () => Promise.reject(new NotAllowedError());
-
+  test('with no Invite, an unknown AT Protocol Account is refused before the PDS page', async () => {
     const response = await signInForm({ handle: 'stranger.test', next: '/to-buy' });
 
-    expect(response.headers.get('location')).toBe('/sign-in?auth=not-allowed&next=%2Fto-buy');
+    expect(response.headers.get('location')).toBe('/sign-in?auth=no-invite&next=%2Fto-buy');
   });
 
   test('after sign-in, the reader lands on the screen asked first', async () => {
@@ -147,14 +153,6 @@ describe('sign-in', () => {
     expect(response.headers.get('location')).toBe('/sign-in?auth=no-account&next=%2Flibrary');
   });
 
-  test('a DID taken off the list loses its open browser session', async () => {
-    const cookie = cookieOf(await back(owner));
-    store.close();
-    store = openStore(new Set());
-
-    expect(session(withCookie('/api/session', cookie), { store, accounts }).status).toBe(401);
-  });
-
   test('tokens and DPoP keys are stored encrypted, and the cookie value is not stored', async () => {
     const cookie = cookieOf(await back(owner))!;
 
@@ -166,32 +164,25 @@ describe('sign-in', () => {
 });
 
 describe('sign-in as a test reader (development)', () => {
-  const allowed = new Set([owner]);
-  const signInAsUrl = (query = '') => signInAs(new Request(`${app}/dev/sign-in-as${query}`), { store }, allowed);
+  const signInAsUrl = (query = '') => signInAs(new Request(`${app}/dev/sign-in-as${query}`), { store, accounts });
 
-  test('each test DID gets its own Account, the same at each sign-in', () => {
+  test('each test DID gets its own Account with no Invite, the same at each sign-in', () => {
     const second: Did = 'did:plc:second';
-    allowed.add(second);
-    store.close();
-    store = openStore(allowed);
-    try {
-      const first = store.browserSession(cookieOf(signInAsUrl(`?did=${encodeURIComponent(owner)}`))!)!.account;
-      const other = store.browserSession(cookieOf(signInAsUrl(`?did=${encodeURIComponent(second)}`))!)!.account;
+    const first = store.browserSession(cookieOf(signInAsUrl(`?did=${encodeURIComponent(owner)}`))!)!.account;
+    const other = store.browserSession(cookieOf(signInAsUrl(`?did=${encodeURIComponent(second)}`))!)!.account;
 
-      expect(other).not.toBe(first);
-      expect(store.browserSession(cookieOf(signInAsUrl(`?did=${encodeURIComponent(owner)}`))!)!.account).toBe(first);
-    } finally {
-      allowed.delete(second);
-    }
+    expect(first).toBe(accounts.ofDid(owner));
+    expect(other).not.toBe(first);
+    expect(store.browserSession(cookieOf(signInAsUrl(`?did=${encodeURIComponent(second)}`))!)!.account).toBe(other);
   });
 
-  test('opens a browser session for the first allowed DID and sends the reader to the Library', () => {
+  test('opens a browser session for the test reader and sends it to the Library', () => {
     const response = signInAsUrl();
 
     expect(response.status).toBe(303);
     expect(response.headers.get('location')).toBe('/library');
     expect(response.headers.get('set-cookie')).toMatch(/^atomes_session=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=\d+$/);
-    expect(store.browserSession(cookieOf(response)!)).toEqual({ account: accounts.ofDid(owner), handle: 'test.reader' });
+    expect(store.browserSession(cookieOf(response)!)).toEqual({ account: accounts.ofDid('did:plc:testreader'), handle: 'test.reader' });
   });
 
   test('takes the DID and the handle from the query', () => {
@@ -200,12 +191,119 @@ describe('sign-in as a test reader (development)', () => {
     expect(store.browserSession(cookieOf(response)!)).toEqual({ account: accounts.ofDid(owner), handle: 'alice.test' });
   });
 
-  test('refuses a DID that is not allowed, and writes nothing', () => {
-    const response = signInAsUrl(`?did=${encodeURIComponent(stranger)}`);
+  test('refuses a value that is not a DID, and writes nothing', () => {
+    const response = signInAsUrl('?did=alice.test');
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(400);
     expect(response.headers.get('set-cookie')).toBeNull();
-    expect(accountCount()).toBe(0);
+    expect(accountCount()).toBe(1);
+  });
+});
+
+describe('Invites', () => {
+  const now = Date.now();
+  const friend: Did = 'did:plc:friend';
+  const later: Did = 'did:plc:later';
+
+  test('an Invite makes one Account; a second use is refused', async () => {
+    const { token } = makeInvite(library);
+    expect((await keep(token)).status).toBe(204);
+
+    const first = await back(friend, invited(token));
+    expect(first.headers.get('location')).toBe('/');
+    const cookies = first.headers.getSetCookie();
+    expect(session(withCookie('/api/session', cookieOf(first)), deps).status).toBe(200);
+    // The Invite is used up: the browser forgets it.
+    expect(cookies).toContainEqual(expect.stringMatching(/^atomes_invite=; .*Max-Age=0/));
+    expect(accountCount()).toBe(2);
+
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect((await keep(token)).status).toBe(410);
+    expect((await signInForm({ handle: 'later.test' }, invited(token))).headers.get('location')).toBe('/sign-in?auth=no-invite');
+    expect((await back(later, invited(token))).headers.get('location')).toBe('/sign-in?auth=no-invite');
+    expect(accountCount()).toBe(2);
+    // The reader of the Invite signs in again with no Invite.
+    expect((await back(friend)).headers.get('location')).toBe('/');
+  });
+
+  test('two sign-ins at once with one Invite make one Account', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { token } = makeInvite(library);
+
+    const answers = await Promise.all([back(friend, invited(token)), back(later, invited(token))]);
+
+    expect(answers.map((answer) => answer.headers.get('location')).sort()).toEqual(['/', '/sign-in?auth=no-invite']);
+    expect(accountCount()).toBe(2);
+  });
+
+  test('an expired Invite is refused', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { token } = makeInvite(library, now - inviteLifetimeMs - 1);
+
+    expect((await keep(token)).status).toBe(410);
+    expect((await signInForm({ handle: 'friend.test' }, invited(token))).headers.get('location')).toBe('/sign-in?auth=no-invite');
+    expect((await back(friend, invited(token))).headers.get('location')).toBe('/sign-in?auth=no-invite');
+    expect(accountCount()).toBe(1);
+  });
+
+  test('works for 14 days', async () => {
+    const { token, expiresAt } = makeInvite(library, now - inviteLifetimeMs + 60_000);
+
+    expect(expiresAt - (now - inviteLifetimeMs + 60_000)).toBe(14 * 24 * 3600 * 1000);
+    expect((await signInForm({ handle: 'friend.test' }, invited(token))).headers.get('location')).toMatch(/^https:\/\/pds\.test\//);
+  });
+
+  test('opening an Invite keeps it in a cookie that no script reads, sent only to the sign-in', async () => {
+    const { token } = makeInvite(library);
+
+    const header = (await keep(token)).headers.get('set-cookie')!;
+
+    expect(header.split('; ')).toEqual(
+      expect.arrayContaining([`atomes_invite=${token}`, 'Path=/oauth', 'HttpOnly', 'Secure', 'SameSite=Lax', 'Max-Age=3600']),
+    );
+  });
+
+  test('refuses an Invite that is not a string, and keeps nothing', async () => {
+    const response = await keep({ token: 'x' });
+
+    expect(response.status).toBe(410);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  test('the Accounts made by the migration of the allow-list sign in with no Invite', async () => {
+    const before: Did = 'did:plc:before';
+    library.exec(`insert into account values ('acc-before', '2026-11-16T10:00:00.000Z');
+      insert into identity (account, kind, value) values ('acc-before', 'did', '${before}');`);
+
+    expect((await signInForm({ handle: 'before.test' })).headers.get('location')).toMatch(/^https:\/\/pds\.test\//);
+    const response = await back(before);
+    expect(store.browserSession(cookieOf(response)!)?.account).toBe('acc-before');
+  });
+
+  test('the Invite token is in no log line, no address and no stored row', async () => {
+    const lines: unknown[] = [];
+    for (const level of ['log', 'info', 'warn', 'error', 'debug'] as const) {
+      vi.spyOn(console, level).mockImplementation((...args: unknown[]) => void lines.push(...args));
+    }
+    const libraryFile = join(dir, 'library.sqlite');
+    const onDisk = openDatabase(libraryFile, librarySteps);
+    const { token } = makeInvite(onDisk);
+    onDisk.close();
+    const used = makeInvite(library).token;
+
+    const answers = [
+      await keep(used),
+      await signInForm({ handle: 'friend.test' }, invited(used)),
+      await back(friend, invited(used)),
+      await keep(used),
+      await signInForm({ handle: 'later.test' }, invited(used)),
+      await back(later, invited(used)),
+    ];
+
+    expect(lines.length).toBeGreaterThan(0);
+    expect(JSON.stringify(lines.map(String))).not.toContain(used);
+    for (const answer of answers) expect(answer.headers.get('location') ?? '').not.toContain(used);
+    expect(readFileSync(libraryFile).toString('latin1')).not.toContain(token);
   });
 });
 
@@ -259,6 +357,7 @@ describe('after a sign-in', () => {
   });
 
   test('a failed sign-in tells no one', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const signedIn: string[] = [];
     deps = { ...deps, onSignedIn: (account) => void signedIn.push(account) };
 
