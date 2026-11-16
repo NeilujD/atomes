@@ -7,7 +7,7 @@ import { isNetworkFailure } from '../network';
 import { toast } from '../toast';
 import { indexedDbLocalCopy } from '../space/local-copy';
 import { instanceFetch, openInstanceStore } from '../space/instance-store';
-import type { Space } from '../space/space';
+import type { Space } from '../space/queued-store';
 import { deviceData } from './device-data';
 import { accountKey } from './gate-boot';
 import { signInPath } from './return-to';

@@ -36,7 +36,7 @@ import {
 import { bought, deleteToBuy, handAdd, saveToBuy } from '../lib/library/to-buy';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
-import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
 import { toast } from '../lib/toast';
 import { Cover } from './Cover';
 import { liveSelection, SelectionBar, type SelectionSources } from './Selection';

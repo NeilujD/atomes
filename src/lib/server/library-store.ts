@@ -1,7 +1,7 @@
-// The readers' Private records, kept by this instance until atproto Spaces is
-// released (ADR 0012): `library.sqlite` in DATA_DIR, apart from the Catalog.
-// One generic table that mirrors atproto (DID, collection, record key, value),
-// so the move to Spaces is a copy. Every call is limited to one reader's DID.
+// The readers' Private records, kept by this instance (ADR 0012, ADR 0016):
+// `library.sqlite` in DATA_DIR, apart from the Catalog. One generic table that
+// mirrors atproto (DID, collection, record key, value). Every call is limited
+// to one reader's DID.
 // Never logs a record value.
 import type { DatabaseSync } from 'node:sqlite';
 

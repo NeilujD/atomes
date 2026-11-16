@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { reconnectEvent } from '../network';
 import { freshListing } from './fresh-listing';
-import { PdsUnavailableError, SpaceError } from './space';
+import { RefusedError, UnavailableError } from './queued-store';
 
 type Listing = { stale: boolean };
 const stale: Listing = { stale: true };
@@ -98,7 +98,7 @@ describe('freshListing', () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
-  test('no copy and no network: it tries again, and shows the records when the PDS answers', async () => {
+  test('no copy and no network: it tries again, and shows the records when the server answers', async () => {
     const load = reads(offline, () => Promise.resolve(fresh));
     const { listing, shown, failed } = setup(load);
 
@@ -109,8 +109,8 @@ describe('freshListing', () => {
     expect(shown).toEqual([fresh]);
   });
 
-  test('no copy and the PDS failing for a while (HTTP 5xx): it tries again, and shows the records when it works', async () => {
-    const load = reads(() => Promise.reject(new PdsUnavailableError(500, 'Internal Server Error')), () => Promise.resolve(fresh));
+  test('no copy and the server failing for a while (HTTP 5xx): it tries again, and shows the records when it works', async () => {
+    const load = reads(() => Promise.reject(new UnavailableError(500, 'Internal Server Error')), () => Promise.resolve(fresh));
     const { listing, shown, failed } = setup(load);
 
     await listing.refresh();
@@ -120,8 +120,8 @@ describe('freshListing', () => {
     expect(shown).toEqual([fresh]);
   });
 
-  test('an error from the PDS is shown and not tried again', async () => {
-    const load = reads(() => Promise.reject(new SpaceError('InvalidToken', 'Bad token scope')));
+  test('a refusal from the server is shown and not tried again', async () => {
+    const load = reads(() => Promise.reject(new RefusedError('InvalidToken', 'Bad token scope')));
     const { listing, events, failed } = setup(load);
 
     await listing.refresh();

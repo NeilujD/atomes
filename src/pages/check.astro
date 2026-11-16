@@ -166,7 +166,7 @@ const answers = [
   import { followSeries } from '../lib/library/series';
   import { latestOnly } from '../lib/latest';
   import { lockWhileSaving } from '../lib/save-lock';
-  import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+  import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
   import { toast } from '../lib/toast';
 
   const isbnForm = document.querySelector<HTMLFormElement>('[data-isbn-form]')!;
@@ -283,7 +283,7 @@ const answers = [
 
   // The Shelf Check with no network, from this device only (shelf-check.ts).
   async function lookUpOnDevice(isbn: string, from: Origin, current: () => boolean) {
-    const space = await openSpaceOrSay();
+    const space = await ownSpaceOrSay();
     if (!space) return;
     let onDevice: Library;
     try {
@@ -468,7 +468,7 @@ const answers = [
   // The Library, read again (and what the connection status says of it);
   // undefined signed out, or with no copy on this device and no network.
   async function readLibrary(): Promise<Library | undefined> {
-    const space = await openSpaceOrSay();
+    const space = await ownSpaceOrSay();
     if (!space) return undefined;
     try {
       const loaded = await loadLibrary(space);
@@ -503,7 +503,7 @@ const answers = [
   // then the check again (the book can now be a Missing Volume).
   async function follow({ book: shown, check, offline }: Result) {
     const change = shown.edition && followSeries(shown.edition, undefined, new Date());
-    const space = await openSpaceOrSay();
+    const space = await ownSpaceOrSay();
     if (!change || !space) return;
     const still = () => result?.book === shown;
     showResultScreen({ following: true });
@@ -548,7 +548,7 @@ const answers = [
     addButton.querySelector('[data-add-label]')!.textContent = t(owned ? 'book.add-copy' : 'add.submit');
   }
 
-  async function openSpaceOrSay(): Promise<Space | undefined> {
+  async function ownSpaceOrSay(): Promise<Space | undefined> {
     try {
       // Undefined with no session: the gate (AppShell) is sending the visitor to the sign-in screen.
       return (await own)?.space;
@@ -563,7 +563,7 @@ const answers = [
   // 'saved' once a toast says it; undefined when nothing was saved.
   async function saveCopyOf(current: Book, chosen: Status | undefined, typedBook?: BookDetails): Promise<'leave' | 'saved' | undefined> {
     const title = current.edition?.title ?? typedBook?.title ?? t('book.isbn', current.isbn);
-    const space = await openSpaceOrSay();
+    const space = await ownSpaceOrSay();
     if (!space) return;
     try {
       const now = new Date();
@@ -789,7 +789,7 @@ const answers = [
   // ISBNs go to the Atomes server, never the Library.
   async function keepForOffline() {
     if (!navigator.onLine) return;
-    const space = await openSpaceOrSay();
+    const space = await ownSpaceOrSay();
     if (!space) return;
     try {
       // This keep, not the one every Library read starts.

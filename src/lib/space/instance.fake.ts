@@ -6,7 +6,7 @@ import { handleLibraryRequest, libraryPath, type RecordRules } from '../server/l
 import { createLibraryStore } from '../server/library-store';
 import { openDatabase } from '../server/migrate';
 import { librarySteps } from '../server/migrations';
-import type { FetchHandler } from './space';
+import type { FetchHandler } from './queued-store';
 import type { FakeStoreServer } from './store-server.fake';
 
 const anyRecord: RecordRules = { isCollection: () => true, assertValid: () => {} };

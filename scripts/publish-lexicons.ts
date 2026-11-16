@@ -1,7 +1,6 @@
 // Publishes every lexicon in `lexicons/` as a `com.atproto.lexicon.schema`
 // record in the repo that `_lexicon.atomes.app` (DNS TXT) points to, so other
 // apps can resolve `app.atomes.*`. The sign-in scope needs none (ADR 0013).
-// The Space lexicon (`lexicons-space/`) is not published until the move to Spaces.
 // Run it again after every lexicon change; changes must stay backward compatible.
 //
 // Usage: LEXICON_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx bun scripts/publish-lexicons.ts

@@ -1,8 +1,8 @@
-import type { Space, WriteState } from '../space/space';
+import type { Space, WriteState } from '../space/queued-store';
 
 // A Space that keeps records in memory, per collection and key. Every write is
 // saved at once and reports `state`. The Space contract itself is tested in
-// src/lib/space/space.test.ts.
+// src/lib/space/instance-store.test.ts.
 export function memorySpace(state: WriteState = 'sent') {
   const stored = new Map<string, Map<string, unknown>>();
   const of = (collection: string) => stored.get(collection) ?? stored.set(collection, new Map()).get(collection)!;

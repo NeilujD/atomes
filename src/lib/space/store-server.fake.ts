@@ -1,5 +1,5 @@
 // What the store contract tests need from a fake server behind a store.
-import type { FetchHandler } from './space';
+import type { FetchHandler } from './queued-store';
 
 export interface FakeStoreServer {
   handler: FetchHandler;

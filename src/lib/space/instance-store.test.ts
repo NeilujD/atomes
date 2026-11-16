@@ -1,47 +1,28 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fakeInstance } from './instance.fake';
 import { openInstanceStore } from './instance-store';
-import type { LocalCopy } from './local-copy';
 import { memoryLocalCopy } from './local-copy.fake';
-import { fakePds } from './pds.fake';
 import {
   newRecordKey,
-  openSpace,
-  PdsUnavailableError,
   RefusedError,
   SignedOutError,
-  SpaceError,
   spaceErrorMessage,
   UnavailableError,
   type FetchHandler,
-  type Space,
   type StaleWrite,
-} from './space';
-import type { FakeStoreServer } from './store-server.fake';
+} from './queued-store';
 
 const owner = 'did:plc:owner';
 const collection = 'app.atomes.copy';
 
 const textsOf = (records: { value: unknown }[]) => records.map(({ value }) => (value as { text: string }).text);
 
-// The same contract for every store of Library records: the instance store the
-// app uses (ADR 0012), and the Space store kept for the move to Spaces.
-const stores: {
-  name: string;
-  fake: (did: string) => FakeStoreServer;
-  open: (handler: FetchHandler, did: string, copy: LocalCopy) => Space;
-  unavailable: typeof UnavailableError;
-}[] = [
-  { name: 'the instance store', fake: fakeInstance, open: openInstanceStore, unavailable: UnavailableError },
-  { name: 'the Space store', fake: fakePds, open: openSpace, unavailable: PdsUnavailableError },
-];
-
-describe.each(stores)('$name', ({ fake, open, unavailable }) => {
-  const server = () => fake(owner);
+describe('the instance store', () => {
+  const server = () => fakeInstance(owner);
 
   describe('online', () => {
     test('reading before the first save gives nothing', async () => {
-      const store = open(server().handler, owner, memoryLocalCopy());
+      const store = openInstanceStore(server().handler, owner, memoryLocalCopy());
 
       expect(await store.list(collection)).toEqual({ records: [], stale: false });
       expect(await store.get(collection, 'missing')).toBeUndefined();
@@ -51,10 +32,10 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
       const remote = server();
       const rkey = newRecordKey();
 
-      expect(await open(remote.handler, owner, memoryLocalCopy()).put(collection, rkey, { text: 'hello' })).toBe('sent');
+      expect(await openInstanceStore(remote.handler, owner, memoryLocalCopy()).put(collection, rkey, { text: 'hello' })).toBe('sent');
 
       // A new store on the same server stands for a reload.
-      const reloaded = open(remote.handler, owner, memoryLocalCopy());
+      const reloaded = openInstanceStore(remote.handler, owner, memoryLocalCopy());
       const value = { $type: collection, text: 'hello' };
       expect(await reloaded.get(collection, rkey)).toEqual(value);
       expect(await reloaded.list(collection)).toEqual({ records: [{ rkey, value }], stale: false });
@@ -62,7 +43,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
 
     test('list reads every record, newest key first', async () => {
       const remote = server();
-      const store = open(remote.handler, owner, memoryLocalCopy());
+      const store = openInstanceStore(remote.handler, owner, memoryLocalCopy());
       for (let i = 0; i < 120; i++) await store.put(collection, newRecordKey(), { text: `${i}` });
 
       const { records } = await store.list(collection);
@@ -74,7 +55,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
       const handler: FetchHandler = () =>
         Promise.resolve(Response.json({ error: 'InvalidRequest', message: 'Bad request' }, { status: 400 }));
 
-      const error = await open(handler, owner, memoryLocalCopy())
+      const error = await openInstanceStore(handler, owner, memoryLocalCopy())
         .list(collection)
         .catch((cause: unknown) => cause);
 
@@ -88,13 +69,13 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
     test('list gives the records last read, marked stale, after a reload', async () => {
       const remote = server();
       const copy = memoryLocalCopy();
-      const store = open(remote.handler, owner, copy);
+      const store = openInstanceStore(remote.handler, owner, copy);
       await store.put(collection, newRecordKey(), { text: 'one' });
       await store.put(collection, newRecordKey(), { text: 'two' });
       const online = await store.list(collection);
 
       remote.network.online = false;
-      const offline = await open(remote.handler, owner, copy).list(collection);
+      const offline = await openInstanceStore(remote.handler, owner, copy).list(collection);
 
       expect(online.stale).toBe(false);
       expect(offline).toEqual({ records: online.records, stale: true });
@@ -104,7 +85,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
     test('a record saved online shows offline with no further list (write-through)', async () => {
       const remote = server();
       const copy = memoryLocalCopy();
-      const store = open(remote.handler, owner, copy);
+      const store = openInstanceStore(remote.handler, owner, copy);
       const first = newRecordKey();
       await store.put(collection, first, { text: 'one' });
       await store.list(collection);
@@ -112,9 +93,9 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
       await store.put(collection, first, { text: 'one, edited' });
 
       // Read the server through another copy, so this copy holds only what write-through put in it.
-      const fromServer = await open(remote.handler, owner, memoryLocalCopy()).list(collection);
+      const fromServer = await openInstanceStore(remote.handler, owner, memoryLocalCopy()).list(collection);
       remote.network.online = false;
-      const offline = await open(remote.handler, owner, copy).list(collection);
+      const offline = await openInstanceStore(remote.handler, owner, copy).list(collection);
 
       expect(textsOf(offline.records)).toEqual(['two', 'one, edited']);
       expect(offline.records).toEqual(fromServer.records);
@@ -123,60 +104,60 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
     test('a failure with a network failure as its cause also falls back to the copy', async () => {
       const remote = server();
       const copy = memoryLocalCopy();
-      await open(remote.handler, owner, copy).put(collection, newRecordKey(), { text: 'one' });
-      await open(remote.handler, owner, copy).list(collection);
+      await openInstanceStore(remote.handler, owner, copy).put(collection, newRecordKey(), { text: 'one' });
+      await openInstanceStore(remote.handler, owner, copy).list(collection);
       // What the OAuth client throws when a token refresh cannot reach the server.
       const refreshFails: FetchHandler = () =>
         Promise.reject(new Error('Failed to fetch', { cause: new TypeError('Failed to fetch') }));
 
-      expect(await open(refreshFails, owner, copy).list(collection)).toMatchObject({ stale: true });
+      expect(await openInstanceStore(refreshFails, owner, copy).list(collection)).toMatchObject({ stale: true });
     });
 
     test('list fails when this device has no copy yet', async () => {
       const remote = server();
       remote.network.online = false;
 
-      await expect(open(remote.handler, owner, memoryLocalCopy()).list(collection)).rejects.toThrow(TypeError);
+      await expect(openInstanceStore(remote.handler, owner, memoryLocalCopy()).list(collection)).rejects.toThrow(TypeError);
     });
 
     test('another account on the device never gets the copy', async () => {
       const remote = server();
       const copy = memoryLocalCopy();
-      await open(remote.handler, owner, copy).put(collection, newRecordKey(), { text: 'private' });
-      await open(remote.handler, owner, copy).list(collection);
+      await openInstanceStore(remote.handler, owner, copy).put(collection, newRecordKey(), { text: 'private' });
+      await openInstanceStore(remote.handler, owner, copy).list(collection);
 
       remote.network.online = false;
 
-      await expect(open(remote.handler, 'did:plc:other', copy).list(collection)).rejects.toThrow(TypeError);
+      await expect(openInstanceStore(remote.handler, 'did:plc:other', copy).list(collection)).rejects.toThrow(TypeError);
     });
 
     test('a refusal from the server is never hidden behind the copy', async () => {
       const remote = server();
       const copy = memoryLocalCopy();
-      await open(remote.handler, owner, copy).put(collection, newRecordKey(), { text: 'one' });
-      await open(remote.handler, owner, copy).list(collection);
+      await openInstanceStore(remote.handler, owner, copy).put(collection, newRecordKey(), { text: 'one' });
+      await openInstanceStore(remote.handler, owner, copy).list(collection);
       const refused: FetchHandler = () => Promise.resolve(Response.json({ error: 'Forbidden' }, { status: 403 }));
 
-      await expect(open(refused, owner, copy).list(collection)).rejects.toThrow(RefusedError);
+      await expect(openInstanceStore(refused, owner, copy).list(collection)).rejects.toThrow(RefusedError);
     });
 
     test('a cleared copy (sign-out) shows nothing', async () => {
       const remote = server();
       const copy = memoryLocalCopy();
-      await open(remote.handler, owner, copy).put(collection, newRecordKey(), { text: 'private' });
-      await open(remote.handler, owner, copy).list(collection);
+      await openInstanceStore(remote.handler, owner, copy).put(collection, newRecordKey(), { text: 'private' });
+      await openInstanceStore(remote.handler, owner, copy).list(collection);
 
       await copy.clear();
       remote.network.online = false;
 
-      await expect(open(remote.handler, owner, copy).list(collection)).rejects.toThrow(TypeError);
+      await expect(openInstanceStore(remote.handler, owner, copy).list(collection)).rejects.toThrow(TypeError);
     });
   });
 
   test('delete removes the record from the server, the listing and the local copy', async () => {
     const remote = server();
     const copy = memoryLocalCopy();
-    const store = open(remote.handler, owner, copy);
+    const store = openInstanceStore(remote.handler, owner, copy);
     const kept = newRecordKey();
     const gone = newRecordKey();
     await store.put(collection, kept, { text: 'kept' });
@@ -186,9 +167,9 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
     expect(await store.delete(collection, gone)).toBe('sent');
 
     expect(await store.get(collection, gone)).toBeUndefined();
-    expect(textsOf((await open(remote.handler, owner, memoryLocalCopy()).list(collection)).records)).toEqual(['kept']);
+    expect(textsOf((await openInstanceStore(remote.handler, owner, memoryLocalCopy()).list(collection)).records)).toEqual(['kept']);
     remote.network.online = false;
-    expect(textsOf((await open(remote.handler, owner, copy).list(collection)).records)).toEqual(['kept']);
+    expect(textsOf((await openInstanceStore(remote.handler, owner, copy).list(collection)).records)).toEqual(['kept']);
   });
 
   // Writes made with no network wait on the device. A new store on the same copy stands for a reload.
@@ -197,7 +178,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
     async function offlineStore(...texts: string[]) {
       const remote = server();
       const copy = memoryLocalCopy();
-      const store = open(remote.handler, owner, copy);
+      const store = openInstanceStore(remote.handler, owner, copy);
       const keys: string[] = [];
       for (const text of texts) {
         const rkey = newRecordKey();
@@ -225,7 +206,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
       const { remote, copy, store } = await offlineStore('one');
       await store.put(collection, newRecordKey(), { text: 'two' });
 
-      const reloaded = await open(remote.handler, owner, copy).list(collection);
+      const reloaded = await openInstanceStore(remote.handler, owner, copy).list(collection);
 
       expect(reloaded.stale).toBe(true);
       expect(textsOf(reloaded.records)).toEqual(['two', 'one']);
@@ -251,7 +232,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
       await store.put(collection, a, { text: 'a' });
       await store.delete(collection, keys[0]);
 
-      const reloaded = open(remote.handler, owner, copy);
+      const reloaded = openInstanceStore(remote.handler, owner, copy);
       expect((await reloaded.pending()).map(({ rkey }) => rkey)).toEqual([b, a, keys[0]]);
       remote.network.online = true;
       // A list with the network back sends them first.
@@ -291,7 +272,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
         return answer;
       };
 
-      await open(once, owner, copy).sendWaiting();
+      await openInstanceStore(once, owner, copy).sendWaiting();
 
       expect(remote.writes).toEqual([`put ${a}`]);
       expect((await store.pending()).map(({ rkey }) => rkey)).toEqual([b, c]);
@@ -311,7 +292,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
 
     test('writes started together go out in order, and the last one wins', async () => {
       const remote = server();
-      const store = open(remote.handler, owner, memoryLocalCopy());
+      const store = openInstanceStore(remote.handler, owner, memoryLocalCopy());
       const [a, b] = [newRecordKey(), newRecordKey()];
       await store.put(collection, a, { text: 'a' });
       remote.writes.length = 0;
@@ -333,7 +314,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
         typeof init?.body === 'string' && init.body.includes('"text":"bad"')
           ? Promise.resolve(Response.json({ error: 'InvalidRecord', message: 'Record is not valid' }, { status: 400 }))
           : remote.handler(pathname, init);
-      const store = open(handler, owner, memoryLocalCopy());
+      const store = openInstanceStore(handler, owner, memoryLocalCopy());
       const [bad, good] = [newRecordKey(), newRecordKey()];
 
       expect(await store.put(collection, bad, { text: 'bad' })).toBe('refused');
@@ -355,7 +336,7 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
       await store.put(collection, newRecordKey(), { text: 'private' });
 
       remote.network.online = true;
-      const other = open(remote.handler, 'did:plc:other', copy);
+      const other = openInstanceStore(remote.handler, 'did:plc:other', copy);
       await other.sendWaiting();
 
       expect(await other.pending()).toEqual([]);
@@ -385,18 +366,17 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
         return answer;
       };
 
-      await open(signOutMidway, owner, copy).sendWaiting();
+      await openInstanceStore(signOutMidway, owner, copy).sendWaiting();
 
       expect(await store.pending()).toEqual([]);
     });
   });
 
-  // Seen on the hosted alpha PDS (2026-11-05): listRecords answered 500 after a delete.
   describe('the server fails for a while (HTTP 5xx or 429)', () => {
     async function failingStore(status: number) {
       const remote = server();
       const copy = memoryLocalCopy();
-      const store = open(remote.handler, owner, copy);
+      const store = openInstanceStore(remote.handler, owner, copy);
       const [kept, removed] = [newRecordKey(), newRecordKey()];
       await store.put(collection, kept, { text: 'kept' });
       await store.put(collection, removed, { text: 'removed' });
@@ -438,15 +418,13 @@ describe.each(stores)('$name', ({ fake, open, unavailable }) => {
 
     test('with no copy on this device, list fails with an UnavailableError', async () => {
       const remote = server();
-      await open(remote.handler, owner, memoryLocalCopy()).put(collection, newRecordKey(), { text: 'one' });
+      await openInstanceStore(remote.handler, owner, memoryLocalCopy()).put(collection, newRecordKey(), { text: 'one' });
       remote.network.failing = 500;
 
-      await expect(open(remote.handler, owner, memoryLocalCopy()).list(collection)).rejects.toThrow(unavailable);
+      await expect(openInstanceStore(remote.handler, owner, memoryLocalCopy()).list(collection)).rejects.toThrow(UnavailableError);
     });
   });
-});
 
-describe('the instance store', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -579,42 +557,6 @@ describe('the instance store', () => {
   });
 });
 
-describe('the Space store', () => {
-  test('the first save creates one private Space; later saves reuse it', async () => {
-    const pds = fakePds(owner);
-    const space = openSpace(pds.handler, owner, memoryLocalCopy());
-
-    await space.put(collection, newRecordKey(), { text: 'one' });
-    await space.put(collection, newRecordKey(), { text: 'two' });
-    await space.ensure();
-
-    expect([...pds.spaces.entries()]).toEqual([
-      [
-        `at://${owner}/space/app.atomes.library/self`,
-        { spaceType: 'app.atomes.library', policy: { $type: 'com.atproto.personalspace.policy' } },
-      ],
-    ]);
-  });
-
-  test('reading and deleting before the first save create no Space', async () => {
-    const pds = fakePds(owner);
-    const space = openSpace(pds.handler, owner, memoryLocalCopy());
-
-    expect(await space.list(collection)).toEqual({ records: [], stale: false });
-    expect(await space.delete(collection, 'missing')).toBe('sent');
-    expect(pds.spaces.size).toBe(0);
-  });
-
-  test('a PDS refusal is a SpaceError, and goes only to the Space calls', async () => {
-    const pds = fakePds(owner);
-    await openSpace(pds.handler, owner, memoryLocalCopy()).put(collection, newRecordKey(), { text: 'one' });
-    const refused: FetchHandler = () => Promise.resolve(Response.json({ error: 'InvalidToken', message: 'Bad token scope' }, { status: 401 }));
-
-    await expect(openSpace(refused, owner, memoryLocalCopy()).list(collection)).rejects.toThrow(SpaceError);
-    expect(pds.calls.every((call) => call.startsWith('/xrpc/com.atproto.space.'))).toBe(true);
-  });
-});
-
 describe('newRecordKey', () => {
   test('gives TIDs that sort in creation order', () => {
     const keys = Array.from({ length: 50 }, () => newRecordKey());
@@ -625,7 +567,7 @@ describe('newRecordKey', () => {
   });
 });
 
-// Each failure names its own cause: the session, the Atomes server, the reader's PDS, or the network.
+// Each failure names its own cause: the session, the Atomes server, or the network.
 describe('spaceErrorMessage', () => {
   test.each([
     ['the session ended', new SignedOutError('Sign in again'), 'Your session has ended. Sign in again.'],
@@ -634,12 +576,6 @@ describe('spaceErrorMessage', () => {
       'the Atomes server fails for a while',
       new UnavailableError(500, 'Internal Server Error'),
       'The Atomes server has a problem (Internal Server Error). Try again later.',
-    ],
-    ['the PDS refuses the call', new SpaceError('InvalidToken', 'Bad token scope'), 'Your PDS refused the request: Bad token scope'],
-    [
-      'the PDS fails for a while',
-      new PdsUnavailableError(500, 'Internal Server Error'),
-      'Your PDS has a problem (Internal Server Error). Try again later.',
     ],
     ['the network is down', new TypeError('Failed to fetch'), 'Could not reach this Atomes server. Check your connection and try again.'],
     ['anything else', new Error('boom'), 'Something went wrong with your Library. Try again.'],

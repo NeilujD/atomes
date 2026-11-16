@@ -4,7 +4,7 @@
 // collection that is never Shared: Copies, Loans and To Buy stay off the PDS
 // whatever the caller asks.
 import { sharedCollections } from '../sharing/categories';
-import type { FetchHandler } from '../space/space';
+import type { FetchHandler } from '../space/queued-store';
 
 export interface PublicRepo {
   // Every record of the collection, all pages.

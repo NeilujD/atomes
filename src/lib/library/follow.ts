@@ -1,7 +1,7 @@
 // `app.atomes.follow`: a Followed or Dropped Series, in one Edition Line (ADR 0010).
 // The record key is the Series identifier: one record per Series. The Catalog
 // derives the Edition Line from the anchor Edition.
-import type { Space, WriteState } from '../space/space';
+import type { Space, WriteState } from '../space/queued-store';
 import { isIsbn13, isSeriesId } from './ids';
 import { listRecords, putRecord } from './records';
 
