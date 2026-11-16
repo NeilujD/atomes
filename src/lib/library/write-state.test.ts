@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { Space, WriteState } from '../space/space';
+import type { Space, WriteState } from '../space/queued-store';
 import { saveCopy } from './copy';
 import { saveFollow } from './follow';
 import { saveLabel } from './label';

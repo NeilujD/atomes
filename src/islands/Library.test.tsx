@@ -8,7 +8,7 @@ import { deleteLabel, labelCollection, listLabels, saveLabel } from '../lib/libr
 import { memorySpace } from '../lib/library/memory-space.fake';
 import { saveReadingStatus } from '../lib/library/reading-status';
 import { reconnectEvent } from '../lib/network';
-import type { WriteState } from '../lib/space/space';
+import type { WriteState } from '../lib/space/queued-store';
 import { Library, type Sources } from './Library';
 import type { SelectionSources } from './Selection';
 

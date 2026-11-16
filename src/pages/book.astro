@@ -182,7 +182,7 @@ const choices = [
   import { seriesHref, suggestsDrop } from '../lib/library/series';
   import { isNetworkFailure } from '../lib/network';
   import { freshListing } from '../lib/space/fresh-listing';
-  import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+  import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
   import { toast, type ToastAction } from '../lib/toast';
 
   const pageBox = document.querySelector<HTMLElement>('[data-page]')!;

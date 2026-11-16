@@ -38,7 +38,7 @@ if (!import.meta.env.DEV) return new Response(null, { status: 404 });
   import { loadLibrary, waitingCount, worstState } from '../../lib/library/library';
   import { seriesRecords } from '../../lib/library/onboarding';
   import { readingStatusCollection } from '../../lib/library/reading-status';
-  import { spaceErrorMessage, type Space, type WriteState } from '../../lib/space/space';
+  import { spaceErrorMessage, type Space, type WriteState } from '../../lib/space/queued-store';
   import { reportWaiting } from '../../lib/connection';
   import { toast } from '../../lib/toast';
 

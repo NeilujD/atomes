@@ -1,7 +1,6 @@
 // The Library store the app uses: the reader's Private records on the Atomes
-// instance (ADR 0012), through its API (src/lib/server/library-api.ts). Same
-// `Space` contract, local copy and write queue as the Space store, so the
-// screens do not change and the move to Spaces later is a store swap.
+// instance (ADR 0012, ADR 0016), through its API (src/lib/server/library-api.ts),
+// with the local copy and write queue of queued-store.ts.
 import type { LocalCopy } from './local-copy';
 import {
   openQueuedStore,
@@ -13,9 +12,9 @@ import {
   type Remote,
   type Space,
   type SpaceRecord,
+  type FetchHandler,
   type StaleWrite,
 } from './queued-store';
-import type { FetchHandler } from './space';
 
 const apiPath = '/api/library';
 

@@ -48,12 +48,10 @@ export const en = {
   'saved.refused': 'The Atomes server refused this change, so it is not saved.',
   'saved.refused-reason': (reason: string) => `Reason: ${reason}`,
 
-  // Errors (src/lib/space/space.ts, src/lib/auth/session.ts)
+  // Errors (src/lib/space/queued-store.ts, src/lib/auth/session.ts)
   'error.server-unreachable': 'Could not reach this Atomes server. Check your connection and try again.',
   'error.server-refused-request': (detail: string) => `The Atomes server refused the request: ${detail}`,
   'error.server-problem': (detail: string) => `The Atomes server has a problem (${detail}). Try again later.`,
-  'error.pds-refused-request': (detail: string) => `Your PDS refused the request: ${detail}`,
-  'error.pds-problem': (detail: string) => `Your PDS has a problem (${detail}). Try again later.`,
   'error.space-failed': 'Something went wrong with your Library. Try again.',
 
   // Sign-in (src/lib/auth/session.ts)

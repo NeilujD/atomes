@@ -11,7 +11,7 @@ import { savedText, sendWhenOnline, waitingCount } from '../lib/library/library'
 import type { Saved } from '../lib/library/records';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
-import { spaceErrorMessage, type Space } from '../lib/space/space';
+import { spaceErrorMessage, type Space } from '../lib/space/queued-store';
 import { toast } from '../lib/toast';
 
 export interface Sources {

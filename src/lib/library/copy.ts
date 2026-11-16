@@ -1,6 +1,6 @@
 // `app.atomes.copy`: a physical book the reader owns (ADR 0010). Never Shared.
 import { t } from '../i18n/i18n';
-import { newRecordKey, type Space, type WriteState } from '../space/space';
+import { newRecordKey, type Space, type WriteState } from '../space/queued-store';
 import { isIsbn13, isWorkId } from './ids';
 import { listRecords, putRecord } from './records';
 

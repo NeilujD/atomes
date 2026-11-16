@@ -47,11 +47,9 @@ export const fr: typeof en = {
   'saved.refused-reason': (reason) => `Motif : ${reason}`,
   'saved.refused': 'Le serveur Atomes a refusé cette modification : elle n’est pas enregistrée.',
 
-  // Errors (src/lib/space/space.ts, src/lib/auth/session.ts)
+  // Errors (src/lib/space/queued-store.ts, src/lib/auth/session.ts)
   'error.server-unreachable': 'Impossible de joindre ce serveur Atomes. Vérifiez votre connexion et réessayez.',
   'error.server-problem': (detail) => `Le serveur Atomes a un problème (${detail}). Réessayez plus tard.`,
-  'error.pds-refused-request': (detail) => `Votre PDS a refusé la requête : ${detail}`,
-  'error.pds-problem': (detail) => `Votre PDS a un problème (${detail}). Réessayez plus tard.`,
   'error.space-failed': 'Un problème est survenu avec votre bibliothèque. Réessayez.',
 
   // Sign-in (src/lib/auth/session.ts)

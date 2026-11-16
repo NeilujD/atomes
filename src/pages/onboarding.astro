@@ -164,7 +164,7 @@ const steppers = [
   import { saveReadingStatus } from '../lib/library/reading-status';
   import { seriesHref } from '../lib/library/series';
   import { isNetworkFailure } from '../lib/network';
-  import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+  import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
   import { toast } from '../lib/toast';
 
   const card = document.querySelector<HTMLElement>('[data-card]')!;

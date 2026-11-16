@@ -3,7 +3,7 @@
 // open; returned Loans stay as the Copy's history. It holds the name of
 // someone who is not a reader, so it goes with the export and delete of ADR 0012.
 // Never Shared.
-import { newRecordKey, type Space, type WriteState } from '../space/space';
+import { newRecordKey, type Space, type WriteState } from '../space/queued-store';
 import { listRecords, putRecord } from './records';
 
 export const loanCollection = 'app.atomes.loan';

@@ -16,7 +16,7 @@ import { askCollected, seriesHref, type CatalogAsk } from '../lib/library/series
 import { bought, bySeries, deleteToBuy, handAdd, saveToBuy, toBuyList, type SeriesGroup, type ToBuyItem } from '../lib/library/to-buy';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
-import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
 import { toast } from '../lib/toast';
 import { Cover } from './Cover';
 

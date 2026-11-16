@@ -3,7 +3,7 @@
 // a TID, so a rename keeps the key. Also the rules of the Labels on the Book
 // page (src/islands/BookLabels.tsx): pure, they say what to save.
 import { compareText, type Language } from '../i18n/i18n';
-import { newRecordKey, type Space, type WriteState } from '../space/space';
+import { newRecordKey, type Space, type WriteState } from '../space/queued-store';
 import { isSeries, isSeriesId, isWorkId } from './ids';
 import { listRecords, putRecord, type Saved } from './records';
 

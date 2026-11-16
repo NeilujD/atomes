@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { Space } from '../space/space';
+import type { Space } from '../space/queued-store';
 import {
   attachSeries,
   deleteLabel,

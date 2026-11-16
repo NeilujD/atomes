@@ -4,7 +4,7 @@
 // come before the network works, or not come at all, so one read on it is not
 // enough. Reconnect (src/lib/connection.ts) reads it again at once, fresh or not.
 import { reconnectEvent } from '../network';
-import { isTemporaryFailure } from './space';
+import { isTemporaryFailure } from './queued-store';
 
 export function freshListing<T extends { stale: boolean }>(
   load: () => Promise<T>,

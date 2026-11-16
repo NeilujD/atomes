@@ -1,8 +1,8 @@
-// What every store of Library records does on the device, whatever keeps the
-// records (the instance today, ADR 0012; a Space later, ADR 0003): a local copy
-// of the records last read, for offline reads, and an ordered queue of the
-// writes not sent yet, for offline writes (ADR 0002). The `Remote` is the only
-// part that knows where the records go.
+// What the store of Library records does on the device: a local copy of the
+// records last read, for offline reads, and an ordered queue of the writes not
+// sent yet, for offline writes (ADR 0002). The `Remote` is the only part that
+// knows where the records go: the instance (instance-store.ts, ADR 0012).
+import { t } from '../i18n/i18n';
 import { isNetworkFailure } from '../network';
 import type { LocalCopy } from './local-copy';
 
@@ -330,4 +330,36 @@ function withWrites(records: SpaceRecord[], writes: PendingWrite[]): SpaceRecord
 
 function sortByKey(records: SpaceRecord[]): SpaceRecord[] {
   return records.sort((a, b) => b.rkey.localeCompare(a.rkey));
+}
+
+// Sends a request to the store: a same-origin one to the Atomes server.
+export type FetchHandler = (pathname: string, init?: RequestInit) => Promise<Response>;
+
+// Record key: a TID (base32-sortable microseconds and a clock id), so keys sort
+// in creation order. https://atproto.com/specs/tid
+const base32Sortable = '234567abcdefghijklmnopqrstuvwxyz';
+const clockId = BigInt(Math.floor(Math.random() * 1024));
+let lastMicros = 0n;
+
+export function newRecordKey(): string {
+  // Strictly increasing, even for two keys in the same millisecond.
+  const now = BigInt(Date.now()) * 1000n;
+  lastMicros = now > lastMicros ? now : lastMicros + 1n;
+  let value = (lastMicros << 10n) | clockId;
+  let key = '';
+  for (let i = 0; i < 13; i++) {
+    key = base32Sortable[Number(value & 31n)] + key;
+    value >>= 5n;
+  }
+  return key;
+}
+
+// Names what failed: the session, the Atomes server, or the network.
+export function spaceErrorMessage(error: unknown): string {
+  if (error instanceof SignedOutError) return t('auth.session-ended');
+  if (error instanceof RefusedError) return t('error.server-refused-request', error.message);
+  if (error instanceof UnavailableError) return t('error.server-problem', error.message);
+  // The device calls only the Atomes server (ADR 0013).
+  if (isNetworkFailure(error)) return t('error.server-unreachable');
+  return t('error.space-failed');
 }

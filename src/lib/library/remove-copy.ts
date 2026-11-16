@@ -1,7 +1,7 @@
 // Remove a Copy (Book page). Its Loans go with it: they hold names of people
 // who are not readers. Remove asks nothing first; its toast offers Undo, which
 // puts back the same records under the same keys (ui-direction: colour roles).
-import type { Space, WriteState } from '../space/space';
+import type { Space, WriteState } from '../space/queued-store';
 import { deleteCopy, saveCopy } from './copy';
 import { worstState } from './library';
 import { deleteLoan, saveLoan } from './loan';
