@@ -534,7 +534,7 @@ export const fr: typeof en = {
     'Vous, et l’opérateur de cette instance, qui peut lire toutes les bibliothèques qu’elle garde. Personne d’autre, sauf ce que vous partagez. Pour garder votre bibliothèque hors de portée de tout opérateur, hébergez votre propre instance.',
   'privacy.processors-heading': 'Qui aide',
   'privacy.processors':
-    '[EXPÉDITEUR DES E-MAILS] envoie vos codes de connexion : il reçoit votre adresse e-mail et le code, pour cela seulement. Chaque heure, une copie chiffrée de la bibliothèque part vers [STOCKAGE DES SAUVEGARDES] et y reste 30 jours.',
+    'Scaleway (service Transactional Email, Paris, France) envoie vos codes de connexion : il reçoit votre adresse e-mail et le code, pour cela seulement. Chaque heure, une copie chiffrée de la bibliothèque part vers [STOCKAGE DES SAUVEGARDES] et y reste 30 jours.',
   'privacy.shared-heading': 'Ce que vous partagez',
   'privacy.shared':
     'Les enregistrements partagés (statuts de lecture, séries suivies, étiquettes) vont sur votre compte AT Protocol, où tout le monde peut les lire. Rien n’est partagé tant que vous ne l’activez pas. Les exemplaires, les prêts et la liste À acheter ne sont jamais partagés.',

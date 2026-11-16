@@ -537,7 +537,7 @@ export const en = {
     'You, and the operator of this instance, who can read every Library it keeps. Nobody else, except what you share. To keep your Library from any operator, run your own instance.',
   'privacy.processors-heading': 'Who helps',
   'privacy.processors':
-    '[EMAIL SENDER] sends your Sign-in Codes: it receives your email address and the code, for this only. Every hour, an encrypted copy of the Library is sent to [BACKUP STORAGE] and kept for 30 days.',
+    'Scaleway (Transactional Email, Paris, France) sends your Sign-in Codes: it receives your email address and the code, for this only. Every hour, an encrypted copy of the Library is sent to [BACKUP STORAGE] and kept for 30 days.',
   'privacy.shared-heading': 'What you share',
   'privacy.shared':
     'Shared records (Reading Statuses, Followed Series, Labels) go to your AT Protocol account, where anyone can read them. Nothing is Shared until you turn it on. Copies, Loans and To Buy are never Shared.',
