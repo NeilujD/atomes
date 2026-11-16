@@ -35,6 +35,7 @@ const t = translator(requestLanguage(Astro.request));
       <button class="button button-primary" type="submit">{t('signin.submit')}</button>
     </form>
     <p class="error" data-error role="alert" hidden></p>
+    <a class="privacy" href="/privacy">{t('signin.privacy')}</a>
   </section>
 </AppShell>
 
@@ -113,6 +114,11 @@ const t = translator(requestLanguage(Astro.request));
 
   .sign-in .field {
     flex: 1;
+  }
+
+  .privacy {
+    margin-top: 8px;
+    font-size: 13px;
   }
 
   .error {

@@ -76,6 +76,10 @@ export const en = {
   'signin.sharing': 'Atomes also asks your PDS for permission to write the records you choose to share: Reading Statuses, Followed Series, Labels. Nothing is Shared until you turn it on in Settings.',
   'signin.handle': 'Your handle',
   'signin.submit': 'Sign in',
+  'signin.privacy': 'Privacy notice',
+  'auth.account-deleted': 'Your account is deleted.',
+  'auth.account-deleted-shared-left':
+    'Your account is deleted, but Atomes could not reach your AT Protocol account: your Shared records (Reading Statuses, Followed Series, Labels) are still on it. Delete the app.atomes records there with an AT Protocol tool, or ask the operator of this instance.',
   'signout.title': 'Sign out of this device?',
   'signout.text': 'Atomes removes your Library from this device. Saves still waiting to be sent are lost.',
   'signout.cancel': 'Cancel',
@@ -111,6 +115,18 @@ export const en = {
   'settings.appearance': 'Appearance',
   'settings.language': 'Language',
   'settings.on-this-device': 'Kept on this device.',
+  'settings.your-data': 'Your data',
+  'settings.privacy': 'Privacy notice',
+  'settings.privacy-hint': 'What this instance keeps, who can read it, and your rights.',
+  'settings.export': 'Export my Library',
+  'settings.export-hint': 'One JSON file with every record of your Library, Loans included.',
+  'settings.delete': 'Delete my account',
+  'settings.delete-hint': 'Removes your Library and your Account from this instance. It cannot be undone.',
+  'settings.delete-failed': 'Your account could not be deleted. Check the network, then try again.',
+  'delete.title': 'Delete your account?',
+  'delete.text':
+    'Atomes deletes your Library (Loans included), your sharing choices and your Account from this instance, and your Shared records from your AT Protocol account. This cannot be undone. Export your Library first to keep a copy.',
+  'delete.cancel': 'Cancel',
 
   // Sharing (Settings, Book page; glossary: Shared, Private)
   'sharing.title': 'Sharing',
@@ -485,4 +501,35 @@ export const en = {
   'select.moved': (count: number) => `${count} ${count === 1 ? 'book' : 'books'} moved. Every reader sees it.`,
   'select.unchanged': 'Nothing to change.',
   'select.undone': 'Undone.',
+
+  // Privacy notice (src/pages/privacy.astro, CORE-55). DRAFT: the owner approves
+  // this text. Words in [BRACKETS] are facts of the instance still to fill in.
+  'privacy.title': 'Privacy notice',
+  'privacy.draft': 'Draft: the owner of this instance has not approved this text yet.',
+  'privacy.intro': 'This page tells what this Atomes instance keeps about you, who can read it, and how to take it with you or delete it.',
+  'privacy.operator-heading': 'Who is responsible',
+  'privacy.operator':
+    'This instance is run by [OPERATOR NAME]. The operator is the data controller for what the instance keeps. Contact: [OPERATOR CONTACT].',
+  'privacy.stores-heading': 'What the instance keeps',
+  'privacy.stores':
+    'Your Account: an email address, the AT Protocol account you linked, or both. Your Library: Copies, Loans, Reading Statuses, Labels, Followed Series and To Buy. Your sharing choices. Your sessions, so you stay signed in. A Series Correction you make keeps your Account as its author.',
+  'privacy.not-kept':
+    'No password: you sign in with a Sign-in Code or your AT Protocol account. The instance never writes your records in its logs. The Catalog learns only the ISBNs you look up, never who looked them up.',
+  'privacy.readers-heading': 'Who can read it',
+  'privacy.readers':
+    'You, and the operator of this instance, who can read every Library it keeps. Nobody else, except what you share. To keep your Library from any operator, run your own instance.',
+  'privacy.processors-heading': 'Who helps',
+  'privacy.processors':
+    '[EMAIL SENDER] sends your Sign-in Codes: it receives your email address and the code, for this only. Every hour, an encrypted copy of the Library is sent to [BACKUP STORAGE] and kept for 30 days.',
+  'privacy.shared-heading': 'What you share',
+  'privacy.shared':
+    'Shared records (Reading Statuses, Followed Series, Labels) go to your AT Protocol account, where anyone can read them. Nothing is Shared until you turn it on. Copies, Loans and To Buy are never Shared.',
+  'privacy.basis-heading': 'Why',
+  'privacy.basis':
+    'The instance keeps this data to give you the service you asked for: your Library on all your devices. It never sells it and never uses it for advertising.',
+  'privacy.rights-heading': 'Take it with you, or delete it',
+  'privacy.rights':
+    'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account. The encrypted backups still hold it for up to 30 days. For any other request, write to [OPERATOR CONTACT].',
+  'privacy.updated': 'Last change: [DATE OF APPROVAL].',
+  'privacy.back': 'Back to Atomes',
 };

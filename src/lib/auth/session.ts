@@ -94,6 +94,9 @@ const results: Partial<Record<string, () => string>> = {
   'no-account': () => t('auth.no-account'),
   unreachable: () => t('auth.pds-unreachable'),
   failed: () => t('auth.failed'),
+  // Not a sign-in: the Account was just deleted (delete-account.ts).
+  deleted: () => t('auth.account-deleted'),
+  'deleted-shared-left': () => t('auth.account-deleted-shared-left'),
 };
 
 export function signInResultMessage(result: string | null): string | undefined {

@@ -1,0 +1,92 @@
+---
+// The privacy notice (ADR 0012, ADR 0016, CORE-55): what the instance keeps,
+// who can read it, and how to export and delete. A Flow screen with no gate, so
+// it opens with no session, linked from the sign-in screen and Settings. In
+// the language of the request (cookie, then the browser), French or English.
+// DRAFT: the owner approves the text (`privacy.*` in src/lib/i18n).
+import AppShell from '../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
+
+const sections = [
+  { heading: t('privacy.operator-heading'), texts: [t('privacy.operator')] },
+  { heading: t('privacy.stores-heading'), texts: [t('privacy.stores'), t('privacy.not-kept')] },
+  { heading: t('privacy.readers-heading'), texts: [t('privacy.readers')] },
+  { heading: t('privacy.processors-heading'), texts: [t('privacy.processors')] },
+  { heading: t('privacy.shared-heading'), texts: [t('privacy.shared')] },
+  { heading: t('privacy.basis-heading'), texts: [t('privacy.basis')] },
+  { heading: t('privacy.rights-heading'), texts: [t('privacy.rights')] },
+];
+---
+
+<AppShell title={t('privacy.title')} flow>
+  <article class="notice" aria-labelledby="privacy-title">
+    <h1 class="title" id="privacy-title">{t('privacy.title')}</h1>
+    <p class="draft">{t('privacy.draft')}</p>
+    <p>{t('privacy.intro')}</p>
+    {
+      sections.map(({ heading, texts }) => (
+        <section>
+          <h2>{heading}</h2>
+          {texts.map((text) => (
+            <p>{text}</p>
+          ))}
+        </section>
+      ))
+    }
+    <p class="updated">{t('privacy.updated')}</p>
+    <a class="button" href="/">{t('privacy.back')}</a>
+  </article>
+</AppShell>
+
+<style>
+  .notice {
+    width: min(100%, 640px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 15px;
+    text-wrap: pretty;
+  }
+
+  .title {
+    font-size: 26px;
+    letter-spacing: -0.03em;
+  }
+
+  .draft {
+    padding: 8px 12px;
+    border-radius: var(--radius-control);
+    background: var(--soft);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  h2 {
+    font-size: 17px;
+    letter-spacing: -0.02em;
+  }
+
+  .updated {
+    color: var(--secondary);
+    font-size: 13px;
+  }
+
+  @media (min-width: 960px) {
+    .notice {
+      padding: 40px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface);
+    }
+  }
+</style>

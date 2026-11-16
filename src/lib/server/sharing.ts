@@ -57,6 +57,10 @@ export interface Sharing {
   // A record of the instance changed (Library API): mirror it if its category
   // is Shared. Never rejects: a failure leaves the reader pending.
   recordChanged(account: AccountId, collection: string, rkey: string): Promise<void>;
+  // The Account is deleted (CORE-55): deletes every record of the Shared
+  // collections from its PDS, then its choices here, whatever the PDS
+  // answered. `sharedLeft`: the PDS may still hold Shared records.
+  forget(account: AccountId): Promise<{ sharedLeft: boolean }>;
   close(): void;
 }
 
@@ -251,6 +255,25 @@ export function createSharing({
             logFailure('mirror', stored);
           }
         }
+      }),
+    forget: (account) =>
+      serial(account, async () => {
+        let sharedLeft = false;
+        // Nothing was ever sent while no category is Shared and nothing waits.
+        if (isPending(account) || Object.values(sharedOf(account)).some(Boolean)) {
+          try {
+            const repo = await repoOf(account);
+            if (!repo) sharedLeft = true;
+            else for (const collection of Object.values(categories)) for (const { rkey } of await repo.list(collection)) await repo.delete(collection, rkey);
+          } catch (error) {
+            logFailure('delete', error);
+            sharedLeft = true;
+          }
+        }
+        inTransaction(db, () => {
+          for (const table of ['shared_category', 'private_work', 'sharing_pending']) db.prepare(`delete from ${table} where account = ?`).run(account);
+        });
+        return { sharedLeft };
       }),
     close: () => db.close(),
   };

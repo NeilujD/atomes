@@ -38,6 +38,9 @@ export interface AuthStore {
   closeBrowserSession(cookie: string): AccountId | undefined;
   // True while another browser session of the Account is still open.
   hasBrowserSessions(account: AccountId): boolean;
+  // Ends every browser session of the Account, and deletes the OAuth session
+  // of its DID (CORE-55).
+  forget(account: AccountId, did?: Did): void;
   close(): void;
 }
 
@@ -133,6 +136,10 @@ export function createAuthStore(options: {
     },
     hasBrowserSessions(account) {
       return db.prepare('select 1 from browser_session where account = ? and expires_at > ?').get(account, now()) !== undefined;
+    },
+    forget(account, did) {
+      db.prepare('delete from browser_session where account = ?').run(account);
+      if (did) db.prepare('delete from oauth_session where did = ?').run(did);
     },
     close: () => db.close(),
   };

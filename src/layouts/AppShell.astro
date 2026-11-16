@@ -225,17 +225,17 @@ const icons = appIcons(appEnvironment(process.env));
 
 <script>
   import { applyAppearance, readAppearance } from '../lib/appearance';
-  import { signInPath } from '../lib/auth/return-to';
+  import { openPaths } from '../lib/auth/return-to';
   import { confirmSignOut } from '../lib/auth/confirm-sign-out';
   import { gateScreen, signOutHere } from '../lib/auth/server-client';
   import { startBackArrow } from '../lib/back';
   import { startConnectionStatus } from '../lib/connection';
   import { toast } from '../lib/toast';
 
-  // Every screen but the sign-in screen needs a signed-in reader (ADR 0013,
-  // amendment 2026-11-12). Checked here, not on the server: see gate() in
-  // src/lib/auth/session.ts.
-  if (location.pathname !== signInPath) void gateScreen();
+  // Every screen but the sign-in screen and the privacy notice needs a
+  // signed-in reader (ADR 0013, amendment 2026-11-12). Checked here, not on
+  // the server: see gate() in src/lib/auth/session.ts.
+  if (!openPaths.includes(location.pathname)) void gateScreen();
 
   // Sidebar Sign out (desktop; on the phone it is in Settings). A message that
   // must be read first stays as an error toast; else the sign-in screen opens.
@@ -568,7 +568,8 @@ const icons = appIcons(appEnvironment(process.env));
     font-size: 12px;
   }
 
-  .confirm {
+  /* Confirm dialogs: sign-out here, delete in Settings. */
+  :global(.confirm) {
     width: min(100% - 32px, 400px);
     padding: 24px;
     border: 1px solid var(--line);
@@ -577,23 +578,23 @@ const icons = appIcons(appEnvironment(process.env));
     color: var(--ink);
   }
 
-  .confirm::backdrop {
+  :global(.confirm::backdrop) {
     background: var(--scrim);
   }
 
-  .confirm-title {
+  :global(.confirm-title) {
     font-size: 18px;
     letter-spacing: -0.02em;
   }
 
-  .confirm-text {
+  :global(.confirm-text) {
     margin-top: 8px;
     color: var(--secondary);
     font-size: 14px;
     text-wrap: pretty;
   }
 
-  .confirm-actions {
+  :global(.confirm-actions) {
     display: flex;
     justify-content: flex-end;
     gap: 8px;

@@ -37,6 +37,44 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
       <p class="row-error" data-auth-error role="alert" hidden></p>
     </section>
 
+    <!-- Export and delete (CORE-55): src/lib/server/account-data.ts. -->
+    <section class="group" aria-labelledby="data-title" data-account-data>
+      <h2 class="group-title" id="data-title">{t('settings.your-data')}</h2>
+      <div class="row">
+        <div>
+          <p class="row-label">{t('settings.privacy')}</p>
+          <p class="row-hint">{t('settings.privacy-hint')}</p>
+        </div>
+        <a class="button" href="/privacy">{t('settings.privacy')}</a>
+      </div>
+      <div class="row">
+        <div>
+          <p class="row-label">{t('settings.export')}</p>
+          <p class="row-hint">{t('settings.export-hint')}</p>
+        </div>
+        <a class="button" href="/api/account/export" download data-export>{t('settings.export')}</a>
+      </div>
+      <div class="row">
+        <div>
+          <p class="row-label">{t('settings.delete')}</p>
+          <p class="row-hint">{t('settings.delete-hint')}</p>
+        </div>
+        <button class="button button-danger" type="button" data-delete-account>{t('settings.delete')}</button>
+      </div>
+      <p class="row-error" data-delete-error role="alert" hidden></p>
+      <!-- The confirm step: Cancel comes first, so the dialog focuses it. -->
+      <dialog class="confirm" data-delete-dialog aria-labelledby="delete-title" aria-describedby="delete-text">
+        <form method="dialog">
+          <h2 class="confirm-title" id="delete-title">{t('delete.title')}</h2>
+          <p class="confirm-text" id="delete-text">{t('delete.text')}</p>
+          <div class="confirm-actions">
+            <button class="button" value="cancel">{t('delete.cancel')}</button>
+            <button class="button button-danger" value="confirm">{t('settings.delete')}</button>
+          </div>
+        </form>
+      </dialog>
+    </section>
+
     <!-- Sharing by category (src/islands/Sharing.tsx). -->
     <section class="group" aria-labelledby="sharing-title">
       <h2 class="group-title" id="sharing-title">{t('sharing.title')}</h2>
@@ -100,6 +138,9 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
   import { checkedAccount, signOutHere } from '../lib/auth/server-client';
   import { parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
   import { loadSession, type AuthState } from '../lib/auth/session';
+  import { deleteAccount } from '../lib/auth/delete-account';
+  import { deviceData } from '../lib/auth/device-data';
+  import { indexedDbLocalCopy } from '../lib/space/local-copy';
 
   const auth = document.querySelector<HTMLElement>('[data-auth]')!;
   const status = auth.querySelector<HTMLElement>('[data-auth-status]')!;
@@ -135,6 +176,27 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
     });
   });
 
+  // Delete my account, after the confirm step. Deleted: the sign-in screen
+  // says so. Else the reason stays here.
+  const deleteButton = document.querySelector<HTMLButtonElement>('[data-delete-account]')!;
+  const deleteDialog = document.querySelector<HTMLDialogElement>('[data-delete-dialog]')!;
+  const deleteError = document.querySelector<HTMLElement>('[data-delete-error]')!;
+  deleteButton.addEventListener('click', () => {
+    deleteDialog.returnValue = '';
+    deleteDialog.showModal();
+  });
+  deleteDialog.addEventListener('close', () => {
+    if (deleteDialog.returnValue !== 'confirm') return;
+    deleteButton.disabled = true;
+    deleteButton.setAttribute('aria-busy', 'true');
+    void deleteAccount({ fetch: (input, init) => fetch(input, init), storage: localStorage, device: deviceData(indexedDbLocalCopy()) }).then((result) => {
+      if ('next' in result) return location.replace(result.next);
+      deleteError.textContent = result.message;
+      deleteError.hidden = false;
+      deleteButton.disabled = false;
+      deleteButton.removeAttribute('aria-busy');
+    });
+  });
 
   const radios = document.querySelectorAll<HTMLInputElement>('[data-appearance-picker] input[name="appearance"]');
   const stored = readAppearance();

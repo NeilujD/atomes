@@ -45,6 +45,8 @@ export interface LibraryStore {
   // `base`, as put.
   delete(account: AccountId, collection: string, rkey: string, base?: number): number | undefined;
   changesSince(account: AccountId, since: number): Changes;
+  // Deletes every record and tombstone of the Account (CORE-55).
+  forget(account: AccountId): void;
   close(): void;
 }
 
@@ -128,6 +130,10 @@ export function createLibraryStore(db: DatabaseSync, now: () => Date = () => new
         ),
         deleted: rows.flatMap(({ collection, rkey, deleted }) => (deleted ? [{ collection, rkey }] : [])),
       };
+    },
+    forget(account) {
+      db.prepare('delete from record where account = ?').run(account);
+      db.prepare('delete from purged where account = ?').run(account);
     },
     close: () => db.close(),
   };

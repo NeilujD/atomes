@@ -23,6 +23,8 @@ export interface Accounts {
   ofDid(did: Did): AccountId;
   // Empty for an unknown Account.
   identitiesOf(account: AccountId): Identities;
+  // Deletes the Account and its identities (CORE-55).
+  forget(account: AccountId): void;
   close(): void;
 }
 
@@ -55,6 +57,12 @@ export function createAccounts(db: DatabaseSync): Accounts {
     identitiesOf(account) {
       const rows = db.prepare('select kind, value from identity where account = ?').all(account) as { kind: 'did' | 'email'; value: string }[];
       return Object.fromEntries(rows.map(({ kind, value }) => [kind, value]));
+    },
+    forget(account) {
+      inTransaction(db, () => {
+        db.prepare('delete from identity where account = ?').run(account);
+        db.prepare('delete from account where id = ?').run(account);
+      });
     },
     close: () => db.close(),
   };

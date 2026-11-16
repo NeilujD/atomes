@@ -3,6 +3,8 @@
 // browser (the gate, the sign-in screen) and the server (the OAuth callback).
 
 export const signInPath = '/sign-in';
+// Screens a visitor with no session may read (CORE-55).
+export const openPaths: readonly string[] = [signInPath, '/privacy'];
 
 const base = 'http://atomes.invalid';
 
