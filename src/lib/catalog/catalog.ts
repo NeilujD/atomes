@@ -22,7 +22,7 @@ import {
   type LineName,
 } from './lines';
 import { inTransaction, migrate } from '../server/migrate';
-import { catalogSteps } from './migrations';
+import { catalogSteps, type DidAccounts } from './migrations';
 import { dropSharedWorks, losesWork } from './shared-works';
 import { shownEditions } from './shown';
 import type { Publisher, SourceFetch } from './sources';
@@ -238,12 +238,13 @@ const toSeries = (row: SeriesRow): Series => ({ id: row.id, title: row.title, sa
 const minted = (id: string) => id.startsWith('atomes:');
 
 // `host` mints `atomes:<host>:<ULID>` Series identifiers when no source has one.
-export function createCatalog(options: { file: string; fetch: SourceFetch; host: string; now?: () => Date }): Catalog {
+// `accounts`: the Accounts of library.sqlite, read by a migration step.
+export function createCatalog(options: { file: string; fetch: SourceFetch; host: string; accounts: DidAccounts; now?: () => Date }): Catalog {
   const now = options.now ?? (() => new Date());
   const db = new DatabaseSync(options.file);
   // WAL: the hourly backup reads a snapshot while the server keeps writing (docs/backups.md).
   db.exec('pragma journal_mode = wal');
-  migrate(db, catalogSteps);
+  migrate(db, catalogSteps(options.accounts));
 
   const editionRow = (isbn: string) => db.prepare(`${selectEdition} where edition.isbn = ?`).get(isbn) as EditionRow | undefined;
   const age = (iso: string) => now().getTime() - Date.parse(iso);
@@ -813,8 +814,10 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     return { found: toEdition(editionRow(isbn)!) };
   }
 
+  // Undefined for a Correction with no author (CORE-131).
   function correctionAccount(isbn: string): string | undefined {
-    return (db.prepare('select account from series_correction where isbn = ?').get(isbn) as { account: string } | undefined)?.account;
+    const row = db.prepare('select account from series_correction where isbn = ?').get(isbn) as { account: string | null } | undefined;
+    return row?.account ?? undefined;
   }
 
   function uncorrect(isbn: string): Edition | undefined {

@@ -9,7 +9,7 @@ import { shownEditions } from './shown';
 // index must still find them.
 test('the Editions of one Edition Line are found by the Edition Line index, Series Corrections included', () => {
   const db = new DatabaseSync(':memory:');
-  migrate(db, catalogSteps);
+  migrate(db, catalogSteps({ findDid: () => undefined }));
 
   const plan = db.prepare(`explain query plan select isbn from ${shownEditions} where edition_line = ?`).all('1|glenat|fre|18|') as { detail: string }[];
   db.close();
