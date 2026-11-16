@@ -74,10 +74,12 @@ jobs:
         run: |
           if docker run --rm atomes:ci; then echo "The image started with no settings"; exit 1; fi
       # Throwaway settings, made for this run only: no secret in the repo or in CI.
+      # No SMTP server listens there: the health check sends no mail.
       - name: Run the image and wait for its health check
         run: |
           docker run -d --name atomes -v atomes-data:/data \
-            -e SESSION_ENCRYPTION_KEY="$(openssl rand -base64 32)" atomes:ci
+            -e SESSION_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+            -e SMTP_URL=smtp://127.0.0.1:2525 -e MAIL_FROM=atomes@example.org atomes:ci
           for _ in $(seq 30); do
             status=$(docker inspect -f '{{.State.Health.Status}}' atomes)
             [ "$status" = healthy ] && exit 0

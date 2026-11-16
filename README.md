@@ -37,9 +37,10 @@ SESSION_ENCRYPTION_KEY=<openssl rand -base64 32>
 ```
 
 - A new Account needs an Invite ([ADR 0016](docs/adr/0016-atomes-account-atproto-account-optional.md)). With the dev server running, `bun scripts/invite.ts` prints an Invite link: open it, then sign in. A reader who has an Account signs in with no Invite.
+- Sign in with an email address: the dev server sends no mail. Type the address, then open `http://127.0.0.1:4321/dev/outbox?to=<address>` and copy the Sign-in Code of the last mail (404 when no mail went to that address, and in a built server).
 - Do not set `PUBLIC_APP_ORIGIN` in `.env.local`: with it, the server is the confidential client of that origin and sign-in on `127.0.0.1` fails.
 - Open `http://127.0.0.1:4321/`, not `localhost` (the server moves `localhost` pages to `127.0.0.1`). The app sends you to the sign-in screen. Sign in, add a book, reload: the book is there, read from `data/library.sqlite`.
-- Check the settings without the server: `node --env-file=.env.local scripts/check-settings.ts`.
+- Check the settings without the server: `NODE_ENV=development node --env-file=.env.local scripts/check-settings.ts`. Without `NODE_ENV=development` it checks them as a built server, which needs `SMTP_URL` and `MAIL_FROM`.
 
 ## Run with Docker
 
@@ -50,7 +51,9 @@ docker build -t atomes .
 docker run -d --name atomes -p 4321:4321 -v atomes-data:/data \
   -e PUBLIC_APP_ORIGIN=https://atomes.example.org \
   -e SESSION_ENCRYPTION_KEY=… \
-  -e OAUTH_PRIVATE_KEY='{"kty":"EC",…}' atomes
+  -e OAUTH_PRIVATE_KEY='{"kty":"EC",…}' \
+  -e SMTP_URL='smtps://user:password@smtp.example.org:465' \
+  -e MAIL_FROM='Atomes <atomes@example.org>' atomes
 ```
 
 The container stops at start, with a message that names each problem, when a required setting is missing or wrong. How to make the two keys: [docs/staging-coolify.md](docs/staging-coolify.md), step 8. Then make an Invite for each reader: `docker exec atomes node scripts/invite.ts` prints a link that works once and for 14 days.
@@ -63,6 +66,8 @@ Put an HTTPS reverse proxy in front of it (Coolify, Caddy, Traefik): sign-in nee
 | `SIGN_UP` | `invite` | Who may make an Account. `invite`: only with an Invite (`node scripts/invite.ts`); a reader who has an Account signs in with no Invite, others see "You need an Invite" and the instance keeps nothing for them. `open` is not built yet: the server refuses to start with it. |
 | `SESSION_ENCRYPTION_KEY` | required | 32 random bytes in base64. Encrypts OAuth tokens and DPoP keys in `auth.sqlite`. A new key signs every reader out. |
 | `OAUTH_PRIVATE_KEY` | required with `PUBLIC_APP_ORIGIN` | The confidential client's ES256 private key, a JWK with a `kid`, as one line of JSON. Its public part is served at `/oauth/jwks.json`. |
+| `SMTP_URL` | required | The SMTP server that sends Sign-in Codes, as `smtps://user:password@host:465` (or `smtp://…:587` with STARTTLS). Through Nodemailer, so any provider works; first choice Scaleway Transactional Email ([ADR 0016](docs/adr/0016-atomes-account-atproto-account-optional.md)). The start log names its host only. Not used by the dev server, whose mails go to `/dev/outbox`. |
+| `MAIL_FROM` | required | The sender of the mails, for example `Atomes <atomes@example.org>`. Its domain must be verified at the SMTP provider (SPF, DKIM), or the mails land in spam. |
 | `PORT` | `4321` | Port the server listens on inside the container. |
 | `HOST` | `0.0.0.0` | Address the server listens on. |
 | `DATA_DIR` | `/data` | Folder for all saved state: `catalog.sqlite`, `library.sqlite` (readers' Private records) and `auth.sqlite` (sign-in sessions). Mount a persistent volume here. |

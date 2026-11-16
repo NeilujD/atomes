@@ -112,11 +112,14 @@ The server signs readers in as an OAuth confidential client and keeps their Priv
 | `SESSION_ENCRYPTION_KEY` | The `openssl` output |
 | `OAUTH_PRIVATE_KEY` | The `node` output (one line, starts with `{"kty":"EC"`) |
 | `APP_ENV` | `staging` (`production` in the production app) |
+| `SMTP_URL` | The SMTP URL of the mail sender, with its user and password, for example `smtps://<user>:<password>@smtp.tem.scaleway.com:465` (CORE-78) |
+| `MAIL_FROM` | The sender of the Sign-in Codes, for example `Atomes <atomes@<domain>>`, on a domain verified at the sender |
 
 - `PUBLIC_APP_ORIGIN` is the origin only: `https://`, the hostname, no path, no final `/`.
 - `SIGN_UP` is not needed: it is `invite` by default. A new Account needs an Invite: once the app runs, open **Terminal**, pick the app container and run `node scripts/invite.ts`. It prints a link that works once and for 14 days; send it to one person. A reader with no Account and no Invite sees "You need an Invite" and the instance keeps nothing for it. A reader who has an Account signs in with no Invite.
 - A new `SESSION_ENCRYPTION_KEY` signs every reader out: the stored sessions can no longer be read. A new `OAUTH_PRIVATE_KEY` makes the PDS refuse the old sessions at their next refresh. Change them only after a leak.
 - `APP_ENV` names the instance: outside `production`, every screen shows a grey Staging pill and the app has an orange icon and the name "Atomes Staging". A pull request preview shows Preview by itself. With no value, the app counts as staging; any other value stops the start.
+- `SMTP_URL` and `MAIL_FROM` are required: without them the start stops. Readers sign in with their email address and a Sign-in Code that this sender mails. The deployment log names the SMTP host only, never the password. If a code does not arrive, check the sender's own log first: the app log names no address and no code.
 - Do not set `DATA_DIR`, `PORT` or `HOST`: the image defaults (`/data`, `4321`, `0.0.0.0`) are the right values.
 - After a change of settings only, **Restart** is enough. The PDS can keep the old client metadata for about 30 minutes.
 

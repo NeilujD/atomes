@@ -3,7 +3,10 @@ import { appEnvironment, readSettings, SettingsError } from './settings';
 
 const sessionKey = Buffer.alloc(32, 7).toString('base64');
 const privateJwk = JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'x', y: 'y', d: 'private-part-of-the-key', kid: 'key-1' });
-const local = { SESSION_ENCRYPTION_KEY: sessionKey };
+const local = { NODE_ENV: 'development', SESSION_ENCRYPTION_KEY: sessionKey };
+const smtpUrl = 'smtps://atomes:mail-password@smtp.example.org:465';
+// A built server (the Docker image sets NODE_ENV=production) sends Sign-in Codes.
+const built = { NODE_ENV: 'production', SESSION_ENCRYPTION_KEY: sessionKey, SMTP_URL: smtpUrl, MAIL_FROM: 'Atomes <atomes@example.org>' };
 
 function problemsOf(env: Record<string, string | undefined>): string[] {
   try {
@@ -73,10 +76,48 @@ describe('readSettings', () => {
     expect(() => readSettings({})).toThrow(SettingsError);
     const problems = problemsOf({});
 
-    expect(problems).toEqual([expect.stringMatching(/^SESSION_ENCRYPTION_KEY is not set/)]);
+    expect(problems).toEqual([
+      expect.stringMatching(/^SESSION_ENCRYPTION_KEY is not set/),
+      expect.stringMatching(/^SMTP_URL is not set/),
+      expect.stringMatching(/^MAIL_FROM is not set/),
+    ]);
     expect(problemsOf({ ...local, PUBLIC_APP_ORIGIN: 'https://atomes.example.org' })).toEqual([
       expect.stringMatching(/^OAUTH_PRIVATE_KEY is not set/),
     ]);
+  });
+
+  test('a built server sends mail through SMTP_URL, from MAIL_FROM', () => {
+    expect(readSettings(built)).toMatchObject({ smtpUrl, mailFrom: 'Atomes <atomes@example.org>' });
+  });
+
+  test('a script that sends no mail (scripts/invite.ts) needs no mail settings', () => {
+    expect(problemsOf({ ...built, SMTP_URL: undefined, MAIL_FROM: undefined })).toHaveLength(2);
+    expect(() => readSettings({ ...built, SMTP_URL: undefined, MAIL_FROM: undefined }, { sendsMail: false })).not.toThrow();
+  });
+
+  test('the dev server needs no mail settings: its mails stay in the dev outbox', () => {
+    expect(readSettings(local).smtpUrl).toBeUndefined();
+  });
+
+  test.each([
+    ['an SMTP_URL that is not smtp or smtps', { SMTP_URL: 'https://smtp.example.org' }, /^SMTP_URL must be an smtp:\/\/ or smtps:\/\/ URL/],
+    ['a MAIL_FROM with no address', { MAIL_FROM: 'Atomes' }, /^MAIL_FROM must hold an email address/],
+  ])('a built server refuses %s', (_, change, problem) => {
+    expect(problemsOf({ ...built, ...change })).toEqual([expect.stringMatching(problem)]);
+  });
+
+  test('never puts the SMTP password in its message', () => {
+    const message = (() => {
+      try {
+        readSettings({ ...built, SMTP_URL: 'ftp://atomes:mail-password@smtp.example.org' });
+      } catch (error) {
+        return (error as Error).message;
+      }
+      return '';
+    })();
+
+    expect(message).toContain('SMTP_URL');
+    expect(message).not.toContain('mail-password');
   });
 
   test.each([

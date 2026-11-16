@@ -259,7 +259,7 @@ describe('Invites', () => {
     const header = (await keep(token)).headers.get('set-cookie')!;
 
     expect(header.split('; ')).toEqual(
-      expect.arrayContaining([`atomes_invite=${token}`, 'Path=/oauth', 'HttpOnly', 'Secure', 'SameSite=Lax', 'Max-Age=3600']),
+      expect.arrayContaining([`atomes_invite=${token}`, 'Path=/', 'HttpOnly', 'Secure', 'SameSite=Lax', 'Max-Age=3600']),
     );
   });
 

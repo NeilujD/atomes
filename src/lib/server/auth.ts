@@ -56,13 +56,14 @@ export function sessionCookieHeader(value: string, maxAgeSeconds: number): strin
 }
 
 // The Invite opened in this browser, kept for the sign-in that follows
-// (keepInvite). HttpOnly and SameSite=Lax as the session cookie; sent only
-// to /oauth, the sign-in and its callback. One hour: open the link again after.
+// (keepInvite). HttpOnly and SameSite=Lax as the session cookie. Path=/: both
+// sign-ins read it, the OAuth one under /oauth and the Sign-in Code one under
+// /api/sign-in. One hour: open the link again after.
 export const inviteCookie = 'atomes_invite';
-const inviteCookieHeader = (value: string, maxAgeSeconds: number) =>
-  `${inviteCookie}=${value}; Path=/oauth; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
+export const inviteCookieHeader = (value: string, maxAgeSeconds: number) =>
+  `${inviteCookie}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
 
-function cookieOf(request: Request, cookie = sessionCookie): string | undefined {
+export function cookieOf(request: Request, cookie = sessionCookie): string | undefined {
   for (const part of (request.headers.get('cookie') ?? '').split(';')) {
     const [name, ...value] = part.trim().split('=');
     if (name === cookie) return value.join('=') || undefined;
@@ -200,5 +201,5 @@ export function session(request: Request, deps: Pick<AuthDeps, 'store' | 'accoun
   const reader = readerOf(request, deps);
   if (!reader) return signedOut();
   const { email } = deps.accounts.identitiesOf(reader.account);
-  return Response.json({ id: reader.account, handle: reader.handle, email }, { headers: { 'cache-control': 'no-store' } });
+  return Response.json({ id: reader.account, handle: reader.handle || undefined, email }, { headers: { 'cache-control': 'no-store' } });
 }

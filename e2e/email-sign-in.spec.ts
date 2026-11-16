@@ -1,0 +1,73 @@
+import type { Page } from '@playwright/test';
+import { invite } from './invites';
+import { expect, test } from './test';
+
+// WebKit on Linux (CI) does not keep a Secure cookie of http://127.0.0.1
+// (test.ts): there, the cookies of the Invite and of the session go to the
+// browser without Secure, as the signIn fixture does. Chromium keeps the real ones.
+async function keepCookiesWithoutSecure(page: Page, baseURL: string) {
+  await page.route(/\/api\/(invite|sign-in\/check)$/, async (route) => {
+    const response = await route.fetch();
+    const cookies = response
+      .headersArray()
+      .filter(({ name }) => name.toLowerCase() === 'set-cookie')
+      .map(({ value }) => value.split(';')[0].split(/=(.*)/))
+      .filter(([, value]) => value);
+    if (cookies.length > 0) {
+      await page.context().addCookies(cookies.map(([name, value]) => ({ name, value, url: baseURL, httpOnly: true, sameSite: 'Lax' as const })));
+    }
+    const headers = Object.fromEntries(Object.entries(response.headers()).filter(([name]) => name !== 'set-cookie'));
+    await route.fulfill({ response, headers });
+  });
+}
+
+test('A new reader opens an Invite, signs in with a Sign-in Code from the dev outbox, and lands on the Library', async ({
+  page,
+  browserName,
+  baseURL,
+}) => {
+  if (browserName === 'webkit') await keepCookiesWithoutSecure(page, baseURL!);
+  // One reader per browser: both run at the same time on one server.
+  const address = `e2e-${browserName}-email@example.org`;
+  const token = await invite(page.request);
+
+  await page.goto(`/sign-in?next=%2Flibrary#invite=${token}`);
+  await expect(page.getByRole('alert')).toHaveText('Invite kept. Sign in to create your account.');
+  // The words of the AT Protocol sign-in stay behind its action.
+  await expect(page.getByText(/PDS|handle|DID/).filter({ visible: true })).toHaveCount(0);
+
+  await page.getByLabel('Your email address').fill(` ${address.toUpperCase()} `);
+  await page.getByRole('button', { name: 'Send me a code' }).click();
+  await expect(page.getByText(`If ${address} may sign in here, a Sign-in Code is on its way.`)).toBeVisible();
+
+  const mail = await page.request.get(`/dev/outbox?to=${encodeURIComponent(address)}`);
+  expect(mail.status()).toBe(200);
+  const code = /\b(\d{6})\b/.exec(await mail.text())![1];
+
+  const field = page.getByLabel('Sign-in Code');
+  await expect(field).toHaveAttribute('inputmode', 'numeric');
+  await expect(field).toHaveAttribute('autocomplete', 'one-time-code');
+  // As pasted from a mail, with spaces around.
+  await field.fill(` ${code.slice(0, 3)} ${code.slice(3)} `);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.getByRole('heading', { name: 'Sign in to Atomes' })).toHaveCount(0);
+});
+
+test('A wrong code says so, and the AT Protocol sign-in is the second action', async ({ page }) => {
+  await page.goto('/sign-in');
+
+  await page.getByLabel('Your email address').fill('nobody@example.org');
+  await page.getByRole('button', { name: 'Send me a code' }).click();
+  // An address with no Account gets the same answer, and no mail.
+  await expect(page.getByText('If nobody@example.org may sign in here, a Sign-in Code is on its way.')).toBeVisible();
+  expect((await page.request.get('/dev/outbox?to=nobody%40example.org')).status()).toBe(404);
+
+  await page.getByLabel('Sign-in Code').fill('123456');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('This code is wrong or has expired. Check it, or ask for a new one.');
+
+  await page.getByRole('button', { name: 'Bluesky or another AT Protocol account' }).click();
+  await expect(page.getByLabel('Your handle')).toBeVisible();
+});

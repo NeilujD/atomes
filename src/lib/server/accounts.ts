@@ -29,6 +29,10 @@ export interface Accounts {
   signIn(did: Did, invite: string | undefined): AccountId;
   // True when signIn would give an Account. Writes nothing.
   maySignIn(did: Did, invite: string | undefined): boolean;
+  // As signIn and maySignIn, for an email address that a Sign-in Code proved
+  // (email-sign-in.ts). The address is trimmed and lower-cased already.
+  signInEmail(email: string, invite: string | undefined): AccountId;
+  maySignInEmail(email: string, invite: string | undefined): boolean;
   // The Invite is not used and not expired.
   inviteIsOpen(invite: string): boolean;
   // Empty for an unknown Account.
@@ -61,28 +65,34 @@ export function errorLogText(error: unknown): string {
 
 // `db` has run `librarySteps` (migrations.ts). Closes it.
 export function createAccounts(db: DatabaseSync): Accounts {
-  const find = (did: Did) =>
-    (db.prepare("select account from identity where kind = 'did' and value = ?").get(did) as { account: AccountId } | undefined)?.account;
+  type Kind = 'did' | 'email';
+  const find = (kind: Kind, value: string) =>
+    (db.prepare('select account from identity where kind = ? and value = ?').get(kind, value) as { account: AccountId } | undefined)?.account;
   // `invite` is used up for the new Account in the same transaction.
-  const make = (did: Did, invite?: string) => {
+  const make = (kind: Kind, value: string, invite?: string) => {
     const account = newAccountId();
     inTransaction(db, () => {
       db.prepare('insert into account (id, created_at) values (?, ?)').run(account, new Date().toISOString());
       if (invite !== undefined && !useInvite(db, invite, account)) throw new NoInviteError();
-      db.prepare("insert into identity (account, kind, value) values (?, 'did', ?)").run(account, did);
+      db.prepare('insert into identity (account, kind, value) values (?, ?, ?)').run(account, kind, value);
     });
     return account;
   };
+  const signIn = (kind: Kind, value: string, invite: string | undefined) => {
+    const known = find(kind, value);
+    if (known) return known;
+    if (invite === undefined) throw new NoInviteError();
+    return make(kind, value, invite);
+  };
+  const maySignIn = (kind: Kind, value: string, invite: string | undefined) =>
+    find(kind, value) !== undefined || (invite !== undefined && inviteIsOpen(db, invite));
   return {
-    ofDid: (did) => find(did) ?? make(did),
-    signIn(did, invite) {
-      const known = find(did);
-      if (known) return known;
-      if (invite === undefined) throw new NoInviteError();
-      return make(did, invite);
-    },
-    findDid: find,
-    maySignIn: (did, invite) => find(did) !== undefined || (invite !== undefined && inviteIsOpen(db, invite)),
+    ofDid: (did) => find('did', did) ?? make('did', did),
+    signIn: (did, invite) => signIn('did', did, invite),
+    signInEmail: (email, invite) => signIn('email', email, invite),
+    findDid: (did) => find('did', did),
+    maySignIn: (did, invite) => maySignIn('did', did, invite),
+    maySignInEmail: (email, invite) => maySignIn('email', email, invite),
     inviteIsOpen: (invite) => inviteIsOpen(db, invite),
     identitiesOf(account) {
       const rows = db.prepare('select kind, value from identity where account = ?').all(account) as { kind: 'did' | 'email'; value: string }[];

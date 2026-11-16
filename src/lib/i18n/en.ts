@@ -81,6 +81,21 @@ export const en = {
   'auth.account-deleted': 'Your account is deleted.',
   'auth.account-deleted-shared-left':
     'Your account is deleted, but Atomes could not reach your AT Protocol account: your Shared records (Reading Statuses, Followed Series, Labels) are still on it. Delete the app.atomes records there with an AT Protocol tool, or ask the operator of this instance.',
+  'signin.email-hint': 'Type your email address: Atomes sends you a Sign-in Code. There is no password.',
+  'signin.email': 'Your email address',
+  'signin.send-code': 'Send me a code',
+  'signin.code-sent': (email: string) => `If ${email} may sign in here, a Sign-in Code is on its way. It works for 10 minutes.`,
+  'signin.code': 'Sign-in Code',
+  'signin.other-address': 'Use another address',
+  'signin.atproto': 'Bluesky or another AT Protocol account',
+  'auth.type-email': 'Type your email address, for example alice@example.org.',
+  'auth.type-code': 'Type the 6 digits of your Sign-in Code.',
+  'auth.wrong-code': 'This code is wrong or has expired. Check it, or ask for a new one.',
+  'auth.too-many': 'Too many tries. Wait a while, then try again.',
+  // The Sign-in Code email (src/lib/server/mail.ts): plain text, nothing to click
+  'mail.code.subject': 'Your Atomes sign-in code',
+  'mail.code.text': (code: string) =>
+    `Your sign-in code for Atomes: ${code}\n\nIt works once, for 10 minutes. Type it on the sign-in screen of Atomes.\n\nIf you did not ask for it, ignore this email: no one can sign in without the code.\n`,
   'signin.invite-kept': 'Invite kept. Sign in to create your account.',
   'signout.title': 'Sign out of this device?',
   'signout.text': 'Atomes removes your Library from this device. Saves still waiting to be sent are lost.',

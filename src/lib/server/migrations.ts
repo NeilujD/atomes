@@ -127,5 +127,22 @@ const libraryV2: Step = (db) =>
     );
   `);
 
+// Sign-in Codes and sign-in limits (sign-in-codes.ts). An address is kept
+// only as its SHA-256 hash, a code only as a hash with that address.
+const authV2: Step = (db) =>
+  db.exec(`
+    create table sign_in_code (
+      address_hash text primary key,
+      code_hash text not null,
+      expires_at integer not null,
+      attempts_left integer not null
+    );
+    create table sign_in_limit (
+      key text primary key,
+      window_start integer not null,
+      count integer not null
+    );
+  `);
+
 export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2];
-export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts)];
+export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts), authV2];

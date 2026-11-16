@@ -13,7 +13,7 @@ import { makeInvite } from '../src/lib/server/invites.ts';
 import { readSettings, SettingsError } from '../src/lib/server/settings.ts';
 
 try {
-  const { dataDir, appOrigin, port } = readSettings(process.env);
+  const { dataDir, appOrigin, port } = readSettings(process.env, { sendsMail: false });
   const file = join(dataDir, 'library.sqlite');
   const db = existsSync(file) ? new DatabaseSync(file) : undefined;
   if (!db?.prepare("select 1 from sqlite_master where type = 'table' and name = 'invite'").get()) {

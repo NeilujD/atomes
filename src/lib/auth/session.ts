@@ -119,6 +119,42 @@ export async function keepInvite(fetch: (input: string, init?: RequestInit) => P
   }
 }
 
+type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
+
+const postJson = (fetch: Fetch, url: string, body: unknown) =>
+  fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' });
+
+// Asks the server to send a Sign-in Code (email-sign-in.ts). Gives the address
+// as the server compares it, or what the screen tells. The server answers the
+// same for every address: the screen never says whether an Account exists.
+export async function askSignInCode(fetch: Fetch, input: string): Promise<{ email: string } | { message: string }> {
+  const email = input.trim().toLowerCase();
+  if (!email.includes('@')) return { message: t('auth.type-email') };
+  try {
+    const response = await postJson(fetch, '/api/sign-in/code', { email });
+    if (response.ok) return { email };
+    return { message: response.status === 429 ? t('auth.too-many') : t('auth.type-email') };
+  } catch (error) {
+    return { message: errorMessage(error) };
+  }
+}
+
+// Sends the code the reader typed or pasted (digits only). Undefined when the
+// browser is signed in; else what the screen tells.
+export async function signInWithCode(fetch: Fetch, email: string, input: string): Promise<string | undefined> {
+  const code = input.replace(/\D/g, '');
+  if (code.length !== 6) return t('auth.type-code');
+  try {
+    const response = await postJson(fetch, '/api/sign-in/check', { email, code });
+    if (response.ok) return undefined;
+    if (response.status === 403) return t('auth.no-invite');
+    if (response.status === 429) return t('auth.too-many');
+    return response.status === 400 ? t('auth.wrong-code') : t('auth.failed');
+  } catch (error) {
+    return errorMessage(error);
+  }
+}
+
 export function errorMessage(error: unknown): string {
   if (isNetworkFailure(error)) return t('error.server-unreachable');
   return t('auth.failed');

@@ -24,7 +24,11 @@ The owner runs these steps with their own Tailscale account. Nothing here goes i
    SESSION_ENCRYPTION_KEY=<the openssl output>
    OAUTH_PRIVATE_KEY='<the node output>'
    DATA_DIR=data-phone
+   SMTP_URL='smtps://<user>:<password>@<smtp host>:465'
+   MAIL_FROM='Atomes <atomes@<your domain>>'
    ```
+
+   `bun run phone` is a built server: it sends Sign-in Codes through `SMTP_URL` (the staging sender works), and stops at start without it.
 
    Not `.env.local`: `bun run dev` reads `.env.local`, and with `PUBLIC_APP_ORIGIN` there the dev server would be the client of the Funnel origin, so sign-in on `127.0.0.1` would fail. An older `.env.local` that holds `PUBLIC_APP_ORIGIN` must lose it. `DATA_DIR=data-phone` keeps the phone test data apart from the development data.
 

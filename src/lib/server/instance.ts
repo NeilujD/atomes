@@ -4,22 +4,31 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { NodeOAuthClient } from '@atproto/oauth-client-node';
+import { createTransport } from 'nodemailer';
 import { createAccounts, type AccountId, type Accounts } from './accounts';
 import type { AuthDeps } from './auth';
 import { createAuthStore } from './auth-store';
+import type { EmailSignInDeps } from './email-sign-in';
 import { createLibraryStore, type LibraryStore } from './library-store';
+import { devOutbox, smtpSender, type SendMail } from './mail';
 import { openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
 import { createOAuthClient, oauthPort, repoAccess } from './oauth';
 import { secretBox } from './secret-box';
 import { settings } from './settings';
 import { createSharing, logFailure, type Sharing } from './sharing';
+import { createSignInCodes } from './sign-in-codes';
 
 let library: LibraryStore | undefined;
 let accounts: Accounts | undefined;
 let sharing: Promise<Sharing> | undefined;
 let auth: Promise<AuthDeps & { client: NodeOAuthClient }> | undefined;
 let migrated: string | undefined;
+let emailSignIn: Promise<EmailSignInDeps> | undefined;
+
+// Development only (import.meta.env.DEV, fixed at build time): the mails of
+// the dev server, read on /dev/outbox. No mail leaves it.
+export const outbox = devOutbox();
 
 // DATA_DIR, with the migration steps of `library.sqlite` and `auth.sqlite`
 // run once, before any store opens (ADR 0016).
@@ -78,4 +87,21 @@ export function sharingService(): Promise<Sharing> {
     }),
   );
   return sharing;
+}
+
+// The Sign-in Codes in `auth.sqlite`, and the mail that sends them: SMTP in a
+// built server (settings.ts requires SMTP_URL and MAIL_FROM there), the dev
+// outbox on the dev server.
+export function emailSignInDeps(): Promise<EmailSignInDeps> {
+  emailSignIn ??= authDeps().then(({ store, onSignedIn }) => {
+    const { smtpUrl, mailFrom } = settings();
+    let sendMail: SendMail = outbox.send;
+    if (!import.meta.env.DEV) {
+      // A built server started with NODE_ENV=development skips that check: fail, never keep mails here.
+      if (!smtpUrl || !mailFrom) throw new Error('SMTP_URL and MAIL_FROM are required in a built server');
+      sendMail = smtpSender(createTransport(smtpUrl), mailFrom);
+    }
+    return { accounts: accountStore(), store, codes: createSignInCodes({ db: open('auth.sqlite') }), sendMail, onSignedIn };
+  });
+  return emailSignIn;
 }

@@ -16,6 +16,8 @@ async function confidentialClient() {
     PUBLIC_APP_ORIGIN: 'https://atomes.test',
     SESSION_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
     OAUTH_PRIVATE_KEY: JSON.stringify(jwk),
+    SMTP_URL: 'smtp://127.0.0.1:2525',
+    MAIL_FROM: 'atomes@atomes.test',
   });
   const accounts = createAccounts(openDatabase(':memory:', librarySteps));
   const store = createAuthStore({ db: openDatabase(':memory:', authSteps(accounts)), box: secretBox(settings.sessionKey) });
