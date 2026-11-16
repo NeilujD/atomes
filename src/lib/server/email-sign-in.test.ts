@@ -19,6 +19,10 @@ const app = 'https://atomes.test';
 const known = 'known@example.org';
 const stranger = 'stranger@example.org';
 const ip = '203.0.113.9';
+// The Coolify proxy (ADR 0011): every request behind it has this connection
+// address, and the reader's IP last in X-Forwarded-For.
+const proxy = '10.0.1.5';
+const behindProxy = (forwardedFor: string) => ({ 'x-forwarded-for': forwardedFor });
 
 let dir: string;
 let library: DatabaseSync;
@@ -127,6 +131,21 @@ describe('send me a code', () => {
     expect(answers[20]).toBe(429);
   });
 
+  test('behind the proxy, each reader IP has its own limit', async () => {
+    for (let i = 0; i < 20; i++) await askCode(`reader${i}@example.org`, behindProxy('198.51.100.1'), proxy);
+
+    expect((await askCode('reader20@example.org', behindProxy('198.51.100.1'), proxy)).status).toBe(429);
+    expect((await askCode('reader20@example.org', behindProxy('198.51.100.2'), proxy)).status).toBe(204);
+  });
+
+  test('behind the proxy, entries the client writes before the last one do not change the IP that is counted', async () => {
+    const answers = [];
+    for (let i = 0; i < 21; i++) answers.push((await askCode(`reader${i}@example.org`, behindProxy(`192.0.2.${i}, 198.51.100.1`), proxy)).status);
+
+    expect(answers[19]).toBe(204);
+    expect(answers[20]).toBe(429);
+  });
+
   test('a mail that fails is logged with no address and no code; the answer stays the same', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     deps.sendMail = () => Promise.reject(new Error(`550 mailbox ${known} unavailable`));
@@ -220,5 +239,12 @@ describe('check the code', () => {
 
     expect(answers[29]).toBe(400);
     expect(answers[30]).toBe(429);
+  });
+
+  test('behind the proxy, each reader IP has its own check limit, and forged entries do not change it', async () => {
+    for (let i = 0; i < 30; i++) await tryCode(`reader${i}@example.org`, '123456', behindProxy(`192.0.2.${i}, 198.51.100.1`), proxy);
+
+    expect((await tryCode('reader30@example.org', '123456', behindProxy('192.0.2.99, 198.51.100.1'), proxy)).status).toBe(429);
+    expect((await tryCode('reader30@example.org', '123456', behindProxy('198.51.100.2'), proxy)).status).toBe(400);
   });
 });

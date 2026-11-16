@@ -7,6 +7,7 @@ import { requestLanguage } from '../i18n/i18n';
 import { errorLogText, NoInviteError, type AccountId, type Accounts } from './accounts';
 import { cookieOf, inviteCookie, inviteCookieHeader, sessionCookieHeader } from './auth';
 import { browserSessionLifetimeMs, type AuthStore } from './auth-store';
+import { clientIp } from './client-ip';
 import { signInCodeMail, type SendMail } from './mail';
 import { addressHash, normalEmail, type SignInCodes } from './sign-in-codes';
 
@@ -19,8 +20,7 @@ export interface EmailSignInDeps {
 }
 
 const hourMs = 3600 * 1000;
-// Codes asked per address and per IP, and codes checked per IP. Behind a
-// proxy that hides the reader's IP, the IP limits count for every reader at once.
+// Codes asked per address and per IP, and codes checked per IP.
 const limits = {
   sendPerAddress: { max: 5, windowMs: hourMs },
   sendPerIp: { max: 20, windowMs: hourMs },
@@ -42,10 +42,10 @@ const allowed = (codes: SignInCodes, key: string, limit: { max: number; windowMs
 // to an address with an Account, or with an open Invite in this browser),
 // 400 for a value that is not an address, 429 past a limit. The mail is not
 // awaited: the answer takes the same time for every address.
-export async function sendCode(request: Request, deps: EmailSignInDeps, ip: string): Promise<Response> {
+export async function sendCode(request: Request, deps: EmailSignInDeps, peer: string | undefined): Promise<Response> {
   const address = normalEmail((await bodyOf(request)).email);
   if (!address) return answer(400, 'BadAddress');
-  if (!allowed(deps.codes, `send-ip:${ip}`, limits.sendPerIp)) return answer(429, 'TooMany');
+  if (!allowed(deps.codes, `send-ip:${clientIp(request, peer) ?? 'unknown'}`, limits.sendPerIp)) return answer(429, 'TooMany');
   if (!allowed(deps.codes, `send-address:${addressHash(address)}`, limits.sendPerAddress)) return answer(429, 'TooMany');
   if (deps.accounts.maySignInEmail(address, cookieOf(request, inviteCookie))) {
     const mail = signInCodeMail(address, deps.codes.issue(address), requestLanguage(request));
@@ -61,10 +61,10 @@ export async function sendCode(request: Request, deps: EmailSignInDeps, ip: stri
 // address with no Account makes one with the Invite kept in this browser,
 // which is used up. A wrong, used, expired or killed code: 400; a right code
 // with no open Invite: 403; past the limit: 429.
-export async function checkCode(request: Request, deps: EmailSignInDeps, ip: string): Promise<Response> {
+export async function checkCode(request: Request, deps: EmailSignInDeps, peer: string | undefined): Promise<Response> {
   const body = await bodyOf(request);
   const address = normalEmail(body.email);
-  if (!allowed(deps.codes, `check-ip:${ip}`, limits.checkPerIp)) return answer(429, 'TooMany');
+  if (!allowed(deps.codes, `check-ip:${clientIp(request, peer) ?? 'unknown'}`, limits.checkPerIp)) return answer(429, 'TooMany');
   if (!address || typeof body.code !== 'string' || !/^\d{6}$/.test(body.code) || !deps.codes.check(address, body.code)) {
     return answer(400, 'WrongCode');
   }
