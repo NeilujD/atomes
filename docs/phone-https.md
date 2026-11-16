@@ -21,7 +21,6 @@ The owner runs these steps with their own Tailscale account. Nothing here goes i
 
    ```sh
    PUBLIC_APP_ORIGIN=https://<machine>.<tailnet>.ts.net
-   ALLOWED_DIDS=did:plc:<your test account>
    SESSION_ENCRYPTION_KEY=<the openssl output>
    OAUTH_PRIVATE_KEY='<the node output>'
    DATA_DIR=data-phone
@@ -46,12 +45,13 @@ The owner runs these steps with their own Tailscale account. Nothing here goes i
    A plain `curl https://$H/...` from the same Mac fails with `SSL_ERROR_SYSCALL`: MagicDNS sends the Mac to its own tailnet IP, and that path does not answer. This does not affect the phone.
 
    The `--resolve` command can also fail with `SSL_ERROR_SYSCALL` just after `tailscale funnel` starts, while Tailscale gets the certificate. Wait a minute and run it again. If it still fails, check that `dig` gives an IP: an empty `$IP` makes curl use MagicDNS again.
-5. On the phone, open `https://<machine>.<tailnet>.ts.net`, add the app to the home screen, open it from there and sign in with the test handle. Add a book, reload: the book is still there. Sign out.
-6. Stop: `Ctrl-C` in both terminals. Check that nothing stays public: `tailscale funnel status --json` prints `{}`.
+5. A new `data-phone` has no Account: make an Invite with `node --env-file=.env.phone scripts/invite.ts`. It prints the link on the Funnel origin.
+6. On the phone, open the Invite link, add the app to the home screen, open it from there and sign in with the test handle. Add a book, reload: the book is still there. Sign out.
+7. Stop: `Ctrl-C` in both terminals. Check that nothing stays public: `tailscale funnel status --json` prints `{}`.
 
 ## Rules and pitfalls
 
-- The Funnel URL is public while it runs, and since ADR 0012 the server stores the Library records of whoever signs in. Only DIDs on `ALLOWED_DIDS` can sign in. Use test data only, and stop the funnel after the test.
+- The Funnel URL is public while it runs, and since ADR 0012 the server stores the Library records of whoever signs in. Only a reader with an Account or an Invite can sign in. Use test data only, and stop the funnel after the test.
 - Keep the phone on one origin from sign-in to callback: the session cookie belongs to one origin.
 - After a change to the scope or the metadata, the PDS can keep the old values for about 30 minutes (spike 0001, risk 6). Wait before you debug a failed sign-in.
 - The sign-in scope needs no published lexicon (spike 0003, section 3).

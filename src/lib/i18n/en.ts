@@ -61,7 +61,8 @@ export const en = {
   'auth.signed-out-server-unreached':
     'Signed out on this device. The Atomes server could not be reached to end the session there.',
   'auth.cancelled': 'Sign-in was cancelled.',
-  'auth.not-allowed': 'This account may not sign in to this Atomes server. Ask its owner to add it.',
+  'auth.no-invite': 'You need an Invite to create an account on this Atomes server. Ask its owner for one.',
+  'auth.invite-used': 'This Invite was used or has expired. Ask the owner of this Atomes server for a new one.',
   'auth.session-ended': 'Your session has ended. Sign in again.',
   'auth.no-account': 'No account found for this handle. Check the spelling.',
   'auth.pds-unreachable': 'Could not reach your PDS. Try again later.',
@@ -76,6 +77,7 @@ export const en = {
   'signin.sharing': 'Atomes also asks your PDS for permission to write the records you choose to share: Reading Statuses, Followed Series, Labels. Nothing is Shared until you turn it on in Settings.',
   'signin.handle': 'Your handle',
   'signin.submit': 'Sign in',
+  'signin.invite-kept': 'Invite kept. Sign in to create your account.',
   'signout.title': 'Sign out of this device?',
   'signout.text': 'Atomes removes your Library from this device. Saves still waiting to be sent are lost.',
   'signout.cancel': 'Cancel',

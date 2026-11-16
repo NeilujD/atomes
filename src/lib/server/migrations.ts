@@ -115,5 +115,17 @@ const authV1 =
     for (const { did } of dids) move.run(accounts.ofDid(did), did);
   };
 
-export const librarySteps: readonly Step[] = [libraryV0, libraryV1];
+// Invites (invites.ts): the hash of each token, never the token. `used_by` is
+// the Account the Invite made.
+const libraryV2: Step = (db) =>
+  db.exec(`
+    create table invite (
+      token_hash text primary key,
+      expires_at integer not null,
+      used_by text references account (id),
+      used_at integer
+    );
+  `);
+
+export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2];
 export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts)];

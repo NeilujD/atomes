@@ -12,8 +12,9 @@ export interface Settings {
   appOrigin?: string;
   // Port of the loopback redirect URI in local development.
   port: number;
-  // Who may sign in to this instance (ADR 0013).
-  allowedDids: ReadonlySet<string>;
+  // Who may make an Account (ADR 0016): SIGN_UP, `invite` when not set. Only
+  // `invite` runs today: a new Account needs an Invite (invites.ts).
+  signUp: 'invite';
   // 32 bytes. Encrypts OAuth tokens and DPoP keys at rest.
   sessionKey: Buffer;
   // The confidential client's private key, an ES256 JWK with a `kid`, as JSON.
@@ -32,8 +33,6 @@ export class SettingsError extends Error {
   }
 }
 
-const didPattern = /^did:(plc|web):[a-zA-Z0-9._:%-]+$/;
-
 // Every problem at once, so one restart is enough. Never puts a secret value in a message.
 export function readSettings(env: Record<string, string | undefined>): Settings {
   const problems: string[] = [];
@@ -46,15 +45,11 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     problems.push(`${originName} must be an https origin, for example https://atomes.example.org. Found: ${appOrigin}`);
   }
 
-  const allowed = (env.ALLOWED_DIDS ?? '')
-    .split(',')
-    .map((did) => did.trim())
-    .filter(Boolean);
-  if (allowed.length === 0) {
-    problems.push('ALLOWED_DIDS is not set: give the DIDs that may sign in, separated by commas (did:plc:…).');
-  }
-  for (const did of allowed) {
-    if (!didPattern.test(did)) problems.push(`ALLOWED_DIDS holds a value that is not a DID: ${did}`);
+  const signUp = env.SIGN_UP?.trim() || 'invite';
+  if (signUp === 'open') {
+    problems.push('SIGN_UP=open: open sign-up is not built yet. Use SIGN_UP=invite, and make Invites with scripts/invite.ts.');
+  } else if (signUp !== 'invite') {
+    problems.push(`SIGN_UP must be invite or open. Found: ${signUp}`);
   }
 
   const sessionKey = Buffer.from(env.SESSION_ENCRYPTION_KEY?.trim() ?? '', 'base64');
@@ -87,7 +82,7 @@ export function readSettings(env: Record<string, string | undefined>): Settings 
     dataDir: env.DATA_DIR?.trim() || 'data',
     appOrigin: appOrigin && new URL(appOrigin).origin,
     port,
-    allowedDids: new Set(allowed),
+    signUp: 'invite',
     sessionKey,
     oauthPrivateKey,
   };

@@ -14,17 +14,11 @@ async function confidentialClient() {
   const jwk = { ...privateKey.export({ format: 'jwk' }), kid: randomUUID(), alg: 'ES256' };
   const settings = readSettings({
     PUBLIC_APP_ORIGIN: 'https://atomes.test',
-    ALLOWED_DIDS: 'did:plc:owner',
     SESSION_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
     OAUTH_PRIVATE_KEY: JSON.stringify(jwk),
   });
   const accounts = createAccounts(openDatabase(':memory:', librarySteps));
-  const store = createAuthStore({
-    db: openDatabase(':memory:', authSteps(accounts)),
-    box: secretBox(settings.sessionKey),
-    allowedDids: settings.allowedDids,
-    accounts,
-  });
+  const store = createAuthStore({ db: openDatabase(':memory:', authSteps(accounts)), box: secretBox(settings.sessionKey) });
   return { client: await createOAuthClient(settings, store), jwk };
 }
 

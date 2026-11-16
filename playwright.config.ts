@@ -2,7 +2,6 @@
 // server, because /dev/sign-in-as answers 404 in a built server.
 import { randomBytes } from 'node:crypto';
 import { defineConfig, devices } from '@playwright/test';
-import { allReaders } from './e2e/readers';
 
 // Not 4321: never the dev server a developer has open, whose Catalog asks the
 // real book sources. 127.0.0.1, never `localhost` (src/middleware.ts).
@@ -54,7 +53,6 @@ export default defineConfig({
       DEV_TOOLBAR: 'off',
       DATA_DIR: 'data-e2e',
       PORT: String(port),
-      ALLOWED_DIDS: allReaders().join(','),
       SESSION_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
     },
   },

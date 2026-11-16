@@ -7,7 +7,7 @@
 //   keyed by DID.
 import { createHash, randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import type { AccountId, Accounts, Did } from './accounts';
+import type { AccountId } from './accounts';
 import type { SecretBox } from './secret-box';
 
 // The store shape that `@atproto/oauth-client-node` asks for (`SimpleStore`).
@@ -25,29 +25,18 @@ export interface BrowserSession {
 export interface AuthStore {
   // OAuth sign-ins in progress, kept one hour.
   states<T>(): SealedStore<T>;
-  // OAuth sessions, one per DID. Refuses, and stores nothing for, a DID that
-  // is not allowed on this instance.
+  // OAuth sessions, one per DID. The sign-in (auth.ts) revokes the one of a
+  // DID that may not make an Account.
   sessions<T>(): SealedStore<T>;
-  // A new browser session for the Account of the DID (made at its first
-  // sign-in); gives the cookie value and the Account.
-  openBrowserSession(session: { did: Did; handle: string }): { cookie: string; account: AccountId };
-  // Undefined when the value is unknown, expired, or the DID of its Account
-  // is no longer allowed.
+  // A new browser session for the Account; gives the cookie value.
+  openBrowserSession(session: BrowserSession): { cookie: string };
+  // Undefined when the value is unknown or expired.
   browserSession(cookie: string): BrowserSession | undefined;
   // Ends one browser session; gives its Account when there was one.
   closeBrowserSession(cookie: string): AccountId | undefined;
   // True while another browser session of the Account is still open.
   hasBrowserSessions(account: AccountId): boolean;
   close(): void;
-}
-
-// The DID is not on ALLOWED_DIDS.
-export class NotAllowedError extends Error {
-  // The message never names the DID: it is logged.
-  constructor() {
-    super('This DID may not sign in to this instance');
-    this.name = 'NotAllowedError';
-  }
 }
 
 const stateLifetimeMs = 3600 * 1000;
@@ -61,20 +50,12 @@ export function createAuthStore(options: {
   // Has run `authSteps` (migrations.ts). The store closes it.
   db: DatabaseSync;
   box: SecretBox;
-  allowedDids: ReadonlySet<string>;
-  // In library.sqlite.
-  accounts: Pick<Accounts, 'ofDid' | 'identitiesOf'>;
   now?: () => number;
 }): AuthStore {
-  const { db, box, allowedDids, accounts } = options;
+  const { db, box } = options;
   const now = options.now ?? Date.now;
-  // ALLOWED_DIDS decides who may sign in, until Invites.
-  const allowed = (account: AccountId) => {
-    const { did } = accounts.identitiesOf(account);
-    return did !== undefined && allowedDids.has(did);
-  };
 
-  function sealed<T>(table: 'oauth_state' | 'oauth_session', keyColumn: 'key' | 'did', allow: (key: string) => void) {
+  function sealed<T>(table: 'oauth_state' | 'oauth_session', keyColumn: 'key' | 'did', beforeSet: () => void = () => {}) {
     const timeColumn = table === 'oauth_state' ? 'created_at' : 'updated_at';
     const store: SealedStore<T> = {
       get: (key) => {
@@ -82,7 +63,7 @@ export function createAuthStore(options: {
         return Promise.resolve(row && (box.open(row.sealed) as T));
       },
       set: (key, value) => {
-        allow(key);
+        beforeSet();
         db.prepare(
           `insert into ${table} (${keyColumn}, sealed, ${timeColumn}) values (?, ?, ?)
            on conflict (${keyColumn}) do update set sealed = excluded.sealed, ${timeColumn} = excluded.${timeColumn}`,
@@ -102,13 +83,8 @@ export function createAuthStore(options: {
       sealed<T>('oauth_state', 'key', () => {
         db.prepare('delete from oauth_state where created_at < ?').run(now() - stateLifetimeMs);
       }),
-    sessions: <T>() =>
-      sealed<T>('oauth_session', 'did', (did) => {
-        if (!allowedDids.has(did)) throw new NotAllowedError();
-      }),
-    openBrowserSession({ did, handle }) {
-      if (!allowedDids.has(did)) throw new NotAllowedError();
-      const account = accounts.ofDid(did);
+    sessions: <T>() => sealed<T>('oauth_session', 'did'),
+    openBrowserSession({ account, handle }) {
       const token = randomBytes(32).toString('base64url');
       db.prepare('delete from browser_session where expires_at < ?').run(now());
       db.prepare('insert into browser_session (token_hash, account, handle, expires_at) values (?, ?, ?, ?)').run(
@@ -117,13 +93,13 @@ export function createAuthStore(options: {
         handle,
         now() + browserSessionLifetimeMs,
       );
-      return { cookie: token, account };
+      return { cookie: token };
     },
     browserSession(cookie) {
       const row = db
         .prepare('select account, handle from browser_session where token_hash = ? and expires_at > ?')
         .get(hash(cookie), now()) as BrowserSession | undefined;
-      return row && allowed(row.account) ? { account: row.account, handle: row.handle } : undefined;
+      return row && { account: row.account, handle: row.handle };
     },
     closeBrowserSession(cookie) {
       const row = db.prepare('delete from browser_session where token_hash = ? returning account').get(hash(cookie)) as

@@ -36,8 +36,6 @@ beforeEach(() => {
   auth = createAuthStore({
     db: openDatabase(join(dir, 'auth.sqlite'), authSteps(accounts)),
     box: secretBox(randomBytes(32)),
-    allowedDids: new Set([alice, bob]),
-    accounts,
   });
   library = createLibraryStore(openDatabase(file, librarySteps));
   sharing = createSharing({
@@ -59,7 +57,7 @@ afterEach(() => {
 });
 
 function signedIn(did: Did): string {
-  const response = signInAs(new Request(`${app}/dev/sign-in-as?did=${encodeURIComponent(did)}`), { store: auth }, new Set([alice, bob]));
+  const response = signInAs(new Request(`${app}/dev/sign-in-as?did=${encodeURIComponent(did)}`), { store: auth, accounts });
   return /atomes_session=([^;]*)/.exec(response.headers.get('set-cookie')!)![1];
 }
 
@@ -115,6 +113,7 @@ test('no log line holds a DID or an Account ID, even when an error names them', 
   // Errors of other libraries may name the DID or the Account.
   const failing = new Error(`Did document for "${alice}" of ${account} could not be read`);
   const oauth: OAuthPort = {
+    didOf: () => Promise.resolve(alice),
     authorize: () => Promise.reject(failing),
     callback: () => Promise.resolve({ did: alice }),
     handleOf: () => Promise.resolve('alice.test'),

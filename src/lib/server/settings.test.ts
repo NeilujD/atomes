@@ -3,7 +3,7 @@ import { appEnvironment, readSettings, SettingsError } from './settings';
 
 const sessionKey = Buffer.alloc(32, 7).toString('base64');
 const privateJwk = JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'x', y: 'y', d: 'private-part-of-the-key', kid: 'key-1' });
-const local = { ALLOWED_DIDS: 'did:plc:owner', SESSION_ENCRYPTION_KEY: sessionKey };
+const local = { SESSION_ENCRYPTION_KEY: sessionKey };
 
 function problemsOf(env: Record<string, string | undefined>): string[] {
   try {
@@ -16,11 +16,11 @@ function problemsOf(env: Record<string, string | undefined>): string[] {
 }
 
 describe('readSettings', () => {
-  test('local development: the loopback client, with the allow-list and the session key', () => {
-    const settings = readSettings({ ...local, ALLOWED_DIDS: ' did:plc:owner , did:web:friend.example ' });
+  test('local development: the loopback client, sign-up by Invite and the session key', () => {
+    const settings = readSettings(local);
 
     expect(settings.appOrigin).toBeUndefined();
-    expect([...settings.allowedDids]).toEqual(['did:plc:owner', 'did:web:friend.example']);
+    expect(settings.signUp).toBe('invite');
     expect(settings.sessionKey).toHaveLength(32);
     expect(settings).toMatchObject({ dataDir: 'data', port: 4321 });
   });
@@ -73,9 +73,7 @@ describe('readSettings', () => {
     expect(() => readSettings({})).toThrow(SettingsError);
     const problems = problemsOf({});
 
-    expect(problems).toHaveLength(2);
-    expect(problems[0]).toMatch(/^ALLOWED_DIDS is not set/);
-    expect(problems[1]).toMatch(/^SESSION_ENCRYPTION_KEY is not set/);
+    expect(problems).toEqual([expect.stringMatching(/^SESSION_ENCRYPTION_KEY is not set/)]);
     expect(problemsOf({ ...local, PUBLIC_APP_ORIGIN: 'https://atomes.example.org' })).toEqual([
       expect.stringMatching(/^OAUTH_PRIVATE_KEY is not set/),
     ]);
@@ -83,7 +81,8 @@ describe('readSettings', () => {
 
   test.each([
     ['an http origin', { PUBLIC_APP_ORIGIN: 'http://atomes.example.org' }, /^PUBLIC_APP_ORIGIN must be an https origin/],
-    ['a value that is not a DID', { ALLOWED_DIDS: 'owner.bsky.social' }, /^ALLOWED_DIDS holds a value that is not a DID/],
+    ['open sign-up, not built yet', { SIGN_UP: 'open' }, /^SIGN_UP=open: open sign-up is not built yet/],
+    ['an unknown sign-up', { SIGN_UP: 'anyone' }, /^SIGN_UP must be invite or open/],
     ['a short session key', { SESSION_ENCRYPTION_KEY: Buffer.alloc(16).toString('base64') }, /^SESSION_ENCRYPTION_KEY must be 32 bytes/],
     [
       'a public key only',
@@ -98,7 +97,7 @@ describe('readSettings', () => {
     const secrets = { SESSION_ENCRYPTION_KEY: Buffer.from('short-secret').toString('base64'), OAUTH_PRIVATE_KEY: '{"d":"private-part-of-the-key"}' };
     const message = (() => {
       try {
-        readSettings({ ALLOWED_DIDS: 'did:plc:owner', PUBLIC_APP_ORIGIN: 'https://atomes.example.org', ...secrets });
+        readSettings({ PUBLIC_APP_ORIGIN: 'https://atomes.example.org', ...secrets });
       } catch (error) {
         return (error as Error).message;
       }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { memoryLocalCopy } from '../space/local-copy.fake';
 import { serverAuthClient } from './server-client';
-import { errorMessage, gate, loadSession, signIn, signInResultMessage, signOut, type AuthClient } from './session';
+import { errorMessage, gate, keepInvite, loadSession, signIn, signInResultMessage, signOut, type AuthClient } from './session';
 
 const reader = { id: 'account-reader', handle: 'reader.test' };
 
@@ -204,7 +204,7 @@ describe('gate', () => {
 
 describe('signInResultMessage', () => {
   test.each([
-    ['not-allowed', 'This account may not sign in to this Atomes server. Ask its owner to add it.'],
+    ['no-invite', 'You need an Invite to create an account on this Atomes server. Ask its owner for one.'],
     ['cancelled', 'Sign-in was cancelled.'],
     ['no-account', 'No account found for this handle. Check the spelling.'],
     ['unreachable', 'Could not reach your PDS. Try again later.'],
@@ -214,6 +214,34 @@ describe('signInResultMessage', () => {
     [null, undefined],
   ])('%s', (result, message) => {
     expect(signInResultMessage(result)).toBe(message);
+  });
+});
+
+describe('keepInvite', () => {
+  const answering = (status: number) => {
+    const sent: { url: string; init?: RequestInit }[] = [];
+    const fetch = (url: string, init?: RequestInit) => {
+      sent.push({ url, init });
+      return Promise.resolve(new Response(null, { status }));
+    };
+    return { fetch, sent };
+  };
+
+  test('an open Invite is kept on the server, and the screen says so', async () => {
+    const { fetch, sent } = answering(204);
+
+    expect(await keepInvite(fetch, 'token')).toBe('Invite kept. Sign in to create your account.');
+    expect(sent.map(({ url, init }) => [url, init?.method, init?.body])).toEqual([['/api/invite', 'POST', '{"invite":"token"}']]);
+  });
+
+  test('a used or expired Invite says so', async () => {
+    expect(await keepInvite(answering(410).fetch, 'token')).toBe('This Invite was used or has expired. Ask the owner of this Atomes server for a new one.');
+  });
+
+  test('with no network, says the server is out of reach', async () => {
+    const fetch = () => Promise.reject(new TypeError('Failed to fetch'));
+
+    expect(await keepInvite(fetch, 'token')).toBe(errorMessage(new TypeError('Failed to fetch')));
   });
 });
 
