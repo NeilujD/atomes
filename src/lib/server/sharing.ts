@@ -189,7 +189,13 @@ export function createSharing({
   }
 
   async function state(account: AccountId): Promise<SharingState> {
-    return { shared: sharedOf(account), privateWorks: [...privateWorksOf(account)], pending: isPending(account), canShare: await canShare(account) };
+    return {
+      shared: sharedOf(account),
+      privateWorks: [...privateWorksOf(account)],
+      pending: isPending(account),
+      canShare: await canShare(account),
+      atproto: didOf(account) !== undefined,
+    };
   }
 
   function setPrivateWorks(account: AccountId, works: readonly string[], kept: boolean) {

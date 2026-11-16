@@ -65,6 +65,7 @@ describe('the sharing API', () => {
       privateWorks: [],
       pending: false,
       canShare: true,
+      atproto: true,
     });
   });
 

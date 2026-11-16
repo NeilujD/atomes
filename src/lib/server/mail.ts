@@ -30,6 +30,12 @@ export function signInCodeMail(to: string, code: string, language: Language): Ma
   return { to, subject: t('mail.code.subject'), text: t('mail.code.text', code) };
 }
 
+// The code that adds the address to an Account, from Settings (link-email.ts).
+export function linkCodeMail(to: string, code: string, language: Language): Mail {
+  const t = translator(language);
+  return { to, subject: t('mail.link.subject'), text: t('mail.link.text', code) };
+}
+
 // Development only: no mail leaves. Keeps the last mail of each address.
 export function devOutbox(): { send: SendMail; last(to: string): Mail | undefined } {
   const mails = new Map<string, Mail>();

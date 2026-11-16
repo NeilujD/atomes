@@ -617,7 +617,7 @@ describe('Bulk select', () => {
 
   test('keeps the picked Works Private in one request; Undo lets go only the ones it changed', async () => {
     const calls: [string[], boolean][] = [];
-    const state = { shared: { readingStatuses: true, follows: false, labels: false }, privateWorks: [books[1].work.id], pending: false, canShare: true };
+    const state = { shared: { readingStatuses: true, follows: false, labels: false }, privateWorks: [books[1].work.id], pending: false, canShare: true, atproto: true };
     const sharing = {
       load: () => Promise.resolve({ state }),
       setPrivateWorks: (works: string[], kept: boolean) => {

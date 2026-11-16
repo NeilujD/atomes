@@ -13,6 +13,8 @@ export interface Account {
   id: string;
   handle?: string;
   email?: string;
+  // An AT Protocol Account is linked (Settings offers to link one when not).
+  atproto?: boolean;
 }
 
 export interface AuthClient {

@@ -9,6 +9,7 @@ import { createAccounts, type AccountId, type Accounts } from './accounts';
 import type { AuthDeps } from './auth';
 import { createAuthStore } from './auth-store';
 import type { EmailSignInDeps } from './email-sign-in';
+import type { LinkEmailDeps } from './link-email';
 import { createLibraryStore, type LibraryStore } from './library-store';
 import { devOutbox, smtpSender, type SendMail } from './mail';
 import { openDatabase } from './migrate';
@@ -104,4 +105,10 @@ export function emailSignInDeps(): Promise<EmailSignInDeps> {
     return { accounts: accountStore(), store, codes: createSignInCodes({ db: open('auth.sqlite') }), sendMail, onSignedIn };
   });
   return emailSignIn;
+}
+
+// Adding an email address in Settings: the Sign-in Codes and the mail of the sign-in.
+export async function linkEmailDeps(): Promise<LinkEmailDeps> {
+  const { store, codes, sendMail } = await emailSignInDeps();
+  return { accounts: accountStore(), store, codes, sendMail };
 }

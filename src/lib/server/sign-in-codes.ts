@@ -13,11 +13,14 @@ export const codeLifetimeMs = 10 * 60 * 1000;
 export const codeAttempts = 5;
 
 export interface SignInCodes {
-  // A new code for the address; the last one stops working.
-  issue(address: string): string;
+  // A new code for the address; the last one of the address and scope stops
+  // working. `scope`: a code for another use than sign-in (linking an address
+  // in Settings, link-email.ts) works only with the same scope, and the
+  // sign-in code of the address stays valid.
+  issue(address: string, scope?: string): string;
   // True once for the right code, while it is valid and has attempts left. A
   // wrong code uses up one attempt.
-  check(address: string, code: string): boolean;
+  check(address: string, code: string, scope?: string): boolean;
   // Counts one hit on `key`: false past `max` hits in the window of `windowMs`.
   allow(key: string, max: number, windowMs: number): boolean;
   close(): void;
@@ -34,27 +37,29 @@ const sha256 = (text: string) => createHash('sha256').update(text).digest('hex')
 // The key of an address in auth.sqlite: never the address itself.
 export const addressHash = (address: string) => sha256(normalEmail(address) ?? address);
 const codeHash = (address: string, code: string) => sha256(`${addressHash(address)}:${code}`);
+// The key of the code row: the address hash alone for sign-in.
+const codeKey = (address: string, scope?: string) => (scope === undefined ? addressHash(address) : sha256(`${scope}:${addressHash(address)}`));
 
 // `db` is an auth.sqlite that has run authSteps (migrations.ts). Closes it.
 export function createSignInCodes({ db, now = Date.now }: { db: DatabaseSync; now?: () => number }): SignInCodes {
   return {
-    issue(address) {
+    issue(address, scope) {
       const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
       db.prepare('delete from sign_in_code where expires_at <= ?').run(now());
       db.prepare(
         `insert into sign_in_code (address_hash, code_hash, expires_at, attempts_left) values (?, ?, ?, ?)
          on conflict (address_hash) do update set
            code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts_left = excluded.attempts_left`,
-      ).run(addressHash(address), codeHash(address, code), now() + codeLifetimeMs, codeAttempts);
+      ).run(codeKey(address, scope), codeHash(address, code), now() + codeLifetimeMs, codeAttempts);
       return code;
     },
-    check(address, code) {
+    check(address, code, scope) {
       const used = db
         .prepare('delete from sign_in_code where address_hash = ? and code_hash = ? and expires_at > ? and attempts_left > 0')
-        .run(addressHash(address), codeHash(address, code), now());
+        .run(codeKey(address, scope), codeHash(address, code), now());
       if (used.changes === 1) return true;
       db.prepare('update sign_in_code set attempts_left = attempts_left - 1 where address_hash = ? and attempts_left > 0').run(
-        addressHash(address),
+        codeKey(address, scope),
       );
       return false;
     },

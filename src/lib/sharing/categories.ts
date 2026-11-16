@@ -28,4 +28,7 @@ export interface SharingState {
   pending: boolean;
   // The OAuth session may write Shared records. False: the reader signs in again first.
   canShare: boolean;
+  // An AT Protocol Account is linked. False: nothing can be Shared until the
+  // reader links one in Settings (ADR 0016).
+  atproto: boolean;
 }

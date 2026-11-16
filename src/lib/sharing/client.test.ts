@@ -7,6 +7,7 @@ const state: SharingState = {
   privateWorks: [],
   pending: false,
   canShare: true,
+  atproto: true,
 };
 
 function answering(status: number, body: unknown) {

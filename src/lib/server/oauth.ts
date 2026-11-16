@@ -76,10 +76,10 @@ export function oauthPort(client: NodeOAuthClient): OAuthPort {
         throw signInError(error);
       }
     },
-    async authorize(handle, returnTo) {
+    async authorize(input, state) {
       try {
         // The library keeps `state` with the sign-in in progress and gives it back at the callback.
-        return await client.authorize(handle, { scope: oauthScope, state: returnTo });
+        return await client.authorize(input, { scope: oauthScope, state });
       } catch (error) {
         throw signInError(error);
       }
@@ -87,7 +87,7 @@ export function oauthPort(client: NodeOAuthClient): OAuthPort {
     async callback(params) {
       try {
         const { session, state } = await client.callback(params);
-        return { did: session.did, returnTo: state ?? undefined };
+        return { did: session.did, state: state ?? undefined };
       } catch (error) {
         throw signInError(error);
       }

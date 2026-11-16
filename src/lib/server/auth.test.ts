@@ -4,13 +4,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { createAccounts, type Accounts, type Did } from './accounts';
-import { callback, inviteCookie, keepInvite, session, sessionCookie, signIn, signInAs, signOut, type AuthDeps, type OAuthPort } from './auth';
+import { createAccounts, type AccountId, type Accounts, type Did } from './accounts';
+import { callback, inviteCookie, keepInvite, linkAtproto, session, sessionCookie, signIn, signInAs, signOut, type AuthDeps, type OAuthPort } from './auth';
 import { createAuthStore, type AuthStore } from './auth-store';
 import { inviteLifetimeMs, makeInvite } from './invites';
 import { openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
+import { createLibraryStore } from './library-store';
+import { fakePublicRepo } from './public-repo.fake';
+import { publicRepo } from './public-repo';
 import { secretBox } from './secret-box';
+import { createSharing } from './sharing';
 
 const owner: Did = 'did:plc:owner';
 const stranger: Did = 'did:plc:stranger';
@@ -29,14 +33,14 @@ function fakeOAuth(store: AuthStore) {
   const states = new Map<string, string>();
   const oauth: OAuthPort = {
     didOf: (handle) => Promise.resolve(`did:plc:${handle.split('.')[0]}` as Did),
-    authorize(handle, returnTo) {
-      states.set('s', returnTo);
+    authorize(handle, state) {
+      states.set('s', state);
       return Promise.resolve(new URL(`https://pds.test/oauth/authorize?login_hint=${handle}`));
     },
     async callback(params) {
       const did = params.get('sub')! as Did;
       await store.sessions().set(did, { tokenSet: { access_token: accessToken, refresh_token: refreshToken }, dpopJwk: { d: dpopSecret } });
-      return { did, returnTo: states.get(params.get('state')!) };
+      return { did, state: states.get(params.get('state')!) };
     },
     handleOf: (did) => Promise.resolve(`${did.split(':').at(-1)}.test`),
     async revoke(did) {
@@ -113,7 +117,7 @@ describe('sign-in', () => {
 
     const who = session(withCookie('/api/session', cookieOf(response)), deps);
     // The Account, never the DID.
-    expect(await who.json()).toEqual({ id: accounts.ofDid(owner), handle: 'owner.test' });
+    expect(await who.json()).toEqual({ id: accounts.ofDid(owner), handle: 'owner.test', atproto: true });
     expect(accounts.ofDid(owner)).not.toContain('did:');
   });
 
@@ -364,5 +368,132 @@ describe('after a sign-in', () => {
     await back(stranger);
 
     expect(signedIn).toEqual([]);
+  });
+});
+
+describe('link an AT Protocol Account from Settings', () => {
+  const reader: Did = 'did:plc:reader';
+  const address = 'reader@example.org';
+  let account: AccountId;
+  let browser: string;
+
+  beforeEach(() => {
+    // An Account made with an email address, signed in on this browser.
+    account = accounts.signInEmail(address, makeInvite(library).token);
+    browser = store.openBrowserSession({ account, handle: '' }).cookie;
+  });
+
+  const link = (handle: string, cookie = browser) =>
+    linkAtproto(
+      new Request(`${app}/oauth/link`, { method: 'POST', body: new URLSearchParams({ handle }), headers: { cookie: `${sessionCookie}=${cookie}`, origin: app } }),
+      deps,
+    );
+  const finish = (did: string, cookie = browser) => back(did, { cookie: `${sessionCookie}=${cookie}` });
+  const settingsResult = (response: Response) => new URL(response.headers.get('location')!, app).searchParams.get('link');
+  const sessionOf = async (cookie = browser) =>
+    (await session(withCookie('/api/session', cookie), deps).json()) as { id: string; handle?: string; email?: string; atproto: boolean };
+
+  test('an email Account links an AT Protocol Account, then turns a category Shared (fake PDS)', async () => {
+    const started = await link('reader.test');
+    expect(started.status).toBe(303);
+    expect(started.headers.get('location')).toMatch(/^https:\/\/pds\.test\//);
+
+    const done = await finish(reader);
+
+    expect(done.status).toBe(303);
+    expect(settingsResult(done)).toBe('linked');
+    expect(new URL(done.headers.get('location')!, app).pathname).toBe('/settings');
+    // The same browser session, now with the handle; no new session.
+    expect(cookieOf(done)).toBeUndefined();
+    expect(accounts.identitiesOf(account)).toEqual({ did: reader, email: address });
+    expect(await sessionOf()).toEqual({ id: account, handle: 'reader.test', email: address, atproto: true });
+    // Signing in with the AT Protocol Account now opens the same Account.
+    expect(accounts.signIn(reader, undefined)).toBe(account);
+
+    const libraryStore = createLibraryStore(openDatabase(':memory:', librarySteps));
+    libraryStore.put(account, 'app.atomes.readingStatus', 'wd:Q1', {
+      $type: 'app.atomes.readingStatus',
+      work: 'wd:Q1',
+      isbn: '9782723478991',
+      status: 'read',
+      updatedAt: '2026-11-16T10:00:00.000Z',
+    });
+    const pds = fakePublicRepo(reader);
+    const sharing = createSharing({
+      db: openDatabase(':memory:', librarySteps),
+      library: libraryStore,
+      access: { repoOf: (did) => Promise.resolve(publicRepo(pds.handler, did)) },
+      didOf: (owner) => accounts.identitiesOf(owner).did,
+    });
+    expect((await sharing.state(account)).atproto).toBe(true);
+    const state = await sharing.setShared(account, 'readingStatuses', true);
+    expect(state.shared.readingStatuses).toBe(true);
+    expect([...pds.records.keys()]).toEqual(['app.atomes.readingStatus/wd:Q1']);
+    sharing.close();
+    libraryStore.close();
+  });
+
+  test('an empty handle asks again for the AT Protocol Account already linked (permission to share)', async () => {
+    accounts.link(account, 'did', reader);
+
+    const started = await link('');
+
+    expect(started.headers.get('location')).toContain('login_hint=did:plc:reader');
+    expect(settingsResult(await finish(reader))).toBe('linked');
+  });
+
+  test('signed out: back to the sign-in screen, and no PDS page', async () => {
+    const started = await link('reader.test', 'no-such-session');
+
+    expect(started.status).toBe(303);
+    expect(started.headers.get('location')).toMatch(/^\/sign-in/);
+  });
+
+  test('an Account with an AT Protocol Account cannot link a second one', async () => {
+    accounts.link(account, 'did', reader);
+
+    expect(settingsResult(await link('second.test'))).toBe('has-one');
+    expect(accounts.identitiesOf(account).did).toBe(reader);
+  });
+
+  test('security: an AT Protocol Account of Account A cannot be linked to Account B, nothing is merged, and A keeps its OAuth session', async () => {
+    // The owner's DID belongs to another Account (beforeEach).
+    expect(settingsResult(await link('owner.test'))).toBe('taken');
+
+    // Typed another handle, but signed in as the owner at the PDS.
+    await link('reader.test');
+    const done = await finish(owner);
+
+    expect(settingsResult(done)).toBe('taken');
+    expect(accounts.identitiesOf(account)).toEqual({ email: address });
+    expect(accounts.identitiesOf(accounts.ofDid(owner))).toEqual({ did: owner });
+    expect(revoked).toEqual([]);
+  });
+
+  test('security: an OAuth link started in one session cannot be finished in another', async () => {
+    const other = accounts.signInEmail('other@example.org', makeInvite(library).token);
+    const otherBrowser = store.openBrowserSession({ account: other, handle: '' }).cookie;
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await link('reader.test');
+    // The PDS page of this link, opened in another browser session.
+    const done = await finish(reader, otherBrowser);
+
+    expect(settingsResult(done)).toBe('other-session');
+    expect(accounts.identitiesOf(account)).toEqual({ email: address });
+    expect(accounts.identitiesOf(other)).toEqual({ email: 'other@example.org' });
+    // The OAuth session it made belongs to no Account: it ends.
+    expect(revoked).toEqual([reader]);
+
+    // Finished with no session at all: the same.
+    await link('reader.test');
+    expect(settingsResult(await back(reader))).toBe('other-session');
+  });
+
+  test('a sign-in callback never links: it signs in to the Account of the DID', async () => {
+    const signedIn = await back(owner, { cookie: `${sessionCookie}=${browser}` });
+
+    expect(new URL(signedIn.headers.get('location')!, app).pathname).toBe('/');
+    expect(accounts.identitiesOf(account)).toEqual({ email: address });
   });
 });

@@ -26,9 +26,10 @@ describe('guard: writes from other sites', () => {
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
   });
 
-  // The Sign-in Code routes (CORE-81) set a session cookie: a form on another
-  // site must not post to them.
-  test.each(['/api/sign-in/code', '/api/sign-in/check'])('a POST to %s from another site gets 403', async (path) => {
+  // The Sign-in Code routes (CORE-81) set a session cookie, and the link
+  // routes (CORE-82) add an identity to the signed-in Account: a form on
+  // another site must not post to them.
+  test.each(['/api/sign-in/code', '/api/sign-in/check', '/api/link/code', '/api/link/check', '/oauth/link'])('a POST to %s from another site gets 403', async (path) => {
     const next = vi.fn(() => Promise.resolve(json()));
 
     const response = await guard(new Request(`${app}${path}`, { method: 'POST', headers: { origin: 'https://evil.test' } }), next, app);

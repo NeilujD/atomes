@@ -34,6 +34,8 @@ export interface AuthStore {
   browserSession(cookie: string): BrowserSession | undefined;
   // Ends one browser session; gives its Account when there was one.
   closeBrowserSession(cookie: string): AccountId | undefined;
+  // The handle of every browser session of the Account, after a link.
+  setHandle(account: AccountId, handle: string): void;
   // True while another browser session of the Account is still open.
   hasBrowserSessions(account: AccountId): boolean;
   // Ends every browser session of the Account, and deletes the OAuth session
@@ -109,6 +111,9 @@ export function createAuthStore(options: {
         | { account: AccountId }
         | undefined;
       return row?.account;
+    },
+    setHandle(account, handle) {
+      db.prepare('update browser_session set handle = ? where account = ?').run(handle, account);
     },
     hasBrowserSessions(account) {
       return db.prepare('select 1 from browser_session where account = ? and expires_at > ?').get(account, now()) !== undefined;

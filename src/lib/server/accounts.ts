@@ -18,6 +18,11 @@ export interface Identities {
   email?: string;
 }
 
+// What linking an identity to an Account gave: `taken`, it belongs to another
+// Account; `has-one`, the Account has another identity of this kind. Nothing
+// is merged.
+export type LinkResult = 'linked' | 'taken' | 'has-one';
+
 export interface Accounts {
   // The Account of the DID. Makes one, with this DID as its identity, the
   // first time, with no Invite: only for the migrations and /dev/sign-in-as.
@@ -35,6 +40,9 @@ export interface Accounts {
   maySignInEmail(email: string, invite: string | undefined): boolean;
   // The Invite is not used and not expired.
   inviteIsOpen(invite: string): boolean;
+  // Adds an identity the reader proved (Settings, ADR 0016). The same
+  // identity again gives `linked`.
+  link(account: AccountId, kind: 'did' | 'email', value: string): LinkResult;
   // Empty for an unknown Account.
   identitiesOf(account: AccountId): Identities;
   // Deletes the Account and its identities (CORE-55). Its Invite stays used,
@@ -94,6 +102,15 @@ export function createAccounts(db: DatabaseSync): Accounts {
     maySignIn: (did, invite) => maySignIn('did', did, invite),
     maySignInEmail: (email, invite) => maySignIn('email', email, invite),
     inviteIsOpen: (invite) => inviteIsOpen(db, invite),
+    link(account, kind, value) {
+      return inTransaction(db, (): LinkResult => {
+        const owner = find(kind, value);
+        if (owner !== undefined) return owner === account ? 'linked' : 'taken';
+        if (db.prepare('select 1 from identity where account = ? and kind = ?').get(account, kind)) return 'has-one';
+        db.prepare('insert into identity (account, kind, value) values (?, ?, ?)').run(account, kind, value);
+        return 'linked';
+      });
+    },
     identitiesOf(account) {
       const rows = db.prepare('select kind, value from identity where account = ?').all(account) as { kind: 'did' | 'email'; value: string }[];
       return Object.fromEntries(rows.map(({ kind, value }) => [kind, value]));
