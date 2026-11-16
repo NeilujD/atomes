@@ -21,6 +21,8 @@ export interface Accounts {
   // The Account of the DID. Makes one, with this DID as its identity, the
   // first time.
   ofDid(did: Did): AccountId;
+  // The Account of the DID, or undefined: makes none.
+  findDid(did: Did): AccountId | undefined;
   // Empty for an unknown Account.
   identitiesOf(account: AccountId): Identities;
   // Deletes the Account and its identities (CORE-55).
@@ -54,6 +56,7 @@ export function createAccounts(db: DatabaseSync): Accounts {
       });
       return account;
     },
+    findDid: find,
     identitiesOf(account) {
       const rows = db.prepare('select kind, value from identity where account = ?').all(account) as { kind: 'did' | 'email'; value: string }[];
       return Object.fromEntries(rows.map(({ kind, value }) => [kind, value]));

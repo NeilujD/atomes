@@ -36,7 +36,7 @@ for (const isbn of process.argv.slice(2).filter((arg) => arg !== '--fill')) {
   const { facts, failed } = await fetchFacts(recording, isbn);
   console.log(isbn, failed ? '(a source failed)' : '', JSON.stringify(facts, null, 2));
   if (!fill) continue;
-  const catalog = createCatalog({ file: ':memory:', fetch: recording, host: 'record.local' });
+  const catalog = createCatalog({ file: ':memory:', fetch: recording, host: 'record.local', accounts: { findDid: () => undefined } });
   const found = await catalog.lookup(isbn);
   if ('found' in found) {
     const volumes = await catalog.volumes(found.found, { fill: true });

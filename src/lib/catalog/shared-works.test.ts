@@ -13,7 +13,7 @@ afterEach(() => dbs.splice(0).forEach((db) => db.close()));
 function catalogWith(editions: { isbn: string; volumes: number[] }[]) {
   const db = new DatabaseSync(':memory:');
   dbs.push(db);
-  migrate(db, catalogSteps);
+  migrate(db, catalogSteps({ findDid: () => undefined }));
   db.prepare("insert into series (n, id, title) values (1, 'wd:Q15051307', 'Dragon Ball')").run();
   for (const { isbn, volumes } of editions)
     db.prepare(

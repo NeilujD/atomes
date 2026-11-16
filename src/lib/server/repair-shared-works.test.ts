@@ -135,7 +135,7 @@ describe('the repair script on an instance', () => {
   async function instance() {
     const dir = mkdtempSync(join(tmpdir(), 'atomes-repair-'));
     dirs.push(dir);
-    const catalog = createCatalog({ file: join(dir, 'catalog.sqlite'), fetch: recordedFetch().fetch, host: 'catalog.test' });
+    const catalog = createCatalog({ file: join(dir, 'catalog.sqlite'), fetch: recordedFetch().fetch, host: 'catalog.test', accounts: { findDid: () => undefined } });
     await catalog.lookup(volume2);
     await catalog.lookup(volume3);
     catalog.close();
