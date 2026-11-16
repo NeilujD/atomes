@@ -28,7 +28,7 @@ export function catalogAccess(): Promise<CatalogAccess> {
   access ??= authDeps().then((deps) => ({
     limit: createIpLimit({ max: 60, windowMs: 60_000 }),
     signedIn: (request) => readerOf(request, deps) !== undefined,
-    account: (request) => readerOf(request, deps)?.did,
+    account: (request) => readerOf(request, deps)?.account,
     writes: createIpLimit({ max: 200, windowMs: 3600_000 }),
   }));
   return access;

@@ -21,10 +21,16 @@ const apiPath = '/api/library';
 // Same-origin: the browser sends the session cookie, and no token.
 export const instanceFetch: FetchHandler = (pathname, init) => fetch(pathname, { ...init, credentials: 'same-origin' });
 
+// The name of the store of an Account in the local copy. A device of before
+// Accounts kept it under the reader's DID; server-client.ts moves it.
+export const instanceOwner = (account: string) => `atomes-instance:${account}`;
+
+// `account`: the key of the local copy, the Account ID (or, on a device that
+// has not seen the server since Accounts, the DID).
 // `onStale`: a write refused because another device changed the record first.
 export function openInstanceStore(
   fetchHandler: FetchHandler,
-  did: string,
+  account: string,
   localCopy: LocalCopy,
   onStale?: (write: StaleWrite) => void,
 ): Space {
@@ -75,5 +81,5 @@ export function openInstanceStore(
     },
   };
 
-  return openQueuedStore(remote, `atomes-instance:${did}`, localCopy, onStale);
+  return openQueuedStore(remote, instanceOwner(account), localCopy, onStale);
 }

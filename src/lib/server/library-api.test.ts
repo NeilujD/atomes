@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import type { AccountId } from './accounts';
 import { handleLibraryRequest, lexiconRules } from './library-api';
 import { createLibraryStore, type LibraryStore } from './library-store';
 import { openDatabase } from './migrate';
 import { librarySteps } from './migrations';
 
-const owner = 'did:plc:owner';
-const other = 'did:plc:other';
+const owner = 'account-owner' as AccountId;
+const other = 'account-other' as AccountId;
 const collection = 'app.atomes.readingStatus';
 // A value no log line may hold.
 const work = 'wd:Q-private-marker';
@@ -28,9 +29,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function call(did: string, method: string, path: string, body?: unknown) {
+function call(account: AccountId, method: string, path: string, body?: unknown) {
   const init: RequestInit = body === undefined ? { method } : { method, body: typeof body === 'string' ? body : JSON.stringify(body) };
-  return handleLibraryRequest(new Request(`https://atomes.test/api/library/${path}`, init), { did, store, rules: lexiconRules });
+  return handleLibraryRequest(new Request(`https://atomes.test/api/library/${path}`, init), { account, store, rules: lexiconRules });
 }
 
 describe('the Library API', () => {
@@ -146,7 +147,7 @@ describe('the Library API', () => {
 
 // Two devices stay in step: changes since a rev, tombstones, stale writes (ADR 0012).
 describe('sync', () => {
-  const changes = async (did: string, since: number) => (await call(did, 'GET', `?since=${since}`)).json() as Promise<Changes>;
+  const changes = async (account: AccountId, since: number) => (await call(account, 'GET', `?since=${since}`)).json() as Promise<Changes>;
   const revOf = async (response: Promise<Response>) => ((await (await response).json()) as { rev: number }).rev;
 
   interface Changes {
@@ -246,7 +247,7 @@ describe('after a write', () => {
     const changed: string[] = [];
     const write = (method: string, path: string, body?: unknown) =>
       handleLibraryRequest(new Request(`https://atomes.test/api/library/${path}`, body === undefined ? { method } : { method, body: JSON.stringify(body) }), {
-        did: owner,
+        account: owner,
         store,
         rules: lexiconRules,
         onWrite: (collection, rkey) => changed.push(`${collection}/${rkey}`),

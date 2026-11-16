@@ -1,9 +1,10 @@
 // The readers' Private records, kept by this instance (ADR 0012, ADR 0016):
 // `library.sqlite` in DATA_DIR, apart from the Catalog. One generic table that
-// mirrors atproto (DID, collection, record key, value). Every call is limited
-// to one reader's DID.
+// mirrors atproto (collection, record key, value), keyed by the Account that
+// owns it (ADR 0016). Every call is limited to one Account.
 // Never logs a record value.
 import type { DatabaseSync } from 'node:sqlite';
+import type { AccountId } from './accounts';
 
 export interface StoredRecord {
   rkey: string;
@@ -34,16 +35,16 @@ export class StaleRecordError extends Error {
 export interface LibraryStore {
   // Creates or replaces the record. Gives its new `rev`. With `base`, throws a
   // StaleRecordError when the record's rev is not `base` any more.
-  put(did: string, collection: string, rkey: string, value: object, base?: number): number;
+  put(account: AccountId, collection: string, rkey: string, value: object, base?: number): number;
   // Undefined when the record does not exist or was deleted.
-  get(did: string, collection: string, rkey: string): unknown;
+  get(account: AccountId, collection: string, rkey: string): unknown;
   // Every record of the collection, newest key first, as a PDS lists them.
-  list(did: string, collection: string): StoredRecord[];
+  list(account: AccountId, collection: string): StoredRecord[];
   // Leaves a tombstone, so other devices learn of the delete, and gives its rev.
   // Deleting a record that does not exist succeeds (with no `base`). With
   // `base`, as put.
-  delete(did: string, collection: string, rkey: string, base?: number): number | undefined;
-  changesSince(did: string, since: number): Changes;
+  delete(account: AccountId, collection: string, rkey: string, base?: number): number | undefined;
+  changesSince(account: AccountId, since: number): Changes;
   close(): void;
 }
 
@@ -53,74 +54,74 @@ const tombstoneDays = 30;
 // `db` has run `librarySteps` (migrations.ts). The store closes it.
 export function createLibraryStore(db: DatabaseSync, now: () => Date = () => new Date()): LibraryStore {
 
-  const purgedRev = (did: string) => (db.prepare('select rev from purged where did = ?').get(did) as { rev: number } | undefined)?.rev ?? 0;
+  const purgedRev = (account: AccountId) => (db.prepare('select rev from purged where account = ?').get(account) as { rev: number } | undefined)?.rev ?? 0;
   // A purge never takes the rev back.
-  const lastRev = (did: string) =>
+  const lastRev = (account: AccountId) =>
     Math.max(
-      purgedRev(did),
-      (db.prepare('select coalesce(max(rev), 0) as last from record where did = ?').get(did) as { last: number }).last,
+      purgedRev(account),
+      (db.prepare('select coalesce(max(rev), 0) as last from record where account = ?').get(account) as { last: number }).last,
     );
 
   // One process per instance (ADR 0007) and synchronous SQLite: nothing runs
   // between the base check, reading the last rev and writing the next one.
-  function write(did: string, collection: string, rkey: string, value: string | null, base: number | undefined): number {
+  function write(account: AccountId, collection: string, rkey: string, value: string | null, base: number | undefined): number {
     if (base !== undefined) {
-      const row = db.prepare('select rev from record where did = ? and collection = ? and rkey = ?').get(did, collection, rkey) as
+      const row = db.prepare('select rev from record where account = ? and collection = ? and rkey = ?').get(account, collection, rkey) as
         | { rev: number }
         | undefined;
       if (row?.rev !== base) throw new StaleRecordError(base);
     }
-    const rev = lastRev(did) + 1;
+    const rev = lastRev(account) + 1;
     db.prepare(
-      `insert into record (did, collection, rkey, value, rev, updated_at, deleted) values (?, ?, ?, ?, ?, ?, ?)
-       on conflict (did, collection, rkey) do update set
+      `insert into record (account, collection, rkey, value, rev, updated_at, deleted) values (?, ?, ?, ?, ?, ?, ?)
+       on conflict (account, collection, rkey) do update set
          value = excluded.value, rev = excluded.rev, updated_at = excluded.updated_at, deleted = excluded.deleted`,
-    ).run(did, collection, rkey, value, rev, now().toISOString(), value === null ? 1 : 0);
+    ).run(account, collection, rkey, value, rev, now().toISOString(), value === null ? 1 : 0);
     return rev;
   }
 
-  // Drops the reader's old tombstones and remembers the newest one dropped.
-  function purge(did: string) {
+  // Drops the Account's old tombstones and remembers the newest one dropped.
+  function purge(account: AccountId) {
     const before = new Date(now().getTime() - tombstoneDays * 24 * 60 * 60 * 1000).toISOString();
     const { newest } = db
-      .prepare('select max(rev) as newest from record where did = ? and deleted = 1 and updated_at < ?')
-      .get(did, before) as { newest: number | null };
+      .prepare('select max(rev) as newest from record where account = ? and deleted = 1 and updated_at < ?')
+      .get(account, before) as { newest: number | null };
     if (newest === null) return;
-    db.prepare('delete from record where did = ? and deleted = 1 and updated_at < ?').run(did, before);
-    db.prepare('insert into purged (did, rev) values (?, ?) on conflict (did) do update set rev = max(rev, excluded.rev)').run(did, newest);
+    db.prepare('delete from record where account = ? and deleted = 1 and updated_at < ?').run(account, before);
+    db.prepare('insert into purged (account, rev) values (?, ?) on conflict (account) do update set rev = max(rev, excluded.rev)').run(account, newest);
   }
 
   return {
-    put: (did, collection, rkey, value, base) => write(did, collection, rkey, JSON.stringify(value), base),
-    get(did, collection, rkey) {
+    put: (account, collection, rkey, value, base) => write(account, collection, rkey, JSON.stringify(value), base),
+    get(account, collection, rkey) {
       const row = db
-        .prepare('select value from record where did = ? and collection = ? and rkey = ? and deleted = 0')
-        .get(did, collection, rkey) as { value: string } | undefined;
+        .prepare('select value from record where account = ? and collection = ? and rkey = ? and deleted = 0')
+        .get(account, collection, rkey) as { value: string } | undefined;
       return row && (JSON.parse(row.value) as unknown);
     },
-    list(did, collection) {
+    list(account, collection) {
       const rows = db
-        .prepare('select rkey, value from record where did = ? and collection = ? and deleted = 0 order by rkey desc')
-        .all(did, collection) as { rkey: string; value: string }[];
+        .prepare('select rkey, value from record where account = ? and collection = ? and deleted = 0 order by rkey desc')
+        .all(account, collection) as { rkey: string; value: string }[];
       return rows.map(({ rkey, value }) => ({ rkey, value: JSON.parse(value) as unknown }));
     },
-    delete(did, collection, rkey, base) {
-      const exists = db.prepare('select 1 from record where did = ? and collection = ? and rkey = ? and deleted = 0').get(did, collection, rkey);
+    delete(account, collection, rkey, base) {
+      const exists = db.prepare('select 1 from record where account = ? and collection = ? and rkey = ? and deleted = 0').get(account, collection, rkey);
       if (!exists && base === undefined) return undefined;
-      const rev = write(did, collection, rkey, null, base);
-      purge(did);
+      const rev = write(account, collection, rkey, null, base);
+      purge(account);
       return rev;
     },
-    changesSince(did, since) {
-      const all = since <= 0 || since < purgedRev(did);
+    changesSince(account, since) {
+      const all = since <= 0 || since < purgedRev(account);
       const rows = db
         .prepare(
           `select collection, rkey, value, rev, deleted from record
-           where did = ? and rev > ? ${all ? 'and deleted = 0' : ''} order by rev`,
+           where account = ? and rev > ? ${all ? 'and deleted = 0' : ''} order by rev`,
         )
-        .all(did, all ? 0 : since) as { collection: string; rkey: string; value: string | null; rev: number; deleted: number }[];
+        .all(account, all ? 0 : since) as { collection: string; rkey: string; value: string | null; rev: number; deleted: number }[];
       return {
-        rev: lastRev(did),
+        rev: lastRev(account),
         all,
         records: rows.flatMap(({ collection, rkey, value, rev, deleted }) =>
           deleted ? [] : [{ collection, rkey, value: JSON.parse(value!) as unknown, rev }],

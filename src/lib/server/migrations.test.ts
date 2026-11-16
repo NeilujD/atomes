@@ -3,11 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { createAccounts, type AccountId } from './accounts';
 import { createAuthStore } from './auth-store';
 import { createLibraryStore } from './library-store';
 import { migrate, openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
 import { secretBox } from './secret-box';
+import { createSharing } from './sharing';
 
 const did = 'did:plc:owner';
 const version = (db: DatabaseSync) => (db.prepare('pragma user_version').get() as { user_version: number }).user_version;
@@ -59,41 +61,78 @@ function authOfBefore(file: string) {
 const counts = (db: DatabaseSync, tables: string[]) =>
   tables.map((table) => (db.prepare(`select count(*) as n from ${table}`).get() as { n: number }).n);
 
-describe('library.sqlite and auth.sqlite made before versioned migrations', () => {
-  test('a library.sqlite opens with its rows intact and user_version 1', () => {
+// A Library of two readers, as the files before Accounts kept it: keyed by DID.
+const second = 'did:plc:second';
+function libraryOfTwoReaders(file: string) {
+  libraryOfBefore(file);
+  const db = new DatabaseSync(file);
+  db.exec(`
+    insert into record values ('${second}', 'app.atomes.toBuy', '3l2b', '{"isbn":"9782723488525"}', 4, '2026-11-16T10:00:00.000Z', 0);
+    insert into record values ('${second}', 'app.atomes.toBuy', '3l2c', null, 5, '2026-11-16T10:00:00.000Z', 1);
+    insert into shared_category values ('${second}', 'follows');
+    insert into private_work values ('${second}', 'wd:Q2');
+  `);
+  db.close();
+}
+
+const noPds = { repoOf: () => Promise.resolve(undefined) };
+
+describe('library.sqlite made before Accounts', () => {
+  test('each DID that owns rows gets one Account, with the same records under the same keys', async () => {
     const file = join(dir, 'library.sqlite');
-    libraryOfBefore(file);
+    libraryOfTwoReaders(file);
 
     const db = openDatabase(file, librarySteps);
+    const accounts = createAccounts(db);
+    const first = accounts.ofDid(did);
+    const next = accounts.ofDid(second);
 
-    expect(version(db)).toBe(1);
-    expect(counts(db, ['record', 'purged', 'shared_category', 'private_work', 'sharing_pending'])).toEqual([1, 1, 1, 1, 1]);
+    expect(first).not.toBe(next);
+    expect(first.startsWith('did:')).toBe(false);
+    expect(accounts.identitiesOf(first)).toEqual({ did });
+    expect(accounts.identitiesOf(next)).toEqual({ did: second });
+
     const store = createLibraryStore(db);
-    expect(store.get(did, 'app.atomes.toBuy', '3l2a')).toEqual({ isbn: '9782723478991' });
+    expect(store.list(first, 'app.atomes.toBuy')).toEqual([{ rkey: '3l2a', value: { isbn: '9782723478991' } }]);
+    expect(store.list(next, 'app.atomes.toBuy')).toEqual([{ rkey: '3l2b', value: { isbn: '9782723488525' } }]);
+    // The tombstone and the rev move too: a device that synced goes on from its rev.
+    expect(store.changesSince(next, 4)).toMatchObject({ rev: 5, all: false, deleted: [{ collection: 'app.atomes.toBuy', rkey: '3l2c' }] });
+    // Nothing is left under the DID.
+    expect(store.list(did as unknown as AccountId, 'app.atomes.toBuy')).toEqual([]);
+
+    const sharing = createSharing({ db: openDatabase(file, librarySteps), library: store, access: noPds, didOf: () => undefined });
+    expect(await sharing.state(first)).toMatchObject({ shared: { labels: true, follows: false }, privateWorks: ['wd:Q1'], pending: true });
+    expect(await sharing.state(next)).toMatchObject({ shared: { labels: false, follows: true }, privateWorks: ['wd:Q2'], pending: false });
+    sharing.close();
     store.close();
   });
 
-  test('an auth.sqlite opens with its rows intact and user_version 1', () => {
+  test('an auth.sqlite keeps its browser sessions, now for the Account of their DID', () => {
+    const library = join(dir, 'library.sqlite');
+    libraryOfBefore(library);
+    const accounts = createAccounts(openDatabase(library, librarySteps));
     const file = join(dir, 'auth.sqlite');
     authOfBefore(file);
 
-    const db = openDatabase(file, authSteps);
+    const db = openDatabase(file, authSteps(accounts));
 
-    expect(version(db)).toBe(1);
-    const store = createAuthStore({ db, box: secretBox(Buffer.alloc(32)), allowedDids: new Set([did]) });
-    expect(store.hasBrowserSessions(did)).toBe(true);
+    const store = createAuthStore({ db, box: secretBox(Buffer.alloc(32)), allowedDids: new Set([did]), accounts });
+    expect(store.hasBrowserSessions(accounts.ofDid(did))).toBe(true);
     store.close();
+    accounts.close();
   });
 
   test('a new file gets every table, and opening it again changes nothing', () => {
     const file = join(dir, 'library.sqlite');
-    const store = createLibraryStore(openDatabase(file, librarySteps));
-    store.put(did, 'app.atomes.toBuy', '3l2a', { isbn: '9782723478991' });
-    store.close();
+    const db = openDatabase(file, librarySteps);
+    const account = createAccounts(db).ofDid(did);
+    createLibraryStore(db).put(account, 'app.atomes.toBuy', '3l2a', { isbn: '9782723478991' });
+    db.close();
 
     const again = openDatabase(file, librarySteps);
-    expect(version(again)).toBe(1);
-    expect(counts(again, ['record', 'shared_category', 'private_work', 'sharing_pending'])).toEqual([1, 0, 0, 0]);
+    expect(version(again)).toBe(librarySteps.length);
+    expect(counts(again, ['account', 'identity', 'record', 'shared_category'])).toEqual([1, 1, 1, 0]);
+    expect(createAccounts(again).ofDid(did)).toBe(account);
     again.close();
   });
 });

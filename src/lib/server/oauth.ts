@@ -73,7 +73,7 @@ export function oauthPort(client: NodeOAuthClient, allowedDids: ReadonlySet<stri
         // Refused before the PDS page: the reader does not sign in for nothing.
         // The session store refuses it again at the callback.
         const { did } = await client.oauthResolver.resolveIdentity(handle);
-        if (!allowedDids.has(did)) throw new NotAllowedError(did);
+        if (!allowedDids.has(did)) throw new NotAllowedError();
         // The library keeps `state` with the sign-in in progress and gives it back at the callback.
         return await client.authorize(handle, { scope: oauthScope, state: returnTo });
       } catch (error) {

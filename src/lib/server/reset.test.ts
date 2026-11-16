@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { createAccounts } from './accounts';
 import { createLibraryStore } from './library-store';
 import { openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
@@ -53,14 +54,18 @@ describe('emptyDatabases', () => {
   });
 
   test('keeps the migration version of library.sqlite and auth.sqlite', () => {
-    openDatabase(join(dir, 'library.sqlite'), librarySteps).close();
-    openDatabase(join(dir, 'auth.sqlite'), authSteps).close();
+    const accounts = createAccounts(openDatabase(join(dir, 'library.sqlite'), librarySteps));
+    openDatabase(join(dir, 'auth.sqlite'), authSteps(accounts)).close();
+    accounts.close();
 
     emptyDatabases(dir, { keepCatalog: true });
 
-    for (const name of ['library.sqlite', 'auth.sqlite']) {
+    for (const [name, steps] of [
+      ['library.sqlite', librarySteps.length],
+      ['auth.sqlite', authSteps(accounts).length],
+    ] as const) {
       const db = new DatabaseSync(join(dir, name));
-      expect(db.prepare('pragma user_version').get()).toEqual({ user_version: 1 });
+      expect(db.prepare('pragma user_version').get()).toEqual({ user_version: steps });
       db.close();
     }
   });
@@ -69,11 +74,17 @@ describe('emptyDatabases', () => {
     const file = join(dir, 'library.sqlite');
     const did = 'did:plc:owner';
     const library = createLibraryStore(openDatabase(file, librarySteps));
+    const account = createAccounts(openDatabase(file, librarySteps)).ofDid(did);
     const pds = fakePublicRepo(did);
-    const sharing = createSharing({ db: openDatabase(file, librarySteps), library, access: { repoOf: () => Promise.resolve(publicRepo(pds.handler, did)) } });
-    await sharing.setShared(did, 'labels', true);
+    const sharing = createSharing({
+      db: openDatabase(file, librarySteps),
+      library,
+      access: { repoOf: () => Promise.resolve(publicRepo(pds.handler, did)) },
+      didOf: () => did,
+    });
+    await sharing.setShared(account, 'labels', true);
     pds.network.online = false;
-    await sharing.setPrivate(did, 'wd:Q1', true);
+    await sharing.setPrivate(account, 'wd:Q1', true);
     const db = new DatabaseSync(file);
     const counts = () =>
       ['shared_category', 'private_work', 'sharing_pending'].map(

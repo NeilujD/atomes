@@ -2,6 +2,7 @@
 // and gives the browser only its own session cookie. The OAuth client sits
 // behind a small port (oauth.ts), so tests never call a PDS.
 import { returnTarget, signInPath } from '../auth/return-to';
+import { errorLogText, type AccountId, type Accounts, type Did } from './accounts';
 import { NotAllowedError, type AuthStore, browserSessionLifetimeMs } from './auth-store';
 
 export interface OAuthPort {
@@ -11,11 +12,11 @@ export interface OAuthPort {
   authorize(handle: string, returnTo: string): Promise<URL>;
   // Finishes the sign-in that comes back from the PDS. Gives the reader's DID
   // and the `returnTo` of its authorize.
-  callback(params: URLSearchParams): Promise<{ did: string; returnTo?: string }>;
+  callback(params: URLSearchParams): Promise<{ did: Did; returnTo?: string }>;
   // The handle of the DID, or the DID when it has none.
-  handleOf(did: string): Promise<string>;
+  handleOf(did: Did): Promise<string>;
   // Ends the OAuth session: revokes it on the PDS and deletes it here.
-  revoke(did: string): Promise<void>;
+  revoke(did: Did): Promise<void>;
 }
 
 // What the sign-in screen tells after a failed sign-in (`?auth=` in its URL).
@@ -35,11 +36,13 @@ export class SignInError extends Error {
 export interface AuthDeps {
   oauth: OAuthPort;
   store: AuthStore;
+  // The Accounts in library.sqlite: sign-out ends the OAuth session of the DID of the Account.
+  accounts: Pick<Accounts, 'identitiesOf'>;
   // PUBLIC_APP_ORIGIN; undefined in local development.
   appOrigin?: string;
   // After a sign-in: sharing sends what waited for the reader's session
   // (sharing.ts). Not awaited; a failure is logged and the sign-in goes on.
-  onSignedIn?: (did: string) => Promise<void> | void;
+  onSignedIn?: (account: AccountId) => Promise<void> | void;
 }
 
 export const sessionCookie = 'atomes_session';
@@ -76,10 +79,9 @@ function resultOf(error: unknown): SignInResult {
   return 'failed';
 }
 
-// Names only: an OAuth error never carries a token, but keep the log short.
+// An OAuth error never carries a token; a DID or an Account ID is left out.
 function logFailure(step: string, error: unknown) {
-  const name = error instanceof Error ? `${error.name}: ${error.message}` : 'unknown error';
-  console.warn(`Sign-in ${step} failed: ${name}`);
+  console.warn(`Sign-in ${step} failed: ${errorLogText(error)}`);
 }
 
 // POST /oauth/sign-in, from the sign-in screen: `handle`, and `next`, the
@@ -104,9 +106,9 @@ export async function signIn(request: Request, { oauth }: AuthDeps): Promise<Res
 export async function callback(request: Request, { oauth, store, onSignedIn }: AuthDeps): Promise<Response> {
   try {
     const { did, returnTo } = await oauth.callback(new URL(request.url).searchParams);
-    const cookie = store.openBrowserSession({ did, handle: await oauth.handleOf(did) });
+    const { cookie, account } = store.openBrowserSession({ did, handle: await oauth.handleOf(did) });
     void Promise.resolve()
-      .then(() => onSignedIn?.(did))
+      .then(() => onSignedIn?.(account))
       .catch((error: unknown) => logFailure('follow-up', error));
     return goTo(returnTarget(returnTo), { 'set-cookie': sessionCookieHeader(cookie, browserSessionLifetimeMs / 1000) });
   } catch (error) {
@@ -115,15 +117,15 @@ export async function callback(request: Request, { oauth, store, onSignedIn }: A
   }
 }
 
-// GET /dev/sign-in-as, development only: a browser session for `did` (default:
-// the first allowed DID) with no PDS, so agents can test the app by hand. The
-// Library API reads only the browser session. A DID that is not allowed gets
-// 403 and nothing is written.
+// GET /dev/sign-in-as, development only: a browser session for the Account of
+// `did` (default: the first allowed DID; made at its first sign-in) with no
+// PDS, so agents can test the app by hand. The Library API reads only the
+// browser session. A DID that is not allowed gets 403 and nothing is written.
 export function signInAs(request: Request, { store }: Pick<AuthDeps, 'store'>, allowedDids: ReadonlySet<string>): Response {
   const query = new URL(request.url).searchParams;
-  const did = query.get('did') ?? [...allowedDids][0] ?? '';
+  const did = (query.get('did') ?? [...allowedDids][0] ?? '') as Did;
   try {
-    const cookie = store.openBrowserSession({ did, handle: query.get('handle') ?? 'test.reader' });
+    const { cookie } = store.openBrowserSession({ did, handle: query.get('handle') ?? 'test.reader' });
     return goTo('/library', { 'set-cookie': sessionCookieHeader(cookie, browserSessionLifetimeMs / 1000) });
   } catch (error) {
     if (error instanceof NotAllowedError) return new Response(null, { status: 403 });
@@ -133,11 +135,12 @@ export function signInAs(request: Request, { store }: Pick<AuthDeps, 'store'>, a
 
 // POST /oauth/sign-out. Ends the browser session and removes the cookie. The
 // OAuth session ends too when no other browser of the reader is signed in.
-export async function signOut(request: Request, { oauth, store }: AuthDeps): Promise<Response> {
+export async function signOut(request: Request, { oauth, store, accounts }: AuthDeps): Promise<Response> {
   const cookie = cookieOf(request);
-  const did = cookie && store.closeBrowserSession(cookie);
+  const account = cookie && store.closeBrowserSession(cookie);
+  const did = account && !store.hasBrowserSessions(account) ? accounts.identitiesOf(account).did : undefined;
   let pdsReached = true;
-  if (did && !store.hasBrowserSessions(did)) {
+  if (did) {
     pdsReached = await oauth.revoke(did).then(
       () => true,
       (error: unknown) => {
@@ -158,8 +161,11 @@ export function readerOf(request: Request, { store }: Pick<AuthDeps, 'store'>) {
 export const signedOut = () =>
   Response.json({ error: 'SignedOut', message: 'Sign in again' }, { status: 401, headers: { 'cache-control': 'no-store' } });
 
-// GET /api/session: who is signed in, for the device.
-export function session(request: Request, deps: Pick<AuthDeps, 'store'>): Response {
+// GET /api/session: who is signed in, for the device: { id, handle?, email? }.
+// `id` is the Account; the device keys its local copy with it.
+export function session(request: Request, deps: Pick<AuthDeps, 'store' | 'accounts'>): Response {
   const reader = readerOf(request, deps);
-  return reader ? Response.json(reader, { headers: { 'cache-control': 'no-store' } }) : signedOut();
+  if (!reader) return signedOut();
+  const { email } = deps.accounts.identitiesOf(reader.account);
+  return Response.json({ id: reader.account, handle: reader.handle, email }, { headers: { 'cache-control': 'no-store' } });
 }

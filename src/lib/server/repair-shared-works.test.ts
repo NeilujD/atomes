@@ -7,6 +7,7 @@ import { recordedFetch } from '../catalog/recorded.fake';
 import { copyCollection } from '../library/copy';
 import { labelCollection } from '../library/label';
 import { readingStatusCollection } from '../library/reading-status';
+import type { AccountId, Did } from './accounts';
 import { createLibraryStore } from './library-store';
 import { openDatabase } from './migrate';
 import { librarySteps } from './migrations';
@@ -15,7 +16,8 @@ import { fakePublicRepo } from './public-repo.fake';
 import { collections, planRepair, repairSharedWorks, type ReaderRecords } from './repair-shared-works';
 import { createSharing } from './sharing';
 
-const owner = 'did:plc:owner';
+const owner = 'account-owner' as AccountId;
+const ownerDid: Did = 'did:plc:owner';
 const dropped = 'inv:91e782c2fc0f67739836a22c452f3623';
 const volume2 = '9782876952065';
 const volume3 = '9782876952072';
@@ -33,7 +35,7 @@ const copy = (isbn: string, works: string[]) => ({ $type: copyCollection, isbn, 
 const label = (name: string, works: string[]) => ({ $type: labelCollection, name, works, createdAt: '2026-11-10T10:00:00.000Z' });
 
 const reader = (change: Partial<ReaderRecords> = {}): ReaderRecords => ({
-  did: owner,
+  account: owner,
   readingStatuses: [],
   copies: [],
   labels: [],
@@ -138,11 +140,12 @@ describe('the repair script on an instance', () => {
     await catalog.lookup(volume3);
     catalog.close();
     const library = createLibraryStore(openDatabase(join(dir, 'library.sqlite'), librarySteps));
-    const pds = fakePublicRepo(owner);
+    const pds = fakePublicRepo(ownerDid);
     const sharing = createSharing({
       db: openDatabase(join(dir, 'library.sqlite'), librarySteps),
       library,
-      access: { repoOf: () => Promise.resolve(publicRepo(pds.handler, owner)) },
+      access: { repoOf: () => Promise.resolve(publicRepo(pds.handler, ownerDid)) },
+      didOf: () => ownerDid,
     });
     return { dir, library, pds, sharing };
   }
@@ -154,7 +157,7 @@ describe('the repair script on an instance', () => {
 
     const report = repairSharedWorks(dir, { dryRun: true });
 
-    expect(report.map(({ did, counts }) => [did, counts.readingStatuses])).toEqual([[owner, 1]]);
+    expect(report.map(({ account, counts }) => [account, counts.readingStatuses])).toEqual([[owner, 1]]);
     expect(library.changesSince(owner, 0).rev).toBe(rev);
     expect((await sharing.state(owner)).pending).toBe(false);
     sharing.close();

@@ -17,9 +17,9 @@ const repairs = repairSharedWorks(dir, { dryRun });
 
 console.log(dryRun ? 'Dry run: nothing is written.' : 'Repaired.');
 if (repairs.length === 0) console.log('No reader record names a dropped Work.');
-for (const { did, counts, labels, privateWorks } of repairs) {
+for (const { account, counts, labels, privateWorks } of repairs) {
   console.log(
-    `${did}: ${counts.readingStatuses} Reading Statuses moved, ${counts.copies} Copies changed, ` +
+    `Account ${account}: ${counts.readingStatuses} Reading Statuses moved, ${counts.copies} Copies changed, ` +
       `${counts.labels} Labels listed, ${counts.privateWorks} Private Works listed (${privateWorks.added.length} kept Private on their new Work)`,
   );
   for (const label of labels) console.log(`  Label ${label.rkey} "${label.name}": ${label.works.join(', ')}`);

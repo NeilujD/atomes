@@ -1,8 +1,9 @@
 import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import { expect, test } from 'vitest';
+import { createAccounts } from './accounts';
 import { createAuthStore } from './auth-store';
 import { openDatabase } from './migrate';
-import { authSteps } from './migrations';
+import { authSteps, librarySteps } from './migrations';
 import { createOAuthClient, repoAccess } from './oauth';
 import { secretBox } from './secret-box';
 import { readSettings } from './settings';
@@ -17,7 +18,13 @@ async function confidentialClient() {
     SESSION_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
     OAUTH_PRIVATE_KEY: JSON.stringify(jwk),
   });
-  const store = createAuthStore({ db: openDatabase(':memory:', authSteps), box: secretBox(settings.sessionKey), allowedDids: settings.allowedDids });
+  const accounts = createAccounts(openDatabase(':memory:', librarySteps));
+  const store = createAuthStore({
+    db: openDatabase(':memory:', authSteps(accounts)),
+    box: secretBox(settings.sessionKey),
+    allowedDids: settings.allowedDids,
+    accounts,
+  });
   return { client: await createOAuthClient(settings, store), jwk };
 }
 

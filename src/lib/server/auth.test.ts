@@ -2,15 +2,17 @@ import { randomBytes } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { createAccounts, type Accounts, type Did } from './accounts';
 import { callback, session, sessionCookie, signIn, signInAs, signOut, type AuthDeps, type OAuthPort } from './auth';
 import { createAuthStore, NotAllowedError, type AuthStore } from './auth-store';
 import { openDatabase } from './migrate';
-import { authSteps } from './migrations';
+import { authSteps, librarySteps } from './migrations';
 import { secretBox } from './secret-box';
 
-const owner = 'did:plc:owner';
-const stranger = 'did:plc:stranger';
+const owner: Did = 'did:plc:owner';
+const stranger: Did = 'did:plc:stranger';
 const accessToken = 'access-token-only-on-the-server';
 const refreshToken = 'refresh-token-only-on-the-server';
 const dpopSecret = 'dpop-private-key-part';
@@ -30,7 +32,7 @@ function fakeOAuth(store: AuthStore) {
       return Promise.resolve(new URL(`https://pds.test/oauth/authorize?login_hint=${handle}`));
     },
     async callback(params) {
-      const did = params.get('sub')!;
+      const did = params.get('sub')! as Did;
       await store.sessions().set(did, { tokenSet: { access_token: accessToken, refresh_token: refreshToken }, dpopJwk: { d: dpopSecret } });
       return { did, returnTo: states.get(params.get('state')!) };
     },
@@ -48,18 +50,27 @@ let file: string;
 let store: AuthStore;
 let deps: AuthDeps;
 let revoked: string[];
+let library: DatabaseSync;
+let accounts: Accounts;
+
+const openStore = (allowedDids: Set<string>) =>
+  createAuthStore({ db: openDatabase(file, authSteps(accounts)), box: secretBox(randomBytes(32)), allowedDids, accounts });
+const accountCount = () => (library.prepare('select count(*) as n from account').get() as { n: number }).n;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'atomes-auth-'));
   file = join(dir, 'auth.sqlite');
-  store = createAuthStore({ db: openDatabase(file, authSteps), box: secretBox(randomBytes(32)), allowedDids: new Set([owner]) });
+  library = openDatabase(':memory:', librarySteps);
+  accounts = createAccounts(library);
+  store = openStore(new Set([owner]));
   const fake = fakeOAuth(store);
   revoked = fake.revoked;
-  deps = { oauth: fake.oauth, store, appOrigin: app };
+  deps = { oauth: fake.oauth, store, accounts, appOrigin: app };
 });
 
 afterEach(() => {
   store.close();
+  accounts.close();
   rmSync(dir, { recursive: true, force: true });
   vi.restoreAllMocks();
 });
@@ -94,7 +105,9 @@ describe('sign-in', () => {
     expect(JSON.stringify([...response.headers])).not.toContain(accessToken);
 
     const who = session(withCookie('/api/session', cookieOf(response)), deps);
-    expect(await who.json()).toEqual({ did: owner, handle: 'owner.test' });
+    // The Account, made at this first sign-in; never the DID.
+    expect(await who.json()).toEqual({ id: accounts.ofDid(owner), handle: 'owner.test' });
+    expect(accounts.ofDid(owner)).not.toContain('did:');
   });
 
   test('a DID that is not on the list gets a clear message, and no session is stored', async () => {
@@ -104,12 +117,12 @@ describe('sign-in', () => {
     expect(response.headers.get('location')).toBe('/sign-in?auth=not-allowed');
     expect(response.headers.get('set-cookie')).toBeNull();
     expect(await store.sessions().get(stranger)).toBeUndefined();
-    expect(store.hasBrowserSessions(stranger)).toBe(false);
+    expect(accountCount()).toBe(0);
   });
 
   test('a DID refused before the PDS page goes back with the same message', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    deps.oauth.authorize = () => Promise.reject(new NotAllowedError(stranger));
+    deps.oauth.authorize = () => Promise.reject(new NotAllowedError());
 
     const response = await signInForm({ handle: 'stranger.test', next: '/to-buy' });
 
@@ -137,9 +150,9 @@ describe('sign-in', () => {
   test('a DID taken off the list loses its open browser session', async () => {
     const cookie = cookieOf(await back(owner));
     store.close();
-    store = createAuthStore({ db: openDatabase(file, authSteps), box: secretBox(randomBytes(32)), allowedDids: new Set() });
+    store = openStore(new Set());
 
-    expect(session(withCookie('/api/session', cookie), { store }).status).toBe(401);
+    expect(session(withCookie('/api/session', cookie), { store, accounts }).status).toBe(401);
   });
 
   test('tokens and DPoP keys are stored encrypted, and the cookie value is not stored', async () => {
@@ -156,19 +169,35 @@ describe('sign-in as a test reader (development)', () => {
   const allowed = new Set([owner]);
   const signInAsUrl = (query = '') => signInAs(new Request(`${app}/dev/sign-in-as${query}`), { store }, allowed);
 
+  test('each test DID gets its own Account, the same at each sign-in', () => {
+    const second: Did = 'did:plc:second';
+    allowed.add(second);
+    store.close();
+    store = openStore(allowed);
+    try {
+      const first = store.browserSession(cookieOf(signInAsUrl(`?did=${encodeURIComponent(owner)}`))!)!.account;
+      const other = store.browserSession(cookieOf(signInAsUrl(`?did=${encodeURIComponent(second)}`))!)!.account;
+
+      expect(other).not.toBe(first);
+      expect(store.browserSession(cookieOf(signInAsUrl(`?did=${encodeURIComponent(owner)}`))!)!.account).toBe(first);
+    } finally {
+      allowed.delete(second);
+    }
+  });
+
   test('opens a browser session for the first allowed DID and sends the reader to the Library', () => {
     const response = signInAsUrl();
 
     expect(response.status).toBe(303);
     expect(response.headers.get('location')).toBe('/library');
     expect(response.headers.get('set-cookie')).toMatch(/^atomes_session=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=\d+$/);
-    expect(store.browserSession(cookieOf(response)!)).toEqual({ did: owner, handle: 'test.reader' });
+    expect(store.browserSession(cookieOf(response)!)).toEqual({ account: accounts.ofDid(owner), handle: 'test.reader' });
   });
 
   test('takes the DID and the handle from the query', () => {
     const response = signInAsUrl(`?did=${encodeURIComponent(owner)}&handle=alice.test`);
 
-    expect(store.browserSession(cookieOf(response)!)).toEqual({ did: owner, handle: 'alice.test' });
+    expect(store.browserSession(cookieOf(response)!)).toEqual({ account: accounts.ofDid(owner), handle: 'alice.test' });
   });
 
   test('refuses a DID that is not allowed, and writes nothing', () => {
@@ -176,7 +205,7 @@ describe('sign-in as a test reader (development)', () => {
 
     expect(response.status).toBe(403);
     expect(response.headers.get('set-cookie')).toBeNull();
-    expect(store.hasBrowserSessions(stranger)).toBe(false);
+    expect(accountCount()).toBe(0);
   });
 });
 
@@ -211,12 +240,12 @@ describe('sign-out', () => {
   });
 });
 describe('after a sign-in', () => {
-  test('tells the DID that signed in, so what waited for the PDS is sent', async () => {
+  test('tells the Account that signed in, so what waited for the PDS is sent', async () => {
     const signedIn: string[] = [];
-    deps = { ...deps, onSignedIn: (did) => void signedIn.push(did) };
+    deps = { ...deps, onSignedIn: (account) => void signedIn.push(account) };
 
     expect((await back(owner)).status).toBe(303);
-    expect(signedIn).toEqual([owner]);
+    expect(signedIn).toEqual([accounts.ofDid(owner)]);
   });
 
   test('a failure after the sign-in never fails the sign-in', async () => {
@@ -231,7 +260,7 @@ describe('after a sign-in', () => {
 
   test('a failed sign-in tells no one', async () => {
     const signedIn: string[] = [];
-    deps = { ...deps, onSignedIn: (did) => void signedIn.push(did) };
+    deps = { ...deps, onSignedIn: (account) => void signedIn.push(account) };
 
     await back(stranger);
 

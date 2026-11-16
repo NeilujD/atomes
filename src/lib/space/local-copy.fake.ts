@@ -1,6 +1,6 @@
 // Test fake: the LocalCopy contract in memory. Values are cloned on the way in
 // and out, as IndexedDB does.
-import type { LocalCopy } from './local-copy';
+import { movedKey, type LocalCopy } from './local-copy';
 import type { PendingWrite, SpaceRecord, SyncState } from './queued-store';
 
 export function memoryLocalCopy(): LocalCopy {
@@ -19,6 +19,15 @@ export function memoryLocalCopy(): LocalCopy {
     readSync: (key) => Promise.resolve(structuredClone(entries.get(key) as SyncState | undefined)),
     writeSync: (key, state) => {
       entries.set(key, structuredClone(state));
+      return Promise.resolve();
+    },
+    move: (from, to) => {
+      for (const [key, value] of [...entries]) {
+        const moved = movedKey(key, from, to);
+        if (moved === undefined) continue;
+        entries.set(moved, value);
+        entries.delete(key);
+      }
       return Promise.resolve();
     },
     clear: () => {

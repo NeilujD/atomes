@@ -112,7 +112,7 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
   function render(next: AuthState) {
     state = next;
     const signedIn = next.status === 'signed-in';
-    status.textContent = signedIn ? t('settings.signed-in-as', next.account.handle) : '';
+    status.textContent = signedIn ? t('settings.signed-in-as', next.account.handle ?? next.account.email ?? '') : '';
     signOutButton.hidden = !signedIn;
     error.textContent = signedIn ? '' : (next.message ?? '');
     error.hidden = !error.textContent;

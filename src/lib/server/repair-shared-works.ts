@@ -19,17 +19,18 @@
 // sync. A reader with a Shared category is marked pending: the public repo
 // follows at their next record change, Settings visit or sign-in (sharing.ts).
 // Runs again with no change. Node runs it in the Docker image with type
-// stripping alone: no import outside `node:` and `./library-store.ts`.
+// stripping alone: no import outside `node:` and `./library-store.ts` (type imports are erased).
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import type { AccountId } from './accounts.ts';
 import { createLibraryStore, type StoredRecord } from './library-store.ts';
 
 // The collections of src/lib/library, whose modules Node cannot load here.
 export const collections = { readingStatus: 'app.atomes.readingStatus', copy: 'app.atomes.copy', label: 'app.atomes.label' } as const;
 
 export interface ReaderRecords {
-  did: string;
+  account: AccountId;
   readingStatuses: StoredRecord[];
   copies: StoredRecord[];
   labels: StoredRecord[];
@@ -38,7 +39,7 @@ export interface ReaderRecords {
 }
 
 export interface Repair {
-  did: string;
+  account: AccountId;
   puts: { collection: string; rkey: string; value: object }[];
   deletes: { collection: string; rkey: string }[];
   // Listed, not changed.
@@ -101,7 +102,7 @@ export function planRepair(reader: ReaderRecords, dropped: ReadonlySet<string>, 
   const listed = reader.privateWorks.filter((work) => dropped.has(work));
 
   return {
-    did: reader.did,
+    account: reader.account,
     puts,
     deletes,
     labels,
@@ -140,25 +141,25 @@ export function repairSharedWorks(dataDir: string, options: { dryRun: boolean })
     // Wait for a write of the running server rather than fail.
     db.exec('pragma busy_timeout = 5000');
     const sharing = hasTable(db, 'shared_category');
-    const dids = (
+    const owners = (
       db
-        .prepare(`select distinct did from record where deleted = 0 and collection in (?, ?, ?) order by did`)
-        .all(collections.readingStatus, collections.copy, collections.label) as { did: string }[]
-    ).map((row) => row.did);
-    const privateWorksOf = (did: string) =>
+        .prepare(`select distinct account from record where deleted = 0 and collection in (?, ?, ?) order by account`)
+        .all(collections.readingStatus, collections.copy, collections.label) as { account: AccountId }[]
+    ).map((row) => row.account);
+    const privateWorksOf = (account: AccountId) =>
       hasTable(db, 'private_work')
-        ? (db.prepare('select work from private_work where did = ? order by work').all(did) as { work: string }[]).map((row) => row.work)
+        ? (db.prepare('select work from private_work where account = ? order by work').all(account) as { work: string }[]).map((row) => row.work)
         : [];
 
-    const repairs = dids
-      .map((did) =>
+    const repairs = owners
+      .map((account) =>
         planRepair(
           {
-            did,
-            readingStatuses: store.list(did, collections.readingStatus),
-            copies: store.list(did, collections.copy),
-            labels: store.list(did, collections.label),
-            privateWorks: privateWorksOf(did),
+            account,
+            readingStatuses: store.list(account, collections.readingStatus),
+            copies: store.list(account, collections.copy),
+            labels: store.list(account, collections.label),
+            privateWorks: privateWorksOf(account),
           },
           dropped,
           workOf,
@@ -169,12 +170,12 @@ export function repairSharedWorks(dataDir: string, options: { dryRun: boolean })
 
     for (const repair of repairs) {
       // The new records first: a repair stopped half-way loses nothing and runs again.
-      for (const { collection, rkey, value } of repair.puts) store.put(repair.did, collection, rkey, value);
-      for (const work of repair.privateWorks.added) db.prepare('insert or ignore into private_work (did, work) values (?, ?)').run(repair.did, work);
-      for (const { collection, rkey } of repair.deletes) store.delete(repair.did, collection, rkey);
-      const shares = sharing && db.prepare('select 1 from shared_category where did = ?').get(repair.did) !== undefined;
+      for (const { collection, rkey, value } of repair.puts) store.put(repair.account, collection, rkey, value);
+      for (const work of repair.privateWorks.added) db.prepare('insert or ignore into private_work (account, work) values (?, ?)').run(repair.account, work);
+      for (const { collection, rkey } of repair.deletes) store.delete(repair.account, collection, rkey);
+      const shares = sharing && db.prepare('select 1 from shared_category where account = ?').get(repair.account) !== undefined;
       if (shares && (repair.puts.length > 0 || repair.deletes.length > 0))
-        db.prepare('insert or ignore into sharing_pending (did) values (?)').run(repair.did);
+        db.prepare('insert or ignore into sharing_pending (account) values (?)').run(repair.account);
     }
     return repairs;
   } finally {

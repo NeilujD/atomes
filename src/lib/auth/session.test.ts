@@ -3,7 +3,7 @@ import { memoryLocalCopy } from '../space/local-copy.fake';
 import { serverAuthClient } from './server-client';
 import { errorMessage, gate, loadSession, signIn, signInResultMessage, signOut, type AuthClient } from './session';
 
-const reader = { did: 'did:plc:reader', handle: 'reader.test' };
+const reader = { id: 'account-reader', handle: 'reader.test' };
 
 // The Atomes server as the device sees it: one browser session, behind a cookie
 // the device cannot read. `online = false` stands for the network off.
@@ -40,7 +40,12 @@ function memoryStorage() {
 function setup() {
   const { server, fetch } = fakeServer();
   const storage = memoryStorage();
-  const client = (): AuthClient => serverAuthClient({ fetch, storage, submitSignIn: (handle, returnTo) => server.submitted.push({ handle, returnTo }) });
+  const client = (): AuthClient => serverAuthClient({
+      fetch,
+      storage,
+      submitSignIn: (handle, returnTo) => server.submitted.push({ handle, returnTo }),
+      localCopy: memoryLocalCopy(),
+    });
   return { server, storage, client };
 }
 

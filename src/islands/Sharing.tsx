@@ -8,10 +8,11 @@ import { t } from '../lib/i18n/i18n';
 import { categoryNames, type Category, type SharingState } from '../lib/sharing/categories';
 import { sharingClient, type SharingAnswer, type SharingClient } from '../lib/sharing/client';
 
-// Back to the PDS, which asks for the permission to share, then back to Settings.
+// Back to the PDS, which asks for the permission to share, then back to
+// Settings. Only an Account with an AT Protocol handle can share.
 async function signInAgain() {
   const account = await checkedAccount();
-  if (account) await createAuthClient().signIn(account.handle, '/settings');
+  if (account?.handle) await createAuthClient().signIn(account.handle, '/settings');
 }
 
 // An unshared category may still be on the PDS while a change is pending.

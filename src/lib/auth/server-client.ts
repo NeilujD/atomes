@@ -1,12 +1,12 @@
 // The real AuthClient: the Atomes server signs the reader in (ADR 0013). The
-// device keeps only the account it saw last (DID and handle, no token), so the
-// session still opens offline (ADR 0002).
+// device keeps only the Account it saw last (its ID and handle, no token), so
+// the session still opens offline (ADR 0002).
 import { lookupEdition } from '../catalog/client';
 import { staleNotice } from '../library/stale';
 import { isNetworkFailure } from '../network';
 import { toast } from '../toast';
-import { indexedDbLocalCopy } from '../space/local-copy';
-import { instanceFetch, openInstanceStore } from '../space/instance-store';
+import { indexedDbLocalCopy, type LocalCopy } from '../space/local-copy';
+import { instanceFetch, instanceOwner, openInstanceStore } from '../space/instance-store';
 import type { Space } from '../space/queued-store';
 import { deviceData } from './device-data';
 import { accountKey } from './gate-boot';
@@ -23,12 +23,21 @@ export interface ServerClientDeps {
   storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
   // Posts the sign-in form: the page leaves.
   submitSignIn: (handle: string, returnTo: string) => void;
+  localCopy: Pick<LocalCopy, 'move'>;
 }
 
+// What a device of before Accounts saved: the reader's DID.
+type SavedBefore = { did: string; handle: string };
+
 export function serverAuthClient(deps: ServerClientDeps): AuthClient {
-  function saved(): Account | undefined {
+  function savedValue(): Account | SavedBefore | undefined {
     const value = deps.storage.getItem(accountKey);
-    return value ? (JSON.parse(value) as Account) : undefined;
+    return value ? (JSON.parse(value) as Account | SavedBefore) : undefined;
+  }
+  // Offline with the old shape, the DID stays the key of the local copy.
+  function saved(): Account | undefined {
+    const value = savedValue();
+    return value && 'did' in value ? { id: value.did, handle: value.handle } : value;
   }
 
   return {
@@ -52,9 +61,15 @@ export function serverAuthClient(deps: ServerClientDeps): AuthClient {
         return undefined;
       }
       if (!response.ok) throw new Error(`HTTP ${response.status} for /api/session`);
-      const { did, handle } = (await response.json()) as Account;
-      deps.storage.setItem(accountKey, JSON.stringify({ did, handle }));
-      return { did, handle };
+      const { id, handle, email } = (await response.json()) as Account;
+      const account: Account = { id, handle, email };
+      // First answer with an Account on a device of before Accounts: the local
+      // copy, the write queue and the sync state move from the DID key, once,
+      // before any store opens, then the new shape is saved (ADR 0016).
+      const before = savedValue();
+      if (before && 'did' in before && before.did !== id) await deps.localCopy.move(instanceOwner(before.did), instanceOwner(id));
+      deps.storage.setItem(accountKey, JSON.stringify(account));
+      return account;
     },
     signIn(handle, returnTo) {
       deps.submitSignIn(handle, returnTo);
@@ -88,7 +103,7 @@ function submitSignIn(handle: string, returnTo: string) {
 }
 
 export function createAuthClient(): AuthClient {
-  return serverAuthClient({ fetch: (input, init) => fetch(input, init), storage: localStorage, submitSignIn });
+  return serverAuthClient({ fetch: (input, init) => fetch(input, init), storage: localStorage, submitSignIn, localCopy: indexedDbLocalCopy() });
 }
 
 let checked: Promise<Account | undefined> | undefined;
@@ -143,7 +158,7 @@ let own: Promise<{ account: Account; space: Space } | undefined> | undefined;
 async function openStore(): Promise<{ account: Account; space: Space } | undefined> {
   const account = await checkedAccount();
   if (!account) return undefined;
-  const space = openInstanceStore(instanceFetch, account.did, indexedDbLocalCopy(), (write) => {
+  const space = openInstanceStore(instanceFetch, account.id, indexedDbLocalCopy(), (write) => {
     void staleNotice(write, { space, lookup: lookupEdition }).then((text) => toast(text, { error: true }));
   });
   return { account, space };

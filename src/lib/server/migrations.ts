@@ -2,6 +2,7 @@
 // (migrate.ts). `library.sqlite` is backed up and holds the readers' records
 // (ADR 0016), so a step must keep every row: add a step at the end of a list;
 // never edit or remove one. instance.ts runs them once, before any store opens.
+import { newAccountId, type AccountId, type Did } from './accounts';
 import type { Step } from './migrate';
 
 // The Library (library-store.ts) and the sharing choices (sharing.ts), as
@@ -63,5 +64,56 @@ const authV0: Step = (db) =>
     create index if not exists browser_session_did on browser_session (did);
   `);
 
-export const librarySteps: readonly Step[] = [libraryV0];
-export const authSteps: readonly Step[] = [authV0];
+// The tables that hold a reader's rows, keyed by owner.
+const ownedTables = ['record', 'purged', 'shared_category', 'private_work', 'sharing_pending'] as const;
+
+// Accounts (ADR 0016, accounts.ts): an Account for each DID that owns a row,
+// with the DID as its identity, and every row moves from the DID to the
+// Account, under the same keys. No reverse: back up first.
+const libraryV1: Step = (db) => {
+  db.exec(`
+    create table account (
+      id text primary key,
+      created_at text not null
+    );
+    create table identity (
+      kind text not null check (kind in ('did', 'email')),
+      value text not null,
+      account text not null references account (id),
+      primary key (kind, value),
+      unique (account, kind)
+    );
+  `);
+  const owners = db.prepare(ownedTables.map((table) => `select did from ${table}`).join(' union ')).all() as { did: string }[];
+  const now = new Date().toISOString();
+  for (const { did } of owners) {
+    const account = newAccountId();
+    db.prepare('insert into account (id, created_at) values (?, ?)').run(account, now);
+    db.prepare("insert into identity (account, kind, value) values (?, 'did', ?)").run(account, did);
+  }
+  for (const table of ownedTables) {
+    db.exec(`
+      alter table ${table} rename column did to account;
+      update ${table} set account = (select account from identity where kind = 'did' and value = ${table}.account);
+    `);
+  }
+};
+
+// Browser sessions hold the Account, not the DID: each open session moves to
+// the Account of its DID, so no reader is signed out. `accounts` is the
+// library.sqlite that has run librarySteps.
+const authV1 =
+  (accounts: { ofDid(did: Did): AccountId }): Step =>
+  (db) => {
+    db.exec(`
+      drop index browser_session_did;
+      alter table browser_session rename column did to account;
+      create index browser_session_account on browser_session (account);
+    `);
+    const dids = db.prepare('select distinct account as did from browser_session').all() as { did: Did }[];
+    const move = db.prepare('update browser_session set account = ? where account = ?');
+    for (const { did } of dids) move.run(accounts.ofDid(did), did);
+  };
+
+export const librarySteps: readonly Step[] = [libraryV0, libraryV1];
+export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts)];

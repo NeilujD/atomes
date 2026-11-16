@@ -6,9 +6,13 @@ import { isNetworkFailure } from '../network';
 import type { LocalCopy } from '../space/local-copy';
 import { signInHref } from './return-to';
 
+// The Account signed in (ADR 0016), as /api/session answers. `id` keys the
+// local copy; on a device that has not reached the server since Accounts, it
+// is still the reader's DID (server-client.ts).
 export interface Account {
-  did: string;
-  handle: string;
+  id: string;
+  handle?: string;
+  email?: string;
 }
 
 export interface AuthClient {
@@ -18,7 +22,7 @@ export interface AuthClient {
   // After the sign-in, the server sends it to `returnTo`.
   signIn(handle: string, returnTo: string): Promise<void>;
   // Ends the session on the server and removes the cookie.
-  signOut(did: string): Promise<void>;
+  signOut(): Promise<void>;
 }
 
 export type AuthState = { status: 'signed-out'; message?: string } | { status: 'signed-in'; account: Account };
@@ -72,7 +76,7 @@ export async function signOut(
     () => true,
     () => false,
   );
-  const ended = await client.signOut(account.did).then(
+  const ended = await client.signOut().then(
     () => true,
     () => false,
   );
