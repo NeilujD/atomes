@@ -73,9 +73,9 @@ test('Cobalt fills the main action of each screen, green and orange the Shelf Ch
   await page.getByRole('button', { name: 'Look up' }).click();
   await expectRole(page.getByRole('dialog', { name: 'Shelf Check' }).getByRole('button', { name: 'Add another Copy' }), '--ink');
 
-  // To Buy: the "+" that adds a book, and Add in its sheet.
+  // To Buy: the "+" that adds a book is a round icon button in ink; Add in its sheet is the main action.
   await page.goto('/to-buy');
-  await expectRole(page.getByRole('button', { name: 'Add a book' }), '--accent');
+  await expectRole(page.getByRole('button', { name: 'Add a book' }), '--ink');
   await page.getByRole('button', { name: 'Add a book' }).click();
   await expectMainAction(page.getByRole('dialog', { name: 'Add a book by its ISBN' }).getByRole('button', { name: 'Add', exact: true }));
   await page.keyboard.press('Escape');

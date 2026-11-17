@@ -443,6 +443,7 @@ export const fr: typeof en = {
   'tobuy.by-hand': 'Ajoutés à la main',
   'tobuy.bought': 'Je l’ai acheté',
   'tobuy.remove': 'Retirer',
+  'tobuy.not-owned': 'Non possédé',
 
   // Page d’une série (src/islands/Series.tsx)
   'series.title': 'Série',
