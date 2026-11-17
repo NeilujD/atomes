@@ -555,20 +555,32 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   .library-flow-cover .library-flow-face {
+    position: relative;
     width: 100%;
-    box-shadow:
-      0 0 0 1px var(--cover-edge),
-      0 12px 28px -12px var(--scrim);
     -webkit-user-drag: none;
   }
 
-  /* The covers on the sides sink into the ground as they leave the front. */
-  .library-flow-shade {
+  .library-flow-cover .library-flow-face:not([data-cover='loaded']),
+  .library-flow-cover .library-flow-face[data-cover='loaded'] img {
+    box-shadow:
+      0 0 0 1px var(--cover-edge),
+      0 12px 28px -12px var(--scrim);
+  }
+
+  /* The covers on the sides sink into the ground as they leave the front
+     (`--shade`, set by the island). Over the image only, as the image is drawn
+     in the cover box (theme.css). */
+  .library-flow-face::after {
+    content: '';
     position: absolute;
-    inset: 0;
+    bottom: 0;
+    left: 50%;
+    width: min(100%, 150cqi * var(--cover-ratio, 2 / 3));
+    aspect-ratio: var(--cover-ratio, 2 / 3);
+    translate: -50% 0;
     border-radius: var(--radius-cover);
     background: var(--ground);
-    opacity: 0;
+    opacity: var(--shade, 0);
     pointer-events: none;
   }
 

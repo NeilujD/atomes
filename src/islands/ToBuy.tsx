@@ -103,6 +103,13 @@ export function ToBuy({ sources }: { sources: Sources }) {
     start().catch(fail);
   }, [sources]);
 
+  // The "+" of the view header (to-buy.astro) opens the sheet: it works only
+  // once the sheet is drawn, so a tap while the list loads is not lost.
+  useEffect(() => {
+    const open = document.querySelector<HTMLButtonElement>('[data-to-buy-open]');
+    if (open) open.disabled = !sheet.current;
+  });
+
   // One change at a time; the list shows what is saved once it is done.
   async function save(key: string, change: (own: Space) => Promise<WriteState>) {
     const own = space.current;

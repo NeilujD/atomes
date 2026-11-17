@@ -66,7 +66,6 @@ export function LibraryCoverFlow({ books, moved, onMove, wide }: { books: Librar
             }}
           >
             <Cover class="library-flow-face" src={each.cover} title={each.title} series={each.series} volumeTitle={each.volumeTitle} volume={volumeLine(each)} />
-            <span class="library-flow-shade" aria-hidden="true" />
           </a>
         ))}
       </div>
@@ -118,7 +117,7 @@ function paint(stage: HTMLElement, offset: number): number {
     cover.style.transform = `translate3d(${(stand.x * width).toFixed(2)}px, 0, ${(stand.z * width).toFixed(2)}px) rotateY(${(-stand.turn * tiltDeg).toFixed(2)}deg)`;
     cover.style.zIndex = String(1000 - Math.round(Math.abs(at - offset) * 10));
     cover.style.opacity = stand.opacity.toFixed(3);
-    (cover.lastElementChild as HTMLElement).style.opacity = stand.shade.toFixed(3);
+    cover.style.setProperty('--shade', stand.shade.toFixed(3));
   });
   return front;
 }
