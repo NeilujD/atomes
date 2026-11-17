@@ -30,12 +30,15 @@ export default defineConfig({
   },
   // Phone size only: 390 px wide (triage, 2026-11-12). Chromium gets the same
   // screen as the iPhone, not its WebKit engine.
+  // `warm` builds every page on the dev server first (e2e/warm.setup.ts).
   projects: [
+    { name: 'warm', testMatch: 'warm.setup.ts' },
     {
       name: 'chromium',
+      dependencies: ['warm'],
       use: { browserName: 'chromium', viewport: phone.viewport, deviceScaleFactor: phone.deviceScaleFactor, isMobile: true, hasTouch: true },
     },
-    { name: 'webkit', use: { ...phone } },
+    { name: 'webkit', dependencies: ['warm'], use: { ...phone } },
   ],
   webServer: {
     // An empty DATA_DIR on each run: runs share no state. The Catalog answers

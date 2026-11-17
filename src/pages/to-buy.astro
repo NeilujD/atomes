@@ -11,11 +11,13 @@ const t = translator(requestLanguage(Astro.request));
 ---
 
 <AppShell title={t('tobuy.title')} current="to-buy">
-  <!-- The screen's add action: opens the island's "Add by ISBN" sheet, once the list has loaded. -->
+  <!-- The screen's add action: opens the island's "Add by ISBN" sheet. Disabled
+       until the list has loaded and the island draws the sheet (ToBuy.tsx). -->
   <button
     slot="actions"
     class="to-buy-open"
     type="button"
+    disabled
     aria-label={t('tobuy.add-open')}
     aria-haspopup="dialog"
     aria-controls="to-buy-add-sheet"
@@ -74,8 +76,13 @@ const t = translator(requestLanguage(Astro.request));
     cursor: pointer;
   }
 
-  .to-buy-open:hover {
+  .to-buy-open:hover:not(:disabled) {
     background: var(--soft);
+  }
+
+  .to-buy-open:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
 
   /* The "Add by ISBN" sheet: from the bottom on the phone, a card on desktop. */
