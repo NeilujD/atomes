@@ -141,7 +141,7 @@ _Avoid_: PDS, DID, handle (in text shown to the reader)
 _French_: Compte AT Protocol
 
 **Invite**:
-A link, made by the owner of an Atomes instance, that lets one person create an Account. It works once.
+A link, made by the owner of an Atomes instance or by a reader, that lets one person create an Account. It works once, for 14 days. A reader makes one in Settings, and only one person can create an Account with the Invites of a reader; the owner has no limit.
 _Avoid_: Allow-list, access code, referral
 _French_: Invitation
 

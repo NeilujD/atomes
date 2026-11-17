@@ -144,5 +144,13 @@ const authV2: Step = (db) =>
     );
   `);
 
-export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2];
+// Invites that readers make in Settings (CORE-134): `made_by` is the Account
+// that made it, null for the owner script.
+const libraryV3: Step = (db) =>
+  db.exec(`
+    alter table invite add column made_by text references account (id);
+    create index invite_made_by on invite (made_by);
+  `);
+
+export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3];
 export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts), authV2];
