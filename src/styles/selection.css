@@ -93,7 +93,8 @@
 }
 
 /* A picked item is cobalt (ui-direction: colour roles). */
-.library-pick[aria-pressed='true'] .library-cover {
+.library-pick[aria-pressed='true'] .library-cover:not([data-cover='loaded']),
+.library-pick[aria-pressed='true'] .library-cover[data-cover='loaded'] img {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }

@@ -217,6 +217,10 @@
 .result-cover {
   position: relative;
   width: var(--w);
+}
+
+.result-cover:not([data-cover='loaded']),
+.result-stage .result-cover[data-cover='loaded'] img {
   border-radius: 10px;
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--shelf-ink) 14%, transparent),

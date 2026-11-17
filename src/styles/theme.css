@@ -265,10 +265,11 @@ a {
 }
 
 /*
- * A book cover (src/lib/cover.ts). Each screen sets only its width. The box is
- * 2:3 while the image loads and for the default cover; a loaded image gives the
- * box its own shape, so the reader sees the whole cover (most are not exactly
- * 2:3). Text sizes follow the box width (container units).
+ * A book cover (src/lib/cover.ts). Each screen sets only its width: the box is
+ * always 2:3, so nothing moves when the image loads and covers side by side
+ * stand on one line. Most images are not exactly 2:3: the whole image stands at
+ * the bottom of the box, as wide as fits, with the edge and corners on it.
+ * Text sizes follow the box width (container units).
  */
 .book-cover {
   container-type: inline-size;
@@ -292,11 +293,19 @@ a {
 }
 
 .book-cover[data-cover='loaded'] {
-  aspect-ratio: auto;
+  align-items: center;
+  overflow: visible;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
+/* The box is 150cqi high: a narrower image fills the height. */
 .book-cover[data-cover='loaded'] img {
+  width: min(100%, 150cqi * var(--cover-ratio, 2 / 3));
   height: auto;
+  border-radius: var(--radius-cover);
+  box-shadow: 0 0 0 1px var(--cover-edge);
   opacity: 1;
 }
 
