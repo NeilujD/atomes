@@ -1,6 +1,7 @@
 // The Home screen, a Preact island (ADR 0014): the books the reader owns and
 // has not read, then the books being read. A section with nothing to show is
-// hidden; with every section empty, one line sends the reader to Check a book.
+// hidden; with every section empty, a card sends the reader to Check a book,
+// the main action of the screen (filled cobalt, Q7).
 // The rules are in src/lib/library/home.ts; this file only renders them.
 import { useMemo } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
@@ -50,9 +51,12 @@ export function Home({ sources }: { sources: Sources }) {
   if (sections.length === 0) {
     return (
       <div class="home">
-        <p class="home-message">
-          {t('home.empty')} <a href="/check">{t('nav.check-book')}</a>
-        </p>
+        <div class="card home-empty">
+          <p class="home-message">{t('home.empty')}</p>
+          <a class="button button-main" href="/check">
+            {t('nav.check-book')}
+          </a>
+        </div>
       </div>
     );
   }
@@ -60,7 +64,7 @@ export function Home({ sources }: { sources: Sources }) {
     <div class="home">
       {sections.map((section) => (
         <section key={section.id} class="home-group" aria-labelledby={section.id}>
-          <h2 class="home-group-title" id={section.id}>
+          <h2 class="small-heading" id={section.id}>
             {section.title}
           </h2>
           <ul class="home-grid">

@@ -71,7 +71,7 @@ describe('Home screen', () => {
     expect(titlesIn(regions[1])).toEqual(['Fondation', 'La Horde du Contrevent']);
   });
 
-  test('every section empty: one line with a link to Check a book, no empty section', async () => {
+  test('every section empty: a card with Check a book, the main action, no empty section', async () => {
     await homeScreen([dune], [[dune, 'read']]);
 
     const link = await screen.findByRole('link', { name: 'Check a book' });

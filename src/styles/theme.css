@@ -222,6 +222,8 @@
   --shelf-cover-short: 128px;
   --shelf-cover-short-with-card: 88px;
   --shelf-card-height: 106px;
+  /* Home (src/pages/index.astro): the narrowest cover of its grid on desktop. */
+  --home-cover: 140px;
 }
 
 /* Desktop with a pointer (Q12): smaller buttons. Lists keep --row. */
