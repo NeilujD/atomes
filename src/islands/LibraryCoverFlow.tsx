@@ -76,7 +76,15 @@ export function LibraryCoverFlow({ books, moved, onMove, wide }: { books: Librar
           {book.title}
         </a>
         <span>{[volumeLine(book), book.volumeTitle].filter(Boolean).join(' · ')}</span>
-        <span class="library-flow-line">{[book.authors.join(', '), t(`status.${book.status}`), notOwned(book)].filter(Boolean).join(' · ')}</span>
+        <span class="library-flow-line">
+          {[book.authors.join(', '), t(`status.${book.status}`)].filter(Boolean).join(' · ')}
+          {!book.owned && (
+            <>
+              {' · '}
+              <span class="library-not-owned-mark">{t('library.not-owned')}</span>
+            </>
+          )}
+        </span>
       </div>
 
       {wide ? (
