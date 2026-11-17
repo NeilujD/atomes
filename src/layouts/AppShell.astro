@@ -224,7 +224,7 @@ const icons = appIcons(appEnvironment(process.env));
 </html>
 
 <script>
-  import { applyAppearance, readAppearance } from '../lib/appearance';
+  import { applyAppearance, applyContrast, readAppearance, readContrast } from '../lib/appearance';
   import { openPaths } from '../lib/auth/return-to';
   import { confirmSignOut } from '../lib/auth/confirm-sign-out';
   import { gateScreen, signOutHere } from '../lib/auth/server-client';
@@ -253,9 +253,12 @@ const icons = appIcons(appEnvironment(process.env));
   startBackArrow();
 
   // Keep the theme-color metas right, follow the system while open, and follow
-  // a change made in Settings in another tab.
+  // a change of Appearance or contrast made in Settings in another tab.
   const systemDark = matchMedia('(prefers-color-scheme: dark)');
-  const sync = () => applyAppearance(document, readAppearance(), systemDark.matches);
+  const sync = () => {
+    applyAppearance(document, readAppearance(), systemDark.matches);
+    applyContrast(document, readContrast());
+  };
   sync();
   systemDark.addEventListener('change', sync);
   addEventListener('storage', sync);

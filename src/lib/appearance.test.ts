@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { appearanceKey, bootScript, parseAppearance, resolveTheme } from './appearance';
+import { appearanceKey, bootScript, contrastKey, parseAppearance, parseContrast, resolveTheme } from './appearance';
 
 describe('resolveTheme', () => {
   test.each([
@@ -24,32 +24,55 @@ describe('parseAppearance', () => {
   });
 });
 
+describe('parseContrast', () => {
+  test.each(['system', 'more'] as const)('keeps %s', (value) => {
+    expect(parseContrast(value)).toBe(value);
+  });
+
+  test.each([null, '', 'less', 'More'])('falls back to system for %o', (value) => {
+    expect(parseContrast(value)).toBe('system');
+  });
+});
+
 describe('bootScript', () => {
   // Runs the exact script that AppShell inlines in <head>, against a fake page.
-  function boot(stored: string | null | Error) {
+  function boot(stored: Record<string, string> | Error) {
     const dataset: Record<string, string> = {};
     const localStorage = {
       getItem: (key: string) => {
         if (stored instanceof Error) throw stored;
-        return key === appearanceKey ? stored : null;
+        return stored[key] ?? null;
       },
     };
     const document = { documentElement: { dataset } };
     // eslint-disable-next-line @typescript-eslint/no-implied-eval -- the script is a string by design: it is inlined in HTML.
     const run = new Function('localStorage', 'document', bootScript) as (ls: typeof localStorage, doc: typeof document) => void;
     run(localStorage, document);
-    return dataset.appearance;
+    return dataset;
   }
 
   test.each(['light', 'dark'])('forces a stored %s before first paint', (stored) => {
-    expect(boot(stored)).toBe(stored);
+    expect(boot({ [appearanceKey]: stored }).appearance).toBe(stored);
   });
 
-  test.each([null, 'system', 'sepia'])('leaves the theme to the system for %o', (stored) => {
-    expect(boot(stored)).toBeUndefined();
+  test.each(['system', 'sepia'])('leaves the theme to the system for %o', (stored) => {
+    expect(boot({ [appearanceKey]: stored }).appearance).toBeUndefined();
   });
 
-  test('leaves the theme to the system when storage is blocked', () => {
-    expect(boot(new Error('SecurityError'))).toBeUndefined();
+  test('raises a stored high contrast before first paint', () => {
+    expect(boot({ [contrastKey]: 'more' }).contrast).toBe('more');
+  });
+
+  test.each(['system', 'less'])('leaves the contrast to the system for %o', (stored) => {
+    expect(boot({ [contrastKey]: stored }).contrast).toBeUndefined();
+  });
+
+  test('sets both when both are stored', () => {
+    expect(boot({ [appearanceKey]: 'dark', [contrastKey]: 'more' })).toEqual({ appearance: 'dark', contrast: 'more' });
+  });
+
+  test('leaves both to the system with nothing stored, or when storage is blocked', () => {
+    expect(boot({})).toEqual({});
+    expect(boot(new Error('SecurityError'))).toEqual({});
   });
 });

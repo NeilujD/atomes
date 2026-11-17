@@ -183,6 +183,7 @@ export const en = {
   'invite.failed': 'The Invite could not be made. Try again.',
   'settings.display': 'Display',
   'settings.appearance': 'Appearance',
+  'settings.contrast': 'Contrast',
   'settings.language': 'Language',
   'settings.on-this-device': 'Kept on this device.',
   'settings.your-data': 'Your data',
@@ -222,6 +223,8 @@ export const en = {
   'appearance.system': 'System',
   'appearance.light': 'Light',
   'appearance.dark': 'Dark',
+  'contrast.system': 'System',
+  'contrast.more': 'High',
   'language.browser': 'Browser',
   // Each language by its own name, the same in every dictionary.
   'language.fr': 'Français',
