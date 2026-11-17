@@ -290,7 +290,10 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const from = Number(follow?.fromVolume);
   // The latest Volume the reader owns; none owned, the Series cover (as in Library Series mode).
   const cover = latestOwned(volumes, library) ?? seriesCover(volumes) ?? anchor;
-  // One spine width for the whole Series: room for the widest number (series.astro).
+  // The tone of the glow (Q9): green while Volumes are Missing or none is owned, orange when the reader owns them all.
+  const tone = standing.missing.length > 0 || standing.unknown.length > 0 || standing.owned === 0 ? 'not-owned' : 'owned';
+  const missing = new Set(standing.missing.map(({ volume }) => volume));
+  // One spine width for the whole Series: room for the widest number (series.css).
   const digits = String(standing.spines.at(-1)?.volume ?? 0).length;
   const spine = standing.spines.find(({ volume }) => volume === chosen);
   const onToBuy = spine !== undefined && library.toBuy.some(({ value }) => value.isbn === spine.edition.isbn);
@@ -316,28 +319,42 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   if (viewTitle) viewTitle.textContent = seriesTitle;
 
   return (
-    <div class="series">
+    <div class="series" data-tone={tone}>
+      <div class="series-glow" aria-hidden="true">
+        <span class="series-blob series-b1" />
+        <span class="series-blob series-b2" />
+        <span class="series-blob series-b3" />
+      </div>
       <div class="series-head">
-        <EditionCover class="series-cover" edition={cover} series={seriesTitle} />
+        <div class="series-stage">
+          <span class="series-halo" aria-hidden="true" />
+          <span class="series-ring series-r1" aria-hidden="true" />
+          <span class="series-ring series-r2" aria-hidden="true" />
+          <span class="series-ring series-r3" aria-hidden="true" />
+          <EditionCover class="series-cover" edition={cover} series={seriesTitle} />
+        </div>
         <div class="series-text">
           <p class="series-tags">
-            <span class="series-tag" data-following={following ? '' : undefined}>
-              {following ? t('series.following') : follow ? t('series.dropped') : t('series.not-followed')}
-            </span>
-            <span class="series-tag">{lineLabel(lineName(anchorLine), pageLanguage())}</span>
-            {following && Number.isInteger(from) && from > 1 && <span class="series-tag">{t('series.from-volume', from)}</span>}
+            <span class="chip series-tag">{following ? t('series.following') : follow ? t('series.dropped') : t('series.not-followed')}</span>
+            <span class="chip series-tag">{lineLabel(lineName(anchorLine), pageLanguage())}</span>
+            {following && Number.isInteger(from) && from > 1 && <span class="chip series-tag">{t('series.from-volume', from)}</span>}
           </p>
           <p class="series-title" aria-hidden="true">
             {seriesTitle}
           </p>
           <p class="series-authors">{anchor.authors.join(', ')}</p>
 
-          <dl class="series-counts" aria-label={t('series.standing')}>
-            <Count value={standing.owned} label={t('series.owned')} />
-            <Count value={standing.read} label={t('series.read')} />
-            <Count value={standing.missing.length} label={t('series.missing')} />
-            {standing.unknown.length > 0 && <Count value={standing.unknown.length} label={t('series.unknown')} />}
-          </dl>
+          <section class="card series-standing" aria-labelledby="series-standing-title">
+            <h2 class="small-heading" id="series-standing-title">
+              {t('series.standing')}
+            </h2>
+            <dl class="series-counts">
+              <Count value={standing.owned} label={t('series.owned')} tone="owned" />
+              <Count value={standing.read} label={t('series.read')} />
+              <Count value={standing.missing.length} label={t('series.missing')} tone="not-owned" />
+              {standing.unknown.length > 0 && <Count value={standing.unknown.length} label={t('series.unknown')} />}
+            </dl>
+          </section>
 
           <div class="series-actions">
             {following && follow ? (
@@ -368,7 +385,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
       </div>
 
       {switching && follow && (
-        <form class="series-switch" onSubmit={(event) => void switchTo(event, follow)} noValidate>
+        <form class="card series-switch" onSubmit={(event) => void switchTo(event, follow)} noValidate>
           {otherLines.length > 0 && (
             <fieldset class="series-lines">
               <legend class="series-label">{t('series.switch-lines')}</legend>
@@ -409,8 +426,8 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
       )}
 
       {(standing.missing.length > 0 || standing.unknown.length > 0) && (
-        <section class="series-missing" aria-labelledby="series-missing-title">
-          <h2 class="series-missing-title" id="series-missing-title">
+        <section class="card series-missing" aria-labelledby="series-missing-title">
+          <h2 class="small-heading" id="series-missing-title">
             {t('series.missing-title')}
           </h2>
           <ul class="series-missing-list">
@@ -449,9 +466,9 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
         </section>
       )}
 
-      <section aria-labelledby="series-volumes">
+      <section class="series-volumes" aria-labelledby="series-volumes">
         <div class="series-group-head">
-          <h2 class="series-group-title" id="series-volumes">
+          <h2 class="small-heading" id="series-volumes">
             {t('series.volumes')}
           </h2>
           {!selecting && (
@@ -462,7 +479,13 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
         </div>
         <ol class="series-spines" style={`--spine-digits: ${digits}`}>
           {standing.spines.map(({ volume, state, edition: printing }) => (
-            <li key={volume} class="series-spine" data-state={state}>
+            <li
+              key={volume}
+              class="series-spine"
+              data-state={state}
+              data-missing={missing.has(volume) ? '' : undefined}
+              data-current={edition.volumes.includes(volume) ? '' : undefined}
+            >
               {/* Desktop: the cover above the spine while the mouse is on it. A tap only opens the sheet. */}
               {peek?.volume === volume && (
                 <div class="series-peek" data-align={peek.align}>
@@ -474,6 +497,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
                 type="button"
                 aria-haspopup={selecting ? undefined : 'dialog'}
                 aria-pressed={selecting ? selected.includes(volume) : undefined}
+                aria-current={edition.volumes.includes(volume) ? 'true' : undefined}
                 onClick={() => (selecting ? pick(volume) : open(volume))}
                 onPointerEnter={(event) => event.pointerType === 'mouse' && setPeek({ volume, align: peekAlign(event.currentTarget) })}
                 onPointerLeave={() => setPeek(undefined)}
@@ -590,7 +614,7 @@ function peekAlign(spine: HTMLElement): PeekAlign {
   return middle - half < row.left ? 'start' : middle + half > row.right ? 'end' : 'center';
 }
 
-// The width of `.series-peek` (series.astro).
+// The width of `.series-peek` (--series-thumb, theme.css).
 const peekWidth = 96;
 
 // The linked Edition, as its Edition Line lists it; undefined until the Catalog answers.
@@ -603,10 +627,11 @@ function followOf(library: Library, edition: Edition | undefined): Follow | unde
   return library.follows.find(({ rkey }) => isSeries(series, rkey))?.value;
 }
 
-function Count({ value, label }: { value: number; label: string }) {
+// `tone`: the colour of ownership the number takes (Q8).
+function Count({ value, label, tone }: { value: number; label: string; tone?: 'owned' | 'not-owned' }) {
   return (
     // The number shows above its label (CSS); a `dl` group keeps the term first.
-    <div class="series-count">
+    <div class="series-count" data-tone={tone}>
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>
@@ -628,7 +653,9 @@ export function SeriesSkeleton() {
   return (
     <div class="series" aria-busy="true">
       <div class="series-head" aria-hidden="true">
-        <div class="book-cover series-cover skeleton" />
+        <div class="series-stage">
+          <div class="book-cover series-cover skeleton" />
+        </div>
         <div class="series-text">
           <div class="skeleton series-skeleton-title" />
           <div class="skeleton series-skeleton-line" />
