@@ -4,6 +4,7 @@
 // The cobalt glow behind the top of the screen is drawn here, on the server,
 // so it shows before the island (ui-direction Q9).
 import AppShell from '../layouts/AppShell.astro';
+import '../styles/glow.css';
 import Home, { HomeSkeleton } from '../islands/Home';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
@@ -12,10 +13,10 @@ const t = translator(requestLanguage(Astro.request));
 
 <AppShell title={t('home.title')} current="home">
   <div class="home-page">
-    <div class="home-glow" aria-hidden="true">
-      <div class="home-blob home-b1"></div>
-      <div class="home-blob home-b2"></div>
-      <div class="home-blob home-b3"></div>
+    <div class="glow home-glow" aria-hidden="true">
+      <div class="glow-blob glow-b1 home-b1"></div>
+      <div class="glow-blob glow-b2 home-b2"></div>
+      <div class="glow-blob glow-b3 home-b3"></div>
     </div>
     <Home client:only="preact">
       <HomeSkeleton slot="fallback" />
@@ -36,42 +37,22 @@ const t = translator(requestLanguage(Astro.request));
    * (Q13), so the glow starts at the top of the panel body.
    */
   .home-glow {
-    position: absolute;
+    --tone: var(--accent-fill);
+    --tone-deep: var(--accent);
     z-index: -1;
     inset: calc(var(--glow-unit) * -14) calc(var(--space-20) * -1) auto;
     height: calc(var(--glow-unit) * 34);
     overflow: hidden;
-    pointer-events: none;
     /* Only the alpha of a mask counts: full ink is opaque in both themes. */
     mask-image: linear-gradient(var(--ink) var(--glow-stop-3), transparent);
   }
 
-  /* As on the Shelf Check result: soft edges from a radial gradient on a padded box, never a blur. */
-  .home-blob {
-    --blob: var(--accent-fill);
-    --glow: light-dark(color-mix(in oklab, var(--blob) var(--glow-light), transparent), var(--blob));
-    position: absolute;
-    box-sizing: content-box;
-    margin: calc(var(--glow-pad-blob) * -1);
-    padding: var(--glow-pad-blob);
-    background: radial-gradient(
-      circle closest-side,
-      color-mix(in oklab, var(--glow) var(--glow-alpha-1), transparent),
-      color-mix(in oklab, var(--glow) var(--glow-alpha-2), transparent) var(--glow-stop-2),
-      color-mix(in oklab, var(--glow) var(--glow-alpha-3), transparent) var(--glow-stop-3),
-      color-mix(in oklab, var(--glow) var(--glow-alpha-4), transparent) var(--glow-stop-4),
-      transparent
-    );
-    will-change: transform;
-  }
-
+  /* The blobs (glow.css): where each sits. */
   .home-b1 {
     left: calc(var(--glow-unit) * -9);
     top: calc(var(--glow-unit) * -6);
     width: calc(var(--glow-unit) * 30);
     height: calc(var(--glow-unit) * 30);
-    opacity: var(--glow-opacity-1);
-    animation: homeDrift1 var(--motion-drift-1) ease-in-out infinite;
   }
 
   .home-b2 {
@@ -79,18 +60,13 @@ const t = translator(requestLanguage(Astro.request));
     top: calc(var(--glow-unit) * 2);
     width: calc(var(--glow-unit) * 24);
     height: calc(var(--glow-unit) * 24);
-    opacity: var(--glow-opacity-2);
-    animation: homeDrift2 var(--motion-drift-2) ease-in-out infinite;
   }
 
   .home-b3 {
-    --blob: var(--accent);
     left: calc(var(--glow-unit) * 12);
     top: calc(var(--glow-unit) * 10);
     width: calc(var(--glow-unit) * 18);
     height: calc(var(--glow-unit) * 18);
-    opacity: var(--glow-opacity-3);
-    animation: homeDrift3 var(--motion-drift-3) ease-in-out infinite;
   }
 
   .home {
@@ -186,33 +162,8 @@ const t = translator(requestLanguage(Astro.request));
     }
 
     .home-grid {
-      grid-template-columns: repeat(auto-fill, minmax(var(--home-cover), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(var(--grid-cover), 1fr));
       gap: var(--space-28) var(--space-24);
-    }
-  }
-
-  @keyframes homeDrift1 {
-    50% {
-      transform: translate(50px, 30px) scale(1.2);
-    }
-  }
-
-  @keyframes homeDrift2 {
-    50% {
-      transform: translate(-60px, 20px) scale(0.9);
-    }
-  }
-
-  @keyframes homeDrift3 {
-    50% {
-      transform: translate(30px, -20px) scale(1.15);
-    }
-  }
-
-  /* The glow stays still. */
-  @media (prefers-reduced-motion: reduce) {
-    .home-blob {
-      animation: none;
     }
   }
 </style>

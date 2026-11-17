@@ -497,7 +497,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
 
 <style>
   .settings {
-    max-width: 880px;
+    max-width: var(--page-width);
     display: flex;
     flex-direction: column;
     gap: var(--space-28);
@@ -542,29 +542,11 @@ const pickers: { name: string; label: string; checked: string; options: { value:
     font-size: var(--type-small);
   }
 
-  /* A choice of the Display group: a chip with its radio over it; checked, it fills with ink, as a pressed chip. */
+  /* A choice of the Display group: a chip with its radio over it (theme.css); checked, it fills with ink, as a pressed chip. */
   .choices {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-6);
-  }
-
-  .choice {
-    position: relative;
-    cursor: pointer;
-  }
-
-  .choice input {
-    position: absolute;
-    inset: 0;
-    margin: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .choice:has(input:checked) {
-    background: var(--ink);
-    color: var(--surface);
   }
 
   .choice:has(input:disabled) {

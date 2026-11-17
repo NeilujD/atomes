@@ -3,6 +3,7 @@
 // Editions added by hand (src/islands/ToBuy.tsx). Rendered on the device: it
 // reads the Library.
 import AppShell from '../layouts/AppShell.astro';
+import '../styles/glow.css';
 import Icon from '../components/Icon.astro';
 import ToBuy, { ToBuySkeleton } from '../islands/ToBuy';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
@@ -27,10 +28,10 @@ const t = translator(requestLanguage(Astro.request));
     <Icon name="plus" />
   </button>
   <!-- Green blobs behind the top of the screen (Q9): nothing on To Buy is owned. -->
-  <div class="to-buy-glow" aria-hidden="true">
-    <span class="to-buy-blob to-buy-b1"></span>
-    <span class="to-buy-blob to-buy-b2"></span>
-    <span class="to-buy-blob to-buy-b3"></span>
+  <div class="glow to-buy-glow" aria-hidden="true">
+    <span class="glow-blob glow-b1 to-buy-b1"></span>
+    <span class="glow-blob glow-b2 to-buy-b2"></span>
+    <span class="glow-blob glow-b3 to-buy-b3"></span>
   </div>
   <ToBuy client:only="preact">
     <ToBuySkeleton slot="fallback" />
@@ -40,10 +41,9 @@ const t = translator(requestLanguage(Astro.request));
 <style is:global>
   /* Global: the island renders on the device, outside this page's scoped styles. */
   .to-buy {
-    /* The sizes of this screen that have no token: the column and the row thumbnail. */
-    --to-buy-width: 880px;
+    /* The size of this screen that has no token: the row thumbnail. */
     --to-buy-cover: 40px;
-    max-width: var(--to-buy-width);
+    max-width: var(--page-width);
     display: flex;
     flex-direction: column;
     gap: var(--space-28);
@@ -76,41 +76,21 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   .to-buy-glow {
-    position: absolute;
+    --tone: var(--not-owned);
+    --tone-deep: var(--not-owned-deep);
     inset: 0 0 auto;
     z-index: -1;
     height: calc(var(--glow-unit) * 32);
     overflow: hidden;
-    pointer-events: none;
     mask-image: linear-gradient(black var(--glow-stop-3), transparent);
   }
 
-  /* In light, a glow shows at --glow-light of its colour. */
-  .to-buy-blob {
-    --blob: var(--not-owned);
-    --glow: light-dark(color-mix(in oklab, var(--blob) var(--glow-light), transparent), var(--blob));
-    position: absolute;
-    box-sizing: content-box;
-    margin: calc(var(--glow-pad-blob) * -1);
-    padding: var(--glow-pad-blob);
-    background: radial-gradient(
-      circle closest-side,
-      color-mix(in oklab, var(--glow) var(--glow-alpha-1), transparent),
-      color-mix(in oklab, var(--glow) var(--glow-alpha-2), transparent) var(--glow-stop-2),
-      color-mix(in oklab, var(--glow) var(--glow-alpha-3), transparent) var(--glow-stop-3),
-      color-mix(in oklab, var(--glow) var(--glow-alpha-4), transparent) var(--glow-stop-4),
-      transparent
-    );
-    will-change: transform;
-  }
-
+  /* The blobs (glow.css): where each sits. */
   .to-buy-b1 {
     left: calc(var(--glow-unit) * -8);
     top: calc(var(--glow-unit) * -10);
     width: calc(var(--glow-unit) * 30);
     height: calc(var(--glow-unit) * 30);
-    opacity: var(--glow-opacity-1);
-    animation: toBuyDrift1 var(--motion-drift-1) ease-in-out infinite;
   }
 
   .to-buy-b2 {
@@ -118,18 +98,13 @@ const t = translator(requestLanguage(Astro.request));
     top: calc(var(--glow-unit) * -6);
     width: calc(var(--glow-unit) * 26);
     height: calc(var(--glow-unit) * 26);
-    opacity: var(--glow-opacity-2);
-    animation: toBuyDrift2 var(--motion-drift-2) ease-in-out infinite;
   }
 
   .to-buy-b3 {
-    --blob: var(--not-owned-deep);
     left: calc(var(--glow-unit) * 10);
     top: calc(var(--glow-unit) * 2);
     width: calc(var(--glow-unit) * 20);
     height: calc(var(--glow-unit) * 20);
-    opacity: var(--glow-opacity-3);
-    animation: toBuyDrift3 var(--motion-drift-3) ease-in-out infinite;
   }
 
   /* Groups: a small heading over cards (Q11, CORE-122). */
@@ -342,30 +317,6 @@ const t = translator(requestLanguage(Astro.request));
       padding: var(--space-24);
       border-bottom: var(--hairline) solid var(--line-card);
       border-radius: var(--radius-card);
-    }
-  }
-
-  @keyframes toBuyDrift1 {
-    50% {
-      transform: translate(50px, 30px) scale(1.15);
-    }
-  }
-
-  @keyframes toBuyDrift2 {
-    50% {
-      transform: translate(-50px, 20px) scale(0.9);
-    }
-  }
-
-  @keyframes toBuyDrift3 {
-    50% {
-      transform: translate(30px, -20px) scale(1.15);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .to-buy-blob {
-      animation: none;
     }
   }
 </style>

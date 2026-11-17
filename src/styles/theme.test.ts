@@ -177,33 +177,3 @@ describe('theme colours of the one look (ADR 0018)', () => {
     });
   }
 });
-
-// The Shelf Check result screen takes every value from theme.css (CORE-121).
-// Exempt: @media conditions (CSS reads no variable there) and @keyframes
-// steps, the drawing of a motion; durations and easing are tokens.
-describe('the Shelf Check result screen uses theme tokens only', () => {
-  const screen = readFileSync(new URL('./shelf-check-result.css', import.meta.url), 'utf8');
-  const rules = screen
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '')
-    .replace(/@media[^{]*\{/g, '{');
-
-  it('types no raw px, em, hex, rgb, alpha level, duration or easing', () => {
-    const raw = [
-      /\d+(?:\.\d+)?(?:px|em)\b/g,
-      /#[0-9a-f]{3,8}\b/gi,
-      /\b(?:rgba?|hsla?)\(/g,
-      /color-mix\([^;]*?\d+%/g,
-      /opacity:\s*0?\.\d+/g,
-      /\d+(?:\.\d+)?m?s\b/g,
-      /cubic-bezier\(/g,
-    ].flatMap((pattern) => rules.match(pattern) ?? []);
-    expect(raw).toEqual([]);
-  });
-
-  it('reads only variables that theme.css or the screen itself sets', () => {
-    const set = new Set([...`${css}\n${screen}`.matchAll(/(--[\w-]+):/g)].map((found) => found[1]));
-    const read = [...screen.matchAll(/var\((--[\w-]+)/g)].map((found) => found[1]);
-    expect(read.filter((name) => !set.has(name))).toEqual([]);
-  });
-});

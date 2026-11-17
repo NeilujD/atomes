@@ -4,7 +4,7 @@
  * ADR 0018: light or dark with the Appearance setting, stronger text and
  * borders in high contrast. Global: the island renders on the device, outside
  * this page's scoped styles. Every value is a token of theme.css
- * (theme.test.ts checks it); the screen sets only its tone colours.
+ * (tokens.test.ts checks it); the screen sets only its tone colours.
  */
 .result-screen {
   --tone: var(--not-owned);
@@ -33,41 +33,13 @@
   --tone-on: var(--ground);
 }
 
-.result-screen[data-tone='unknown'] :is(.result-glow, .result-ring, .result-halo) {
+.result-screen[data-tone='unknown'] :is(.glow, .glow-ring, .glow-halo) {
   display: none;
 }
 
+/* The glow (glow.css), on the whole screen; it arrives with the answer. */
 .result-glow {
-  position: absolute;
   inset: 0;
-  pointer-events: none;
-}
-
-/* A glow at its strength: half its colour on the light ground (--glow-light). */
-.result-blob,
-.result-halo {
-  --glow: light-dark(color-mix(in oklab, var(--blob) var(--glow-light), transparent), var(--blob));
-  background: radial-gradient(
-    circle closest-side,
-    color-mix(in oklab, var(--glow) var(--glow-alpha-1), transparent),
-    color-mix(in oklab, var(--glow) var(--glow-alpha-2), transparent) var(--glow-stop-2),
-    color-mix(in oklab, var(--glow) var(--glow-alpha-3), transparent) var(--glow-stop-3),
-    color-mix(in oklab, var(--glow) var(--glow-alpha-4), transparent) var(--glow-stop-4),
-    transparent
-  );
-}
-
-/* Soft edges come from the gradient itself, on a box widened by
-   --glow-pad-blob on each side (1.5 times the blur of the design): no blur
-   filter. A blur on a moving layer is drawn again on every frame; in WebKit
-   with no GPU it held the change to Series Onboarding for 5 s. */
-.result-blob {
-  --blob: var(--tone);
-  position: absolute;
-  box-sizing: content-box;
-  margin: calc(var(--glow-pad-blob) * -1);
-  padding: var(--glow-pad-blob);
-  will-change: transform;
 }
 
 .result-b1 {
@@ -75,10 +47,6 @@
   top: calc(var(--glow-unit) * -6);
   width: calc(var(--glow-unit) * 34);
   height: calc(var(--glow-unit) * 34);
-  opacity: var(--glow-opacity-1);
-  animation:
-    atIntro1 calc(var(--motion-arrive) - 2 * var(--motion-stagger)) var(--ease-arrive) both,
-    atDrift1 var(--motion-drift-1) ease-in-out calc(var(--motion-arrive) - 2 * var(--motion-stagger)) infinite;
 }
 
 .result-b2 {
@@ -86,22 +54,13 @@
   top: calc(var(--glow-unit) * 12);
   width: calc(var(--glow-unit) * 30);
   height: calc(var(--glow-unit) * 30);
-  opacity: var(--glow-opacity-2);
-  animation:
-    atIntro2 var(--motion-arrive) var(--ease-arrive) var(--motion-stagger) both,
-    atDrift2 var(--motion-drift-2) ease-in-out calc(var(--motion-arrive) + var(--motion-stagger)) infinite;
 }
 
 .result-b3 {
-  --blob: var(--tone-deep);
   left: calc(var(--glow-unit) * 6);
   top: calc(var(--glow-unit) * 30);
   width: calc(var(--glow-unit) * 26);
   height: calc(var(--glow-unit) * 26);
-  opacity: var(--glow-opacity-3);
-  animation:
-    atIntro3 calc(var(--motion-arrive) + 2 * var(--motion-stagger)) var(--ease-arrive) calc(2 * var(--motion-stagger)) both,
-    atDrift3 var(--motion-drift-3) ease-in-out calc(var(--motion-arrive) + 4 * var(--motion-stagger)) infinite;
 }
 
 /* The glow fades into the ground under the cover. */
@@ -146,62 +105,14 @@
   padding-top: var(--space-6);
 }
 
-/* The cover with its halo and rings; every size follows the cover width (--w).
-   A cover 120 px wide or more takes the large corner. */
+/* The cover with its halo and rings (glow.css); every size follows the cover
+   width (--w). A cover 120 px wide or more takes the large corner. */
 .result-stage {
   --w: var(--shelf-cover);
   --cover-corner: var(--radius-cover-large);
   position: relative;
   width: var(--w);
   aspect-ratio: 2 / 3;
-}
-
-.result-ring {
-  position: absolute;
-  left: calc(var(--w) * -16 / 168);
-  top: calc(var(--w) * 26 / 168);
-  width: calc(var(--w) * 200 / 168);
-  aspect-ratio: 1;
-  border: var(--stroke) solid var(--tone);
-  border-radius: 50%;
-  box-shadow: 0 0 var(--glow-blur-ring) var(--tone-line);
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Three rings at once, then a calm one every --motion-wave-calm, half of it apart. */
-.result-r1 {
-  animation:
-    atWave var(--motion-wave) var(--ease-wave) both,
-    atWaveCalm var(--motion-wave-calm) ease-out var(--motion-wave-rest) infinite;
-}
-
-.result-r2 {
-  animation:
-    atWave var(--motion-wave) var(--ease-wave) var(--motion-wave-stagger) both,
-    atWaveCalm var(--motion-wave-calm) ease-out calc(var(--motion-wave-rest) + var(--motion-wave-calm) / 2) infinite;
-}
-
-.result-r3 {
-  animation: atWave var(--motion-wave) var(--ease-wave) calc(2 * var(--motion-wave-stagger)) both;
-}
-
-/* As the blobs: soft edges from the gradient, on a box widened by --glow-pad-halo.
-   Its box reaches past the cover, so it never takes a tap (the Book page Back link). */
-.result-halo {
-  --blob: var(--tone);
-  position: absolute;
-  pointer-events: none;
-  left: calc(var(--w) * -46 / 168);
-  top: calc(var(--w) * -34 / 168);
-  width: calc(var(--w) * 260 / 168);
-  height: calc(var(--w) * 320 / 168);
-  box-sizing: content-box;
-  margin: calc(var(--glow-pad-halo) * -1);
-  padding: var(--glow-pad-halo);
-  animation:
-    atHaloIn var(--motion-arrive) var(--ease-arrive) both,
-    atBreathe var(--motion-breathe) ease-in-out var(--motion-arrive) infinite;
 }
 
 .result-cover {
@@ -497,134 +408,10 @@
   position: relative;
 }
 
-@keyframes atDrift1 {
-  0% {
-    transform: translate(-40px, -20px) scale(1);
-  }
-  50% {
-    transform: translate(50px, 40px) scale(1.2);
-  }
-  100% {
-    transform: translate(-40px, -20px) scale(1);
-  }
-}
-
-@keyframes atDrift2 {
-  0% {
-    transform: translate(30px, 10px) scale(1.1);
-  }
-  50% {
-    transform: translate(-60px, -30px) scale(0.9);
-  }
-  100% {
-    transform: translate(30px, 10px) scale(1.1);
-  }
-}
-
-@keyframes atDrift3 {
-  0% {
-    transform: translate(0, 0) scale(0.9);
-  }
-  50% {
-    transform: translate(20px, -50px) scale(1.15);
-  }
-  100% {
-    transform: translate(0, 0) scale(0.9);
-  }
-}
-
-@keyframes atBreathe {
-  0%,
-  100% {
-    opacity: 0.45;
-    transform: scale(0.92);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.06);
-  }
-}
-
-@keyframes atIntro1 {
-  0% {
-    opacity: 0;
-    transform: translate(60px, 120px) scale(0.3);
-  }
-  100% {
-    transform: translate(-40px, -20px) scale(1);
-  }
-}
-
-@keyframes atIntro2 {
-  0% {
-    opacity: 0;
-    transform: translate(-80px, 60px) scale(0.3);
-  }
-  100% {
-    transform: translate(30px, 10px) scale(1.1);
-  }
-}
-
-@keyframes atIntro3 {
-  0% {
-    opacity: 0;
-    transform: translate(40px, -120px) scale(0.3);
-  }
-  100% {
-    transform: translate(0, 0) scale(0.9);
-  }
-}
-
-@keyframes atHaloIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-  35% {
-    opacity: 1;
-    transform: scale(1.18);
-  }
-  100% {
-    opacity: 0.45;
-    transform: scale(0.92);
-  }
-}
-
-@keyframes atWave {
-  0% {
-    opacity: 0.85;
-    transform: scale(0.5);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(2.9);
-  }
-}
-
-@keyframes atWaveCalm {
-  0% {
-    opacity: 0;
-    transform: scale(0.7);
-  }
-  20% {
-    opacity: 0.3;
-  }
-  100% {
-    opacity: 0;
-    transform: scale(2.4);
-  }
-}
-
-/* Nothing moves: the glow and halo stay still, the rings do not show. */
+/* Nothing moves (the glow and halo: glow.css). */
 @media (prefers-reduced-motion: reduce) {
-  .result-blob,
-  .result-halo,
   .result-card-skeleton {
     animation: none;
-  }
-
-  .result-ring {
-    display: none;
   }
 
   .result-action[aria-busy='true']::after,

@@ -13,7 +13,6 @@
   --ink: light-dark(#17181c, #f1f1ec);
   --soft: light-dark(#ecece6, #25282e);
   --accent: light-dark(#2e46d1, #8a9bff);
-  --accent-tint: light-dark(#e9ecfb, #1f2547);
   /*
    * The main action (CORE-122): filled cobalt, in light text, in both themes.
    * --accent is a light cobalt in dark, too pale under white text, so the fill
@@ -94,6 +93,8 @@
   --alpha-tone-line: 40%;
   /* Disabled controls. */
   --alpha-disabled: 60%;
+  /* The cover of a book read and not owned, in the Library. */
+  --alpha-faded: 60%;
 
   --text-chip: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-text-chip), transparent));
   --text-heading: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-text-heading), transparent));
@@ -121,6 +122,8 @@
   --type-heading: 18px;
   --type-small: 13px;
   --type-chip: 12px;
+  /* The count of the selection bar. */
+  --type-count: 14px;
   /* The environment badge, in --font-tech. */
   --type-badge: 11px;
   --tracking-tight: -0.02em;
@@ -213,6 +216,19 @@
   --motion-spin: 0.7s;
   --motion-spin-reduced: 1.6s;
   --motion-pulse: 1.4s;
+  /* The Cover flow position mark; a fade in place of a motion. */
+  --motion-slide: 0.25s;
+  --motion-fade: 0.2s;
+  /* The animated mark: the books lift one after the other; a book lands in the slot. */
+  --motion-lift: 1.2s;
+  --motion-lift-stagger: 0.12s;
+  --motion-land: 520ms;
+  --ease-land: cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  /* The camera: the scan line sweeps, a wrong barcode shakes, the found mark pops, the frame changes state. */
+  --motion-sweep: 1.6s;
+  --motion-shake: 0.3s;
+  --motion-pop: 0.2s;
+  --motion-state: 0.15s;
 
   /*
    * The Shelf Check result screen (src/styles/shelf-check-result.css): the
@@ -224,16 +240,18 @@
   --shelf-cover-short: 128px;
   --shelf-cover-short-with-card: 88px;
   --shelf-card-height: 106px;
-  /* Home (src/pages/index.astro): the narrowest cover of its grid on desktop. */
-  --home-cover: 140px;
+  /* A cover grid on desktop (Home, Library Grid): its narrowest column. */
+  --grid-cover: 140px;
+
+  /* The widest a page grows (Book, Series, To Buy, Settings). */
+  --page-width: 880px;
 
   /*
-   * The Series page (src/styles/series.css): the widest the page grows; its
-   * big cover; the cover above a spine and in the Volume sheet; the width of
-   * the sheet and of the switch form; one spine, its corner and its number;
-   * the smallest tap target (WCAG 2.5.8), the column of a spine.
+   * The Series page (src/styles/series.css): its big cover; the cover above a
+   * spine and in the Volume sheet; the width of the sheet and of the switch
+   * form; one spine, its corner and its number; the smallest tap target
+   * (WCAG 2.5.8), the column of a spine.
    */
-  --series-width: 880px;
   --series-cover: 160px;
   --series-thumb: 96px;
   --series-narrow: 440px;
@@ -246,6 +264,10 @@
   /* Flow screens: the column of Sign in, and the wider column of the privacy notice. */
   --flow-width: 400px;
   --notice-width: 640px;
+
+  /* Phone: the room the tab bar takes, and the selection bar above it (src/styles/selection.css). */
+  --tab-bar-room: 68px;
+  --selection-bar-room: 196px;
 }
 
 /* Desktop with a pointer (Q12): smaller buttons. Lists keep --row. */
@@ -427,9 +449,16 @@ button.chip {
   cursor: pointer;
 }
 
-.chip[aria-pressed='true'] {
+/* A chip can hold a radio (a choice in Settings): checked, it fills as a pressed chip. */
+.chip[aria-pressed='true'],
+.chip:has(> input:checked) {
   background: var(--ink);
   color: var(--surface);
+}
+
+.chip:has(> input) {
+  position: relative;
+  cursor: pointer;
 }
 
 /* Card: a group of content on a soft fill. Translucent, so a glow behind it shows through. */
@@ -496,8 +525,8 @@ button.chip {
 .field {
   min-width: 0;
   min-height: var(--row);
-  padding: 0 10px;
-  border: 1px solid var(--line);
+  padding: 0 var(--space-10);
+  border: var(--hairline) solid var(--line);
   border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--ink);
@@ -720,6 +749,8 @@ button.chip {
   cursor: pointer;
 }
 
+/* The radio of a chip or a segment: over the whole of it, unseen; the label shows the choice. */
+.chip > input,
 .segment input {
   position: absolute;
   inset: 0;

@@ -322,17 +322,17 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
 
   return (
     <div class="series" data-tone={tone}>
-      <div class="series-glow" aria-hidden="true">
-        <span class="series-blob series-b1" />
-        <span class="series-blob series-b2" />
-        <span class="series-blob series-b3" />
+      <div class="glow series-glow" aria-hidden="true">
+        <span class="glow-blob glow-b1 series-b1" />
+        <span class="glow-blob glow-b2 series-b2" />
+        <span class="glow-blob glow-b3 series-b3" />
       </div>
       <div class="series-head">
         <div class="series-stage">
-          <span class="series-halo" aria-hidden="true" />
-          <span class="series-ring series-r1" aria-hidden="true" />
-          <span class="series-ring series-r2" aria-hidden="true" />
-          <span class="series-ring series-r3" aria-hidden="true" />
+          <span class="glow-halo" aria-hidden="true" />
+          <span class="glow-ring glow-r1" aria-hidden="true" />
+          <span class="glow-ring glow-r2" aria-hidden="true" />
+          <span class="glow-ring glow-r3" aria-hidden="true" />
           <EditionCover class="series-cover" edition={cover} series={seriesTitle} />
         </div>
         <div class="series-text">

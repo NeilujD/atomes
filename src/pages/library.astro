@@ -3,6 +3,7 @@
 // Rendered on the device: it reads the Library, so it opens offline.
 import AppShell from '../layouts/AppShell.astro';
 import '../styles/correction.css';
+import '../styles/glow.css';
 import '../styles/selection.css';
 import Library, { LibrarySkeleton } from '../islands/Library';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
@@ -21,9 +22,8 @@ const t = translator(requestLanguage(Astro.request));
      The one look (ADR 0018): the look comes from theme.css tokens and shared
      parts; the sizes of the Library's own boxes are named once, here. */
   .library {
-    /* A cover in a List row; the narrowest Grid column on desktop. */
+    /* A cover in a List row. */
     --library-row-cover: 40px;
-    --library-grid-cover: 140px;
     /* Desktop toolbar: the search field, and each select of the controls. */
     --library-search: 200px;
     --library-search-max: 420px;
@@ -67,41 +67,21 @@ const t = translator(requestLanguage(Astro.request));
    * radial gradients on a padded box, never a blur filter.
    */
   .library-glow {
-    position: absolute;
+    --tone: var(--accent);
+    --tone-deep: var(--accent-fill);
     z-index: -1;
     inset: auto calc(var(--space-20) * -1) 0;
     height: calc(var(--glow-unit) * 40);
     overflow: hidden;
     mask-image: linear-gradient(black 85%, transparent);
-    pointer-events: none;
   }
 
-  /* A glow at its strength: half its colour on the light ground (--glow-light). */
-  .library-blob {
-    --blob: var(--accent);
-    --glow: light-dark(color-mix(in oklab, var(--blob) var(--glow-light), transparent), var(--blob));
-    position: absolute;
-    box-sizing: content-box;
-    margin: calc(var(--glow-pad-blob) * -1);
-    padding: var(--glow-pad-blob);
-    background: radial-gradient(
-      circle closest-side,
-      color-mix(in oklab, var(--glow) var(--glow-alpha-1), transparent),
-      color-mix(in oklab, var(--glow) var(--glow-alpha-2), transparent) var(--glow-stop-2),
-      color-mix(in oklab, var(--glow) var(--glow-alpha-3), transparent) var(--glow-stop-3),
-      color-mix(in oklab, var(--glow) var(--glow-alpha-4), transparent) var(--glow-stop-4),
-      transparent
-    );
-    will-change: transform;
-  }
-
+  /* The blobs (glow.css): where each sits. */
   .library-b1 {
     left: calc(var(--glow-unit) * -8);
     bottom: calc(var(--glow-unit) * -2);
     width: calc(var(--glow-unit) * 26);
     height: calc(var(--glow-unit) * 26);
-    opacity: var(--glow-opacity-1);
-    animation: libraryDrift1 var(--motion-drift-1) ease-in-out infinite;
   }
 
   .library-b2 {
@@ -109,43 +89,13 @@ const t = translator(requestLanguage(Astro.request));
     bottom: calc(var(--glow-unit) * -8);
     width: calc(var(--glow-unit) * 24);
     height: calc(var(--glow-unit) * 24);
-    opacity: var(--glow-opacity-2);
-    animation: libraryDrift2 var(--motion-drift-2) ease-in-out infinite;
   }
 
   .library-b3 {
-    --blob: var(--accent-fill);
     left: 30%;
     bottom: calc(var(--glow-unit) * -8);
     width: calc(var(--glow-unit) * 20);
     height: calc(var(--glow-unit) * 20);
-    opacity: var(--glow-opacity-3);
-    animation: libraryDrift3 var(--motion-drift-3) ease-in-out infinite;
-  }
-
-  @keyframes libraryDrift1 {
-    50% {
-      transform: translate(50px, 30px) scale(1.15);
-    }
-  }
-
-  @keyframes libraryDrift2 {
-    50% {
-      transform: translate(-60px, -20px) scale(0.9);
-    }
-  }
-
-  @keyframes libraryDrift3 {
-    50% {
-      transform: translate(30px, -30px) scale(1.15);
-    }
-  }
-
-  /* With reduced motion the glow stays still. */
-  @media (prefers-reduced-motion: reduce) {
-    .library-blob {
-      animation: none;
-    }
   }
 
   .library-search-row {
@@ -361,7 +311,7 @@ const t = translator(requestLanguage(Astro.request));
      keeps its colours, so its ring stays cobalt (the filter would grey it). */
   .library-not-owned:not([aria-pressed='true']) .book-cover {
     filter: grayscale(1);
-    opacity: 0.6;
+    opacity: var(--alpha-faded);
   }
 
   .library-not-owned-mark {
@@ -450,7 +400,7 @@ const t = translator(requestLanguage(Astro.request));
     }
 
     .library-grid {
-      grid-template-columns: repeat(auto-fill, minmax(var(--library-grid-cover), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(var(--grid-cover), 1fr));
       gap: var(--space-28) var(--space-24);
     }
   }
@@ -474,7 +424,7 @@ const t = translator(requestLanguage(Astro.request));
   /* The letter is a small heading (theme.css). Phone: it stays on top while its books scroll. */
   .library-letter {
     position: sticky;
-    top: env(safe-area-inset-top, 0px);
+    top: env(safe-area-inset-top, 0);
     z-index: 1;
     padding: var(--space-10) 0 var(--space-6);
     border-bottom: var(--hairline) solid var(--line-card);
@@ -724,7 +674,7 @@ const t = translator(requestLanguage(Astro.request));
     border-radius: var(--radius-pill);
     background: var(--ink);
     transform: translateX(calc(var(--flow-at) * (var(--flow-track) - var(--flow-thumb))));
-    transition: transform 0.25s ease-out;
+    transition: transform var(--motion-slide) ease-out;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -744,7 +694,7 @@ const t = translator(requestLanguage(Astro.request));
   /* One line each, and an empty line keeps its place: the controls under it do not move. */
   .library-flow-info > * {
     max-width: 100%;
-    min-height: 1.5em;
+    min-height: 1lh;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

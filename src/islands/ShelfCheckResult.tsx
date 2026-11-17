@@ -69,11 +69,11 @@ export function ShelfCheckResult(props: ResultProps) {
   const added = check.kind === 'owned' && addedAt ? t('check.added-on', new Intl.DateTimeFormat(pageLanguage(), { dateStyle: 'long' }).format(new Date(addedAt))) : '';
 
   return (
-    <div class="result-screen" data-tone={resultTone(check.kind)}>
-      <div class="result-glow" aria-hidden="true">
-        <span class="result-blob result-b1" />
-        <span class="result-blob result-b2" />
-        <span class="result-blob result-b3" />
+    <div class="result-screen glow-arrive" data-tone={resultTone(check.kind)}>
+      <div class="glow result-glow" aria-hidden="true">
+        <span class="glow-blob glow-b1 result-b1" />
+        <span class="glow-blob glow-b2 result-b2" />
+        <span class="glow-blob glow-b3 result-b3" />
         <span class="result-fade" />
       </div>
       <div class="result-scroll">
@@ -97,10 +97,10 @@ export function ShelfCheckResult(props: ResultProps) {
 
         <div class="result-top">
           <div class="result-stage">
-            <span class="result-ring result-r1" aria-hidden="true" />
-            <span class="result-ring result-r2" aria-hidden="true" />
-            <span class="result-ring result-r3" aria-hidden="true" />
-            <span class="result-halo" aria-hidden="true" />
+            <span class="glow-ring glow-r1" aria-hidden="true" />
+            <span class="glow-ring glow-r2" aria-hidden="true" />
+            <span class="glow-ring glow-r3" aria-hidden="true" />
+            <span class="glow-halo" aria-hidden="true" />
             <Cover
               class="result-cover"
               src={cover}

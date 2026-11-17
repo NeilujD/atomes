@@ -2,7 +2,7 @@
  * The Series page (src/islands/Series.tsx, SeriesLabels.tsx) in the one look
  * of ADR 0018 (CORE-126). Global: the island renders on the device, outside
  * the page's scoped styles. Every value is a token of theme.css
- * (series.test.ts checks it); the page sets only its tone colours.
+ * (tokens.test.ts checks it); the page sets only its tone colours.
  */
 
 /* Orange when the reader owns every Volume the Catalog lists, green otherwise (Q9). */
@@ -18,7 +18,7 @@
   /* The halo and the blobs spread past the page into the panel's padding, never past the panel. */
   overflow: clip;
   overflow-clip-margin: var(--space-20);
-  max-width: var(--series-width);
+  max-width: var(--page-width);
   display: flex;
   flex-direction: column;
   gap: var(--space-24);
@@ -33,39 +33,13 @@
   font-size: var(--type-body);
 }
 
-/* The glow behind the top of the page: three blobs that drift slowly, never behind the spines. */
+/* The glow behind the top of the page (glow.css): three blobs that drift slowly, never behind the spines. */
 .series-glow {
-  position: absolute;
   z-index: -1;
   inset: calc(var(--space-20) * -1) calc(var(--space-20) * -1) auto;
   height: calc(var(--glow-unit) * 46);
   overflow: hidden;
-  pointer-events: none;
   mask-image: linear-gradient(180deg, transparent, black var(--space-20) 55%, transparent);
-}
-
-/* A glow at its strength: half its colour on the light ground (--glow-light). */
-.series-blob,
-.series-halo {
-  --glow: light-dark(color-mix(in oklab, var(--blob) var(--glow-light), transparent), var(--blob));
-  background: radial-gradient(
-    circle closest-side,
-    color-mix(in oklab, var(--glow) var(--glow-alpha-1), transparent),
-    color-mix(in oklab, var(--glow) var(--glow-alpha-2), transparent) var(--glow-stop-2),
-    color-mix(in oklab, var(--glow) var(--glow-alpha-3), transparent) var(--glow-stop-3),
-    color-mix(in oklab, var(--glow) var(--glow-alpha-4), transparent) var(--glow-stop-4),
-    transparent
-  );
-}
-
-/* Soft edges from the gradient on a padded box, never a blur filter (ui-direction, Q9). */
-.series-blob {
-  --blob: var(--tone);
-  position: absolute;
-  box-sizing: content-box;
-  margin: calc(var(--glow-pad-blob) * -1);
-  padding: var(--glow-pad-blob);
-  will-change: transform;
 }
 
 .series-b1 {
@@ -73,8 +47,6 @@
   top: calc(var(--glow-unit) * -8);
   width: calc(var(--glow-unit) * 34);
   height: calc(var(--glow-unit) * 34);
-  opacity: var(--glow-opacity-1);
-  animation: seriesDrift1 var(--motion-drift-1) ease-in-out infinite;
 }
 
 .series-b2 {
@@ -82,18 +54,13 @@
   top: calc(var(--glow-unit) * -4);
   width: calc(var(--glow-unit) * 30);
   height: calc(var(--glow-unit) * 30);
-  opacity: var(--glow-opacity-2);
-  animation: seriesDrift2 var(--motion-drift-2) ease-in-out infinite;
 }
 
 .series-b3 {
-  --blob: var(--tone-deep);
   left: calc(var(--glow-unit) * 10);
   top: calc(var(--glow-unit) * 16);
   width: calc(var(--glow-unit) * 26);
   height: calc(var(--glow-unit) * 26);
-  opacity: var(--glow-opacity-3);
-  animation: seriesDrift3 var(--motion-drift-3) ease-in-out infinite;
 }
 
 .series-head {
@@ -103,57 +70,13 @@
   gap: var(--space-24);
 }
 
-/* The big cover with its halo and rings (Q9), as on the Shelf Check result: sizes follow the cover width (--w). */
+/* The big cover with its halo and rings (Q9, glow.css), as on the Shelf Check result: sizes follow the cover width (--w). */
 .series-stage {
   --w: var(--series-cover);
   position: relative;
   flex: none;
   width: var(--w);
   aspect-ratio: 2 / 3;
-}
-
-.series-halo {
-  --blob: var(--tone);
-  position: absolute;
-  left: calc(var(--w) * -46 / 168);
-  top: calc(var(--w) * -34 / 168);
-  width: calc(var(--w) * 260 / 168);
-  height: calc(var(--w) * 320 / 168);
-  box-sizing: content-box;
-  margin: calc(var(--glow-pad-halo) * -1);
-  padding: var(--glow-pad-halo);
-  pointer-events: none;
-  animation: seriesBreathe var(--motion-breathe) ease-in-out infinite;
-}
-
-.series-ring {
-  position: absolute;
-  left: calc(var(--w) * -16 / 168);
-  top: calc(var(--w) * 26 / 168);
-  width: calc(var(--w) * 200 / 168);
-  aspect-ratio: 1;
-  border: var(--stroke) solid var(--tone);
-  border-radius: 50%;
-  box-shadow: 0 0 var(--glow-blur-ring) var(--tone-line);
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Three rings at once, then a calm one every --motion-wave-calm, half of it apart. */
-.series-r1 {
-  animation:
-    seriesWave var(--motion-wave) var(--ease-wave) both,
-    seriesWaveCalm var(--motion-wave-calm) ease-out var(--motion-wave-rest) infinite;
-}
-
-.series-r2 {
-  animation:
-    seriesWave var(--motion-wave) var(--ease-wave) var(--motion-wave-stagger) both,
-    seriesWaveCalm var(--motion-wave-calm) ease-out calc(var(--motion-wave-rest) + var(--motion-wave-calm) / 2) infinite;
-}
-
-.series-r3 {
-  animation: seriesWave var(--motion-wave) var(--ease-wave) calc(2 * var(--motion-wave-stagger)) both;
 }
 
 .series-cover {
@@ -620,86 +543,10 @@ li.series-label-chip {
   height: var(--space-14);
 }
 
-@keyframes seriesDrift1 {
-  0%,
-  100% {
-    transform: translate(-30px, -10px) scale(1);
-  }
-  50% {
-    transform: translate(40px, 30px) scale(1.15);
-  }
-}
-
-@keyframes seriesDrift2 {
-  0%,
-  100% {
-    transform: translate(30px, 10px) scale(1.1);
-  }
-  50% {
-    transform: translate(-50px, 20px) scale(0.9);
-  }
-}
-
-@keyframes seriesDrift3 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(0.9);
-  }
-  50% {
-    transform: translate(30px, -30px) scale(1.1);
-  }
-}
-
-@keyframes seriesBreathe {
-  0%,
-  100% {
-    opacity: 0.45;
-    transform: scale(0.92);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.06);
-  }
-}
-
-@keyframes seriesWave {
-  0% {
-    opacity: 0.85;
-    transform: scale(0.5);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(2.9);
-  }
-}
-
-@keyframes seriesWaveCalm {
-  0% {
-    opacity: 0;
-    transform: scale(0.7);
-  }
-  20% {
-    opacity: 0.3;
-  }
-  100% {
-    opacity: 0;
-    transform: scale(2.4);
-  }
-}
-
-/* Nothing moves: the blobs and the halo stay still, the rings do not show, the spines do not lift. */
+/* Nothing moves (the glow, halo and rings: glow.css); the halo stays at the strength of the first blob; the spines do not lift. */
 @media (prefers-reduced-motion: reduce) {
-  .series-blob,
-  .series-halo {
-    animation: none;
-  }
-
-  .series-halo {
+  .series-stage .glow-halo {
     opacity: var(--glow-opacity-1);
-  }
-
-  .series-ring {
-    display: none;
   }
 
   .series-spine-bar {

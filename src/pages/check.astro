@@ -10,6 +10,7 @@
 // book in the form of this page.
 import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
+import '../styles/glow.css';
 import '../styles/shelf-check-result.css';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
@@ -862,10 +863,6 @@ const answers = [
     --camera-line: color-mix(in srgb, var(--camera-ink) var(--alpha-tone-line), transparent);
     --camera-veil: color-mix(in srgb, var(--camera) var(--alpha-veil), transparent);
     --camera-shadow: color-mix(in srgb, var(--camera) var(--alpha-text-quiet), transparent);
-    --motion-sweep: 1.6s;
-    --motion-shake: 0.3s;
-    --motion-pop: 0.2s;
-    --motion-state: 0.15s;
     width: 100%;
     max-width: none;
     height: 100dvh;

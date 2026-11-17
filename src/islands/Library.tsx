@@ -178,10 +178,10 @@ export function Library({ sources }: { sources: Sources }) {
     <div class="library">
       <div class="library-toolbar">
         {/* Cobalt blobs behind the top of the screen, never behind the books (ui-direction Q9). */}
-        <div class="library-glow" aria-hidden="true">
-          <span class="library-blob library-b1" />
-          <span class="library-blob library-b2" />
-          <span class="library-blob library-b3" />
+        <div class="glow library-glow" aria-hidden="true">
+          <span class="glow-blob glow-b1 library-b1" />
+          <span class="glow-blob glow-b2 library-b2" />
+          <span class="glow-blob glow-b3 library-b3" />
         </div>
         {!wide && groupingSwitch}
         <div class="library-search-row">
