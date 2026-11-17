@@ -25,7 +25,7 @@ const steppers = [
   <section class="flow-card" data-card data-state="working" aria-labelledby="onboarding-title">
     <!-- While the Series loads, while it saves, and when it is saved. -->
     <div class="progress" data-progress>
-      <div class="mark-box"><Mark size={56} animated /></div>
+      <div class="mark-box card"><Mark size={56} animated /></div>
       <p class="hint" role="status" data-progress-text>{t('onboarding.looking-up')}</p>
       <a class="button" href="/" data-progress-link hidden>{t('link.home')}</a>
     </div>
@@ -33,16 +33,16 @@ const steppers = [
     <form class="onboarding" data-form hidden>
       <div class="intro">
         <div class="intro-top">
-          <span class="tag"><Icon name="layers" size={14} />{t('onboarding.new-series')}</span>
+          <span class="chip"><Icon name="layers" />{t('onboarding.new-series')}</span>
           <!-- Leaves like Skip: not now. -->
-          <a class="close" href="/" aria-label={t('common.close')} data-skip><Icon name="x" /></a>
+          <a class="icon-button" href="/" aria-label={t('common.close')} data-skip><Icon name="x" /></a>
         </div>
         <h1 class="title" id="onboarding-title" tabindex="-1" data-heading>{t('onboarding.heading')}</h1>
         <p class="hint" data-intro></p>
       </div>
 
       <!-- From a later Volume: asked before the ranges and the tiles. -->
-      <div class="ask" role="group" aria-labelledby="ask-question" data-ask hidden>
+      <div class="ask card" role="group" aria-labelledby="ask-question" data-ask hidden>
         <p class="ask-question" id="ask-question" data-ask-question></p>
         <div class="ask-answers">
           <button class="button" type="button" data-answer="yes">{t('onboarding.ask-yes')}</button>
@@ -51,7 +51,7 @@ const steppers = [
         </div>
       </div>
 
-      <div class="ranges" data-after-ask>
+      <div class="ranges card" data-after-ask>
         {
           steppers.map((stepper) => (
             <div class="stepper" data-stepper={stepper.name}>
@@ -63,7 +63,7 @@ const steppers = [
                   {stepper.shortcut}
                 </button>
               </div>
-              <button class="button step" type="button" aria-label={t('onboarding.one-less')} data-by="-1">
+              <button class="icon-button" type="button" aria-label={t('onboarding.one-less')} data-by="-1">
                 <Icon name="minus" />
               </button>
               <input
@@ -75,7 +75,7 @@ const steppers = [
                 enterkeyhint="done"
                 data-value
               />
-              <button class="button step" type="button" aria-label={t('onboarding.one-more')} data-by="1">
+              <button class="icon-button" type="button" aria-label={t('onboarding.one-more')} data-by="1">
                 <Icon name="plus" />
               </button>
             </div>
@@ -109,7 +109,7 @@ const steppers = [
         <p class="hint" data-known></p>
       </div>
 
-      <label class="follow">
+      <label class="follow card">
         <Icon name="bell" size={20} />
         <span class="follow-text">
           <span class="follow-title">{t('onboarding.follow')}</span>
@@ -524,8 +524,23 @@ const steppers = [
 </script>
 
 <style>
+  /*
+   * The one look (ADR 0018): every value is a theme.css token, or one of the
+   * sizes of this screen below, which no other screen has.
+   */
   .flow-card {
-    width: min(100%, 560px);
+    --onboarding-width: 560px;
+    /* Desktop with the form: the questions on the left, the Volumes on the right. */
+    --onboarding-width-wide: 1120px;
+    --onboarding-questions: 380px;
+    /* 3 digits in the Volume field. */
+    --onboarding-value: 64px;
+    /* The step heading keeps its size on desktop (Q11). */
+    --onboarding-title-wide: 32px;
+    /* No outline at rest (Q10); in high contrast every tile gets its edge. */
+    --tile-edge: color-mix(in oklab, var(--ink) var(--contrast), transparent);
+
+    width: min(100%, var(--onboarding-width));
     display: flex;
     flex-direction: column;
   }
@@ -534,37 +549,28 @@ const steppers = [
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
+    gap: var(--space-20);
     text-align: center;
-  }
-
-  .progress[hidden],
-  .onboarding[hidden] {
-    display: none;
   }
 
   .mark-box {
     display: grid;
     place-items: center;
-    width: 104px;
-    height: 104px;
-    border-radius: 28px;
-    background: var(--surface);
-    box-shadow: 0 0 0 1px var(--line);
+    padding: var(--space-24);
     color: var(--ink);
   }
 
   .onboarding {
     display: flex;
     flex-direction: column;
-    gap: 22px;
+    gap: var(--space-24);
   }
 
   .intro {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: var(--space-10);
   }
 
   .intro-top {
@@ -572,39 +578,12 @@ const steppers = [
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-  }
-
-  /* Close: the way out on a Flow screen, with no frame around it. */
-  .close {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    margin: -10px -10px -10px 0;
-    border-radius: var(--radius-control);
-    color: var(--secondary);
-  }
-
-  .close:hover {
-    background: var(--soft);
-    color: var(--ink);
-  }
-
-  .tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: var(--soft);
-    font-size: 12px;
-    font-weight: 600;
+    gap: var(--space-12);
   }
 
   .title {
-    font-size: 26px;
-    letter-spacing: -0.03em;
+    font-size: var(--type-title);
+    letter-spacing: var(--tracking-tight);
     text-wrap: balance;
   }
 
@@ -614,50 +593,44 @@ const steppers = [
   }
 
   .hint {
-    color: var(--secondary);
-    font-size: 14px;
+    color: var(--text-quiet);
+    font-size: var(--type-body);
     text-wrap: pretty;
+  }
+
+  .volumes .hint,
+  .follow .hint {
+    font-size: var(--type-small);
   }
 
   .ask {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--surface);
+    gap: var(--space-12);
   }
 
   .ask-question {
-    font-size: 17px;
+    font-size: var(--type-heading);
     font-weight: 600;
+    letter-spacing: var(--tracking-tight);
   }
 
   .ask-answers {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .ask-answers .button {
-    min-height: 44px;
+    gap: var(--space-8);
   }
 
   .ranges {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--surface);
+    gap: var(--space-12);
   }
 
   .stepper {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .stepper-text {
@@ -666,43 +639,30 @@ const steppers = [
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
   }
 
   .stepper-label {
-    font-size: 15px;
+    font-size: var(--type-body);
     font-weight: 600;
   }
 
-  /* A text-size link button: the usual answer in one tap. */
+  /* A link-size button: the usual answer in one tap. Cobalt, as a link. */
   .shortcut {
     padding: 0;
     border: 0;
     background: none;
     color: var(--accent);
-    font: inherit;
-    font-size: 14px;
+    font-size: var(--type-small);
     cursor: pointer;
   }
 
-  .shortcut:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  .step {
-    width: 44px;
-    min-height: 44px;
-    padding: 0;
-  }
-
-  /* 3 digits at 22 px; 16 px or more, so the phone does not zoom on focus. */
+  /* 16 px or more, so the phone does not zoom on focus. */
   .step-value {
-    width: 64px;
-    min-height: 44px;
-    padding: 0 4px;
+    width: var(--onboarding-value);
+    min-height: var(--icon-button);
+    padding: 0 var(--space-4);
     text-align: center;
-    font-size: 22px;
+    font-size: var(--type-heading);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
@@ -710,81 +670,81 @@ const steppers = [
   .volumes {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: var(--space-14);
   }
 
   .tap-mode {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px 12px;
+    gap: var(--space-8) var(--space-12);
   }
 
   .tap-mode-label {
-    font-size: 14px;
+    font-size: var(--type-small);
     font-weight: 600;
   }
 
   .tiles,
   .tiles :global(.tile-grid) {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(var(--icon-button), 1fr));
+    gap: var(--space-8);
   }
 
   /* A long Series: ranges of ten, opened on tap. */
   .tiles.grouped {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .tiles :global(.tile-range) {
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--surface);
+    border: var(--hairline) solid var(--line-card);
+    border-radius: var(--radius-card);
+    background: var(--fill-card);
   }
 
   .tiles :global(.tile-range summary) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    min-height: 44px;
-    padding: 0 14px;
-    font-size: 14px;
+    gap: var(--space-12);
+    min-height: var(--icon-button);
+    padding: 0 var(--space-14);
+    font-size: var(--type-small);
     font-weight: 600;
     cursor: pointer;
   }
 
   .tiles :global(.tile-range-count) {
-    color: var(--secondary);
+    color: var(--text-quiet);
     font-weight: 400;
   }
 
   .tiles :global(.tile-range[open] summary) {
-    border-bottom: 1px solid var(--line);
+    border-bottom: var(--hairline) solid var(--line-card);
   }
 
   .tiles :global(.tile-range .tile-grid) {
-    padding: 12px;
+    padding: var(--space-12);
   }
 
-  /* The Volume spine motif (HANDOFF): filled = read, outlined = owned not
-     read, dashed grey = missing. Read but not owned: filled, dashed edge.
-     Secondary, not ink: 50 filled tiles must not outshout Save. */
+  /*
+   * The spine shades of the Series page (Q10), no outline: missing faint,
+   * owned medium, read full ink; read but not owned stays faint with the read
+   * mark. The kept dot: a Copy is in the Library already.
+   */
   .tiles :global(.tile),
   .tile-sample {
     position: relative;
     width: 100%;
-    height: 44px;
-    box-sizing: border-box;
-    border: 1.5px dashed var(--off);
+    height: var(--icon-button);
+    border: var(--hairline) solid var(--tile-edge);
     border-radius: var(--radius-control);
-    background: transparent;
-    color: var(--secondary);
-    font: inherit;
-    font-size: 14px;
+    background: var(--shade-faint);
+    color: var(--text-quiet);
+    font-size: var(--type-body);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
@@ -792,43 +752,54 @@ const steppers = [
 
   .tiles :global(.tile.owned),
   .tile-sample.owned {
-    border: 1.5px solid var(--secondary);
-    background: var(--soft);
-    color: var(--ink);
+    background: var(--shade-medium);
+    color: var(--surface);
   }
 
   .tiles :global(.tile.read),
   .tile-sample.read {
-    background: var(--secondary);
+    background: var(--ink);
     color: var(--surface);
   }
 
   .tiles :global(.tile.read:not(.owned)),
   .tile-sample.read:not(.owned) {
-    border: 1.5px dashed var(--surface);
-    box-shadow: 0 0 0 1.5px var(--secondary);
+    background: var(--shade-faint);
+    color: var(--text-quiet);
   }
 
-  /* In Library (a Copy saved already): a dot in the corner; a tap says why it is locked. */
+  /* The read mark of the Series page: an ink dot at the foot. */
+  .tiles :global(.tile.read:not(.owned))::before,
+  .tile-sample.read:not(.owned)::before {
+    content: '';
+    position: absolute;
+    bottom: var(--space-4);
+    left: 50%;
+    width: var(--space-6);
+    height: var(--space-6);
+    border-radius: var(--radius-pill);
+    background: var(--ink);
+    translate: -50% 0;
+  }
+
   .tiles :global(.tile.kept)::after,
   .tile-sample.kept::after {
     content: '';
     position: absolute;
-    top: 3px;
-    right: 3px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+    top: var(--space-4);
+    right: var(--space-4);
+    width: var(--space-6);
+    height: var(--space-6);
+    border-radius: var(--radius-pill);
     background: var(--ink);
-    box-shadow: 0 0 0 1.5px var(--surface);
+    box-shadow: 0 0 0 var(--hairline) var(--surface);
   }
 
   /* No Catalog Edition for this number: hatched, it cannot change. */
   .tiles :global(.tile.unknown),
   .tile-sample.unknown {
-    border-color: var(--line);
-    background: repeating-linear-gradient(135deg, transparent 0 5px, var(--soft) 5px 7px);
-    color: var(--secondary);
+    background: repeating-linear-gradient(135deg, transparent 0 var(--space-4), var(--shade-faint) var(--space-4) var(--space-6));
+    color: var(--text-quiet);
     cursor: help;
   }
 
@@ -836,44 +807,51 @@ const steppers = [
     cursor: help;
   }
 
-  .tiles :global(.tile:focus-visible) {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
   .legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 16px;
+    gap: var(--space-6) var(--space-16);
     margin: 0;
     padding: 0;
     list-style: none;
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
   }
 
   .legend li {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-6);
   }
 
   .legend .tile-sample {
     flex: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 3px;
+    width: var(--space-14);
+    height: var(--space-14);
+    border-radius: var(--radius-cover);
     cursor: default;
+  }
+
+  /* The marks of a sample are smaller: the sample is a third of a tile. */
+  .legend .tile-sample::before,
+  .legend .tile-sample::after {
+    width: var(--space-4);
+    height: var(--space-4);
+  }
+
+  .legend .tile-sample::before {
+    bottom: var(--hairline);
+  }
+
+  .legend .tile-sample::after {
+    top: var(--hairline);
+    right: var(--hairline);
   }
 
   .follow {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--surface);
+    gap: var(--space-12);
     cursor: pointer;
   }
 
@@ -881,16 +859,11 @@ const steppers = [
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 2px;
   }
 
   .follow-title {
-    font-size: 15px;
+    font-size: var(--type-body);
     font-weight: 600;
-  }
-
-  .follow .hint {
-    font-size: 13px;
   }
 
   /* A long Series has 100+ tiles: Skip and Save stay in view at the bottom. */
@@ -899,35 +872,30 @@ const steppers = [
     bottom: 0;
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    margin: 0 -20px;
-    padding: 12px 20px max(12px, env(safe-area-inset-bottom));
-    border-top: 1px solid var(--line);
+    gap: var(--space-8);
+    margin: 0 calc(-1 * var(--space-20));
+    padding: var(--space-12) var(--space-20) max(var(--space-12), env(safe-area-inset-bottom));
+    border-top: var(--hairline) solid var(--line-card);
     background: var(--ground);
   }
 
-  .actions .button {
-    min-height: 44px;
-    padding: 0 16px;
-  }
-
-  /* Desktop: the screen is a card on the ground colour. With the form, the card
-     is wide: the questions on the left, the Volumes on the right. */
+  /* Desktop: the screen is a card (CORE-122) on the ground colour. With the
+     form, the card is wide: the questions on the left, the Volumes on the right. */
   @media (min-width: 960px) {
     .flow-card {
-      padding: 40px;
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      background: var(--surface);
+      padding: var(--space-28);
+      border: var(--hairline) solid var(--line-card);
+      border-radius: var(--radius-card);
+      background: var(--fill-card);
     }
 
     .flow-card[data-state='ready'] {
-      width: min(100%, 1120px);
+      width: min(100%, var(--onboarding-width-wide));
     }
 
     .onboarding {
       display: grid;
-      grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+      grid-template-columns: minmax(0, var(--onboarding-questions)) minmax(0, 1fr);
       grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
       grid-template-areas:
         'intro volumes'
@@ -936,7 +904,7 @@ const steppers = [
         'follow volumes'
         '. volumes'
         'actions actions';
-      gap: 22px 56px;
+      gap: var(--space-24) calc(2 * var(--space-28));
     }
 
     .intro {
@@ -959,20 +927,17 @@ const steppers = [
       grid-area: volumes;
     }
 
+    /* Opaque, as the card on the ground: tiles scroll under it on a short window. */
     .actions {
       grid-area: actions;
-      margin: 0 -40px -40px;
-      padding: 16px 40px;
-      border-radius: 0 0 20px 20px;
-      background: var(--surface);
+      margin: 0 calc(-1 * var(--space-28)) calc(-1 * var(--space-28));
+      padding: var(--space-16) var(--space-28);
+      border-radius: 0 0 var(--radius-card) var(--radius-card);
+      background: linear-gradient(var(--fill-card), var(--fill-card)), var(--ground);
     }
 
     .title {
-      font-size: 32px;
-    }
-
-    .mark-box {
-      background: var(--ground);
+      font-size: var(--onboarding-title-wide);
     }
   }
 
@@ -980,7 +945,7 @@ const steppers = [
      tiles scroll, so a long Series (100+ Volumes) needs no page scroll. */
   @media (min-width: 960px) and (min-height: 640px) {
     .flow-card[data-state='ready'] {
-      max-height: calc(100dvh - 48px);
+      max-height: calc(100dvh - 2 * var(--space-24));
     }
 
     .onboarding {
@@ -997,8 +962,8 @@ const steppers = [
       min-height: 0;
       overflow-y: auto;
       align-content: start;
-      margin: -4px;
-      padding: 4px;
+      margin: calc(-1 * var(--space-4));
+      padding: var(--space-4);
     }
   }
 </style>
