@@ -4,8 +4,9 @@ import { randomBytes } from 'node:crypto';
 import { defineConfig, devices } from '@playwright/test';
 
 // Not 4321: never the dev server a developer has open, whose Catalog asks the
-// real book sources. 127.0.0.1, never `localhost` (src/middleware.ts).
-const port = 4322;
+// real book sources. 127.0.0.1, never `localhost` (src/middleware.ts). E2E_PORT
+// lets runs in two worktrees go side by side.
+const port = Number(process.env.E2E_PORT ?? 4322);
 const origin = `http://127.0.0.1:${port}`;
 
 const phone = devices['iPhone 14'];

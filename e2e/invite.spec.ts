@@ -11,7 +11,7 @@ test('An Invite link is kept for the sign-in, and its token leaves the address',
   expect(await page.evaluate(() => location.hash)).toBe('');
   // WebKit on Linux (CI) does not keep a Secure cookie of http://127.0.0.1; https instances are fine.
   if (browserName === 'chromium') {
-    const kept = (await page.context().cookies('http://127.0.0.1:4322/')).find((cookie) => cookie.name === 'atomes_invite');
+    const kept = (await page.context().cookies(page.url())).find((cookie) => cookie.name === 'atomes_invite');
     expect(kept).toMatchObject({ httpOnly: true, path: '/', sameSite: 'Lax' });
   }
 });
