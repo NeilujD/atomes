@@ -17,31 +17,141 @@ const t = translator(requestLanguage(Astro.request));
 </AppShell>
 
 <style is:global>
-  /* Global: the island renders on the device, outside this page's scoped styles. */
+  /* Global: the island renders on the device, outside this page's scoped styles.
+     The one look (ADR 0018): the look comes from theme.css tokens and shared
+     parts; the sizes of the Library's own boxes are named once, here. */
   .library {
+    /* A cover in a List row; the narrowest Grid column on desktop. */
+    --library-row-cover: 40px;
+    --library-grid-cover: 140px;
+    /* Desktop toolbar: the search field, and each select of the controls. */
+    --library-search: 200px;
+    --library-search-max: 420px;
+    --library-select-min: 130px;
+    --library-select-max: 160px;
+    /* The height of the view header the desktop toolbar sticks under (AppShell). */
+    --library-header: 48px;
+    /* The select over the phone mode icon: 16 px, as iOS zooms into a smaller field it focuses. */
+    --library-select-text: 16px;
+    --library-sheet-height: 85dvh;
+    /* Phone: the A to Z rail, one letter. */
+    --library-rail-letter: 16px;
+    --library-rail-width: 20px;
+    --library-rail-height: min(432px, 100dvh - 200px);
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-20);
   }
 
   .library-message {
-    font-size: 14px;
+    font-size: var(--type-body);
   }
 
   .library-add {
     align-self: flex-start;
   }
 
+  /* Phone: the box of the glow (desktop: sticky, below). */
   .library-toolbar {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-12);
+  }
+
+  /*
+   * Cobalt blobs drift behind the top of the screen (ui-direction Q9): the
+   * title and the toolbar, never the books or the Cover flow strip. Behind the
+   * page content (z-index -1). Phone: from the bottom of the toolbar up past
+   * the top of the page, fading out toward the books. Soft edges come from
+   * radial gradients on a padded box, never a blur filter.
+   */
+  .library-glow {
+    position: absolute;
+    z-index: -1;
+    inset: auto calc(var(--space-20) * -1) 0;
+    height: calc(var(--glow-unit) * 40);
+    overflow: hidden;
+    mask-image: linear-gradient(black 85%, transparent);
+    pointer-events: none;
+  }
+
+  /* A glow at its strength: half its colour on the light ground (--glow-light). */
+  .library-blob {
+    --blob: var(--accent);
+    --glow: light-dark(color-mix(in oklab, var(--blob) var(--glow-light), transparent), var(--blob));
+    position: absolute;
+    box-sizing: content-box;
+    margin: calc(var(--glow-pad-blob) * -1);
+    padding: var(--glow-pad-blob);
+    background: radial-gradient(
+      circle closest-side,
+      color-mix(in oklab, var(--glow) var(--glow-alpha-1), transparent),
+      color-mix(in oklab, var(--glow) var(--glow-alpha-2), transparent) var(--glow-stop-2),
+      color-mix(in oklab, var(--glow) var(--glow-alpha-3), transparent) var(--glow-stop-3),
+      color-mix(in oklab, var(--glow) var(--glow-alpha-4), transparent) var(--glow-stop-4),
+      transparent
+    );
+    will-change: transform;
+  }
+
+  .library-b1 {
+    left: calc(var(--glow-unit) * -8);
+    bottom: calc(var(--glow-unit) * -2);
+    width: calc(var(--glow-unit) * 26);
+    height: calc(var(--glow-unit) * 26);
+    opacity: var(--glow-opacity-1);
+    animation: libraryDrift1 var(--motion-drift-1) ease-in-out infinite;
+  }
+
+  .library-b2 {
+    right: calc(var(--glow-unit) * -10);
+    bottom: calc(var(--glow-unit) * -8);
+    width: calc(var(--glow-unit) * 24);
+    height: calc(var(--glow-unit) * 24);
+    opacity: var(--glow-opacity-2);
+    animation: libraryDrift2 var(--motion-drift-2) ease-in-out infinite;
+  }
+
+  .library-b3 {
+    --blob: var(--accent-fill);
+    left: 30%;
+    bottom: calc(var(--glow-unit) * -8);
+    width: calc(var(--glow-unit) * 20);
+    height: calc(var(--glow-unit) * 20);
+    opacity: var(--glow-opacity-3);
+    animation: libraryDrift3 var(--motion-drift-3) ease-in-out infinite;
+  }
+
+  @keyframes libraryDrift1 {
+    50% {
+      transform: translate(50px, 30px) scale(1.15);
+    }
+  }
+
+  @keyframes libraryDrift2 {
+    50% {
+      transform: translate(-60px, -20px) scale(0.9);
+    }
+  }
+
+  @keyframes libraryDrift3 {
+    50% {
+      transform: translate(30px, -30px) scale(1.15);
+    }
+  }
+
+  /* With reduced motion the glow stays still. */
+  @media (prefers-reduced-motion: reduce) {
+    .library-blob {
+      animation: none;
+    }
   }
 
   .library-search-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .library-search {
@@ -69,19 +179,13 @@ const t = translator(requestLanguage(Astro.request));
     flex: none;
   }
 
-  /* Phone: the mode as one square button with the icon of the mode on. The
-     native select lies over it, unseen, so a tap opens the system menu. */
+  /* Phone: the mode as one round icon button (theme.css) with the icon of the
+     mode on, as high as the search field. The native select lies over it,
+     unseen, so a tap opens the system menu. */
   .library-view {
     position: relative;
-    flex: none;
-    display: inline-grid;
-    place-items: center;
     width: var(--row);
     height: var(--row);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-control);
-    background: var(--surface);
-    color: var(--ink);
   }
 
   .library-view select {
@@ -91,19 +195,18 @@ const t = translator(requestLanguage(Astro.request));
     height: 100%;
     margin: 0;
     opacity: 0;
-    /* 16 px: iOS zooms into a smaller field it focuses. */
-    font-size: 16px;
+    font-size: var(--library-select-text);
     cursor: pointer;
   }
 
   .library-view:has(select:focus-visible) {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
+    outline: var(--stroke) solid var(--accent);
+    outline-offset: var(--stroke);
   }
 
   .library-count {
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
@@ -116,72 +219,62 @@ const t = translator(requestLanguage(Astro.request));
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--space-8);
     min-height: var(--row);
   }
 
+  /* "Sort and filter": the secondary button, as high as the search field, so the row stays even. */
   .library-filters {
     flex: none;
+    min-height: var(--row);
   }
 
   .library-badge {
     display: inline-grid;
     place-items: center;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 5px;
-    border-radius: 9px;
+    min-width: var(--badge-height);
+    height: var(--badge-height);
+    padding: 0 var(--space-6);
+    border-radius: var(--radius-pill);
     background: var(--ink);
     color: var(--surface);
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-variant-numeric: tabular-nums;
   }
 
   .library-controls {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
   .library-selects {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
   .library-select {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
   }
 
   .library-select label {
-    color: var(--secondary);
-    font-size: 12px;
+    color: var(--text-quiet);
+    font-size: var(--type-chip);
     font-weight: 600;
   }
 
   .library-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
-  /* Pressed: ink, not cobalt (cobalt is for New Volumes, links and focus). */
+  /* A filter chip is the shared .chip (theme.css): pressed, it fills with ink, not cobalt. */
   .library-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: var(--row);
-    padding: 0 12px;
-    border: 1px solid var(--line);
-    border-radius: calc(var(--row) / 2);
-    background: var(--surface);
-    color: var(--ink);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
     max-width: 100%;
   }
 
@@ -193,19 +286,9 @@ const t = translator(requestLanguage(Astro.request));
     white-space: nowrap;
   }
 
-  .library-chip:hover {
-    background: var(--soft);
-  }
-
-  .library-chip[aria-pressed='true'] {
-    border-color: var(--ink);
-    background: var(--ink);
-    color: var(--surface);
-  }
-
   .library-chip-count {
     flex: none;
-    opacity: 0.7;
+    opacity: var(--alpha-text-quiet);
     font-variant-numeric: tabular-nums;
   }
 
@@ -213,9 +296,9 @@ const t = translator(requestLanguage(Astro.request));
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    padding: 48px 16px;
-    font-size: 15px;
+    gap: var(--space-12);
+    padding: calc(var(--space-24) * 2) var(--space-16);
+    font-size: var(--type-body);
     font-weight: 600;
     text-align: center;
   }
@@ -224,7 +307,7 @@ const t = translator(requestLanguage(Astro.request));
   .library-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 20px 14px;
+    gap: var(--space-20) var(--space-14);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -233,7 +316,6 @@ const t = translator(requestLanguage(Astro.request));
   .library-book {
     display: flex;
     flex-direction: column;
-    gap: 2px;
     min-width: 0;
     color: var(--ink);
     text-decoration: none;
@@ -241,7 +323,7 @@ const t = translator(requestLanguage(Astro.request));
 
   .library-cover {
     width: 100%;
-    margin-bottom: 6px;
+    margin-bottom: var(--space-8);
   }
 
   .library-book-title,
@@ -253,13 +335,13 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   .library-book-title {
-    font-size: 13px;
+    font-size: var(--type-small);
     font-weight: 600;
   }
 
   .library-book-line {
-    color: var(--secondary);
-    font-size: 12px;
+    color: var(--text-quiet);
+    font-size: var(--type-chip);
     font-variant-numeric: tabular-nums;
   }
 
@@ -267,12 +349,24 @@ const t = translator(requestLanguage(Astro.request));
     text-decoration: underline;
   }
 
+  /* Series mode: each Series is a card (theme.css), padded little so the cover stays big. */
+  .library-series {
+    height: 100%;
+    padding: var(--space-8);
+  }
+
   /* A Work read with no Copy (CORE-100), in Grid, List and Cover flow: a grey,
-     faint cover and the quiet "Not owned" words, no colour role. Only the
-     cover fades, so the text keeps its contrast. */
-  .library-not-owned .book-cover {
+     faint cover, and the "Not owned" mark in the "not owned" colour (Q8). Only
+     the cover fades, so the text keeps its contrast. Picked in bulk select, it
+     keeps its colours, so its ring stays cobalt (the filter would grey it). */
+  .library-not-owned:not([aria-pressed='true']) .book-cover {
     filter: grayscale(1);
     opacity: 0.6;
+  }
+
+  .library-not-owned-mark {
+    color: var(--not-owned-text);
+    font-weight: 600;
   }
 
   /* Phone: the controls in a sheet from the bottom. */
@@ -280,11 +374,11 @@ const t = translator(requestLanguage(Astro.request));
     inset: auto 0 0;
     width: 100%;
     max-width: none;
-    max-height: 85dvh;
+    max-height: var(--library-sheet-height);
     margin: 0;
-    padding: 20px 20px max(20px, env(safe-area-inset-bottom));
+    padding: var(--space-20) var(--space-20) max(var(--space-20), env(safe-area-inset-bottom));
     border: 0;
-    border-top: 1px solid var(--line);
+    border-top: var(--hairline) solid var(--line);
     border-radius: var(--radius-panel) var(--radius-panel) 0 0;
     background: var(--surface);
     color: var(--ink);
@@ -293,11 +387,11 @@ const t = translator(requestLanguage(Astro.request));
   .library-sheet[open] {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-20);
   }
 
   .library-sheet::backdrop {
-    background: rgb(0 0 0 / 0.4);
+    background: var(--scrim);
   }
 
   .library-sheet .library-selects {
@@ -313,12 +407,19 @@ const t = translator(requestLanguage(Astro.request));
   @media (min-width: 960px) {
     .library-toolbar {
       position: sticky;
-      top: 48px;
+      top: var(--library-header);
       z-index: 1;
-      margin: -24px -24px 0;
-      padding: 12px 24px;
+      margin: calc(var(--space-24) * -1) calc(var(--space-24) * -1) 0;
+      padding: var(--space-12) var(--space-24);
       background: var(--surface);
-      border-bottom: 1px solid var(--line);
+      border-bottom: var(--hairline) solid var(--line);
+    }
+
+    /* The glow fills the toolbar, behind its controls, and stops at its edge. */
+    .library-glow {
+      inset: 0;
+      height: auto;
+      mask-image: none;
     }
 
     /* The search keeps a width to type in. When the row is too long (a filter
@@ -329,19 +430,19 @@ const t = translator(requestLanguage(Astro.request));
     }
 
     .library-search {
-      flex: 1 1 200px;
-      min-width: 200px;
-      max-width: 420px;
+      flex: 1 1 var(--library-search);
+      min-width: var(--library-search);
+      max-width: var(--library-search-max);
     }
 
     .library-search-row .library-count {
       margin-left: auto;
     }
 
-    /* 160 px each; in a narrow window the four get narrower, down to 130 px, to stay on one line. */
+    /* In a narrow window the four selects get narrower, to stay on one line. */
     .library-select {
-      flex: 1 1 130px;
-      max-width: 160px;
+      flex: 1 1 var(--library-select-min);
+      max-width: var(--library-select-max);
     }
 
     .library-select .field {
@@ -349,8 +450,8 @@ const t = translator(requestLanguage(Astro.request));
     }
 
     .library-grid {
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 28px 24px;
+      grid-template-columns: repeat(auto-fill, minmax(var(--library-grid-cover), 1fr));
+      gap: var(--space-28) var(--space-24);
     }
   }
 </style>
@@ -370,30 +471,27 @@ const t = translator(requestLanguage(Astro.request));
     list-style: none;
   }
 
-  /* Phone: the letter stays on top while its books scroll. */
+  /* The letter is a small heading (theme.css). Phone: it stays on top while its books scroll. */
   .library-letter {
     position: sticky;
     top: env(safe-area-inset-top, 0px);
     z-index: 1;
-    padding: 10px 0 6px;
-    border-bottom: 1px solid var(--line);
+    padding: var(--space-10) 0 var(--space-6);
+    border-bottom: var(--hairline) solid var(--line-card);
     background: var(--ground);
-    color: var(--secondary);
-    font-size: 13px;
-    letter-spacing: 0;
   }
 
   /* Phone: the author under the title. */
   .library-row {
     display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-columns: var(--library-row-cover) minmax(0, 1fr) auto;
     grid-template-areas:
       'cover main status'
       'cover author status';
     align-content: center;
-    column-gap: 12px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--line);
+    column-gap: var(--space-12);
+    padding: var(--space-8) 0;
+    border-bottom: var(--hairline) solid var(--line-card);
     color: var(--ink);
     text-decoration: none;
   }
@@ -419,26 +517,26 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   .library-row-title {
-    font-size: 15px;
+    font-size: var(--type-body);
     font-weight: 600;
   }
 
   .library-row-line,
   .library-row-author {
-    font-size: 13px;
+    font-size: var(--type-small);
     font-variant-numeric: tabular-nums;
   }
 
   .library-row-author {
     grid-area: author;
-    color: var(--secondary);
+    color: var(--text-quiet);
   }
 
   .library-row-status {
     grid-area: status;
     align-self: center;
-    color: var(--secondary);
-    font-size: 12px;
+    color: var(--text-quiet);
+    font-size: var(--type-chip);
     white-space: nowrap;
   }
 
@@ -447,7 +545,7 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   /* The A to Z index. Phone: a rail on the right edge, in the margin of the
-     page, 16 px a letter, shorter on a short screen. */
+     page, one --library-rail-letter a letter, shorter on a short screen. */
   .library-index {
     position: fixed;
     top: 50%;
@@ -455,19 +553,19 @@ const t = translator(requestLanguage(Astro.request));
     z-index: 2;
     display: flex;
     flex-direction: column;
-    max-height: min(432px, 100dvh - 200px);
+    max-height: var(--library-rail-height);
     transform: translateY(-50%);
   }
 
   .library-index button {
-    flex: 0 1 16px;
-    width: 20px;
+    flex: 0 1 var(--library-rail-letter);
+    width: var(--library-rail-width);
     min-height: 0;
     padding: 0;
     border: 0;
     background: none;
     color: var(--ink);
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
@@ -479,10 +577,18 @@ const t = translator(requestLanguage(Astro.request));
     --flow-cover: 170px;
     /* Over and under the cover in front: its shadow. */
     --flow-room: 52px;
+    /* The least height of the stage on a small screen, and the depth of the turn. */
+    --flow-stage: 200px;
+    --flow-depth: 900px;
+    --flow-shadow: 0 12px 28px -12px var(--scrim);
+    /* Phone: the track under the covers, and its thumb. */
+    --flow-track: 160px;
+    --flow-thumb: 24px;
+    --flow-controls: 560px;
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-16);
   }
 
   /* Cover flow takes the height the frame leaves, so Previous, the slider and
@@ -519,11 +625,11 @@ const t = translator(requestLanguage(Astro.request));
     container-type: size;
     position: relative;
     flex: 1 1 0;
-    min-height: 200px;
+    min-height: var(--flow-stage);
     max-height: calc(var(--flow-cover) * 1.5 + var(--flow-room));
-    margin: 0 -20px;
+    margin: 0 calc(var(--space-20) * -1);
     overflow: hidden;
-    perspective: 900px;
+    perspective: var(--flow-depth);
     perspective-origin: 50% 40%;
     touch-action: pan-y;
     user-select: none;
@@ -544,7 +650,7 @@ const t = translator(requestLanguage(Astro.request));
   /* No underline: the default cover is text inside this link. */
   .library-flow-cover {
     position: absolute;
-    top: 20px;
+    top: var(--space-20);
     left: 50%;
     width: var(--cover);
     margin-left: calc(var(--cover) / -2);
@@ -560,11 +666,14 @@ const t = translator(requestLanguage(Astro.request));
     -webkit-user-drag: none;
   }
 
+  /* A big cover: --radius-cover-large corners, on the box with no image, on
+     the image once it loads (theme.css), and on the shade below. */
   .library-flow-cover .library-flow-face:not([data-cover='loaded']),
   .library-flow-cover .library-flow-face[data-cover='loaded'] img {
+    border-radius: var(--radius-cover-large);
     box-shadow:
-      0 0 0 1px var(--cover-edge),
-      0 12px 28px -12px var(--scrim);
+      0 0 0 var(--hairline) var(--cover-edge),
+      var(--flow-shadow);
   }
 
   /* The covers on the sides sink into the ground as they leave the front
@@ -578,7 +687,7 @@ const t = translator(requestLanguage(Astro.request));
     width: min(100%, 150cqi * var(--cover-ratio, 2 / 3));
     aspect-ratio: var(--cover-ratio, 2 / 3);
     translate: -50% 0;
-    border-radius: var(--radius-cover);
+    border-radius: var(--radius-cover-large);
     background: var(--ground);
     opacity: var(--shade, 0);
     pointer-events: none;
@@ -587,10 +696,10 @@ const t = translator(requestLanguage(Astro.request));
   /* The shadow the cover in front casts on the floor. */
   .library-flow-floor {
     position: absolute;
-    top: calc(20px + var(--cover) * 1.5 - 20px);
+    top: calc(var(--cover) * 1.5);
     left: 50%;
     width: calc(var(--cover) * 1.33);
-    height: 40px;
+    height: calc(var(--space-20) * 2);
     margin-left: calc(var(--cover) * -0.665);
     border-radius: 50%;
     background: radial-gradient(ellipse, var(--scrim) 0%, transparent 70%);
@@ -601,20 +710,20 @@ const t = translator(requestLanguage(Astro.request));
   .library-flow-track {
     position: relative;
     align-self: center;
-    width: 160px;
-    height: 3px;
-    border-radius: 2px;
-    background: var(--soft);
+    width: var(--flow-track);
+    height: var(--stroke);
+    border-radius: var(--radius-pill);
+    background: var(--shade-faint);
     overflow: hidden;
   }
 
   .library-flow-track span {
     position: absolute;
     inset: 0 auto 0 0;
-    width: 24px;
-    border-radius: 2px;
+    width: var(--flow-thumb);
+    border-radius: var(--radius-pill);
     background: var(--ink);
-    transform: translateX(calc(var(--flow-at) * (160px - 24px)));
+    transform: translateX(calc(var(--flow-at) * (var(--flow-track) - var(--flow-thumb))));
     transition: transform 0.25s ease-out;
   }
 
@@ -628,7 +737,7 @@ const t = translator(requestLanguage(Astro.request));
     display: flex;
     flex-direction: column;
     align-items: center;
-    font-size: 14px;
+    font-size: var(--type-body);
     text-align: center;
   }
 
@@ -643,18 +752,18 @@ const t = translator(requestLanguage(Astro.request));
 
   .library-flow-position,
   .library-flow-line {
-    color: var(--secondary);
+    color: var(--text-quiet);
     font-variant-numeric: tabular-nums;
   }
 
   .library-flow-position {
-    font-size: 13px;
+    font-size: var(--type-small);
   }
 
   .library-flow-title {
-    font-size: 20px;
+    font-size: var(--type-heading);
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: var(--tracking-tight);
     text-decoration: none;
   }
 
@@ -665,7 +774,7 @@ const t = translator(requestLanguage(Astro.request));
   .library-flow-controls {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
   .library-flow-controls input {
@@ -677,29 +786,30 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   @media (min-width: 960px) {
+    .library {
+      --library-row-cover: 44px;
+    }
+
     /* The toolbar sticks at a height that changes, so the letters do not stick under it. */
     .library-letter {
       position: static;
-      padding: 18px 0 8px;
+      padding: var(--space-18) 0 var(--space-8);
       background: none;
-      color: var(--ink);
-      font-size: 15px;
     }
 
     .library-row {
-      grid-template-columns: 44px minmax(0, 2.4fr) minmax(0, 1.4fr) minmax(0, 1fr);
+      grid-template-columns: var(--library-row-cover) minmax(0, 2.4fr) minmax(0, 1.4fr) minmax(0, 1fr);
       grid-template-areas: 'cover main author status';
       align-items: center;
-      column-gap: 16px;
+      column-gap: var(--space-16);
     }
 
     .library-row-author {
       color: var(--ink);
-      font-size: 14px;
     }
 
     .library-row-status {
-      font-size: 13px;
+      font-size: var(--type-small);
     }
 
     /* The index is the last row of the toolbar, so it stays in reach while the list scrolls. */
@@ -707,21 +817,21 @@ const t = translator(requestLanguage(Astro.request));
       position: static;
       flex-direction: row;
       flex-wrap: wrap;
-      gap: 2px;
+      gap: var(--space-4);
       max-height: none;
       transform: none;
     }
 
     .library-index button {
       flex: none;
-      width: 24px;
+      width: var(--space-24);
       height: var(--row);
       border-radius: var(--radius-control);
-      font-size: 13px;
+      font-size: var(--type-small);
     }
 
     .library-index button:hover {
-      background: var(--soft);
+      background: var(--fill-chip);
     }
 
     .library-flow {
@@ -729,17 +839,17 @@ const t = translator(requestLanguage(Astro.request));
     }
 
     .library-flow-stage {
-      margin: 0 -24px;
+      margin: 0 calc(var(--space-24) * -1);
     }
 
     .library-flow-title {
-      font-size: 24px;
+      font-size: var(--type-title);
     }
 
     .library-flow-controls {
       align-self: center;
       width: 100%;
-      max-width: 560px;
+      max-width: var(--flow-controls);
     }
   }
 </style>

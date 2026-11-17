@@ -192,7 +192,7 @@ describe('Owned or not', () => {
   // Dune is read; its only Copy was removed.
   const readNotOwned = () => libraryScreen([books[0], books[2]]);
 
-  test('a Work read with no Copy carries the quiet "Not owned" mark in Grid, List and Cover flow; an owned one does not', async () => {
+  test('a Work read with no Copy carries the "Not owned" mark in Grid, List and Cover flow; an owned one does not', async () => {
     await readNotOwned();
 
     expect(screen.getByRole('link', { name: /Dune/ }).textContent).toContain('Not owned');
@@ -207,7 +207,8 @@ describe('Owned or not', () => {
 
     expect(screen.getByRole('link', { current: true }).getAttribute('aria-label')).toBe('Dune, Not owned');
     expect(screen.getByRole('link', { name: 'Astérix' })).toBeTruthy();
-    expect(screen.getByText(/Read · Not owned/)).toBeTruthy();
+    // The line under the cover ends with the mark, in its own element for its colour (Q8).
+    expect(screen.getByText('Not owned', { selector: '.library-flow-line > *' }).parentElement?.textContent).toMatch(/Read · Not owned$/);
   });
 
   test('the "Not owned" filter lists only the Works with no Copy; Clear all brings every book back', async () => {

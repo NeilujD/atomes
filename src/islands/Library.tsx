@@ -169,7 +169,7 @@ export function Library({ sources }: { sources: Sources }) {
   const pick = (work: string) => setSelected(selected.includes(work) ? selected.filter((each) => each !== work) : [...selected, work]);
   const picked = selected.map((work): PickedBook => ({ work, isbn: bookIsbns(work, read.library)[0] ?? '', edition: workEdition(work, read.library, editions) }));
   const selectButton = !selecting && (
-    <button class="button button-quiet library-select" type="button" onClick={() => setSelecting(true)}>
+    <button class="button button-quiet" type="button" onClick={() => setSelecting(true)}>
       {t('select.start')}
     </button>
   );
@@ -177,6 +177,12 @@ export function Library({ sources }: { sources: Sources }) {
   return (
     <div class="library">
       <div class="library-toolbar">
+        {/* Cobalt blobs behind the top of the screen, never behind the books (ui-direction Q9). */}
+        <div class="library-glow" aria-hidden="true">
+          <span class="library-blob library-b1" />
+          <span class="library-blob library-b2" />
+          <span class="library-blob library-b3" />
+        </div>
         {!wide && groupingSwitch}
         <div class="library-search-row">
           <div class="library-search">
@@ -391,7 +397,7 @@ function Select({ id, label, value, onChange, children }: { id: string; label: s
 
 function Chip({ name, count, pressed, onClick }: { name: string; count: number | undefined; pressed: boolean; onClick: () => void }) {
   return (
-    <button class="library-chip" type="button" aria-pressed={pressed} onClick={onClick}>
+    <button class="chip library-chip" type="button" aria-pressed={pressed} onClick={onClick}>
       <span class="library-chip-name">{name}</span>
       {count !== undefined && <span class="library-chip-count">{count}</span>}
     </button>
@@ -433,8 +439,8 @@ function Segmented<Choice extends string>({
 // Status chip does (CORE-105); a screen reader hears "View, Grid".
 function ModeMenu({ mode, onChange }: { mode: Mode; onChange: (mode: Mode) => void }) {
   return (
-    <span class="library-view">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <span class="icon-button library-view">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         {modeIcons[mode]}
       </svg>
       <select
@@ -479,14 +485,14 @@ const modeIcons: Record<Mode, ComponentChildren> = {
 function Book({ book, picked, onPick }: { book: LibraryBook; picked?: boolean; onPick?: () => void }) {
   const volume = volumeLine(book);
   const line = [volume, book.authors.join(', ')].filter(Boolean).join(' · ');
-  // Read with no Copy: a grey cover and a quiet mark (CORE-100), no colour role.
+  // Read with no Copy: a grey cover and the mark in the "not owned" colour (CORE-100, Q8).
   const name = book.owned ? 'library-book' : 'library-book library-not-owned';
   const content = (
     <>
       <Cover class="library-cover" src={book.cover} title={book.title} series={book.series} volumeTitle={book.volumeTitle} volume={volume} />
       <span class="library-book-title">{book.title}</span>
       {line && <span class="library-book-line">{line}</span>}
-      {!book.owned && <span class="library-book-line">{t('library.not-owned')}</span>}
+      {!book.owned && <span class="library-book-line library-not-owned-mark">{t('library.not-owned')}</span>}
     </>
   );
   return (
@@ -504,12 +510,12 @@ function Book({ book, picked, onPick }: { book: LibraryBook; picked?: boolean; o
   );
 }
 
-// Series mode: the Series in place of its books; it opens the Series page.
+// Series mode: the Series in place of its books, as a card; it opens the Series page.
 function SeriesCard({ series }: { series: LibrarySeries }) {
   const { cover } = series;
   return (
     <li>
-      <a class="library-book" href={seriesHref(cover.isbn)}>
+      <a class="library-book library-series card" href={seriesHref(cover.isbn)}>
         <Cover
           class="library-cover"
           src={coverUrl(cover)}
