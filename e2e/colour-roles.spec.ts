@@ -40,7 +40,19 @@ async function expectSecondary(action: Locator, text: Token = '--ink') {
 }
 
 test('Cobalt fills the main action of each screen, green and orange the Shelf Check result; the muted red marks Remove a Copy', async ({ page, signIn }) => {
+  // A long journey: every screen with a main action.
+  test.slow();
   await signIn();
+
+  // Check a book: Look up is the main action. An ISBN the Catalog does not
+  // know (recorded) opens the form with Add to Library: Look up steps back,
+  // so one main action shows at a time (CORE-130).
+  await page.goto('/check');
+  await expectMainAction(page.getByRole('button', { name: 'Look up' }));
+  await page.getByLabel('ISBN', { exact: true }).fill('9791099999993');
+  await page.getByLabel('ISBN', { exact: true }).press('Enter');
+  await expectMainAction(page.getByRole('button', { name: 'Add to Library' }));
+  await expectSecondary(page.getByRole('button', { name: 'Look up' }));
 
   // The Shelf Check result, for a book the reader does not own: Add to Library is filled green, in dark text.
   // One Piece 56, Glénat: a recorded Catalog answer.

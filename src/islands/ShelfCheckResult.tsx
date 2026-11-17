@@ -137,18 +137,18 @@ export function ShelfCheckResult(props: ResultProps) {
         {check.series ? (
           <SeriesCard series={check.series} volumes={volumes} following={props.following ?? false} onFollow={props.onFollow} />
         ) : (
-          seriesLoading && <div class="result-card result-card-skeleton" aria-hidden="true" />
+          seriesLoading && <div class="card result-card result-card-skeleton" aria-hidden="true" />
         )}
         {added && <p class="result-quiet result-added">{added}</p>}
 
         <ul class="result-chips">
           {chips.map((chip) => (
-            <li key={chip} class="result-chip">
+            <li key={chip} class="chip result-chip">
               {chip}
             </li>
           ))}
           {/* One quiet mention (CORE-111): a Copy is never Shared, nothing to change. */}
-          <li class="result-chip">
+          <li class="chip result-chip">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect width="18" height="11" x="3" y="11" rx="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -202,7 +202,7 @@ function Actions({ book, check, saving, canScan, onScan, onAdd }: ResultProps) {
 function SeriesCard({ series, volumes, following, onFollow }: { series: SeriesLine; volumes: number[]; following: boolean; onFollow?: () => void }) {
   const bar = seriesBar(series, volumes);
   return (
-    <section class="result-card" aria-label={t('check.your-series')}>
+    <section class="card result-card" aria-label={t('check.your-series')}>
       <div class="result-card-head">
         <span class="result-card-title">{t('check.your-series')}</span>
         <span class="result-quiet">{t('check.series-counts', series.owned, series.read)}</span>
