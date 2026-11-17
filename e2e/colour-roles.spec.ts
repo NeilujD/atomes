@@ -3,7 +3,7 @@ import { expect, test } from './test';
 
 // The text colour of an action, and the colour a theme token paints, as the
 // browser computes them (ui-direction: colour roles).
-type Token = '--accent' | '--danger' | '--ink' | '--shelf-go' | '--shelf-on-accent' | '--shelf-ink';
+type Token = '--accent' | '--danger' | '--ink' | '--not-owned' | '--on-ownership';
 
 async function colourRole(action: Locator, token: Token, property: 'color' | 'backgroundColor') {
   return action.evaluate(
@@ -34,8 +34,8 @@ test('Cobalt marks the primary action of each screen, green and orange the Shelf
   await page.getByLabel('ISBN', { exact: true }).fill('9782723478991');
   await page.getByRole('button', { name: 'Look up' }).click();
   const add = page.getByRole('dialog', { name: 'Shelf Check' }).getByRole('button', { name: 'Add to Library' });
-  await expectRole(add, '--shelf-go', 'backgroundColor');
-  await expectRole(add, '--shelf-on-accent');
+  await expectRole(add, '--not-owned', 'backgroundColor');
+  await expectRole(add, '--on-ownership');
   await add.click();
 
   // Series Onboarding: Save.
@@ -57,7 +57,7 @@ test('Cobalt marks the primary action of each screen, green and orange the Shelf
   await page.goto('/check');
   await page.getByLabel('ISBN', { exact: true }).fill('9782723478991');
   await page.getByRole('button', { name: 'Look up' }).click();
-  await expectRole(page.getByRole('dialog', { name: 'Shelf Check' }).getByRole('button', { name: 'Add another Copy' }), '--shelf-ink');
+  await expectRole(page.getByRole('dialog', { name: 'Shelf Check' }).getByRole('button', { name: 'Add another Copy' }), '--ink');
 
   // To Buy: the "+" that adds a book, and Add in its sheet.
   await page.goto('/to-buy');

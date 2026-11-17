@@ -98,19 +98,95 @@ describe('theme colours of actions', () => {
   }
 });
 
-// The Shelf Check result screen is always dark (ui-direction: Camera).
-describe('theme colours of the Shelf Check result screen', () => {
-  const ground = single('--shelf-ground');
-  const ink = single('--shelf-ink');
+// An alpha level of ink (theme.css `--alpha-*`), as a share.
+function alpha(name: string): number {
+  const found = new RegExp(`${name}:\\s*(\\d+(?:\\.\\d+)?)%;`).exec(css);
+  if (!found) throw new Error(`No alpha level for ${name} in theme.css`);
+  return Number(found[1]) / 100;
+}
 
-  it('text reads at 4.5:1 or more on its ground', () => {
-    expect(contrast(ink, ground)).toBeGreaterThanOrEqual(4.5);
-  });
+// `colour` at `share` opacity over `ground` (sRGB, as the browser paints it).
+function over(colour: Rgb, share: number, ground: Rgb): Rgb {
+  return colour.map((value, at) => value * share + ground[at] * (1 - share)) as Rgb;
+}
 
-  for (const accent of ['--shelf-go', '--shelf-owned']) {
-    it(`the button text reads at 4.5:1 or more on ${accent}, and ${accent} on the ground (the pill)`, () => {
-      expect(contrast(single('--shelf-on-accent'), single(accent))).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(single(accent), ground)).toBeGreaterThanOrEqual(4.5);
+// A text level or line of the one look: ink at an alpha level, moved toward
+// full ink by `--contrast` (color-mix in oklab of ink and translucent ink).
+function level(name: string, share: number): number {
+  const base = alpha(name);
+  return share + (1 - share) * base;
+}
+
+// Green says the reader does not own the book, orange that they do
+// (ui-direction: colour roles); the one look puts them wherever ownership is answered.
+const ownership = ['--not-owned', '--owned'] as const;
+
+describe('theme colours of the one look (ADR 0018)', () => {
+  const ink = pair('--ink');
+  const ground = pair('--ground');
+
+  for (const theme of ['light', 'dark'] as const) {
+    for (const step of contrastSteps) {
+      for (const text of ['--alpha-text-chip', '--alpha-text-heading', '--alpha-text-quiet']) {
+        it(`text at ${text} reads at 4.5:1 or more on the ground and on a card, ${theme}, ${step.name}`, () => {
+          const card = over(ink[theme], alpha('--alpha-fill-card'), ground[theme]);
+          for (const under of [ground[theme], card]) {
+            expect(contrast(over(ink[theme], level(text, step.share), under), under)).toBeGreaterThanOrEqual(4.5);
+          }
+        });
+      }
+
+      for (const tone of ownership) {
+        it(`${tone} text reads at 4.5:1 or more on the ground and on its pill, ${theme}, ${step.name}`, () => {
+          const text = mix(ink[theme], step.share, pair(`${tone}-text-base`)[theme]);
+          const pill = over(single(tone), alpha('--alpha-tone-fill'), ground[theme]);
+          expect(contrast(text, ground[theme])).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(text, pill)).toBeGreaterThanOrEqual(4.5);
+        });
+      }
+    }
+
+    it(`borders are stronger in high contrast, ${theme}`, () => {
+      for (const line of ['--alpha-line-card', '--alpha-line-control', '--alpha-line-button']) {
+        const [normal, high] = contrastSteps.map((step) => contrast(over(ink[theme], level(line, step.share), ground[theme]), ground[theme]));
+        expect(high, line).toBeGreaterThan(normal);
+      }
     });
   }
+
+  for (const tone of ownership) {
+    it(`the filled button keeps dark text at 4.5:1 or more on ${tone}, in both themes`, () => {
+      expect(contrast(single('--on-ownership'), single(tone))).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});
+
+// The Shelf Check result screen takes every value from theme.css (CORE-121).
+// Exempt: @media conditions (CSS reads no variable there) and @keyframes
+// steps, the drawing of a motion; durations and easing are tokens.
+describe('the Shelf Check result screen uses theme tokens only', () => {
+  const screen = readFileSync(new URL('./shelf-check-result.css', import.meta.url), 'utf8');
+  const rules = screen
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '')
+    .replace(/@media[^{]*\{/g, '{');
+
+  it('types no raw px, em, hex, rgb, alpha level, duration or easing', () => {
+    const raw = [
+      /\d+(?:\.\d+)?(?:px|em)\b/g,
+      /#[0-9a-f]{3,8}\b/gi,
+      /\b(?:rgba?|hsla?)\(/g,
+      /color-mix\([^;]*?\d+%/g,
+      /opacity:\s*0?\.\d+/g,
+      /\d+(?:\.\d+)?m?s\b/g,
+      /cubic-bezier\(/g,
+    ].flatMap((pattern) => rules.match(pattern) ?? []);
+    expect(raw).toEqual([]);
+  });
+
+  it('reads only variables that theme.css or the screen itself sets', () => {
+    const set = new Set([...`${css}\n${screen}`.matchAll(/(--[\w-]+):/g)].map((found) => found[1]));
+    const read = [...screen.matchAll(/var\((--[\w-]+)/g)].map((found) => found[1]);
+    expect(read.filter((name) => !set.has(name))).toEqual([]);
+  });
 });

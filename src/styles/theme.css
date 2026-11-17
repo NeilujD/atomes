@@ -35,18 +35,19 @@
   --camera-ink: #ffffff;
   --camera-control: rgb(255 255 255 / 0.14);
   /*
-   * The Shelf Check result screen (check.astro, CORE-120): always dark, not
-   * themed, like the camera. Green says the reader does not own the book,
-   * orange that they do; these two colours are for this screen only. Dark
-   * text on an accent button; theme.test.ts keeps every pair at 4.5:1 or more.
+   * Ownership (ADR 0018): green says the reader does not own the book, orange
+   * that they do, only where ownership is answered. The bright value fills a
+   * button and colours glows and rings, in both themes, under dark text
+   * (--on-ownership). Text takes the -text value: a darker shade on the light
+   * ground. -deep tints the third glow blob. theme.test.ts keeps text at 4.5:1.
    */
-  --shelf-ground: #0e0f0c;
-  --shelf-ink: #f3f1ea;
-  --shelf-on-accent: #0e0f0c;
-  --shelf-go: #3ddc97;
-  --shelf-go-deep: #1f8f5f;
-  --shelf-owned: #ff9f43;
-  --shelf-owned-deep: #c2561b;
+  --not-owned: #3ddc97;
+  --not-owned-deep: #1f8f5f;
+  --not-owned-text-base: light-dark(#1a7850, #3ddc97);
+  --owned: #ff9f43;
+  --owned-deep: #c2561b;
+  --owned-text-base: light-dark(#ad4d18, #ff9f43);
+  --on-ownership: #0e0f0c;
 
   /*
    * Contrast: how far secondary text, lines and inactive controls move toward
@@ -59,14 +60,163 @@
   --line: color-mix(in oklab, var(--ink) var(--contrast), var(--line-base));
   --off: color-mix(in oklab, var(--ink) var(--contrast), var(--off-base));
   --danger: color-mix(in oklab, var(--ink) var(--contrast), var(--danger-base));
+  --not-owned-text: color-mix(in oklab, var(--ink) var(--contrast), var(--not-owned-text-base));
+  --owned-text: color-mix(in oklab, var(--ink) var(--contrast), var(--owned-text-base));
+
+  /*
+   * The one look (ADR 0018): text, lines and fills are ink at an alpha level,
+   * so a glow behind them shows through. The levels are shares of ink; text
+   * and lines move toward full ink with --contrast, fills do not.
+   */
+  --alpha-text-chip: 82%;
+  --alpha-text-heading: 75%;
+  --alpha-text-quiet: 72%;
+  --alpha-line-card: 9%;
+  --alpha-line-control: 14%;
+  --alpha-line-button: 18%;
+  --alpha-line-link: 35%;
+  --alpha-fill-card: 5%;
+  --alpha-fill-chip: 7%;
+  /* The Edition Line drawn: a Volume not owned is faint, an owned one medium, a read one full ink. */
+  --alpha-shade-faint: 14%;
+  --alpha-shade-medium: 55%;
+  /* The ground under a round icon button, over a glow. */
+  --alpha-veil: 35%;
+  /* A colour of the screen (an ownership colour, cobalt) as a soft fill and its border: the answer pill. */
+  --alpha-tone-fill: 14%;
+  --alpha-tone-line: 40%;
+  /* Disabled controls. */
+  --alpha-disabled: 60%;
+
+  --text-chip: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-text-chip), transparent));
+  --text-heading: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-text-heading), transparent));
+  --text-quiet: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-text-quiet), transparent));
+  --line-card: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-line-card), transparent));
+  --line-control: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-line-control), transparent));
+  --line-button: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-line-button), transparent));
+  --line-link: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-line-link), transparent));
+  --fill-card: color-mix(in srgb, var(--ink) var(--alpha-fill-card), transparent);
+  --fill-chip: color-mix(in srgb, var(--ink) var(--alpha-fill-chip), transparent);
+  --shade-faint: color-mix(in srgb, var(--ink) var(--alpha-shade-faint), transparent);
+  --shade-medium: color-mix(in srgb, var(--ink) var(--alpha-shade-medium), transparent);
+  --fill-veil: color-mix(in srgb, var(--ground) var(--alpha-veil), transparent);
 
   --font: 'Schibsted Grotesk Variable', 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Technical labels (the environment badge): the system monospace, no web font. */
+  --font-tech: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Type: sizes and tracking. */
+  --type-title: 26px;
+  --type-body: 15px;
+  --type-button-large: 16px;
+  --type-button: 15px;
+  --type-small: 13px;
+  --type-chip: 12px;
+  --tracking-tight: -0.02em;
+  --tracking-caps: 0.08em;
+
+  /* Space, by its size in px. */
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
 
   /* Row height follows the input, not a preference: dense for a pointer, roomy for a thumb. */
   --row: 32px;
+  --hairline: 1px;
+  --stroke: 2px;
   --radius-control: 8px;
   --radius-panel: 12px;
   --radius-cover: 4px;
+  /* A cover 120 px wide or more. */
+  --radius-cover-large: 10px;
+  --radius-card: 16px;
+  --radius-button: 16px;
+  --radius-chip: 14px;
+  --radius-pill: 999px;
+
+  /* Controls of the one look. Phone sizes; the desktop step is below. */
+  --button-height-large: 54px;
+  --button-height: 50px;
+  --icon-button: 44px;
+  --radius-icon-button: calc(var(--icon-button) / 2);
+  --icon-size: 20px;
+  --icon-size-inline: 16px;
+  --icon-stroke: 2;
+  --pill-height: 32px;
+  --chip-height: 28px;
+  --spinner: 16px;
+  /* The Edition Line drawn as a bar: its height, and the width of the mark of one Volume. */
+  --track: 6px;
+  --track-mark: 4px;
+
+  /*
+   * Glow: blobs and a halo of soft colour behind the content. The soft edge
+   * comes from a radial gradient on a padded box, never a blur filter (a blur
+   * on a moving layer is drawn again on every frame). Blobs are laid out on
+   * a grid of --glow-unit. In light, a glow shows at --glow-light of its colour.
+   */
+  --glow-unit: 10px;
+  --glow-pad-blob: 72px;
+  --glow-pad-halo: 45px;
+  --glow-alpha-1: 70%;
+  --glow-alpha-2: 48%;
+  --glow-alpha-3: 24%;
+  --glow-alpha-4: 7%;
+  --glow-stop-2: 30%;
+  --glow-stop-3: 55%;
+  --glow-stop-4: 78%;
+  --glow-opacity-1: 0.55;
+  --glow-opacity-2: 0.4;
+  --glow-opacity-3: 0.3;
+  --glow-light: 50%;
+  --glow-blur-ring: 24px;
+  --glow-blur-mark: 12px;
+  --shadow-cover-large: 0 24px 48px light-dark(rgb(23 24 28 / 0.2), rgb(0 0 0 / 0.55));
+
+  /* Motion. None of it runs with reduced motion. */
+  --ease-arrive: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-wave: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --motion-arrive: 1.2s;
+  --motion-stagger: 0.05s;
+  --motion-drift-1: 13s;
+  --motion-drift-2: 17s;
+  --motion-drift-3: 11s;
+  --motion-breathe: 4.5s;
+  --motion-wave: 1s;
+  --motion-wave-stagger: 0.18s;
+  --motion-wave-calm: 7s;
+  --motion-wave-rest: 1.8s;
+  --motion-spin: 0.7s;
+  --motion-spin-reduced: 1.6s;
+  --motion-pulse: 1.4s;
+
+  /*
+   * The Shelf Check result screen (src/styles/shelf-check-result.css): the
+   * cover width, alone and with the Series card, on a tall and a short
+   * screen; the height the Series card holds while it loads.
+   */
+  --shelf-cover: 168px;
+  --shelf-cover-with-card: 112px;
+  --shelf-cover-short: 128px;
+  --shelf-cover-short-with-card: 88px;
+  --shelf-card-height: 106px;
+}
+
+/* Desktop with a pointer (Q12): smaller buttons. Lists keep --row. */
+@media (min-width: 960px) and (pointer: fine) {
+  :root {
+    --button-height-large: 44px;
+    --button-height: 40px;
+    --icon-button: 36px;
+  }
 }
 
 :root[data-appearance='light'] {
@@ -102,7 +252,7 @@ body {
   background: var(--ground);
   color: var(--ink);
   font-family: var(--font);
-  font-size: 15px;
+  font-size: var(--type-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -113,7 +263,7 @@ h3 {
   margin: 0;
   font-weight: 700;
   line-height: 1.15;
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-tight);
 }
 
 p {
@@ -228,7 +378,7 @@ a {
   border: 2px solid var(--busy-ink, var(--ink));
   border-right-color: transparent;
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  animation: spin var(--motion-spin) linear infinite;
 }
 
 .button-primary {
@@ -239,7 +389,7 @@ a {
 .skeleton {
   border-radius: var(--radius-control);
   background: var(--soft);
-  animation: pulse 1.4s ease-in-out infinite;
+  animation: pulse var(--motion-pulse) ease-in-out infinite;
 }
 
 @keyframes spin {
@@ -256,7 +406,7 @@ a {
 
 @media (prefers-reduced-motion: reduce) {
   .button[aria-busy='true']::after {
-    animation-duration: 1.6s;
+    animation-duration: var(--motion-spin-reduced);
   }
 
   .skeleton {

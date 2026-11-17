@@ -1160,9 +1160,10 @@ const answers = [
     display: none;
   }
 
-  /* The Shelf Check result screen (ui-direction: Camera): the whole screen on
-     the phone, over the tab bar; always dark, not themed. Its content is the
-     island ShelfCheckResult, styled in the global block below. */
+  /* The Shelf Check result screen (ui-direction: Shelf Check result): the
+     whole screen on the phone, over the tab bar; light or dark with the
+     Appearance setting (ADR 0018). Its content is the island
+     ShelfCheckResult, styled in src/styles/shelf-check-result.css. */
   .result {
     width: 100%;
     max-width: none;
@@ -1172,10 +1173,8 @@ const answers = [
     padding: 0;
     border: 0;
     overflow: hidden;
-    background: var(--shelf-ground);
-    color: var(--shelf-ink);
-    /* Theme tokens inside (focus ring, the default cover, toasts) take their dark value. */
-    color-scheme: dark;
+    background: var(--ground);
+    color: var(--ink);
   }
 
   .result::backdrop {
