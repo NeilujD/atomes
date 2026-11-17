@@ -64,6 +64,24 @@ describe('readSettings', () => {
       ]);
     });
 
+    test("reads the owner's address of PREVIEW_ACCOUNT_EMAIL, trimmed and lower-cased", () => {
+      const settings = readSettings({ ...staging, COOLIFY_BRANCH: 'pull/34/head', COOLIFY_URL: 'https://34.staging.atomes.example', PREVIEW_ACCOUNT_EMAIL: ' Owner@Example.org ' });
+
+      expect(settings.previewAccountEmail).toBe('owner@example.org');
+    });
+
+    test('refuses a PREVIEW_ACCOUNT_EMAIL that is not one address', () => {
+      expect(
+        problemsOf({ ...staging, COOLIFY_BRANCH: 'pull/34/head', COOLIFY_URL: 'https://34.staging.atomes.example', PREVIEW_ACCOUNT_EMAIL: 'a@example.org,b@example.org' }),
+      ).toEqual([expect.stringMatching(/^PREVIEW_ACCOUNT_EMAIL must be one email address/)]);
+    });
+
+    test('staging and production ignore PREVIEW_ACCOUNT_EMAIL, even a wrong one', () => {
+      const settings = readSettings({ ...staging, COOLIFY_BRANCH: 'main', PREVIEW_ACCOUNT_EMAIL: 'not an address' });
+
+      expect(settings.previewAccountEmail).toBeUndefined();
+    });
+
     test.each([
       ['staging or production (a branch)', { COOLIFY_BRANCH: 'main', COOLIFY_URL: 'https://other.example' }],
       ['a preview with no URL', { COOLIFY_BRANCH: 'pull/34/head', COOLIFY_FQDN: '34.staging.atomes.example' }],
