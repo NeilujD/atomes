@@ -105,8 +105,10 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
   }
 
   const previewAccountEmail = isPreview(env) ? env.PREVIEW_ACCOUNT_EMAIL?.trim().toLowerCase() || undefined : undefined;
-  if (previewAccountEmail !== undefined && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(previewAccountEmail)) {
-    problems.push(`PREVIEW_ACCOUNT_EMAIL must be one email address, for example owner@example.org. Found: ${previewAccountEmail}`);
+  // The rule of normalEmail (sign-in-codes.ts), which this file cannot import.
+  // The message names no address: the deployment log keeps it.
+  if (previewAccountEmail !== undefined && (previewAccountEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(previewAccountEmail))) {
+    problems.push('PREVIEW_ACCOUNT_EMAIL must be one email address, for example owner@example.org.');
   }
 
   const port = Number(env.PORT ?? 4321);
