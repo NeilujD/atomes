@@ -50,6 +50,11 @@ export default defineConfig({
     // Never another server on this port: it could ask the real sources.
     reuseExistingServer: false,
     timeout: 120_000,
+    // CI: the dev server log goes to the job log, next to the tests (CORE-136:
+    // a page loaded again in the middle of a save). `vite:hmr` says which
+    // file change made Vite send a page reload. stderr is piped by default.
+    stdout: process.env.CI ? 'pipe' : 'ignore',
+    name: 'dev',
     // Made for this run only: no secret is stored, and these settings win over `.env.local`.
     env: {
       CATALOG_SOURCES: 'recorded',
@@ -57,6 +62,7 @@ export default defineConfig({
       DATA_DIR: 'data-e2e',
       PORT: String(port),
       SESSION_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+      ...(process.env.CI ? { DEBUG: 'vite:hmr' } : {}),
     },
   },
 });
