@@ -20,6 +20,15 @@ test('A signed-out visitor reads the privacy notice from the sign-in screen, in 
   await expect(page.getByRole('heading', { name: 'L’emporter, ou l’effacer' })).toBeVisible();
 });
 
+test('Closing the privacy notice goes back to the screen that opened it', async ({ page, signIn }) => {
+  await signIn();
+  await page.goto('/settings');
+  await page.getByRole('link', { name: 'Privacy notice' }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await page.getByRole('link', { name: 'Close' }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+});
+
 test('The reader exports the Library, deletes the account, and signs in again to an empty Library', async ({ page, signIn }) => {
   await signIn();
   await quickAdd(page, '9782723478991');

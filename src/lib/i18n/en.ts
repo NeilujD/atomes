@@ -585,5 +585,4 @@ export const en = {
   'privacy.rights':
     'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account. The encrypted backups still hold it for up to 30 days. For any other request, write to julien.collard14@gmail.com.',
   'privacy.updated': 'Last change: 16 November 2026.',
-  'privacy.back': 'Back to Atomes',
 };

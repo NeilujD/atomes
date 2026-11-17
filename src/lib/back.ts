@@ -1,7 +1,8 @@
-// The back arrow of a Book or Series page (ui-direction: View header). The
-// installed app has no browser Back button: the arrow is the way back. After an
-// Atomes page it steps back in history, so the Library opens as the reader left
-// it (src/lib/library/library-state.ts); else it is a link to the Library.
+// The back arrow of a Book or Series page (ui-direction: View header), and the
+// close icon of the privacy notice. The installed app has no browser Back
+// button: they are the way back. After an Atomes page they step back in
+// history, so the screen opens as the reader left it (the Library:
+// src/lib/library/library-state.ts); else they are a plain link.
 
 export interface Before {
   // `document.referrer`: an Atomes page sends it, another site does not

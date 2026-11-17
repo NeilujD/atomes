@@ -4,6 +4,7 @@
 // it opens with no session, linked from the sign-in screen and Settings. In
 // the language of the request (cookie, then the browser), French or English.
 // DRAFT: the owner approves the text (`privacy.*` in src/lib/i18n).
+import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
@@ -22,7 +23,11 @@ const sections = [
 
 <AppShell title={t('privacy.title')} flow>
   <article class="notice" aria-labelledby="privacy-title">
-    <h1 class="title" id="privacy-title">{t('privacy.title')}</h1>
+    <div class="top">
+      <h1 class="title" id="privacy-title">{t('privacy.title')}</h1>
+      <!-- Steps back to the screen that opened it (Settings, sign-in); Home else (src/lib/back.ts). -->
+      <a class="close" href="/" aria-label={t('common.close')} data-back><Icon name="x" /></a>
+    </div>
     <p>{t('privacy.intro')}</p>
     {
       sections.map(({ heading, texts }) => (
@@ -35,7 +40,6 @@ const sections = [
       ))
     }
     <p class="updated">{t('privacy.updated')}</p>
-    <a class="button" href="/">{t('privacy.back')}</a>
   </article>
 </AppShell>
 
@@ -50,11 +54,34 @@ const sections = [
     text-wrap: pretty;
   }
 
+  .top {
+    align-self: stretch;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
   .title {
     font-size: 26px;
     letter-spacing: -0.03em;
   }
 
+  .close {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin: -6px -10px 0 0;
+    border-radius: var(--radius-control);
+    color: var(--secondary);
+  }
+
+  .close:hover {
+    background: var(--soft);
+    color: var(--ink);
+  }
 
   section {
     display: flex;

@@ -580,5 +580,4 @@ export const fr: typeof en = {
   'privacy.rights':
     'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés. Les sauvegardes chiffrées la gardent encore 30 jours au plus. Pour toute autre demande, écrivez à julien.collard14@gmail.com.',
   'privacy.updated': 'Dernière modification : 16 novembre 2026.',
-  'privacy.back': 'Retour à Atomes',
 };
