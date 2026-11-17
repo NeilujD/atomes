@@ -5,7 +5,7 @@
  * (series.test.ts checks it); the page sets only its tone colours.
  */
 
-/* Green while Volumes are Missing (or the reader owns none), orange when they own them all (Q9). */
+/* Orange when the reader owns every Volume the Catalog lists, green otherwise (Q9). */
 .series {
   --tone: var(--not-owned);
   --tone-deep: var(--not-owned-deep);

@@ -290,8 +290,10 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   const from = Number(follow?.fromVolume);
   // The latest Volume the reader owns; none owned, the Series cover (as in Library Series mode).
   const cover = latestOwned(volumes, library) ?? seriesCover(volumes) ?? anchor;
-  // The tone of the glow (Q9): green while Volumes are Missing or none is owned, orange when the reader owns them all.
-  const tone = standing.missing.length > 0 || standing.unknown.length > 0 || standing.owned === 0 ? 'not-owned' : 'owned';
+  // The tone of the glow (Q9): orange when the reader owns every Volume the
+  // Catalog lists (owned or read and owned) and none is Missing; green otherwise.
+  const ownsAll = standing.spines.length > 0 && standing.unknown.length === 0 && standing.spines.every(({ state }) => state === 'owned' || state === 'read');
+  const tone = ownsAll ? 'owned' : 'not-owned';
   const missing = new Set(standing.missing.map(({ volume }) => volume));
   // One spine width for the whole Series: room for the widest number (series.css).
   const digits = String(standing.spines.at(-1)?.volume ?? 0).length;
