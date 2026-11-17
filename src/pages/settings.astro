@@ -98,6 +98,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
               />
               <button class="button button-main" type="submit">{t('settings.add')}</button>
             </div>
+            <button class="button button-quiet" type="button" data-other-address>{t('signin.other-address')}</button>
           </form>
           <p class="row-error" data-email-error role="alert" hidden></p>
         </div>
@@ -324,7 +325,8 @@ const pickers: { name: string; label: string; checked: string; options: { value:
     });
   }
 
-  // Add an email address: the address, then the Sign-in Code sent to it.
+  // Add an email address: the address, then the Sign-in Code sent to it. One
+  // step shows at a time, so one main action does (Q7), as on Sign in.
   const addEmail = auth.querySelector<HTMLElement>('#add-email')!;
   const emailForm = addEmail.querySelector<HTMLFormElement>('[data-email-form]')!;
   const emailInput = emailForm.querySelector<HTMLInputElement>('input[name="email"]')!;
@@ -358,11 +360,19 @@ const pickers: { name: string; label: string; checked: string; options: { value:
       if ('message' in answer) return sayEmail(answer.message);
       sayEmail();
       address = answer.email;
+      emailForm.hidden = true;
       codeForm.hidden = false;
       codeForm.querySelector<HTMLElement>('[data-code-sent]')!.textContent = t('settings.add-email-sent', answer.email);
       codeInput.value = '';
       codeInput.focus();
     });
+  });
+  codeForm.querySelector('[data-other-address]')!.addEventListener('click', () => {
+    sayEmail();
+    address = undefined;
+    codeForm.hidden = true;
+    emailForm.hidden = false;
+    emailInput.focus();
   });
   codeForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -577,6 +587,10 @@ const pickers: { name: string; label: string; checked: string; options: { value:
     gap: var(--space-8);
   }
 
+  .link-step > .button-quiet {
+    align-self: flex-start;
+  }
+
   /* An inline form: the field as tall as its button, the whole no wider than a confirm dialog. */
   .link-form {
     display: flex;
@@ -600,7 +614,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
 
   .code {
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.2em;
+    letter-spacing: var(--tracking-code);
   }
 
   /* The Sharing island renders on the device: its rows reach here with :global. */
