@@ -27,8 +27,9 @@ const sections = [
   <article class="notice" aria-labelledby="privacy-title">
     <div class="top">
       <h1 class="title" id="privacy-title">{t('privacy.title')}</h1>
-      <!-- Steps back to the screen that opened it (Settings, sign-in); Home else (src/lib/back.ts). -->
-      <a class="close" href={close} aria-label={t('common.close')} data-back><Icon name="x" /></a>
+      <!-- Steps back to the screen that opened it (Settings, sign-in); Home else (src/lib/back.ts).
+           The shared round icon button, as the close of Shelf Check. -->
+      <a class="icon-button" href={close} aria-label={t('common.close')} data-back><Icon name="x" /></a>
     </div>
     <p>{t('privacy.intro')}</p>
     {
@@ -47,67 +48,51 @@ const sections = [
 
 <style>
   .notice {
-    width: min(100%, 640px);
+    width: min(100%, var(--notice-width));
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
-    font-size: 15px;
+    gap: var(--space-12);
     text-wrap: pretty;
   }
 
   .top {
     align-self: stretch;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
+  /* Titles take --tracking-tight (Q11), from the h1 and h2 rule of theme.css. */
   .title {
-    font-size: 26px;
-    letter-spacing: -0.03em;
-  }
-
-  .close {
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    margin: -6px -10px 0 0;
-    border-radius: var(--radius-control);
-    color: var(--secondary);
-  }
-
-  .close:hover {
-    background: var(--soft);
-    color: var(--ink);
+    font-size: var(--type-title);
   }
 
   section {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    margin-top: 8px;
+    gap: var(--space-6);
+    margin-top: var(--space-8);
   }
 
   h2 {
-    font-size: 17px;
-    letter-spacing: -0.02em;
+    font-size: var(--type-heading);
   }
 
   .updated {
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
   }
 
+  /* Desktop: the notice is the shared card (.card) on the ground colour, with
+     more room inside. Not the class itself: on the phone there is no card. */
   @media (min-width: 960px) {
     .notice {
-      padding: 40px;
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      background: var(--surface);
+      padding: var(--space-28);
+      border: var(--hairline) solid var(--line-card);
+      border-radius: var(--radius-card);
+      background: var(--fill-card);
     }
   }
 </style>

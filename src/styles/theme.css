@@ -125,6 +125,8 @@
   --type-badge: 11px;
   --tracking-tight: -0.02em;
   --tracking-caps: 0.08em;
+  /* The digits of a Sign-in Code, spaced so they read one by one. */
+  --tracking-code: 0.2em;
 
   /* Space, by its size in px. */
   --space-4: 4px;
@@ -240,6 +242,10 @@
   --radius-spine: 3px;
   --type-spine: 10px;
   --target-min: 24px;
+
+  /* Flow screens: the column of Sign in, and the wider column of the privacy notice. */
+  --flow-width: 400px;
+  --notice-width: 640px;
 }
 
 /* Desktop with a pointer (Q12): smaller buttons. Lists keep --row. */
