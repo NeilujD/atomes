@@ -137,8 +137,8 @@ function installPageTransitions(): void {
       // Opened with no cover (Shelf Check, a Series): no flight, there nor back.
       if (!cover) return write(tripKey, null);
       name(cover);
-      // The Book page shows this image at once, with no new load.
-      write(coverKey, { book: to, src: cover.querySelector('img')?.getAttribute('src') ?? null });
+      // The Book page shows this image at once, with no new load, at its shape (src/lib/cover.ts).
+      write(coverKey, { book: to, src: cover.querySelector('img')?.getAttribute('src') ?? null, ratio: cover.style.getPropertyValue('--cover-ratio') });
       const { left, top, width, height } = cover.getBoundingClientRect();
       write(tripKey, { back: from, book: to, rect: { left, top, width, height } } satisfies Trip);
     } else if (fliesHome(read<Trip>(tripKey), from, to)) {
@@ -150,7 +150,7 @@ function installPageTransitions(): void {
     clearNames();
     const transition = event.viewTransition;
     const from = read<string>(fromKey);
-    const cover = read<{ book: string; src: string | null }>(coverKey);
+    const cover = read<{ book: string; src: string | null; ratio: string }>(coverKey);
     const trip = read<Trip>(tripKey);
     const to = here();
     write(coverKey, null);
@@ -167,6 +167,7 @@ function installPageTransitions(): void {
         image.alt = '';
         image.src = cover.src;
         box.classList.remove('skeleton');
+        if (cover.ratio) box.style.setProperty('--cover-ratio', cover.ratio);
         box.dataset.cover = 'loaded';
         box.append(image);
       }
