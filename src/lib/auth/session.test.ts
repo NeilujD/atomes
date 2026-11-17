@@ -247,7 +247,7 @@ describe('keepInvite', () => {
   });
 
   test('a used or expired Invite says so', async () => {
-    expect(await keepInvite(answering(410).fetch, 'token')).toBe('This Invite was used or has expired. Ask the owner of this Atomes server for a new one.');
+    expect(await keepInvite(answering(410).fetch, 'token')).toBe('This Invite was used or has expired. Ask the person who sent it for a new one.');
   });
 
   test('with no network, says the server is out of reach', async () => {

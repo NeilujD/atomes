@@ -108,6 +108,23 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
       </form>
     </section>
 
+    <!-- Invite a friend (CORE-134): src/lib/auth/invite.ts, src/lib/server/reader-invite.ts.
+         The button shows once the script knows that the reader may make an Invite. -->
+    <section class="group" aria-labelledby="invite-title" data-invite>
+      <h2 class="group-title" id="invite-title">{t('settings.invite')}</h2>
+      <div class="row">
+        <p class="row-hint" data-invite-status aria-live="polite">{t('settings.checking')}</p>
+        <button class="button" type="button" data-invite-make hidden>{t('invite.make')}</button>
+      </div>
+      <div class="link-form invite-link" data-invite-made hidden>
+        <label class="visually-hidden" for="invite-link">{t('invite.link')}</label>
+        <input class="field" id="invite-link" type="text" readonly data-invite-link />
+        <button class="button" type="button" data-invite-copy>{t('invite.copy')}</button>
+        <button class="button" type="button" data-invite-share hidden>{t('invite.share')}</button>
+      </div>
+      <p class="row-error" data-invite-error role="alert" hidden></p>
+    </section>
+
     <!-- Export and delete (CORE-55): src/lib/server/account-data.ts. -->
     <section class="group" aria-labelledby="data-title" data-account-data>
       <h2 class="group-title" id="data-title">{t('settings.your-data')}</h2>
@@ -212,6 +229,7 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
   import { deleteAccount } from '../lib/auth/delete-account';
   import { deviceData } from '../lib/auth/device-data';
   import { accountName, addAddress, askLinkCode, linkResultMessage } from '../lib/auth/link';
+  import { inviteDate, inviteStatus, makeInviteLink, readInvite, type InviteState } from '../lib/auth/invite';
   import { toast } from '../lib/toast';
   import { indexedDbLocalCopy } from '../lib/space/local-copy';
 
@@ -351,6 +369,71 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
     history.replaceState(history.state, '', location.pathname);
   }
 
+  // Invite a friend: the state of the reader's Invite, then a new link, shown
+  // once. The server keeps the limit; the button only follows it.
+  const invite = document.querySelector<HTMLElement>('[data-invite]')!;
+  const inviteText = invite.querySelector<HTMLElement>('[data-invite-status]')!;
+  const inviteMake = invite.querySelector<HTMLButtonElement>('[data-invite-make]')!;
+  const inviteMade = invite.querySelector<HTMLElement>('[data-invite-made]')!;
+  const inviteLink = invite.querySelector<HTMLInputElement>('[data-invite-link]')!;
+  const inviteShare = invite.querySelector<HTMLButtonElement>('[data-invite-share]')!;
+  const inviteError = invite.querySelector<HTMLElement>('[data-invite-error]')!;
+
+  function sayInvite(message?: string) {
+    inviteError.textContent = message ?? '';
+    inviteError.hidden = !message;
+  }
+
+  function renderInvite(state: InviteState) {
+    inviteText.textContent = inviteStatus(state);
+    inviteMake.hidden = state.state === 'used';
+    inviteMake.textContent = state.state === 'none' ? t('invite.make') : t('invite.make-new');
+    if (state.state === 'used') inviteMade.hidden = true;
+  }
+
+  void readInvite(send).then((answer) => {
+    if (!('message' in answer)) return renderInvite(answer);
+    inviteText.textContent = '';
+    sayInvite(answer.message);
+  });
+
+  inviteMake.addEventListener('click', () => {
+    inviteMake.disabled = true;
+    inviteMake.setAttribute('aria-busy', 'true');
+    void makeInviteLink(send, location.origin)
+      .then((answer) => {
+        if ('message' in answer) return sayInvite(answer.message);
+        sayInvite();
+        if (!('link' in answer)) return renderInvite(answer);
+        renderInvite({ state: 'open', expiresAt: answer.expiresAt });
+        inviteText.textContent = t('invite.made', inviteDate(answer.expiresAt));
+        inviteLink.value = answer.link;
+        inviteShare.hidden = typeof navigator.share !== 'function';
+        inviteMade.hidden = false;
+        inviteLink.focus();
+        inviteLink.select();
+      })
+      .finally(() => {
+        inviteMake.disabled = false;
+        inviteMake.removeAttribute('aria-busy');
+      });
+  });
+
+  invite.querySelector<HTMLButtonElement>('[data-invite-copy]')!.addEventListener('click', () => {
+    navigator.clipboard.writeText(inviteLink.value).then(
+      () => toast(t('invite.copied')),
+      () => {
+        inviteLink.select();
+        toast(t('invite.copy-failed'), { error: true });
+      },
+    );
+  });
+
+  // The share sheet of the device. Closed with no choice: nothing to tell.
+  inviteShare.addEventListener('click', () => {
+    navigator.share({ title: t('invite.share-title'), url: inviteLink.value }).catch(() => undefined);
+  });
+
   const radios = document.querySelectorAll<HTMLInputElement>('[data-appearance-picker] input[name="appearance"]');
   const stored = readAppearance();
   for (const radio of radios) {
@@ -420,6 +503,15 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
 
   .link-form .field {
     flex: 1;
+  }
+
+  /* The whole link on its own line; Copy and Share under it. */
+  .invite-link {
+    flex-wrap: wrap;
+  }
+
+  .invite-link .field {
+    flex-basis: 100%;
   }
 
   .code {
