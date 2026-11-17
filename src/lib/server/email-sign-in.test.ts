@@ -222,6 +222,17 @@ describe('check the code', () => {
     expect(accounts.inviteIsOpen(token)).toBe(false);
   });
 
+  test("the owner's Account of a preview (ofEmail at start) signs in with a code and no Invite; a restart makes no second one", async () => {
+    const owner = accounts.ofEmail('owner@example.org');
+    expect(accounts.ofEmail('owner@example.org')).toBe(owner);
+    const code = await codeFor('owner@example.org');
+
+    const answer = await tryCode('owner@example.org', code);
+
+    expect(answer.status).toBe(204);
+    expect(accountCount()).toBe(2);
+  });
+
   test('a new address whose Invite was used meanwhile is refused, and no Account is made', async () => {
     const { token } = makeInvite(library);
     const code = await codeFor(stranger, invited(token));
