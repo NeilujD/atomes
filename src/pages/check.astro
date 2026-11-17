@@ -1011,6 +1011,11 @@ const answers = [
     background: var(--camera-line);
   }
 
+  /* Cobalt is 2.1:1 on the camera ground: the focus ring takes the camera's ink. */
+  .camera :focus-visible {
+    outline-color: var(--camera-ink);
+  }
+
   .camera-close {
     place-self: start end;
     margin: max(var(--space-12), env(safe-area-inset-top)) max(var(--space-12), env(safe-area-inset-right)) 0 0;
