@@ -112,6 +112,8 @@
   --type-button: 15px;
   --type-small: 13px;
   --type-chip: 12px;
+  /* The environment badge, in --font-tech. */
+  --type-badge: 11px;
   --tracking-tight: -0.02em;
   --tracking-caps: 0.08em;
 
@@ -152,6 +154,7 @@
   --icon-stroke: 2;
   --pill-height: 32px;
   --chip-height: 28px;
+  --badge-height: 20px;
   --spinner: 16px;
   /* The Edition Line drawn as a bar: its height, and the width of the mark of one Volume. */
   --track: 6px;

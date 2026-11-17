@@ -1,7 +1,9 @@
 ---
-// The Atomes mark: three books, an empty slot (dashed), and a cobalt book.
-// `animated` adds the book that fills the slot. The mark then tells the state
-// of the closest `data-state` around it (Flow screens, ui-direction).
+// The Atomes mark: two books, the empty slot (a faint spine, the "not owned"
+// shade of the Series page), and a cobalt book. The app icons draw the same
+// shape (scripts/icons.ts). `animated` adds the book that fills the slot. The
+// mark then tells the state of the closest `data-state` around it (Flow
+// screens, ui-direction).
 interface Props {
   size: number;
   animated?: boolean;
@@ -13,27 +15,20 @@ const { size, animated = false } = Astro.props;
 <svg class:list={['mark', { animated }]} viewBox="220 236 584 552" width={size} height={size} aria-hidden="true">
   <rect class="spine spine-1" x="236" y="252" width="96" height="520" rx="14" fill="currentColor"></rect>
   <rect class="spine spine-2" x="388" y="252" width="96" height="520" rx="14" fill="currentColor"></rect>
-  <rect
-    class="slot"
-    x="551"
-    y="263"
-    width="74"
-    height="498"
-    rx="14"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="22"
-    stroke-dasharray="52 34"
-    stroke-linecap="round"></rect>
+  <rect class="slot" x="540" y="252" width="96" height="520" rx="14"></rect>
   {animated && <rect class="arrival" x="540" y="252" width="96" height="520" rx="14" fill="currentColor" />}
   <rect class="spine spine-4" x="692" y="252" width="96" height="520" rx="14" fill="var(--accent)"></rect>
 </svg>
 
 <style>
   /*
-   * Working: the books lift one after the other and the empty slot's dashes
-   * run. Done: a book lands in the slot. Failed: still, the slot stays empty.
+   * Working: the books lift one after the other and the empty slot pulses
+   * gently. Done: a book lands in the slot. Failed: still, the slot stays empty.
    */
+  .slot {
+    fill: var(--shade-faint);
+  }
+
   .spine,
   .arrival {
     transform-box: fill-box;
@@ -56,21 +51,13 @@ const { size, animated = false } = Astro.props;
     animation-delay: 0.36s;
   }
 
+  /* `pulse` is in theme.css. */
   :global([data-state='working']) .animated .slot {
-    animation: dashes 0.9s linear infinite;
-  }
-
-  :global([data-state='done']) .animated .slot {
-    opacity: 0;
-    transition: opacity 200ms ease-out;
+    animation: pulse var(--motion-pulse) ease-in-out infinite;
   }
 
   :global([data-state='done']) .animated .arrival {
     animation: land 520ms cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
-  }
-
-  :global([data-state='failed']) .animated .slot {
-    opacity: 0.45;
   }
 
   @keyframes lift {
@@ -81,12 +68,6 @@ const { size, animated = false } = Astro.props;
     }
     30% {
       transform: translateY(-9%);
-    }
-  }
-
-  @keyframes dashes {
-    to {
-      stroke-dashoffset: -86;
     }
   }
 
