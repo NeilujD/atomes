@@ -252,9 +252,11 @@ const t = translator(requestLanguage(Astro.request));
     font-variant-numeric: tabular-nums;
   }
 
-  /* "Not owned" (Q8): green, with a check. */
+  /* "Not owned" (Q8): green, with a check. The tint is painted on the panel
+     colour, not over the card, so its text keeps 4.5:1 (theme.test.ts). */
   .to-buy-mark {
-    background: color-mix(in srgb, var(--not-owned) var(--alpha-tone-fill), transparent);
+    --tone-soft: color-mix(in srgb, var(--not-owned) var(--alpha-tone-fill), transparent);
+    background: linear-gradient(var(--tone-soft), var(--tone-soft)), var(--surface);
     color: var(--not-owned-text);
   }
 

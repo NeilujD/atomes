@@ -152,6 +152,14 @@ describe('theme colours of the one look (ADR 0018)', () => {
           expect(contrast(text, ground[theme])).toBeGreaterThanOrEqual(4.5);
           expect(contrast(text, pill)).toBeGreaterThanOrEqual(4.5);
         });
+
+        // On a card (To Buy "Not owned"), the card's fill would darken the
+        // pill under 4.5:1 in light: the pill paints its tint on --surface.
+        it(`${tone} text reads at 4.5:1 or more on its pill on a card, ${theme}, ${step.name}`, () => {
+          const text = mix(ink[theme], step.share, pair(`${tone}-text-base`)[theme]);
+          const pill = over(single(tone), alpha('--alpha-tone-fill'), pair('--surface')[theme]);
+          expect(contrast(text, pill)).toBeGreaterThanOrEqual(4.5);
+        });
       }
     }
 
