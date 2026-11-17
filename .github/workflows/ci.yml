@@ -25,14 +25,16 @@ jobs:
       - run: bun run test
       - run: bun run build
 
-  # E2E journeys in Chromium and WebKit (CORE-73). Advisory: `protect-main`
-  # requires only `check`. Make this job required once the suite is stable.
+  # E2E journeys in Chromium and WebKit (CORE-73). Required by `protect-main`.
   # Playwright starts the dev server with throwaway settings made at run time
   # (playwright.config.ts): no secret.
   e2e:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The merge commit and its first parent (the base): the changed specs.
+          fetch-depth: 2
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -57,6 +59,17 @@ jobs:
         if: steps.browsers.outputs.cache-hit == 'true'
         run: bunx playwright install-deps chromium webkit
       - run: bun run test:e2e
+      # A new or changed spec runs once more with each page script 300 ms late,
+      # so a tap before a script has run fails here, before the merge (CLAUDE.md,
+      # `bun run test:e2e`). Not --repeat-each: the copies of a test share one
+      # reader (e2e/readers.ts) and change each other's Library.
+      - name: Run the changed specs again with slow scripts
+        if: github.event_name == 'pull_request'
+        run: |
+          specs=$(git diff --name-only --diff-filter=AMR HEAD^1 HEAD -- 'e2e/*.spec.ts')
+          if [ -z "$specs" ]; then echo "No changed spec"; exit 0; fi
+          echo "$specs"
+          E2E_SLOW_SCRIPTS=300 bunx playwright test $specs
       - name: Keep the Playwright traces of failed tests
         if: failure()
         uses: actions/upload-artifact@v7

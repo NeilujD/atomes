@@ -17,9 +17,9 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 
 `jean.json`: in each new worktree, Jean copies the `.env*` files of the base project (`$JEAN_ROOT_PATH`, top level only) and runs `bun install --frozen-lockfile`. Its Run command is `bun run dev`.
 
-CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Its `e2e` job runs `bun run test:e2e` and keeps the traces of failed tests as the `playwright-traces` artifact; it is advisory (not a required check of `protect-main`). Its `image` job builds the `Dockerfile` and waits for the container health check. Tests must never call a real PDS or a real book source (the Catalog tests use recorded answers). The Catalog stores its SQLite file in `DATA_DIR` (`data/` in development).
+CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Its `e2e` job runs `bun run test:e2e`, then, on a pull request, each new or changed `e2e/*.spec.ts` once more with `E2E_SLOW_SCRIPTS=300`; it keeps the traces of failed tests as the `playwright-traces` artifact. It is a required check of `protect-main`. Its `image` job builds the `Dockerfile` and waits for the container health check. Tests must never call a real PDS or a real book source (the Catalog tests use recorded answers). The Catalog stores its SQLite file in `DATA_DIR` (`data/` in development).
 
-`main` is protected by the GitHub ruleset `protect-main`: direct pushes, force pushes and deletion are refused, and a pull request merges only when the CI `check` job is green. Never merge without the owner's review.
+`main` is protected by the GitHub ruleset `protect-main`: direct pushes, force pushes and deletion are refused, and a pull request merges only when the CI `check` and `e2e` jobs are green. Never merge without the owner's review.
 
 ## Agent skills
 
