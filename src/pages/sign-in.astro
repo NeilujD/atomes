@@ -227,25 +227,24 @@ const t = translator(requestLanguage(Astro.request));
 
 <style>
   .flow-card {
-    width: min(100%, 400px);
+    width: min(100%, var(--flow-width));
     min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
+  /* The step heading keeps the title size; titles take --tracking-tight (Q11). */
   .title {
-    margin-top: 8px;
-    font-size: 26px;
-    letter-spacing: -0.03em;
+    margin-top: var(--space-8);
+    font-size: var(--type-title);
     text-wrap: balance;
   }
 
   .hint {
     width: 100%;
-    color: var(--secondary);
-    font-size: 14px;
+    color: var(--text-quiet);
     text-wrap: pretty;
   }
 
@@ -254,7 +253,7 @@ const t = translator(requestLanguage(Astro.request));
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
   .step[hidden] {
@@ -264,7 +263,7 @@ const t = translator(requestLanguage(Astro.request));
   .row {
     width: 100%;
     display: flex;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .row .field {
@@ -279,10 +278,10 @@ const t = translator(requestLanguage(Astro.request));
 
   .code {
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.2em;
+    letter-spacing: var(--tracking-code);
   }
 
-  /* The paste icon sits in the field, at its end. */
+  /* The paste icon sits in the field, at its end: a 16 px inline icon, not a round button. */
   .code-field {
     position: relative;
     flex: 1;
@@ -308,7 +307,7 @@ const t = translator(requestLanguage(Astro.request));
     border: 0;
     border-radius: var(--radius-control);
     background: transparent;
-    color: var(--secondary);
+    color: var(--text-quiet);
     cursor: pointer;
   }
 
@@ -318,30 +317,37 @@ const t = translator(requestLanguage(Astro.request));
 
   .other {
     width: 100%;
-    margin-top: 8px;
+    margin-top: var(--space-8);
     /* On a narrow phone its words take two lines. */
-    padding-block: 8px;
+    padding-block: var(--space-8);
     text-wrap: balance;
   }
 
   .privacy {
-    margin-top: 8px;
-    font-size: 13px;
+    margin-top: var(--space-8);
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+    text-decoration-color: var(--line-link);
+    text-underline-offset: var(--space-4);
+  }
+
+  .privacy:hover {
+    color: var(--ink);
   }
 
   .error {
-    font-size: 14px;
     font-weight: 500;
     text-wrap: pretty;
   }
 
-  /* Desktop: the screen is a card on the ground colour. */
+  /* Desktop: the screen is the shared card (.card) on the ground colour, with
+     more room inside. Not the class itself: on the phone there is no card. */
   @media (min-width: 960px) {
     .flow-card {
-      padding: 40px;
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      background: var(--surface);
+      padding: var(--space-28);
+      border: var(--hairline) solid var(--line-card);
+      border-radius: var(--radius-card);
+      background: var(--fill-card);
     }
   }
 </style>
