@@ -115,7 +115,7 @@ export function SeriesLabels({ series, sources }: { series: SeriesIds; sources: 
     <div class="series-labels" role="group" aria-label={t('labels.series-title')}>
       <ul class="series-labels-chips">
         {carried.map(({ rkey, value }) => (
-          <li key={rkey} class="series-label-chip">
+          <li key={rkey} class="chip series-label-chip">
             <span class="series-label-name">{value.name}</span>
             <button class="series-label-remove" type="button" disabled={saving} onClick={() => void save(detachSeries(value, series), rkey)}>
               <span aria-hidden="true">×</span>
@@ -124,7 +124,7 @@ export function SeriesLabels({ series, sources }: { series: SeriesIds; sources: 
           </li>
         ))}
         <li>
-          <button class="series-label-chip series-label-add" type="button" aria-expanded={adding} onClick={() => setAdding(!adding)}>
+          <button class="chip series-label-chip series-label-add" type="button" aria-expanded={adding} onClick={() => setAdding(!adding)}>
             <span aria-hidden="true">+ </span>
             {t('labels.add-series')}
           </button>
@@ -138,7 +138,7 @@ export function SeriesLabels({ series, sources }: { series: SeriesIds; sources: 
               {others.map(({ rkey, value }) => (
                 <button
                   key={rkey}
-                  class="series-label-chip series-label-add"
+                  class="chip series-label-chip series-label-add"
                   type="button"
                   disabled={saving}
                   onClick={() => void save(attachSeries(value, series), rkey)}

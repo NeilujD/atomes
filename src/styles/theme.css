@@ -224,6 +224,22 @@
   --shelf-card-height: 106px;
   /* Home (src/pages/index.astro): the narrowest cover of its grid on desktop. */
   --home-cover: 140px;
+
+  /*
+   * The Series page (src/styles/series.css): the widest the page grows; its
+   * big cover; the cover above a spine and in the Volume sheet; the width of
+   * the sheet and of the switch form; one spine, its corner and its number;
+   * the smallest tap target (WCAG 2.5.8), the column of a spine.
+   */
+  --series-width: 880px;
+  --series-cover: 160px;
+  --series-thumb: 96px;
+  --series-narrow: 440px;
+  --spine-width: 14px;
+  --spine-height: 44px;
+  --radius-spine: 3px;
+  --type-spine: 10px;
+  --target-min: 24px;
 }
 
 /* Desktop with a pointer (Q12): smaller buttons. Lists keep --row. */

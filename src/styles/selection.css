@@ -95,21 +95,16 @@
   outline-offset: 2px;
 }
 
-/* A picked spine on the Series page: the ring hugs the 14 px spine (20 px in
-   all), so it stays inside its 24 px column and never meets the next one. */
+/* A picked spine on the Series page: in cobalt with a glow (Q10). The ring
+   hugs the spine (--spine-width, 6 px more in all), so it stays inside its
+   column (--target-min) and never meets the next one. */
 .series-spine-button[aria-pressed='true'] {
   color: var(--accent);
   font-weight: 700;
 }
 
 .series-spine-button[aria-pressed='true'] .series-spine-bar {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.series-group-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  outline: var(--stroke) solid var(--accent);
+  outline-offset: var(--hairline);
+  box-shadow: 0 0 var(--glow-blur-mark) var(--accent);
 }
