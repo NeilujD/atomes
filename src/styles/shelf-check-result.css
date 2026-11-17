@@ -186,10 +186,12 @@
   animation: atWave var(--motion-wave) var(--ease-wave) calc(2 * var(--motion-wave-stagger)) both;
 }
 
-/* As the blobs: soft edges from the gradient, on a box widened by --glow-pad-halo. */
+/* As the blobs: soft edges from the gradient, on a box widened by --glow-pad-halo.
+   Its box reaches past the cover, so it never takes a tap (the Book page Back link). */
 .result-halo {
   --blob: var(--tone);
   position: absolute;
+  pointer-events: none;
   left: calc(var(--w) * -46 / 168);
   top: calc(var(--w) * -34 / 168);
   width: calc(var(--w) * 260 / 168);
