@@ -34,6 +34,19 @@ export const test = base.extend<{ signIn: () => Promise<void>; devServerPage: vo
           return route.abort('blockedbyclient');
         },
       );
+      // E2E_SLOW_SCRIPTS=<ms>: each page script of the dev server comes that
+      // much later, as on the CI runner. A tap before a script has run then
+      // fails here too, not only in CI (CLAUDE.md, `bun run test:e2e`).
+      const slow = Number(process.env.E2E_SLOW_SCRIPTS ?? 0);
+      if (slow > 0) {
+        await context.route(
+          (url) => url.origin === origin,
+          async (route) => {
+            if (route.request().resourceType() === 'script') await new Promise((resolve) => setTimeout(resolve, slow));
+            await route.fallback();
+          },
+        );
+      }
       // The Astro dev toolbar sits over the bottom of a phone screen, where
       // the main buttons are. Readers never see it: hide it.
       await context.addInitScript(() => {

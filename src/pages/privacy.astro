@@ -6,9 +6,11 @@
 // DRAFT: the owner approves the text (`privacy.*` in src/lib/i18n).
 import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
+import { openerHref } from '../lib/back';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
 const t = translator(requestLanguage(Astro.request));
+const close = openerHref(Astro.request.headers.get('referer'), Astro.request.headers.get('host'));
 
 const sections = [
   { heading: t('privacy.operator-heading'), texts: [t('privacy.operator')] },
@@ -26,7 +28,7 @@ const sections = [
     <div class="top">
       <h1 class="title" id="privacy-title">{t('privacy.title')}</h1>
       <!-- Steps back to the screen that opened it (Settings, sign-in); Home else (src/lib/back.ts). -->
-      <a class="close" href="/" aria-label={t('common.close')} data-back><Icon name="x" /></a>
+      <a class="close" href={close} aria-label={t('common.close')} data-back><Icon name="x" /></a>
     </div>
     <p>{t('privacy.intro')}</p>
     {
