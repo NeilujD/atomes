@@ -306,6 +306,8 @@ const icons = appIcons(appEnvironment(process.env));
     grid-column: 1 / -1;
     min-height: 100dvh;
     display: grid;
+    /* minmax(0, …): the column never grows past the screen to fit its content. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto 1fr;
     padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
   }

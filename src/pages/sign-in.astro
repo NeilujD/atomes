@@ -9,6 +9,7 @@
 // link opens it as `/sign-in#invite=<token>`: the fragment never reaches a
 // server, and the script sends the token to /api/invite, then drops it from
 // the address. The service worker keeps this page by path: the script reads the query.
+import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
@@ -43,20 +44,24 @@ const t = translator(requestLanguage(Astro.request));
       <p class="hint" data-code-sent></p>
       <label class="visually-hidden" for="code">{t('signin.code')}</label>
       <div class="row">
-        <input
-          class="field code"
-          id="code"
-          name="code"
-          type="text"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          enterkeyhint="go"
-          placeholder="123456"
-        />
+        <div class="code-field">
+          <input
+            class="field code"
+            id="code"
+            name="code"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            enterkeyhint="go"
+            placeholder="123456"
+          />
+          <!-- Shown only where the browser can read the clipboard. -->
+          <button class="paste" type="button" aria-label={t('signin.paste-code')} title={t('signin.paste-code')} data-paste-code hidden>
+            <Icon name="clipboard-paste" />
+          </button>
+        </div>
         <button class="button button-primary" type="submit">{t('signin.submit')}</button>
       </div>
-      <!-- Shown only where the browser can read the clipboard. -->
-      <button class="button" type="button" data-paste-code hidden>{t('signin.paste-code')}</button>
       <button class="button button-quiet" type="button" data-other-address>{t('signin.other-address')}</button>
     </form>
     <button class="button other" type="button" data-atproto aria-expanded="false" aria-controls="atproto">{t('signin.atproto')}</button>
@@ -223,6 +228,7 @@ const t = translator(requestLanguage(Astro.request));
 <style>
   .card {
     width: min(100%, 400px);
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -265,14 +271,57 @@ const t = translator(requestLanguage(Astro.request));
     flex: 1;
   }
 
+  /* The field gives up its width first; the button keeps its words on one line. */
+  .row .button {
+    flex: none;
+    white-space: nowrap;
+  }
+
   .code {
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.2em;
   }
 
+  /* The paste icon sits in the field, at its end. */
+  .code-field {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+  }
+
+  .code-field .field {
+    flex: 1;
+  }
+
+  .code-field:has(.paste:not([hidden])) .field {
+    padding-inline-end: var(--row);
+  }
+
+  .paste {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    width: var(--row);
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--secondary);
+    cursor: pointer;
+  }
+
+  .paste:hover {
+    color: var(--ink);
+  }
+
   .other {
     width: 100%;
     margin-top: 8px;
+    /* On a narrow phone its words take two lines. */
+    padding-block: 8px;
+    text-wrap: balance;
   }
 
   .privacy {
