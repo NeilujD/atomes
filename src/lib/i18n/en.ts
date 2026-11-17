@@ -92,11 +92,27 @@ export const en = {
   'auth.type-code': 'Type the 6 digits of your Sign-in Code.',
   'auth.wrong-code': 'This code is wrong or has expired. Check it, or ask for a new one.',
   'auth.too-many': 'Too many tries. Wait a while, then try again.',
-  // The Sign-in Code email (src/lib/server/mail.ts): plain text, nothing to click
-  'mail.code.subject': 'Your Atomes sign-in code',
+  // The code emails (src/lib/server/mail.ts and mail-html.ts): a plain text part
+  // and an HTML part. The code comes first in the subject: phones read it from
+  // the notification to offer it above the keyboard.
+  'mail.code.subject': (code: string) => `${code} is your Atomes sign-in code`,
+  'mail.code.heading': 'Your sign-in code',
+  'mail.code.lead': 'Enter this code in Atomes to sign in. No password needed.',
+  'mail.code.ignore': 'Didn’t ask for this? Someone may have typed your address by mistake. You can ignore this email; your account stays safe.',
+  'mail.code.reason': 'because a sign-in was requested on',
   'mail.code.text': (code: string) =>
     `Your sign-in code for Atomes: ${code}\n\nIt works once, for 10 minutes. Type it on the sign-in screen of Atomes.\n\nIf you did not ask for it, ignore this email: no one can sign in without the code.\n`,
-  'mail.link.subject': 'Add this address to your Atomes account',
+  'mail.link.subject': (code: string) => `${code} adds this address to your Atomes account`,
+  'mail.link.heading': 'Add this address',
+  'mail.link.lead': 'Enter this code in the Settings of Atomes to add this address to your account.',
+  'mail.link.ignore': 'Didn’t ask for this? You can ignore this email: no one can add your address without the code.',
+  'mail.link.reason': 'because someone asked to add it to an account on',
+  'mail.expires-before': 'Expires in',
+  'mail.expires-minutes': (minutes: number) => `${minutes} minutes`,
+  'mail.expires-after': 'and works once.',
+  'mail.never-ask': 'Atomes will never ask you for this code by email, phone or message.',
+  'mail.sent-to': (email: string) => `Sent to ${email}`,
+  'mail.private': 'Your Library stays private unless you share it.',
   'mail.link.text': (code: string) =>
     `Your code to add this address to your Atomes account: ${code}\n\nIt works once, for 10 minutes, in the Settings screen where you asked for it.\n\nIf you did not ask for it, ignore this email: no one can add your address without the code.\n`,
   'signin.invite-kept': 'Invite kept. Sign in to create your account.',

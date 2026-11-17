@@ -43,7 +43,7 @@ beforeEach(() => {
     mails.push(mail);
     return Promise.resolve();
   };
-  deps = { accounts, store, codes, sendMail };
+  deps = { accounts, store, codes, sendMail, site: 'https://atomes.example.org' };
   // An Account made with an AT Protocol Account, signed in on this browser.
   account = accounts.ofDid(reader);
   cookie = store.openBrowserSession({ account, handle: 'reader.test' }).cookie;

@@ -16,6 +16,7 @@ export interface LinkEmailDeps {
   store: Pick<AuthStore, 'browserSession'>;
   codes: SignInCodes;
   sendMail: SendMail;
+  site: string;
 }
 
 const hourMs = 3600 * 1000;
@@ -56,7 +57,7 @@ export async function sendLinkCode(request: Request, deps: LinkEmailDeps): Promi
   const { codes } = deps;
   if (!codes.allow(`link-send:${reader.account}`, limits.sendPerAccount.max, limits.sendPerAccount.windowMs)) return answer(429, 'TooMany');
   if (!codes.allow(`send-address:${addressHash(address)}`, limits.sendPerAddress.max, limits.sendPerAddress.windowMs)) return answer(429, 'TooMany');
-  const mail = linkCodeMail(address, codes.issue(address, reader.scope), requestLanguage(request));
+  const mail = linkCodeMail(address, codes.issue(address, reader.scope), requestLanguage(request), deps.site);
   void deps.sendMail(mail).catch((error: unknown) => {
     console.warn(`Link code mail failed: ${errorLogText(error).replaceAll(address, '[address]')}`);
   });

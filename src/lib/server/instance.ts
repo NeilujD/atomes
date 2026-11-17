@@ -95,20 +95,20 @@ export function sharingService(): Promise<Sharing> {
 // outbox on the dev server.
 export function emailSignInDeps(): Promise<EmailSignInDeps> {
   emailSignIn ??= authDeps().then(({ store, onSignedIn }) => {
-    const { smtpUrl, mailFrom } = settings();
+    const { smtpUrl, mailFrom, appOrigin, port } = settings();
     let sendMail: SendMail = outbox.send;
     if (!import.meta.env.DEV) {
       // A built server started with NODE_ENV=development skips that check: fail, never keep mails here.
       if (!smtpUrl || !mailFrom) throw new Error('SMTP_URL and MAIL_FROM are required in a built server');
       sendMail = smtpSender(createTransport(smtpUrl), mailFrom);
     }
-    return { accounts: accountStore(), store, codes: createSignInCodes({ db: open('auth.sqlite') }), sendMail, onSignedIn };
+    return { accounts: accountStore(), store, codes: createSignInCodes({ db: open('auth.sqlite') }), sendMail, onSignedIn, site: appOrigin ?? `http://127.0.0.1:${port}` };
   });
   return emailSignIn;
 }
 
 // Adding an email address in Settings: the Sign-in Codes and the mail of the sign-in.
 export async function linkEmailDeps(): Promise<LinkEmailDeps> {
-  const { store, codes, sendMail } = await emailSignInDeps();
-  return { accounts: accountStore(), store, codes, sendMail };
+  const { store, codes, sendMail, site } = await emailSignInDeps();
+  return { accounts: accountStore(), store, codes, sendMail, site };
 }

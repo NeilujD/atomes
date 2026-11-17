@@ -16,6 +16,8 @@ export interface EmailSignInDeps {
   store: AuthStore;
   codes: SignInCodes;
   sendMail: SendMail;
+  // The origin of the instance, for the link in the mail (settings.ts), never of the request.
+  site: string;
   onSignedIn?: (account: AccountId) => Promise<void> | void;
 }
 
@@ -48,7 +50,7 @@ export async function sendCode(request: Request, deps: EmailSignInDeps, peer: st
   if (!allowed(deps.codes, `send-ip:${clientIp(request, peer) ?? 'unknown'}`, limits.sendPerIp)) return answer(429, 'TooMany');
   if (!allowed(deps.codes, `send-address:${addressHash(address)}`, limits.sendPerAddress)) return answer(429, 'TooMany');
   if (deps.accounts.maySignInEmail(address, cookieOf(request, inviteCookie))) {
-    const mail = signInCodeMail(address, deps.codes.issue(address), requestLanguage(request));
+    const mail = signInCodeMail(address, deps.codes.issue(address), requestLanguage(request), deps.site);
     void deps.sendMail(mail).catch((error: unknown) => {
       console.warn(`Sign-in Code mail failed: ${errorLogText(error).replaceAll(address, '[address]')}`);
     });

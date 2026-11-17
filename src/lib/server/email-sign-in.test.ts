@@ -48,6 +48,7 @@ beforeEach(() => {
       mails.push(mail);
       return Promise.resolve();
     },
+    site: 'https://atomes.example.org',
   };
   // The known reader made an Account with an Invite before.
   accounts.signInEmail(known, makeInvite(library).token);
@@ -73,7 +74,7 @@ const accountCount = () => (library.prepare('select count(*) as n from account')
 const flushMail = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('send me a code', () => {
-  test('a known address gets a plain-text mail with a 6-digit code and nothing to click', async () => {
+  test('a known address gets a mail with a 6-digit code, and no link in its text part', async () => {
     const answer = await askCode(' Known@Example.org ');
     await flushMail();
 
