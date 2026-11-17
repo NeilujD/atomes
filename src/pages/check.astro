@@ -24,7 +24,8 @@ const answers = [
 
 <AppShell title={t('check.title')} current="check">
   <div class="quick-add">
-    <!-- Shown only where the browser can open a camera (HTTPS or loopback). -->
+    <!-- Shown only where the browser can open a camera (HTTPS or loopback).
+         Secondary: Look up is the one main action of the page (Q7). -->
     <button class="button scan" type="button" data-scan hidden>
       <Icon name="scan-barcode" />
       <span>{t('add.scan')}</span>
@@ -37,13 +38,16 @@ const answers = [
         <span class="scan-line"></span>
         <span class="found-mark"><Icon name="check" size={32} /></span>
       </div>
-      <button class="camera-close" type="button" aria-label={t('common.close')} data-camera-close>
-        <Icon name="x" size={22} />
+      <!-- Round icon buttons (CORE-122), in the camera's own colours. -->
+      <button class="icon-button camera-close" type="button" aria-label={t('common.close')} data-camera-close>
+        <Icon name="x" />
       </button>
       <div class="camera-bottom">
         <p class="camera-text" data-camera-text aria-live="polite">{t('add.camera-starting')}</p>
-        <!-- A small link: the camera is what the reader came for (CORE-97). -->
-        <button class="camera-type" type="button" data-camera-close>{t('add.type-isbn')}</button>
+        <!-- Small: the camera is what the reader came for (CORE-97). -->
+        <button class="icon-button" type="button" aria-label={t('add.type-isbn')} title={t('add.type-isbn')} data-camera-close>
+          <Icon name="keyboard" />
+        </button>
       </div>
     </dialog>
 
@@ -66,7 +70,8 @@ const answers = [
           placeholder="978 2 7234 7899 1"
           aria-describedby="isbn-hint"
         />
-        <button class="button" type="submit">{t('add.look-up')}</button>
+        <!-- The main action of the page; it steps back while Add to Library shows (mainAction). -->
+        <button class="button button-main" type="submit">{t('add.look-up')}</button>
       </div>
       <!-- The hint line also says what is wrong with the ISBN: the page does not move. -->
       <p class="hint" id="isbn-hint" data-hint aria-live="polite">{t('add.isbn-hint')}</p>
@@ -88,7 +93,7 @@ const answers = [
     <form class="preview" data-add-form hidden>
       <!-- The Shelf Check answer (src/islands/ShelfCheckAnswer.tsx), first: a
            placeholder holds its place until the Library is read. -->
-      <div class="answer" data-answer hidden></div>
+      <div class="answer card" data-answer hidden></div>
 
       <!-- maxlength keeps each field inside the Copy lexicon (bookDetails). -->
       <fieldset class="details" data-details>
@@ -136,7 +141,7 @@ const answers = [
 
       <!-- One quiet line: a Copy is never Shared, so there is nothing to change yet. -->
       <p class="private-line">
-        <Icon name="lock" size={14} />
+        <Icon name="lock" />
         <span>{t('add.private')}</span>
       </p>
     </form>
@@ -252,7 +257,7 @@ const answers = [
   async function lookUp(from: Origin) {
     const current = startLookUp();
     const read = readIsbn(isbnInput.value);
-    addForm.hidden = true;
+    showForm(false);
     book = undefined;
     if ('problem' in read) return problem(t(`isbn.${read.problem}`));
     const { isbn } = read;
@@ -314,7 +319,7 @@ const answers = [
   // offline, already made from this device.
   async function showResult(next: Book, from: Origin, { title, cover, onDevice }: { title: string; cover: string | null; onDevice?: OnDevice }) {
     book = next;
-    addForm.hidden = true;
+    showForm(false);
     render(null, find);
     let check: ShelfCheck;
     let seriesLoading = false;
@@ -435,7 +440,7 @@ const answers = [
     render(h('div', { class: 'skeleton answer-skeleton', 'aria-hidden': 'true' }), answer);
     answer.hidden = false;
     showAction(false);
-    addForm.hidden = false;
+    showForm(true);
     detail('title').focus();
 
     const read = await readLibrary();
@@ -546,6 +551,19 @@ const answers = [
   function showAction(owned: boolean) {
     addButton.classList.toggle('button-main', !owned);
     addButton.querySelector('[data-add-label]')!.textContent = t(owned ? 'book.add-copy' : 'add.submit');
+    mainAction();
+  }
+
+  // The form of a book the Catalog does not know, shown or hidden.
+  function showForm(shown: boolean) {
+    addForm.hidden = !shown;
+    mainAction();
+  }
+
+  // One main action at a time (Q7): Add to Library while the form shows it, else Look up.
+  function mainAction() {
+    const adding = !addForm.hidden && addButton.classList.contains('button-main');
+    lookUpButton.classList.toggle('button-main', !adding);
   }
 
   async function ownSpaceOrSay(): Promise<Space | undefined> {
@@ -623,7 +641,7 @@ const answers = [
     const chosen = statuses.find((status) => status === statusSelect.value);
     const done = await saveCopyOf(current, chosen, fields.details);
     if (done !== 'saved') return done;
-    addForm.hidden = true;
+    showForm(false);
     book = undefined;
     isbnInput.value = '';
     return isbnInput;
@@ -812,11 +830,25 @@ const answers = [
 </script>
 
 <style>
+  /* Check a book in the one look (ADR 0018, CORE-130): every value is a token
+     of theme.css, or a size of this screen, named here once. The dialogs are
+     in the top layer, still inside .quick-add: they read these too. */
   .quick-add {
-    max-width: 520px;
+    --check-width: 520px;
+    --check-cover: 88px;
+    --check-cover-desktop: 104px;
+    --volume-field: 96px;
+    --viewfinder: 320px;
+    --found-mark: 56px;
+    --camera-width: 640px;
+    --camera-height: 480px;
+    --result-width: 420px;
+    --result-height: 844px;
+    --dialog-margin: calc(var(--space-24) * 2);
+    max-width: var(--check-width);
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-20);
   }
 
   .scan {
@@ -824,8 +856,16 @@ const answers = [
   }
 
   /* Camera (ui-direction: Camera): the whole screen on the phone, over the tab
-     bar (a modal dialog is in the top layer); colours not themed. */
+     bar (a modal dialog is in the top layer); colours not themed: its line,
+     veil and text shadow are shares of its own ink and ground. */
   .camera {
+    --camera-line: color-mix(in srgb, var(--camera-ink) var(--alpha-tone-line), transparent);
+    --camera-veil: color-mix(in srgb, var(--camera) var(--alpha-veil), transparent);
+    --camera-shadow: color-mix(in srgb, var(--camera) var(--alpha-text-quiet), transparent);
+    --motion-sweep: 1.6s;
+    --motion-shake: 0.3s;
+    --motion-pop: 0.2s;
+    --motion-state: 0.15s;
     width: 100%;
     max-width: none;
     height: 100dvh;
@@ -866,17 +906,17 @@ const answers = [
   /* A barcode is wide: a wide frame tells where to hold it. */
   .viewfinder {
     place-self: center;
-    width: min(76%, 320px);
+    width: min(76%, var(--viewfinder));
     aspect-ratio: 2 / 1;
-    border: 3px solid var(--camera-ink);
+    border: calc(var(--stroke) + var(--hairline)) solid var(--camera-ink);
     border-radius: var(--radius-panel);
-    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.35);
+    box-shadow: 0 0 0 100vmax var(--camera-veil);
     overflow: hidden;
     display: grid;
     place-items: center;
     transition:
-      border-color 150ms,
-      background-color 150ms;
+      border-color var(--motion-state),
+      background-color var(--motion-state);
   }
 
   .scan-line,
@@ -886,41 +926,41 @@ const answers = [
 
   /* Starting: the camera or the reader is not ready yet. */
   .camera[data-state='starting'] .viewfinder {
-    border-color: rgb(255 255 255 / 0.4);
+    border-color: var(--camera-line);
   }
 
   /* Looking: a line sweeps the frame while the reader works on each picture. */
   .camera[data-state='looking'] .scan-line {
     display: block;
     position: absolute;
-    inset: 0 8px auto;
-    height: 2px;
-    border-radius: 1px;
+    inset: 0 var(--space-8) auto;
+    height: var(--stroke);
+    border-radius: var(--radius-pill);
     background: var(--camera-ink);
-    box-shadow: 0 0 8px var(--camera-ink);
-    animation: sweep 1.6s ease-in-out infinite alternate;
+    box-shadow: 0 0 var(--space-8) var(--camera-ink);
+    animation: sweep var(--motion-sweep) ease-in-out infinite alternate;
   }
 
   /* Wrong: a barcode that is not a book's; the frame shakes once. */
   .camera[data-state='wrong'] .viewfinder {
     border-style: dashed;
-    animation: shake 300ms ease-in-out;
+    animation: shake var(--motion-shake) ease-in-out;
   }
 
   /* Found: the frame fills and shows a check before the view closes. */
   .camera[data-state='found'] .viewfinder {
-    background: rgb(255 255 255 / 0.2);
+    background: var(--camera-control);
   }
 
   .camera[data-state='found'] .found-mark {
-    width: 56px;
-    height: 56px;
+    width: var(--found-mark);
+    height: var(--found-mark);
     display: grid;
     place-items: center;
-    border-radius: 28px;
+    border-radius: var(--radius-pill);
     background: var(--camera-ink);
     color: var(--camera);
-    animation: pop 200ms ease-out;
+    animation: pop var(--motion-pop) ease-out;
   }
 
   @keyframes sweep {
@@ -960,20 +1000,20 @@ const answers = [
     }
   }
 
-  .camera-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 0;
+  /* Close and Type the ISBN: round icon buttons (theme.css) in the camera's colours. */
+  .camera .icon-button {
+    border-color: var(--camera-line);
     background: var(--camera-control);
     color: var(--camera-ink);
-    cursor: pointer;
+  }
+
+  .camera .icon-button:hover {
+    background: var(--camera-line);
+  }
+
+  .camera-close {
     place-self: start end;
-    width: 44px;
-    height: 44px;
-    margin: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 0 0;
-    padding: 0;
-    border-radius: 22px;
+    margin: max(var(--space-12), env(safe-area-inset-top)) max(var(--space-12), env(safe-area-inset-right)) 0 0;
   }
 
   .camera-bottom {
@@ -981,46 +1021,32 @@ const answers = [
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
-    padding: 0 20px max(24px, env(safe-area-inset-bottom));
+    gap: var(--space-14);
+    padding: 0 var(--space-20) max(var(--space-24), env(safe-area-inset-bottom));
     text-align: center;
   }
 
   .camera-text {
-    font-size: 15px;
+    font-size: var(--type-body);
     font-weight: 600;
-    text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
-  }
-
-  /* A small link, still a 44 px tap target. */
-  .camera-type {
-    min-height: 44px;
-    padding: 0 12px;
-    border: 0;
-    background: none;
-    color: var(--camera-ink);
-    font-size: 14px;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
-    cursor: pointer;
+    text-shadow: 0 var(--hairline) var(--stroke) var(--camera-shadow);
   }
 
   .isbn-form {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-6);
   }
 
   .label {
     padding: 0;
-    font-size: 14px;
+    font-size: var(--type-small);
     font-weight: 600;
   }
 
   .isbn-row {
     display: flex;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .isbn-row .field {
@@ -1028,9 +1054,20 @@ const answers = [
     font-variant-numeric: tabular-nums;
   }
 
+  /* Fields in the one look: as tall as the button beside them, the line and
+     corners of a secondary button, a soft fill. FindInBnf draws fields too. */
+  .quick-add :global(.field) {
+    min-height: var(--button-height);
+    padding: 0 var(--space-14);
+    border: var(--hairline) solid var(--line-button);
+    border-radius: var(--radius-button);
+    background: var(--fill-card);
+    font-size: var(--type-body);
+  }
+
   .hint {
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
   }
 
   /* An error keeps ink and weight; --danger is for actions that destroy, not errors (ui-direction: colour roles). */
@@ -1045,18 +1082,18 @@ const answers = [
 
   .skeleton-text {
     flex: 1;
-    gap: 10px;
-    padding-top: 4px;
+    gap: var(--space-10);
+    padding-top: var(--space-4);
   }
 
   .skeleton-title {
     width: 70%;
-    height: 22px;
+    height: var(--space-20);
   }
 
   .skeleton-line {
     width: 50%;
-    height: 14px;
+    height: var(--space-14);
   }
 
   .skeleton-line.short {
@@ -1066,32 +1103,32 @@ const answers = [
   .preview {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-20);
   }
 
   .book {
     display: flex;
     align-items: flex-start;
-    gap: 16px;
+    gap: var(--space-16);
   }
 
   .cover {
     flex: none;
-    width: 88px;
+    width: var(--check-cover);
     align-self: flex-start;
   }
 
   .book-text {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
   }
 
   .details {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: var(--space-14);
     margin: 0;
     padding: 0;
     border: 0;
@@ -1100,25 +1137,26 @@ const answers = [
 
   .details-title {
     padding: 0;
-    font-size: 22px;
-    font-weight: 600;
+    font-size: var(--type-heading);
+    font-weight: 700;
+    letter-spacing: var(--tracking-tight);
   }
 
   .details-field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-6);
     flex: 1;
     min-width: 0;
   }
 
   .details-row {
     display: flex;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
   .details-field.volume {
-    flex: 0 0 96px;
+    flex: 0 0 var(--volume-field);
   }
 
   [data-details-problem]:empty {
@@ -1129,30 +1167,28 @@ const answers = [
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .private-line {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    margin-top: -8px;
-    font-size: 13px;
-    color: var(--secondary);
+    gap: var(--space-6);
+    margin-top: calc(var(--space-8) * -1);
+    font-size: var(--type-small);
+    color: var(--text-quiet);
   }
 
   .add {
     width: 100%;
   }
 
+  /* The Shelf Check answer of a typed book, on the shared card (theme.css). */
   .answer {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 14px 16px;
-    border-radius: var(--radius-panel);
-    border: 1px solid var(--line);
+    gap: var(--space-4);
   }
 
   /* With a book on screen, the ISBN hint lines step aside; a problem stays. */
@@ -1188,27 +1224,27 @@ const answers = [
   /* Desktop: one narrow column in the middle of the panel. */
   @media (min-width: 960px) {
     .quick-add {
-      margin: 32px auto 0;
+      margin: calc(var(--space-16) * 2) auto 0;
     }
 
     .cover {
-      width: 104px;
+      width: var(--check-cover-desktop);
     }
 
     /* Desktop: the result screen is a phone-sized card in the middle of the darkened window. */
     .result {
-      width: 420px;
-      height: min(844px, calc(100dvh - 48px));
+      width: var(--result-width);
+      height: min(var(--result-height), calc(100dvh - var(--dialog-margin)));
       margin: auto;
-      border-radius: var(--radius-panel);
+      border-radius: var(--radius-card);
     }
 
     /* Desktop: the camera is a card in the middle of the window. */
     .camera {
-      width: min(640px, calc(100% - 48px));
-      height: min(480px, calc(100dvh - 48px));
+      width: min(var(--camera-width), calc(100% - var(--dialog-margin)));
+      height: min(var(--camera-height), calc(100dvh - var(--dialog-margin)));
       margin: auto;
-      border-radius: var(--radius-panel);
+      border-radius: var(--radius-card);
     }
   }
 </style>
@@ -1216,8 +1252,9 @@ const answers = [
 <style is:global>
   /* Global: ShelfCheckAnswer renders on the device, outside this page's scoped styles. */
   .answer-title {
-    font-size: 17px;
+    font-size: var(--type-heading);
     font-weight: 700;
+    letter-spacing: var(--tracking-tight);
   }
 
   /* New is cobalt (ui-direction.md, "Colour roles"); owned stays ink. */
@@ -1228,37 +1265,38 @@ const answers = [
   /* Holds the place of the answer title while the Library loads. */
   .answer-skeleton {
     width: 60%;
-    height: 22px;
+    height: var(--space-20);
   }
 
   .answer-text {
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
   }
 
   .answer-link {
-    font-size: 14px;
+    font-size: var(--type-small);
   }
 
-  /* Global: FindInBnf renders on the device, outside this page's scoped styles. */
+  /* Global: FindInBnf renders on the device, outside this page's scoped
+     styles. Find in BnF is a card (theme.css) under the typed fields. */
   .find {
+    --find-text: 180px;
+    --find-volume: 80px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding-top: 14px;
-    border-top: 1px solid var(--line);
+    gap: var(--space-10);
   }
 
   .find .label {
     margin: 0;
-    font-size: 14px;
+    font-size: var(--type-small);
     font-weight: 600;
   }
 
   .find .hint {
     margin: 0;
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
   }
 
   .find .hint[data-error] {
@@ -1274,7 +1312,7 @@ const answers = [
   .find-volume {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-6);
   }
 
   .find .details-field {
@@ -1285,7 +1323,7 @@ const answers = [
   .find-row {
     display: flex;
     align-items: flex-end;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
   .find-list {
@@ -1300,16 +1338,20 @@ const answers = [
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--line);
+    gap: var(--space-12);
+    padding: var(--space-10) 0;
+    border-bottom: var(--hairline) solid var(--line-card);
+  }
+
+  .find-item:last-child {
+    border-bottom: 0;
   }
 
   .find-text {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    flex: 1 1 180px;
+    gap: calc(var(--space-4) / 2);
+    flex: 1 1 var(--find-text);
     min-width: 0;
   }
 
@@ -1318,6 +1360,6 @@ const answers = [
   }
 
   .find-volume {
-    flex: 0 0 80px;
+    flex: 0 0 var(--find-volume);
   }
 </style>

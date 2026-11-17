@@ -171,7 +171,7 @@ function unknownVolumes(numbered: [number, Edition[]][], owned: number[]): numbe
   return Array.from({ length: Math.ceil(latest) - 1 }, (_, index) => index + 1).filter((volume) => !known.has(volume));
 }
 
-function spineState(owned: boolean, read: boolean): SpineState {
+export function spineState(owned: boolean, read: boolean): SpineState {
   if (owned) return read ? 'read' : 'owned';
   return read ? 'read-not-owned' : 'not-owned';
 }

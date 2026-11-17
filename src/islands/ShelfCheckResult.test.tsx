@@ -25,7 +25,7 @@ const onePiece56: Edition = {
   fetchedAt: '2026-11-05T10:00:00.000Z',
 };
 const horde: Edition = { ...onePiece56, isbn: '9782072927515', title: 'La Horde du Contrevent', volumeTitle: null, authors: ['Alain Damasio'], publisher: 'Folio', language: null, format: null, work: { id: 'wd:Q1', title: 'La Horde du Contrevent' }, series: null, volumes: [], volume: null };
-const line = (change: Partial<SeriesLine> = {}): SeriesLine => ({ owned: 3, read: 1, missing: 0, ownedVolumes: [1, 2, 3], total: 6, followable: false, ...change });
+const line = (change: Partial<SeriesLine> = {}): SeriesLine => ({ owned: 3, read: 1, missing: 0, ownedVolumes: [1, 2, 3], readVolumes: [1], total: 6, followable: false, ...change });
 
 function screenFor(check: ShelfCheck, change: Partial<ResultProps> = {}) {
   const calls: string[] = [];
@@ -109,14 +109,14 @@ describe('the Shelf Check result screen', () => {
     expect(screen.queryByRole('button', { name: 'Scan the barcode' })).toBeNull();
   });
 
-  test('the Series card: counts, one segment per Volume with this one marked, the Series line, Follow', () => {
-    const series = line({ owned: 3, read: 1, ownedVolumes: [1, 2, 4], total: 6, missing: 1, followable: true });
+  test('the Series card: counts, one segment per Volume (read too) with this one marked, the Series line, Follow', () => {
+    const series = line({ owned: 3, read: 2, ownedVolumes: [1, 2, 4], readVolumes: [1, 3], total: 6, missing: 1, followable: true });
     const { calls, screen: shown } = screenFor({ kind: 'new', status: 'unread', followed: null, series }, { book: { isbn: 'x', work: 'w', edition: { ...onePiece56, volumes: [5] }, title: '' } });
 
     const card = screen.getByRole('region', { name: 'Your Series' });
-    expect(card.textContent).toContain('3 owned · 1 read');
+    expect(card.textContent).toContain('3 owned · 2 read');
     expect(card.textContent).toContain('You have 3 of 6 · 1 missing');
-    expect([...shown.querySelectorAll('.result-segment')].map((each) => (each as HTMLElement).dataset.state)).toEqual(['owned', 'owned', 'not-owned', 'owned', 'this', 'not-owned']);
+    expect([...shown.querySelectorAll('.result-segment')].map((each) => (each as HTMLElement).dataset.state)).toEqual(['read', 'owned', 'read-not-owned', 'owned', 'this', 'not-owned']);
     fireEvent.click(screen.getByRole('button', { name: 'Follow' }));
     expect(calls).toEqual(['follow']);
   });

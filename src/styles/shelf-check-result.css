@@ -297,15 +297,11 @@
   text-align: center;
 }
 
-/* The card. */
+/* The Series card, on the shared card (theme.css). */
 .result-card {
   display: flex;
   flex-direction: column;
   gap: var(--space-10);
-  padding: var(--space-16);
-  border: var(--hairline) solid var(--line-card);
-  border-radius: var(--radius-card);
-  background: var(--fill-card);
 }
 
 /* Holds the place of the Series card while its Edition Line loads. */
@@ -335,7 +331,9 @@
   gap: var(--space-4) var(--space-12);
 }
 
-/* The Edition Line drawn: not owned faint, owned medium, this Volume in the tone with a glow. */
+/* The Edition Line drawn, in the shades of the Series page spines (Q10): not
+   owned faint, owned medium, read full ink, read and not owned faint with the
+   read mark (an ink dot); this Volume in the tone with a glow. */
 .result-segments {
   display: flex;
   gap: var(--space-4);
@@ -350,6 +348,14 @@
 
 .result-segment[data-state='owned'] {
   background: var(--shade-medium);
+}
+
+.result-segment[data-state='read'] {
+  background: var(--ink);
+}
+
+.result-segment[data-state='read-not-owned'] {
+  background: radial-gradient(circle, var(--ink) calc(var(--track-mark) / 2), transparent calc(var(--track-mark) / 2)), var(--shade-faint);
 }
 
 .result-segment[data-state='this'],
@@ -403,17 +409,8 @@
   list-style: none;
 }
 
-/* The chip. */
+/* The shared chip (theme.css), with figures that line up (the ISBN). */
 .result-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-6);
-  height: var(--chip-height);
-  padding: 0 var(--space-12);
-  border-radius: var(--radius-chip);
-  background: var(--fill-chip);
-  color: var(--text-chip);
-  font-size: var(--type-chip);
   font-variant-numeric: tabular-nums;
 }
 

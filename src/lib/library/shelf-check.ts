@@ -7,7 +7,7 @@ import { isNetworkFailure } from '../network';
 import { editionWork, isSeries } from './ids';
 import { currentStatus, isOwned, type Library } from './model';
 import type { Status } from './reading-status';
-import { missingVolumes, seriesStanding } from './series';
+import { missingVolumes, seriesStanding, spineState, type SpineState } from './series';
 
 // owned: a Copy of the Edition or of its Work. missing: a Missing Volume of a
 // Followed Series. read: a Reading Status other than unread, and no Copy
@@ -34,8 +34,9 @@ export interface SeriesLine {
   owned: number;
   read: number;
   missing: number;
-  // The numbers of the Volumes owned.
+  // The numbers of the Volumes owned, and of the Volumes read (owned or not).
   ownedVolumes: number[];
+  readVolumes: number[];
   // The highest Volume number the Catalog lists: a Volume it lacks before it counts.
   total: number;
   // Neither followed nor dropped: the answer offers Follow.
@@ -86,19 +87,28 @@ function seriesLine(series: Series | null | undefined, line: Edition[], library:
   const total = standing.spines.at(-1)?.volume;
   if (total === undefined) return undefined;
   const followable = !library.follows.some(({ rkey }) => isSeries(series, rkey));
-  const ownedVolumes = standing.spines.filter(({ state }) => state === 'owned' || state === 'read').map(({ volume }) => volume);
-  return { owned: standing.owned, read: standing.read, missing: standing.missing.length, ownedVolumes, total, followable };
+  const numbers = (...states: SpineState[]) => standing.spines.filter(({ state }) => states.includes(state)).map(({ volume }) => volume);
+  return {
+    owned: standing.owned,
+    read: standing.read,
+    missing: standing.missing.length,
+    ownedVolumes: numbers('owned', 'read'),
+    readVolumes: numbers('read', 'read-not-owned'),
+    total,
+    followable,
+  };
 }
 
 // How the Series card draws the Edition Line: up to 30 Volumes, one segment
-// per Volume (owned, not owned, or this book); more, one bar filled to the
-// share owned, with a mark at this book (`at`, 0 to 1). `volumes`: the
-// Volumes of this book, none for a book with no number.
-export type SeriesBar = { segments: ('owned' | 'not-owned' | 'this')[] } | { ownedShare: number; at: number | undefined };
+// per Volume, in the state of its spine on the Series page (read, owned, read
+// not owned, not owned) or this book; more, one bar filled to the share
+// owned, with a mark at this book (`at`, 0 to 1). `volumes`: the Volumes of
+// this book, none for a book with no number.
+export type SeriesBar = { segments: (SpineState | 'this')[] } | { ownedShare: number; at: number | undefined };
 
 export const mostSegments = 30;
 
-export function seriesBar({ total, ownedVolumes }: Pick<SeriesLine, 'total' | 'ownedVolumes'>, volumes: number[]): SeriesBar {
+export function seriesBar({ total, ownedVolumes, readVolumes }: Pick<SeriesLine, 'total' | 'ownedVolumes' | 'readVolumes'>, volumes: number[]): SeriesBar {
   if (total > mostSegments) {
     const first = volumes.find((volume) => volume >= 1 && volume <= total);
     return { ownedShare: ownedVolumes.length / total, at: first === undefined ? undefined : (first - 0.5) / total };
@@ -106,7 +116,7 @@ export function seriesBar({ total, ownedVolumes }: Pick<SeriesLine, 'total' | 'o
   return {
     segments: Array.from({ length: total }, (_, at) => {
       const volume = at + 1;
-      return volumes.includes(volume) ? 'this' : ownedVolumes.includes(volume) ? 'owned' : 'not-owned';
+      return volumes.includes(volume) ? 'this' : spineState(ownedVolumes.includes(volume), readVolumes.includes(volume));
     }),
   };
 }
