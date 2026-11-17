@@ -446,6 +446,7 @@ export const en = {
   'tobuy.by-hand': 'Added by hand',
   'tobuy.bought': 'I bought it',
   'tobuy.remove': 'Remove',
+  'tobuy.not-owned': 'Not owned',
 
   // Series page (src/islands/Series.tsx)
   'series.title': 'Series',

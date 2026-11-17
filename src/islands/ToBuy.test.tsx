@@ -80,6 +80,8 @@ describe('To Buy screen', () => {
       'Volume 5',
     ]);
     expect(group('Added by hand').getByText(`ISBN ${dune}`, { selector: '.to-buy-title' })).toBeTruthy();
+    // Nothing on To Buy is owned: every row says so (Q8).
+    expect(screen.getAllByRole('listitem').map((each) => within(each).getByText('Not owned'))).toHaveLength(4);
     // A Volume of a Followed Series is computed: it can be bought, not removed.
     expect(within(row(followed, 'Volume 2')).queryByRole('button', { name: 'Remove' })).toBeNull();
   });

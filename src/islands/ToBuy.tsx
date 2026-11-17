@@ -104,10 +104,13 @@ export function ToBuy({ sources }: { sources: Sources }) {
   }, [sources]);
 
   // The "+" of the view header (to-buy.astro) opens the sheet: it works only
-  // once the sheet is drawn, so a tap while the list loads is not lost.
+  // once the sheet is drawn, and the island that enables it also wires it, so
+  // a tap while the list loads is not lost.
   useEffect(() => {
     const open = document.querySelector<HTMLButtonElement>('[data-to-buy-open]');
-    if (open) open.disabled = !sheet.current;
+    if (!open) return;
+    open.disabled = !sheet.current;
+    open.onclick = () => sheet.current?.showModal();
   });
 
   // One change at a time; the list shows what is saved once it is done.
@@ -197,7 +200,7 @@ export function ToBuy({ sources }: { sources: Sources }) {
 
       {list.followed.length > 0 && (
         <section class="to-buy-group" aria-labelledby="to-buy-followed">
-          <h2 class="to-buy-group-title" id="to-buy-followed">
+          <h2 class="small-heading" id="to-buy-followed">
             {t('tobuy.followed')}
           </h2>
           {bySeries(list.followed).map((group, index) => (
@@ -208,10 +211,12 @@ export function ToBuy({ sources }: { sources: Sources }) {
 
       {list.byHand.length > 0 && (
         <section class="to-buy-group" aria-labelledby="to-buy-by-hand">
-          <h2 class="to-buy-group-title" id="to-buy-by-hand">
+          <h2 class="small-heading" id="to-buy-by-hand">
             {t('tobuy.by-hand')}
           </h2>
-          <Paged items={list.byHand} row={row} />
+          <div class="card to-buy-card">
+            <Paged items={list.byHand} row={row} />
+          </div>
         </section>
       )}
 
@@ -258,9 +263,12 @@ export function ToBuy({ sources }: { sources: Sources }) {
 function Series({ group, id, row }: { group: SeriesGroup; id: string; row: (item: ToBuyItem) => JSX.Element }) {
   const [open, setOpen] = useState(false);
   return (
-    <section class="to-buy-series" aria-labelledby={`${id}-title`}>
+    <section class="card to-buy-card to-buy-series" aria-labelledby={`${id}-title`}>
       <h3 class="to-buy-series-title" id={`${id}-title`}>
         <button class="to-buy-series-toggle" type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
+          <svg class="to-buy-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
           {t('tobuy.series', group.title ?? '', group.items.length, group.volumes)}
         </button>
       </h3>
@@ -316,6 +324,12 @@ function Row({ item, saving, onBuy, onRemove }: { item: ToBuyItem; saving: strin
         <p class="to-buy-title">{item.title}</p>
         {series && <p class="to-buy-line">{series}</p>}
         <p class="to-buy-hint">{[item.edition, t('book.isbn', item.isbn)].filter(Boolean).join(' · ')}</p>
+        <span class="chip to-buy-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+          {t('tobuy.not-owned')}
+        </span>
       </div>
       <div class="to-buy-actions">
         <button class="button" type="button" aria-describedby={id} aria-busy={busy} disabled={saving !== undefined} onClick={onBuy}>
