@@ -62,7 +62,7 @@ export const en = {
     'Signed out on this device. The Atomes server could not be reached to end the session there.',
   'auth.cancelled': 'Sign-in was cancelled.',
   'auth.no-invite': 'You need an Invite to create an account on this Atomes server. Ask its owner for one.',
-  'auth.invite-used': 'This Invite was used or has expired. Ask the owner of this Atomes server for a new one.',
+  'auth.invite-used': 'This Invite was used or has expired. Ask the person who sent it for a new one.',
   'auth.session-ended': 'Your session has ended. Sign in again.',
   'auth.no-account': 'No account found for this handle. Check the spelling.',
   'auth.pds-unreachable': 'Could not reach your PDS. Try again later.',
@@ -165,6 +165,22 @@ export const en = {
   'link.has-email': 'Your account has an email address already.',
   'link.has-atproto': 'Your account has an AT Protocol account already.',
   'link.other-session': 'This link was started in another browser or session. Start it again here.',
+  'settings.invite': 'Invite a friend',
+  'invite.make': 'Make an Invite',
+  'invite.make-new': 'Make a new link',
+  'invite.none': 'One person can make an Atomes account with your Invite. The link works one time, for 14 days.',
+  'invite.open': (date: string) =>
+    `Your link works until ${date}. Atomes shows a link only once: if you lost it, make a new one, and the old one stops working.`,
+  'invite.used': 'You have used your Invite: a person made an account with it.',
+  'invite.made': (date: string) =>
+    `Send this link to one person. It works one time, for 14 days (until ${date}). Copy it now: Atomes shows it only once.`,
+  'invite.link': 'Invite link',
+  'invite.copy': 'Copy',
+  'invite.share': 'Share',
+  'invite.copied': 'Link copied.',
+  'invite.copy-failed': 'Atomes cannot copy here. Select the link and copy it.',
+  'invite.share-title': 'An Invite to Atomes',
+  'invite.failed': 'The Invite could not be made. Try again.',
   'settings.display': 'Display',
   'settings.appearance': 'Appearance',
   'settings.language': 'Language',
@@ -566,7 +582,7 @@ export const en = {
     'This instance is run by Julien Collard. The operator is the data controller for what the instance keeps. Contact: julien.collard14@gmail.com.',
   'privacy.stores-heading': 'What the instance keeps',
   'privacy.stores':
-    'Your Account: an email address, the AT Protocol account you linked, or both. Your Library: Copies, Loans, Reading Statuses, Labels, Followed Series and To Buy. Your sharing choices. Your sessions, so you stay signed in. A Series Correction you make keeps your Account as its author.',
+    'Your Account: an email address, the AT Protocol account you linked, or both. Your Library: Copies, Loans, Reading Statuses, Labels, Followed Series and To Buy. Your sharing choices. Your sessions, so you stay signed in. A Series Correction you make keeps your Account as its author. An Invite you make keeps your Account as its maker, and the Account a person made with it.',
   'privacy.not-kept':
     'No password: you sign in with a Sign-in Code or your AT Protocol account. The instance never writes your records in its logs. The Catalog learns only the ISBNs you look up, never who looked them up.',
   'privacy.readers-heading': 'Who can read it',
@@ -584,5 +600,5 @@ export const en = {
   'privacy.rights-heading': 'Take it with you, or delete it',
   'privacy.rights':
     'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account. The encrypted backups still hold it for up to 30 days. For any other request, write to julien.collard14@gmail.com.',
-  'privacy.updated': 'Last change: 16 November 2026.',
+  'privacy.updated': 'Last change: 17 November 2026.',
 };
