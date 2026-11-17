@@ -60,7 +60,7 @@ export const fr: typeof en = {
     'Déconnecté sur cet appareil. Le serveur Atomes n’a pas pu être joint pour y fermer la session.',
   'auth.cancelled': 'La connexion a été annulée.',
   'auth.no-invite': 'Il vous faut une Invitation pour créer un compte sur ce serveur Atomes. Demandez-en une à son propriétaire.',
-  'auth.invite-used': 'Cette Invitation a déjà servi ou a expiré. Demandez-en une nouvelle au propriétaire de ce serveur Atomes.',
+  'auth.invite-used': 'Cette Invitation a déjà servi ou a expiré. Demandez-en une nouvelle à la personne qui vous l’a envoyée.',
   'error.server-refused-request': (detail) => `Le serveur Atomes a refusé la requête : ${detail}`,
   'auth.session-ended': 'Votre session est terminée. Reconnectez-vous.',
   'auth.no-account': 'Aucun compte trouvé pour cet identifiant. Vérifiez l’orthographe.',
@@ -162,6 +162,22 @@ export const fr: typeof en = {
   'link.has-email': 'Votre compte a déjà une adresse e-mail.',
   'link.has-atproto': 'Votre compte a déjà un compte AT Protocol.',
   'link.other-session': 'Ce lien a été commencé dans un autre navigateur ou une autre session. Recommencez-le ici.',
+  'settings.invite': 'Inviter quelqu’un',
+  'invite.make': 'Créer une Invitation',
+  'invite.make-new': 'Créer un nouveau lien',
+  'invite.none': 'Une personne peut créer un compte Atomes avec votre Invitation. Le lien sert une fois, pendant 14 jours.',
+  'invite.open': (date: string) =>
+    `Votre lien sert jusqu’au ${date}. Atomes ne montre un lien qu’une fois : si vous l’avez perdu, créez-en un nouveau, et l’ancien ne sert plus.`,
+  'invite.used': 'Vous avez utilisé votre Invitation : une personne a créé un compte avec elle.',
+  'invite.made': (date: string) =>
+    `Envoyez ce lien à une seule personne. Il sert une fois, pendant 14 jours (jusqu’au ${date}). Copiez-le maintenant : Atomes ne le montre qu’une fois.`,
+  'invite.link': 'Lien d’Invitation',
+  'invite.copy': 'Copier',
+  'invite.share': 'Partager',
+  'invite.copied': 'Lien copié.',
+  'invite.copy-failed': 'Atomes ne peut pas copier ici. Sélectionnez le lien et copiez-le.',
+  'invite.share-title': 'Une Invitation pour Atomes',
+  'invite.failed': 'L’Invitation n’a pas pu être créée. Réessayez.',
   'settings.display': 'Affichage',
   'settings.appearance': 'Apparence',
   'settings.language': 'Langue',
@@ -561,7 +577,7 @@ export const fr: typeof en = {
     'Cette instance est gérée par Julien Collard. L’opérateur est responsable du traitement des données que l’instance garde. Contact : julien.collard14@gmail.com.',
   'privacy.stores-heading': 'Ce que l’instance garde',
   'privacy.stores':
-    'Votre compte : une adresse e-mail, le compte AT Protocol que vous avez lié, ou les deux. Votre bibliothèque : exemplaires, prêts, statuts de lecture, étiquettes, séries suivies et liste À acheter. Vos choix de partage. Vos sessions, pour rester connecté. Une correction de série que vous faites garde votre compte comme auteur.',
+    'Votre compte : une adresse e-mail, le compte AT Protocol que vous avez lié, ou les deux. Votre bibliothèque : exemplaires, prêts, statuts de lecture, étiquettes, séries suivies et liste À acheter. Vos choix de partage. Vos sessions, pour rester connecté. Une correction de série que vous faites garde votre compte comme auteur. Une Invitation que vous créez garde votre compte, et le compte qu’une personne a créé avec elle.',
   'privacy.not-kept':
     'Aucun mot de passe : vous vous connectez avec un code de connexion ou votre compte AT Protocol. L’instance n’écrit jamais vos enregistrements dans ses journaux. Le catalogue n’apprend que les ISBN que vous cherchez, jamais qui les cherche.',
   'privacy.readers-heading': 'Qui peut le lire',
@@ -579,5 +595,5 @@ export const fr: typeof en = {
   'privacy.rights-heading': 'L’emporter, ou l’effacer',
   'privacy.rights':
     'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés. Les sauvegardes chiffrées la gardent encore 30 jours au plus. Pour toute autre demande, écrivez à julien.collard14@gmail.com.',
-  'privacy.updated': 'Dernière modification : 16 novembre 2026.',
+  'privacy.updated': 'Dernière modification : 17 novembre 2026.',
 };
