@@ -88,6 +88,15 @@ describe('theme colours of actions', () => {
       expect(contrast(accent, soft[theme])).toBeGreaterThanOrEqual(4.5);
     });
 
+    // The main action (CORE-122): filled cobalt, light text, on the ground and on the panel.
+    it(`the main action keeps light text at 4.5:1 or more on its cobalt fill, and the fill stands out at 3:1 from the ground and the panel, ${theme}`, () => {
+      const fill = pair('--accent-fill')[theme];
+      expect(contrast(single('--on-accent'), fill)).toBeGreaterThanOrEqual(4.5);
+      for (const under of [pair('--ground')[theme], surface[theme]]) {
+        expect(contrast(fill, under)).toBeGreaterThanOrEqual(3);
+      }
+    });
+
     for (const step of contrastSteps) {
       it(`an action that destroys (danger) reads at 4.5:1 or more on the panel, ${theme}, ${step.name}`, () => {
         const danger = mix(ink[theme], step.share, pair('--danger-base')[theme]);

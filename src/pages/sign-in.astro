@@ -18,7 +18,7 @@ const t = translator(requestLanguage(Astro.request));
 ---
 
 <AppShell title={t('signin.title')} flow>
-  <section class="card" aria-labelledby="sign-in-title">
+  <section class="flow-card" aria-labelledby="sign-in-title">
     <Mark size={48} />
     <h1 class="title" id="sign-in-title">{t('signin.heading')}</h1>
     <form class="step" data-email-form>
@@ -37,7 +37,7 @@ const t = translator(requestLanguage(Astro.request));
           enterkeyhint="send"
           placeholder="alice@example.org"
         />
-        <button class="button button-primary" type="submit">{t('signin.send-code')}</button>
+        <button class="button button-main" type="submit">{t('signin.send-code')}</button>
       </div>
     </form>
     <form class="step" data-code-form hidden>
@@ -60,7 +60,7 @@ const t = translator(requestLanguage(Astro.request));
             <Icon name="clipboard-paste" />
           </button>
         </div>
-        <button class="button button-primary" type="submit">{t('signin.submit')}</button>
+        <button class="button button-main" type="submit">{t('signin.submit')}</button>
       </div>
       <button class="button button-quiet" type="button" data-other-address>{t('signin.other-address')}</button>
     </form>
@@ -83,7 +83,7 @@ const t = translator(requestLanguage(Astro.request));
           enterkeyhint="go"
           placeholder="alice.bsky.social"
         />
-        <button class="button button-primary" type="submit">{t('signin.submit')}</button>
+        <button class="button" type="submit">{t('signin.submit')}</button>
       </form>
     </div>
     <p class="error" data-error role="alert" hidden></p>
@@ -226,7 +226,7 @@ const t = translator(requestLanguage(Astro.request));
 </script>
 
 <style>
-  .card {
+  .flow-card {
     width: min(100%, 400px);
     min-width: 0;
     display: flex;
@@ -337,7 +337,7 @@ const t = translator(requestLanguage(Astro.request));
 
   /* Desktop: the screen is a card on the ground colour. */
   @media (min-width: 960px) {
-    .card {
+    .flow-card {
       padding: 40px;
       border: 1px solid var(--line);
       border-radius: 20px;

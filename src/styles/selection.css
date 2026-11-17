@@ -2,19 +2,15 @@
    page. Global: islands render on the device. */
 
 /* The bar sticks to the bottom: above the tab bar on the phone, at the foot
-   of the panel on desktop. */
+   of the panel on desktop. A raised card (theme.css), secondary buttons. */
 .selection-bar {
   position: sticky;
   bottom: calc(68px + env(safe-area-inset-bottom));
   z-index: 4;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
+  gap: var(--space-8);
+  margin-top: var(--space-16);
 }
 
 .selection-row {
@@ -58,10 +54,10 @@
   gap: 4px;
 }
 
-/* The toasts stay above the bar on the phone. */
+/* The toasts stay above the bar on the phone (two rows of --button-height, a row, the card padding). */
 @media (max-width: 959.98px) {
   .app:has(.selection-bar) .toasts {
-    bottom: calc(248px + env(safe-area-inset-bottom));
+    bottom: calc(264px + env(safe-area-inset-bottom));
   }
 }
 

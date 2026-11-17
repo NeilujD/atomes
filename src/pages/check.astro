@@ -25,7 +25,7 @@ const answers = [
 <AppShell title={t('check.title')} current="check">
   <div class="quick-add">
     <!-- Shown only where the browser can open a camera (HTTPS or loopback). -->
-    <button class="button button-primary scan" type="button" data-scan hidden>
+    <button class="button scan" type="button" data-scan hidden>
       <Icon name="scan-barcode" />
       <span>{t('add.scan')}</span>
     </button>
@@ -129,7 +129,7 @@ const answers = [
       </div>
 
       <!-- Main action when the reader does not own the book; Add another Copy when they do. -->
-      <button class="button button-accent add" type="submit">
+      <button class="button button-main add" type="submit">
         <Icon name="book-plus" />
         <span data-add-label>{t('add.submit')}</span>
       </button>
@@ -544,7 +544,7 @@ const answers = [
 
   // Add to Library is the main action; for a book the reader owns, Add another Copy is secondary.
   function showAction(owned: boolean) {
-    addButton.classList.toggle('button-accent', !owned);
+    addButton.classList.toggle('button-main', !owned);
     addButton.querySelector('[data-add-label]')!.textContent = t(owned ? 'book.add-copy' : 'add.submit');
   }
 

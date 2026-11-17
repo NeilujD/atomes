@@ -351,7 +351,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               </>
             ) : (
               <button
-                class="button button-accent"
+                class="button button-main"
                 type="button"
                 disabled={saving}
                 onClick={() => {
@@ -395,7 +395,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               aria-describedby="series-isbn-hint"
               onInput={(event) => setTyped(event.currentTarget.value)}
             />
-            <button class="button button-primary" type="submit" disabled={saving}>
+            <button class="button button-main" type="submit" disabled={saving}>
               {t('series.switch-save')}
             </button>
             <button class="button button-quiet" type="button" onClick={() => setSwitching(false)}>
@@ -538,12 +538,12 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               {spine.state === 'read-not-owned' && onToBuy && <p class="series-hint">{t('series.on-to-buy')}</p>}
               <div class="series-actions">
                 {spine.state === 'read-not-owned' && !onToBuy && (
-                  <button class="button button-primary" type="button" disabled={saving} aria-busy={saving ? 'true' : undefined} onClick={() => addToBuy(spine)}>
+                  <button class="button button-main" type="button" disabled={saving} aria-busy={saving ? 'true' : undefined} onClick={() => addToBuy(spine)}>
                     {t('series.add-to-buy')}
                   </button>
                 )}
                 {spine.state === 'not-owned' && (
-                  <button class="button button-primary" type="button" disabled={saving} aria-busy={saving ? 'true' : undefined} onClick={() => buy(spine)}>
+                  <button class="button button-main" type="button" disabled={saving} aria-busy={saving ? 'true' : undefined} onClick={() => buy(spine)}>
                     {t('tobuy.bought')}
                   </button>
                 )}

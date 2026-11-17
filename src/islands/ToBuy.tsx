@@ -240,7 +240,7 @@ export function ToBuy({ sources }: { sources: Sources }) {
               aria-describedby="to-buy-isbn-hint"
               onInput={(event) => setTyped(event.currentTarget.value)}
             />
-            <button class="button button-accent" type="submit" disabled={saving !== undefined} aria-busy={saving === 'add' ? 'true' : undefined}>
+            <button class="button button-main" type="submit" disabled={saving !== undefined} aria-busy={saving === 'add' ? 'true' : undefined}>
               {t('tobuy.add')}
             </button>
           </div>

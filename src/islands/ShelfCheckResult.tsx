@@ -78,14 +78,14 @@ export function ShelfCheckResult(props: ResultProps) {
       </div>
       <div class="result-scroll">
         <div class="result-header">
-          <button class="result-round" type="button" aria-label={t('common.close')} disabled={saving !== undefined} onClick={onClose}>
+          <button class="icon-button" type="button" aria-label={t('common.close')} disabled={saving !== undefined} onClick={onClose}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </button>
-          <span class="result-heading">{t('check.result')}</span>
+          <span class="small-heading">{t('check.result')}</span>
           {canScan ? (
-            <button class="result-round" type="button" aria-label={t('add.scan')} disabled={saving !== undefined} onClick={onScan}>
+            <button class="icon-button" type="button" aria-label={t('add.scan')} disabled={saving !== undefined} onClick={onScan}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16" />
               </svg>
@@ -112,7 +112,7 @@ export function ShelfCheckResult(props: ResultProps) {
           </div>
           {/* Focused when the screen opens, not tabbable: screen readers say the answer first. */}
           <p class="result-pill" tabindex={-1} data-result-answer>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               {check.kind === 'owned' ? (
                 <>
                   <circle cx="12" cy="12" r="9" />

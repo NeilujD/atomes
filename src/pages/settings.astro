@@ -59,7 +59,7 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
             enterkeyhint="send"
             placeholder="alice@example.org"
           />
-          <button class="button button-primary" type="submit">{t('signin.send-code')}</button>
+          <button class="button button-main" type="submit">{t('signin.send-code')}</button>
         </form>
         <form class="link-step" data-code-form hidden>
           <p class="row-hint" data-code-sent></p>
@@ -75,7 +75,7 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
               enterkeyhint="go"
               placeholder="123456"
             />
-            <button class="button button-primary" type="submit">{t('settings.add')}</button>
+            <button class="button button-main" type="submit">{t('settings.add')}</button>
           </div>
         </form>
         <p class="row-error" data-email-error role="alert" hidden></p>
@@ -104,7 +104,7 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
           placeholder="alice.bsky.social"
           required
         />
-        <button class="button button-primary" type="submit">{t('settings.link')}</button>
+        <button class="button button-main" type="submit">{t('settings.link')}</button>
       </form>
     </section>
 

@@ -22,7 +22,7 @@ const steppers = [
 ---
 
 <AppShell title={t('onboarding.title')} flow>
-  <section class="card" data-card data-state="working" aria-labelledby="onboarding-title">
+  <section class="flow-card" data-card data-state="working" aria-labelledby="onboarding-title">
     <!-- While the Series loads, while it saves, and when it is saved. -->
     <div class="progress" data-progress>
       <div class="mark-box"><Mark size={56} animated /></div>
@@ -120,7 +120,7 @@ const steppers = [
 
       <div class="actions">
         <a class="button button-quiet" href="/" data-skip>{t('onboarding.skip')}</a>
-        <button class="button button-accent" type="submit">
+        <button class="button button-main" type="submit">
           <Icon name="check" />
           <span>{t('onboarding.save')}</span>
         </button>
@@ -524,7 +524,7 @@ const steppers = [
 </script>
 
 <style>
-  .card {
+  .flow-card {
     width: min(100%, 560px);
     display: flex;
     flex-direction: column;
@@ -914,14 +914,14 @@ const steppers = [
   /* Desktop: the screen is a card on the ground colour. With the form, the card
      is wide: the questions on the left, the Volumes on the right. */
   @media (min-width: 960px) {
-    .card {
+    .flow-card {
       padding: 40px;
       border: 1px solid var(--line);
       border-radius: 20px;
       background: var(--surface);
     }
 
-    .card[data-state='ready'] {
+    .flow-card[data-state='ready'] {
       width: min(100%, 1120px);
     }
 
@@ -979,7 +979,7 @@ const steppers = [
   /* Desktop with room for the questions: the card fits the window and only the
      tiles scroll, so a long Series (100+ Volumes) needs no page scroll. */
   @media (min-width: 960px) and (min-height: 640px) {
-    .card[data-state='ready'] {
+    .flow-card[data-state='ready'] {
       max-height: calc(100dvh - 48px);
     }
 

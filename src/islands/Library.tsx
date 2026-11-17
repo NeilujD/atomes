@@ -117,7 +117,7 @@ export function Library({ sources }: { sources: Sources }) {
     return (
       <div class="library">
         <p class="library-message">{t('library.empty')}</p>
-        <a class="button button-primary library-add" href="/check">
+        <a class="button button-main library-add" href="/check">
           {t('book.add-a-book')}
         </a>
       </div>
@@ -370,7 +370,7 @@ function Sheet({ query, found, change, show }: ControlsProps & { show: string })
         onClick={(event) => event.target === event.currentTarget && event.currentTarget.close()}
       >
         <Controls query={query} found={found} change={change} />
-        <button class="button button-primary library-show" type="button" onClick={() => dialog.current?.close()}>
+        <button class="button button-main library-show" type="button" onClick={() => dialog.current?.close()}>
           {show}
         </button>
       </dialog>
@@ -434,7 +434,7 @@ function Segmented<Choice extends string>({
 function ModeMenu({ mode, onChange }: { mode: Mode; onChange: (mode: Mode) => void }) {
   return (
     <span class="library-view">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         {modeIcons[mode]}
       </svg>
       <select

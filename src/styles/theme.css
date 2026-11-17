@@ -14,6 +14,13 @@
   --soft: light-dark(#ecece6, #25282e);
   --accent: light-dark(#2e46d1, #8a9bff);
   --accent-tint: light-dark(#e9ecfb, #1f2547);
+  /*
+   * The main action (CORE-122): filled cobalt, in light text, in both themes.
+   * --accent is a light cobalt in dark, too pale under white text, so the fill
+   * has its own pair: 7.2:1 light, 5.1:1 dark under --on-accent (theme.test.ts).
+   */
+  --accent-fill: light-dark(#2e46d1, #4b5fe6);
+  --on-accent: #ffffff;
   --secondary-base: light-dark(#5c606a, #a3a7b0);
   --line-base: light-dark(#e3e3de, #2c2f36);
   --off-base: light-dark(#c9cac4, #4a4e57);
@@ -110,6 +117,8 @@
   --type-body: 15px;
   --type-button-large: 16px;
   --type-button: 15px;
+  /* The title of a dialog or a sheet. */
+  --type-heading: 18px;
   --type-small: 13px;
   --type-chip: 12px;
   --tracking-tight: -0.02em;
@@ -153,6 +162,8 @@
   --pill-height: 32px;
   --chip-height: 28px;
   --spinner: 16px;
+  /* The widest a confirm dialog grows. */
+  --confirm-width: 400px;
   /* The Edition Line drawn as a bar: its height, and the width of the mark of one Volume. */
   --track: 6px;
   --track-mark: 4px;
@@ -289,53 +300,170 @@ a {
   display: none !important;
 }
 
-/* Controls shared by every screen. */
+/*
+ * The shared parts of the one look (CORE-122; ui-direction "The one look").
+ * Buttons: `.button` is the secondary button; add `.button-main` for the one
+ * main action of a screen, `.button-quiet` for a text button, `.button-danger`
+ * for an action that destroys. Heights step down on desktop (Q12): lists and
+ * toolbar rows keep --row.
+ */
 .button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: var(--row);
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--surface);
+  gap: var(--space-8);
+  min-height: var(--button-height);
+  padding: 0 var(--space-16);
+  border: var(--hairline) solid var(--line-button);
+  border-radius: var(--radius-button);
+  background: transparent;
   color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--type-button);
+  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
 }
 
-.button:hover:not(:disabled) {
-  background: var(--soft);
+.button:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--fill-chip);
 }
 
-/* Ink fill: a confirm, or the action of a sheet. The primary action of a screen is `.button-accent`. */
-.button-primary,
-.button-primary:hover:not(:disabled) {
-  border-color: var(--ink);
+/* The one main action of a screen (Q7): filled cobalt, light text. At most one shows at a time. */
+.button-main,
+.button-main:hover:not(:disabled, [aria-disabled='true']) {
+  --busy-ink: var(--on-accent);
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+/* A text button: no line, no fill; as tall as a row, so toolbars stay dense. */
+.button-quiet {
+  min-height: var(--row);
+  padding: 0 var(--space-12);
+  border-color: transparent;
+  color: var(--text-quiet);
+}
+
+/* An action that destroys: muted red text and icon, on the secondary shape, never a fill. */
+.button-danger {
+  --busy-ink: var(--danger);
+  color: var(--danger);
+}
+
+/* Round icon button (Q11): a circle with a line, over a veil of the ground, so a glow shows through. */
+.icon-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-button);
+  height: var(--icon-button);
+  padding: 0;
+  border: var(--hairline) solid var(--line-control);
+  border-radius: var(--radius-icon-button);
+  background: var(--fill-veil);
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--fill-chip);
+}
+
+.icon-button svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  stroke-width: var(--icon-stroke);
+}
+
+/* Chip: a filled label, no line. A filter chip is a button with aria-pressed: pressed, it fills with ink. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: var(--chip-height);
+  padding: 0 var(--space-12);
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: var(--fill-chip);
+  color: var(--text-chip);
+  font-size: var(--type-chip);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+button.chip {
+  cursor: pointer;
+}
+
+.chip[aria-pressed='true'] {
   background: var(--ink);
   color: var(--surface);
 }
 
-.button-quiet {
-  border-color: transparent;
-  background: transparent;
-  color: var(--secondary);
+/* Card: a group of content on a soft fill. Translucent, so a glow behind it shows through. */
+.card {
+  padding: var(--space-16);
+  border: var(--hairline) solid var(--line-card);
+  border-radius: var(--radius-card);
+  background: var(--fill-card);
 }
 
-/* The one primary action of a screen: cobalt text, icon and 1 px outline, never a fill. */
-.button-accent {
-  --busy-ink: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent);
+/* A card that floats over content (a dialog, the selection bar): the same fill on the panel colour. */
+.card-raised {
+  background: linear-gradient(var(--fill-card), var(--fill-card)), var(--surface);
 }
 
-/* An action that destroys: muted red text and icon, nothing else. */
-.button-danger {
-  --busy-ink: var(--danger);
-  color: var(--danger);
+/* Small heading (Q11): the title of a section. */
+.small-heading {
+  margin: 0;
+  color: var(--text-heading);
+  font-size: var(--type-small);
+  font-weight: 500;
+  line-height: inherit;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+/*
+ * Confirm dialog: only for an action that cannot be undone (Sign out, Delete
+ * my account). A raised card; Cancel is the secondary button.
+ */
+.confirm {
+  width: min(100% - 2 * var(--space-16), var(--confirm-width));
+  padding: var(--space-24);
+  border: var(--hairline) solid var(--line-card);
+  border-radius: var(--radius-card);
+  background: linear-gradient(var(--fill-card), var(--fill-card)), var(--surface);
+  color: var(--ink);
+}
+
+.confirm::backdrop {
+  background: var(--scrim);
+}
+
+.confirm-title {
+  font-size: var(--type-heading);
+  letter-spacing: var(--tracking-tight);
+}
+
+.confirm-text {
+  margin-top: var(--space-8);
+  color: var(--text-quiet);
+  font-size: var(--type-body);
+  text-wrap: pretty;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  margin-top: var(--space-20);
 }
 
 .field {
@@ -348,9 +476,16 @@ a {
   color: var(--ink);
 }
 
+/*
+ * Disabled (Q7): one share for every control. A control a script drives stays
+ * disabled until its script is ready. aria-disabled keeps a button in the tab
+ * order (Cover flow Previous and Next).
+ */
 .button:disabled,
+.button[aria-disabled='true'],
+.icon-button:disabled,
 .field:disabled {
-  opacity: 0.6;
+  opacity: var(--alpha-disabled);
   cursor: default;
 }
 
@@ -359,7 +494,6 @@ a {
  * moves. Set `aria-busy="true"` while the action runs.
  */
 .button[aria-busy='true'] {
-  position: relative;
   color: transparent;
   pointer-events: none;
 }
@@ -372,17 +506,13 @@ a {
   content: '';
   position: absolute;
   inset: 0;
-  width: 16px;
-  height: 16px;
+  width: var(--spinner);
+  height: var(--spinner);
   margin: auto;
-  border: 2px solid var(--busy-ink, var(--ink));
+  border: var(--stroke) solid var(--busy-ink, var(--ink));
   border-right-color: transparent;
   border-radius: 50%;
   animation: spin var(--motion-spin) linear infinite;
-}
-
-.button-primary {
-  --busy-ink: var(--surface);
 }
 
 /* Placeholder blocks while content loads. */
@@ -582,8 +712,8 @@ a {
   outline-offset: 2px;
 }
 
-/* The Reading Status: one small chip, a native select (the system picker on a
-   phone) drawn as a Label chip, with a chevron. Line and ink, never cobalt. */
+/* The Reading Status: one chip, a native select (the system picker on a
+   phone) drawn as a chip, with a chevron. Ink levels, never cobalt. */
 .status-chip {
   position: relative;
   display: inline-flex;
@@ -595,33 +725,31 @@ a {
   appearance: none;
   field-sizing: content;
   max-width: 100%;
-  min-height: var(--row);
+  min-height: var(--chip-height);
   margin: 0;
-  padding: 0 30px 0 12px;
-  border: 1px solid var(--line);
-  border-radius: calc(var(--row) / 2);
-  background: var(--surface);
-  color: var(--ink);
+  padding: 0 var(--space-28) 0 var(--space-12);
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: var(--fill-chip);
+  color: var(--text-chip);
   font: inherit;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--type-chip);
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
 }
 
-.status-chip select:hover:not(:disabled) {
-  background: var(--soft);
-}
-
 .status-chip select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--stroke) solid var(--accent);
+  outline-offset: var(--stroke);
 }
 
 .status-chip svg {
   position: absolute;
-  right: 10px;
-  color: var(--secondary);
+  right: var(--space-10);
+  width: var(--icon-size-inline);
+  height: var(--icon-size-inline);
+  color: var(--text-chip);
   pointer-events: none;
 }
 
@@ -665,7 +793,7 @@ a {
 }
 
 .switch:disabled {
-  opacity: 0.5;
+  opacity: var(--alpha-disabled);
   cursor: default;
 }
 

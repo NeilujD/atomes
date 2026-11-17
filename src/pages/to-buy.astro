@@ -81,7 +81,7 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   .to-buy-open:disabled {
-    opacity: 0.6;
+    opacity: var(--alpha-disabled);
     cursor: default;
   }
 
