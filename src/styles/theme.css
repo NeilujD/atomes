@@ -121,6 +121,8 @@
   --type-heading: 18px;
   --type-small: 13px;
   --type-chip: 12px;
+  /* The environment badge, in --font-tech. */
+  --type-badge: 11px;
   --tracking-tight: -0.02em;
   --tracking-caps: 0.08em;
 
@@ -161,6 +163,7 @@
   --icon-stroke: 2;
   --pill-height: 32px;
   --chip-height: 28px;
+  --badge-height: 20px;
   --spinner: 16px;
   /* The widest a confirm dialog grows. */
   --confirm-width: 400px;

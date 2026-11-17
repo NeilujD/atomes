@@ -37,7 +37,7 @@ test('production: the manifest of the installed app, unchanged', async () => {
 test('staging: its own name and its own icons', async () => {
   const manifest = await manifestOf({ APP_ENV: 'staging', NODE_ENV: 'production' });
 
-  expect(manifest).toMatchObject({ name: 'Atomes Staging', short_name: 'Atomes Staging', start_url: '/' });
+  expect(manifest).toMatchObject({ name: 'Atomes staging', short_name: 'Atomes staging', start_url: '/' });
   expect(manifest.icons).toEqual([
     { src: '/icons/atomes-icon-staging-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
     { src: '/icons/atomes-icon-staging-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
@@ -48,8 +48,8 @@ test('staging: its own name and its own icons', async () => {
 
 test('a preview and the dev server name themselves', async () => {
   const preview = await manifestOf({ APP_ENV: 'staging', COOLIFY_BRANCH: 'pull/34/head', NODE_ENV: 'production' });
-  expect(preview.name).toBe('Atomes Preview');
+  expect(preview.name).toBe('Atomes preview');
 
   vi.unstubAllEnvs();
-  expect((await manifestOf({ NODE_ENV: 'development' })).name).toBe('Atomes Local');
+  expect((await manifestOf({ NODE_ENV: 'development' })).name).toBe('Atomes local');
 });

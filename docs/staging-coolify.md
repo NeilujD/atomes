@@ -118,7 +118,7 @@ The server signs readers in as an OAuth confidential client and keeps their Priv
 - `PUBLIC_APP_ORIGIN` is the origin only: `https://`, the hostname, no path, no final `/`.
 - `SIGN_UP` is not needed: it is `invite` by default. A new Account needs an Invite: once the app runs, open **Terminal**, pick the app container and run `node scripts/invite.ts`. It prints a link that works once and for 14 days; send it to one person. A reader with no Account and no Invite sees "You need an Invite" and the instance keeps nothing for it. A reader who has an Account signs in with no Invite.
 - A new `SESSION_ENCRYPTION_KEY` signs every reader out: the stored sessions can no longer be read. A new `OAUTH_PRIVATE_KEY` makes the PDS refuse the old sessions at their next refresh. Change them only after a leak.
-- `APP_ENV` names the instance: outside `production`, every screen shows a grey Staging pill and the app has an orange icon and the name "Atomes Staging". A pull request preview shows Preview by itself. With no value, the app counts as staging; any other value stops the start.
+- `APP_ENV` names the instance: outside `production`, every screen shows a grey "staging" pill and the app has an orange icon and the name "Atomes staging". A pull request preview shows "preview" by itself. With no value, the app counts as staging; any other value stops the start.
 - `SMTP_URL` and `MAIL_FROM` are required: without them the start stops. Readers sign in with their email address and a Sign-in Code that this sender mails. The deployment log names the SMTP host only, never the password. If a code does not arrive, check the sender's own log first: the app log names no address and no code.
 - `PREVIEW_ACCOUNT_EMAIL` (optional): your email address. Only pull request previews read it (step 11); staging ignores it.
 - Do not set `DATA_DIR`, `PORT` or `HOST`: the image defaults (`/data`, `4321`, `0.0.0.0`) are the right values.
@@ -238,7 +238,7 @@ Devices keep Catalog answers offline (`src/lib/catalog/device.ts`): Shelf Check 
 
 ## Rules and pitfalls
 
-- If production shows the grey Staging pill, the orange icon or the name "Atomes Staging", its `APP_ENV` is not `production` in the container. In the **production** app, **Environment Variables**, set `APP_ENV` = `production` with **Available in the container** on, then **Restart**. The start log says which instance it is: `Atomes settings are fine: production, …`.
+- If production shows the grey "staging" pill, the orange icon or the name "Atomes staging", its `APP_ENV` is not `production` in the container. In the **production** app, **Environment Variables**, set `APP_ENV` = `production` with **Available in the container** on, then **Restart**. The start log says which instance it is: `Atomes settings are fine: production, …`.
 
 - No secret in the repository or in CI. The GitHub App key, the webhook secret, `SESSION_ENCRYPTION_KEY` and `OAUTH_PRIVATE_KEY` stay in Coolify, `APP_KEY` and copies of the two keys in your password manager.
 - The volume lives on this host only and is not a backup. Production backs up to R2 every hour: `docs/backups.md`.

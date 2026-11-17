@@ -1,7 +1,8 @@
 // Caches the app shell so Atomes opens with no signal.
 // Pages: network first, the cached copy when offline. Everything precached
 // (built assets, icons): cache first; built asset names change with content.
-// `astro build` replaces BUILD with the built assets and a version (astro.config.mjs).
+// `astro build` replaces BUILD with the built assets and a version (astro.config.mjs);
+// the version also changes when an icon changes under the same name.
 
 const BUILD = { version: 'dev', assets: [] };
 const CACHE = `atomes-shell-${BUILD.version}`;
