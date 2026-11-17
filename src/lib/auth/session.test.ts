@@ -3,6 +3,7 @@ import { memoryLocalCopy } from '../space/local-copy.fake';
 import { serverAuthClient } from './server-client';
 import {
   askSignInCode,
+  codeIn,
   errorMessage,
   gate,
   keepInvite,
@@ -262,6 +263,22 @@ describe('errorMessage', () => {
     ['anything else', new Error('HTTP 500 for /api/session'), 'Sign-in failed. Try again.'],
   ])('%s', (_, error, message) => {
     expect(errorMessage(error)).toBe(message);
+  });
+});
+
+describe('codeIn', () => {
+  test.each([
+    ['482913', '482913'],
+    ['482 913', '482913'],
+    [' 482\n913 ', '482913'],
+    ['Your sign-in code for Atomes:\n\n482913\n\nIt works once, for 10 minutes.', '482913'],
+    ['482913\n10 minutes', '482913'],
+  ])('finds the code in %j', (text, code) => {
+    expect(codeIn(text)).toBe(code);
+  });
+
+  test.each(['', '48291', '4829134', '482-913', 'no code here'])('finds no code in %j', (text) => {
+    expect(codeIn(text)).toBeUndefined();
   });
 });
 

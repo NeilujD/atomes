@@ -86,6 +86,9 @@ export const fr: typeof en = {
   'signin.send-code': 'Recevoir un code',
   'signin.code-sent': (email: string) => `Si ${email} peut se connecter ici, un Code de connexion arrive. Il sert pendant 10 minutes.`,
   'signin.code': 'Code de connexion',
+  'signin.paste-code': 'Coller le code',
+  'signin.no-code-copied': 'Aucun code à 6 chiffres n’est copié. Copiez le code de l’e-mail, ou saisissez-le.',
+  'signin.paste-refused': 'Atomes ne peut pas lire ce que vous avez copié. Saisissez le code, ou collez-le dans le champ.',
   'signin.other-address': 'Utiliser une autre adresse',
   'signin.atproto': 'Bluesky ou un autre compte AT Protocol',
   'auth.type-email': 'Saisissez votre adresse e-mail, par exemple alice@example.org.',
@@ -98,7 +101,7 @@ export const fr: typeof en = {
   'mail.code.ignore': 'Vous ne l’avez pas demandé ? Quelqu’un a peut-être saisi votre adresse par erreur. Vous pouvez ignorer cet e-mail : votre compte ne risque rien.',
   'mail.code.reason': 'car une connexion a été demandée sur',
   'mail.code.text': (code: string) =>
-    `Votre code de connexion Atomes : ${code}\n\nIl sert une fois, pendant 10 minutes. Saisissez-le sur l’écran de connexion d’Atomes.\n\nSi vous ne l’avez pas demandé, ignorez cet e-mail : personne ne peut se connecter sans ce code.\n`,
+    `Votre code de connexion Atomes :\n\n${code}\n\nIl sert une fois, pendant 10 minutes. Saisissez-le sur l’écran de connexion d’Atomes.\n\nSi vous ne l’avez pas demandé, ignorez cet e-mail : personne ne peut se connecter sans ce code.\n`,
   'mail.link.subject': (code: string) => `${code} ajoute cette adresse à votre compte Atomes`,
   'mail.link.heading': 'Ajouter cette adresse',
   'mail.link.lead': 'Saisissez ce code dans les Réglages d’Atomes pour ajouter cette adresse à votre compte.',
@@ -111,7 +114,7 @@ export const fr: typeof en = {
   'mail.sent-to': (email: string) => `Envoyé à ${email}`,
   'mail.private': 'Votre bibliothèque reste privée, sauf si vous la partagez.',
   'mail.link.text': (code: string) =>
-    `Votre code pour ajouter cette adresse à votre compte Atomes : ${code}\n\nIl sert une fois, pendant 10 minutes, dans l’écran Réglages où vous l’avez demandé.\n\nSi vous ne l’avez pas demandé, ignorez cet e-mail : personne ne peut ajouter votre adresse sans ce code.\n`,
+    `Votre code pour ajouter cette adresse à votre compte Atomes :\n\n${code}\n\nIl sert une fois, pendant 10 minutes, dans l’écran Réglages où vous l’avez demandé.\n\nSi vous ne l’avez pas demandé, ignorez cet e-mail : personne ne peut ajouter votre adresse sans ce code.\n`,
   'signin.invite-kept': 'Invitation gardée. Connectez-vous pour créer votre compte.',
   'signout.title': 'Se déconnecter de cet appareil ?',
   'signout.text': 'Atomes efface votre bibliothèque de cet appareil. Les enregistrements encore en attente sont perdus.',

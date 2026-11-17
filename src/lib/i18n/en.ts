@@ -86,6 +86,9 @@ export const en = {
   'signin.send-code': 'Send me a code',
   'signin.code-sent': (email: string) => `If ${email} may sign in here, a Sign-in Code is on its way. It works for 10 minutes.`,
   'signin.code': 'Sign-in Code',
+  'signin.paste-code': 'Paste the code',
+  'signin.no-code-copied': 'No 6-digit code was copied. Copy the code from the email, or type it.',
+  'signin.paste-refused': 'Atomes cannot read what you copied. Type the code, or paste it in the field.',
   'signin.other-address': 'Use another address',
   'signin.atproto': 'Bluesky or another AT Protocol account',
   'auth.type-email': 'Type your email address, for example alice@example.org.',
@@ -101,7 +104,7 @@ export const en = {
   'mail.code.ignore': 'Didn’t ask for this? Someone may have typed your address by mistake. You can ignore this email; your account stays safe.',
   'mail.code.reason': 'because a sign-in was requested on',
   'mail.code.text': (code: string) =>
-    `Your sign-in code for Atomes: ${code}\n\nIt works once, for 10 minutes. Type it on the sign-in screen of Atomes.\n\nIf you did not ask for it, ignore this email: no one can sign in without the code.\n`,
+    `Your sign-in code for Atomes:\n\n${code}\n\nIt works once, for 10 minutes. Type it on the sign-in screen of Atomes.\n\nIf you did not ask for it, ignore this email: no one can sign in without the code.\n`,
   'mail.link.subject': (code: string) => `${code} adds this address to your Atomes account`,
   'mail.link.heading': 'Add this address',
   'mail.link.lead': 'Enter this code in the Settings of Atomes to add this address to your account.',
@@ -114,7 +117,7 @@ export const en = {
   'mail.sent-to': (email: string) => `Sent to ${email}`,
   'mail.private': 'Your Library stays private unless you share it.',
   'mail.link.text': (code: string) =>
-    `Your code to add this address to your Atomes account: ${code}\n\nIt works once, for 10 minutes, in the Settings screen where you asked for it.\n\nIf you did not ask for it, ignore this email: no one can add your address without the code.\n`,
+    `Your code to add this address to your Atomes account:\n\n${code}\n\nIt works once, for 10 minutes, in the Settings screen where you asked for it.\n\nIf you did not ask for it, ignore this email: no one can add your address without the code.\n`,
   'signin.invite-kept': 'Invite kept. Sign in to create your account.',
   'signout.title': 'Sign out of this device?',
   'signout.text': 'Atomes removes your Library from this device. Saves still waiting to be sent are lost.',

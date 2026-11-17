@@ -12,12 +12,29 @@ describe('the code mails', () => {
 
     expect(mail).toMatchObject({ to: 'reader@example.org', subject });
     expect(mail.text).toContain(text);
-    expect(mail.text).toContain('042917');
+    expect(mail.text).toMatch(/^042917$/m);
     expect(mail.text).not.toMatch(/https?:|www\.|<[a-z]/i);
     expect(mail.html).toContain(`<html lang="${language}"`);
     expect(mail.html).toContain(heading);
     expect(mail.html).toContain('>042917</span>');
     expect(mail.html).toContain('10 minutes');
+  });
+
+  test.each([
+    ['sign-in', signInCodeMail],
+    ['link', linkCodeMail],
+  ] as const)('the %s mail binds its code to the instance (OTP-Token, One-Time-Code)', (_, mail) => {
+    expect(mail('reader@example.org', '042917', 'en', site).headers).toEqual({
+      'OTP-Token': '"042917"; origin="https://atomes.example.org"',
+      'One-Time-Code': 'code=042917; origin=atomes.example.org',
+    });
+  });
+
+  test('a development server binds the code to its loopback origin and port', () => {
+    expect(signInCodeMail('reader@example.org', '042917', 'en', 'http://127.0.0.1:4321').headers).toEqual({
+      'OTP-Token': '"042917"; origin="http://127.0.0.1:4321"',
+      'One-Time-Code': 'code=042917; origin=127.0.0.1:4321',
+    });
   });
 
   test('the HTML part loads nothing, and its only link is the origin of the instance', () => {
@@ -56,9 +73,11 @@ describe('smtpSender', () => {
       'Atomes <atomes@example.org>',
     );
 
-    await send({ to: 'reader@example.org', subject: 'Subject', text: 'Body', html: '<p>Body</p>' });
+    await send({ to: 'reader@example.org', subject: 'Subject', text: 'Body', html: '<p>Body</p>', headers: { 'OTP-Token': '"1"; origin="https://a.example"' } });
 
-    expect(sent).toEqual([{ from: 'Atomes <atomes@example.org>', to: 'reader@example.org', subject: 'Subject', text: 'Body', html: '<p>Body</p>' }]);
+    expect(sent).toEqual([
+      { from: 'Atomes <atomes@example.org>', to: 'reader@example.org', subject: 'Subject', text: 'Body', html: '<p>Body</p>', headers: { 'OTP-Token': '"1"; origin="https://a.example"' } },
+    ]);
   });
 
   test('a transport failure rejects', async () => {

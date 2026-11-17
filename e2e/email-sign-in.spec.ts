@@ -28,15 +28,14 @@ test('A new reader opens an Invite, signs in with a Sign-in Code from the dev ou
   const field = page.getByLabel('Sign-in Code');
   await expect(field).toHaveAttribute('inputmode', 'numeric');
   await expect(field).toHaveAttribute('autocomplete', 'one-time-code');
-  // As pasted from a mail, with spaces around.
+  // As pasted from a mail, with spaces around: a whole code signs in with no click.
   await field.fill(` ${code.slice(0, 3)} ${code.slice(3)} `);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
   await expect(page).toHaveURL(/\/library$/);
   await expect(page.getByRole('heading', { name: 'Sign in to Atomes' })).toHaveCount(0);
 });
 
-test('A wrong code says so, and the AT Protocol sign-in is the second action', async ({ page }) => {
+test('A wrong code says so, and the AT Protocol sign-in is the second action', async ({ page, context, browserName }) => {
   await page.goto('/sign-in');
 
   await page.getByLabel('Your email address').fill('nobody@example.org');
@@ -46,8 +45,21 @@ test('A wrong code says so, and the AT Protocol sign-in is the second action', a
   expect((await page.request.get('/dev/outbox?to=nobody%40example.org')).status()).toBe(404);
 
   await page.getByLabel('Sign-in Code').fill('123456');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('This code is wrong or has expired. Check it, or ask for a new one.');
+
+  // Only Chromium lets Playwright grant the clipboard permission.
+  if (browserName === 'chromium') {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.evaluate(() => navigator.clipboard.writeText('No code in this text'));
+    await page.getByRole('button', { name: 'Paste the code' }).click();
+    await expect(page.getByRole('alert')).toHaveText('No 6-digit code was copied. Copy the code from the email, or type it.');
+
+    await page.getByLabel('Sign-in Code').fill('');
+    await page.evaluate(() => navigator.clipboard.writeText('Your sign-in code for Atomes:\n\n654 321\n'));
+    await page.getByRole('button', { name: 'Paste the code' }).click();
+    await expect(page.getByLabel('Sign-in Code')).toHaveValue('654321');
+    await expect(page.getByRole('alert')).toHaveText('This code is wrong or has expired. Check it, or ask for a new one.');
+  }
 
   await page.getByRole('button', { name: 'Bluesky or another AT Protocol account' }).click();
   await expect(page.getByLabel('Your handle')).toBeVisible();

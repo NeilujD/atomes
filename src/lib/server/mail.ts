@@ -12,6 +12,7 @@ export interface Mail {
   // The plain text part: the dev outbox shows it, and a mail app with no HTML reads it.
   text: string;
   html?: string;
+  headers?: Record<string, string>;
 }
 
 export type SendMail = (mail: Mail) => Promise<void>;
@@ -23,8 +24,8 @@ export interface MailTransport {
 
 // One mail with a plain text part and, when given, an HTML part.
 export function smtpSender(transport: MailTransport, from: string): SendMail {
-  return async ({ to, subject, text, html }) => {
-    await transport.sendMail({ from, to, subject, text, ...(html === undefined ? {} : { html }) });
+  return async ({ to, subject, text, html, headers }) => {
+    await transport.sendMail({ from, to, subject, text, ...(html === undefined ? {} : { html }), ...(headers === undefined ? {} : { headers }) });
   };
 }
 
@@ -53,7 +54,10 @@ function codeMail(kind: 'code' | 'link', to: string, code: string, language: Lan
       private: t('mail.private'),
     },
   });
-  return { to, subject, text: t(`mail.${kind}.text`, code), html };
+  // Bind the code to the instance for a mail app that reads them: OTP-Token
+  // (draft-goto-otp-token) wants the origin, One-Time-Code (draft-wells) the host.
+  const headers = { 'OTP-Token': `"${code}"; origin="${site}"`, 'One-Time-Code': `code=${code}; origin=${new URL(site).host}` };
+  return { to, subject, text: t(`mail.${kind}.text`, code), html, headers };
 }
 
 // The Sign-in Code.

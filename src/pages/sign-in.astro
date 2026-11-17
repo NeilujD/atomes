@@ -55,6 +55,8 @@ const t = translator(requestLanguage(Astro.request));
         />
         <button class="button button-primary" type="submit">{t('signin.submit')}</button>
       </div>
+      <!-- Shown only where the browser can read the clipboard. -->
+      <button class="button" type="button" data-paste-code hidden>{t('signin.paste-code')}</button>
       <button class="button button-quiet" type="button" data-other-address>{t('signin.other-address')}</button>
     </form>
     <button class="button other" type="button" data-atproto aria-expanded="false" aria-controls="atproto">{t('signin.atproto')}</button>
@@ -88,7 +90,7 @@ const t = translator(requestLanguage(Astro.request));
   import { returnTarget } from '../lib/auth/return-to';
   import { createAuthClient } from '../lib/auth/server-client';
   import { t } from '../lib/i18n/i18n';
-  import { askSignInCode, keepInvite, loadSession, signIn, signInResultMessage, signInWithCode } from '../lib/auth/session';
+  import { askSignInCode, codeIn, keepInvite, loadSession, signIn, signInResultMessage, signInWithCode } from '../lib/auth/session';
 
   const emailForm = document.querySelector<HTMLFormElement>('[data-email-form]')!;
   const codeForm = document.querySelector<HTMLFormElement>('[data-code-form]')!;
@@ -175,6 +177,29 @@ const t = translator(requestLanguage(Astro.request));
       if (message === undefined) location.replace(next);
       else say(message);
     });
+  });
+
+  // A whole code, typed, pasted or suggested by the keyboard, signs in at once.
+  codeInput.addEventListener('input', () => {
+    const code = codeIn(codeInput.value);
+    if (code === undefined) return;
+    codeInput.value = code;
+    codeForm.requestSubmit();
+  });
+
+  const pasteButton = codeForm.querySelector<HTMLButtonElement>('[data-paste-code]')!;
+  pasteButton.hidden = typeof navigator.clipboard?.readText !== 'function';
+  pasteButton.addEventListener('click', () => {
+    say(undefined);
+    navigator.clipboard.readText().then(
+      (text) => {
+        const code = codeIn(text);
+        if (code === undefined) return say(t('signin.no-code-copied'));
+        codeInput.value = code;
+        codeForm.requestSubmit();
+      },
+      () => say(t('signin.paste-refused')),
+    );
   });
 
   codeForm.querySelector('[data-other-address]')!.addEventListener('click', () => {

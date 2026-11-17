@@ -19,7 +19,6 @@ async function signInWithCode(page: Page, address: string) {
   await page.getByRole('button', { name: 'Send me a code' }).click();
   await expect(page.getByLabel('Sign-in Code')).toBeVisible();
   await page.getByLabel('Sign-in Code').fill(await mailedCode(page, address));
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 }
 
 test('An Account made with an AT Protocol Account adds an address, signs out and signs in with a Sign-in Code to the same Library', async ({

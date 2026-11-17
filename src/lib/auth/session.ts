@@ -141,6 +141,12 @@ export async function askSignInCode(fetch: Fetch, input: string): Promise<{ emai
   }
 }
 
+// The 6 digits of a Sign-in Code in typed or copied text: 482913 or 482 913,
+// never part of a longer number.
+export function codeIn(text: string): string | undefined {
+  return /(?<!\d)\d{3}\s?\d{3}(?!\d)/.exec(text)?.[0].replace(/\s/, '');
+}
+
 // Sends the code the reader typed or pasted (digits only). Undefined when the
 // browser is signed in; else what the screen tells.
 export async function signInWithCode(fetch: Fetch, email: string, input: string): Promise<string | undefined> {
