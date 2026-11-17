@@ -6,6 +6,8 @@ import BookLabels from '../islands/BookLabels';
 import WorkPrivacy from '../islands/WorkPrivacy';
 import AppShell from '../layouts/AppShell.astro';
 import '../styles/correction.css';
+// The glow, halo and rings of the Shelf Check result (ADR 0018, Q9): the same parts, in this page's tone.
+import '../styles/shelf-check-result.css';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
 const t = translator(requestLanguage(Astro.request));
@@ -20,6 +22,13 @@ const choices = [
 
 <AppShell title={t('book.title')} current="library" detail>
   <div class="book-page" data-page aria-busy="true">
+    <!-- Behind the top of the page, once the book shows: green when the reader owns no Copy, orange when they own one (Q8, Q9). -->
+    <div class="book-glow result-glow" aria-hidden="true">
+      <span class="result-blob result-b1"></span>
+      <span class="result-blob result-b2"></span>
+      <span class="result-blob result-b3"></span>
+    </div>
+
     <!-- Only when there is no book to show (not signed in, not in the Library); results of a change are toasts. -->
     <p class="message" data-message role="status" hidden></p>
 
@@ -39,10 +48,17 @@ const choices = [
       </div>
     </section>
 
-    <!-- One cover for the skeleton and the book: render() moves it into the book.
-         The cover that flies from the Library lands on it, and must not hide halfway (src/lib/page-transition.ts). -->
+    <!-- One cover for the skeleton and the book: render() moves its stage into the book.
+         The cover that flies from the Library lands on it, and must not hide halfway (src/lib/page-transition.ts).
+         The halo and rings show once the book does. -->
     <div class="book" data-skeleton aria-hidden="true">
-      <div class="cover book-cover skeleton" data-book-cover></div>
+      <div class="stage" data-book-stage>
+        <span class="result-ring result-r1" aria-hidden="true"></span>
+        <span class="result-ring result-r2" aria-hidden="true"></span>
+        <span class="result-ring result-r3" aria-hidden="true"></span>
+        <span class="result-halo" aria-hidden="true"></span>
+        <div class="cover book-cover skeleton" data-book-cover></div>
+      </div>
       <div class="content">
         <div class="head-text skeleton-text">
           <div class="skeleton skeleton-title"></div>
@@ -64,8 +80,8 @@ const choices = [
           </div>
         </div>
 
-        <section class="group" aria-labelledby="status-title">
-          <h2 class="group-title" id="status-title">{t('book.reading-status')}</h2>
+        <section class="group card" aria-labelledby="status-title">
+          <h2 class="small-heading" id="status-title">{t('book.reading-status')}</h2>
           <span class="status-chip">
             <select aria-labelledby="status-title" data-status>
               {choices.map((choice) => <option value={choice.value}>{choice.label}</option>)}
@@ -80,19 +96,20 @@ const choices = [
         </section>
 
         <!-- Labels of this Work (src/islands/BookLabels.tsx). -->
-        <section class="group" aria-labelledby="labels-title">
-          <h2 class="group-title" id="labels-title">{t('labels.title')}</h2>
+        <section class="group card" aria-labelledby="labels-title">
+          <h2 class="small-heading" id="labels-title">{t('labels.title')}</h2>
           <BookLabels client:only="preact" />
         </section>
 
         <!-- Keep this Work Private inside a Shared category (src/islands/WorkPrivacy.tsx). -->
         <WorkPrivacy client:only="preact" />
 
-        <section class="group" aria-labelledby="copies-title">
-          <h2 class="group-title" id="copies-title">{t('book.copies')}</h2>
+        <section class="group card" aria-labelledby="copies-title">
+          <h2 class="small-heading" id="copies-title">{t('book.copies')}</h2>
           <p class="hint" data-no-copies hidden>{t('book.no-copies')}</p>
           <ul class="copies" data-copies></ul>
-          <a class="button" href="/check" data-add-copy>
+          <!-- The main action of the page (Q7). -->
+          <a class="button button-main" href="/check" data-add-copy>
             <Icon name="plus" />
             <span>{t('book.add-copy')}</span>
           </a>
@@ -190,7 +207,8 @@ const choices = [
   const notFound = document.querySelector<HTMLElement>('[data-not-found]')!;
   const skeleton = document.querySelector<HTMLElement>('[data-skeleton]')!;
   const article = document.querySelector<HTMLElement>('[data-book]')!;
-  const cover = document.querySelector<HTMLElement>('[data-book-cover]')!;
+  const stage = document.querySelector<HTMLElement>('[data-book-stage]')!;
+  const cover = stage.querySelector<HTMLElement>('[data-book-cover]')!;
   const statusSelect = article.querySelector<HTMLSelectElement>('[data-status]')!;
   const finished = article.querySelector<HTMLElement>('[data-finished]')!;
   const finishedAt = article.querySelector<HTMLInputElement>('[data-finished-at]')!;
@@ -208,6 +226,8 @@ const choices = [
   function loaded() {
     skeleton.hidden = true;
     pageBox.removeAttribute('aria-busy');
+    // No glow until render() shows a book, and none with no book to show.
+    delete pageBox.dataset.tone;
   }
 
   // The page has no book to show: say why, in place of the book.
@@ -260,11 +280,12 @@ const choices = [
     loaded();
     message.hidden = true;
     notFound.hidden = true;
-    if (cover.parentElement !== article) {
+    if (stage.parentElement !== article) {
       cover.classList.remove('skeleton');
-      article.prepend(cover);
+      article.prepend(stage);
     }
     article.hidden = false;
+    pageBox.dataset.tone = page.copies.length > 0 ? 'owned' : 'not-owned';
 
     document.title = `${page.title} · Atomes`;
     document.querySelector('[data-view-title]')!.textContent = page.title;
@@ -548,25 +569,61 @@ const choices = [
 </script>
 
 <style>
+  /*
+   * The one look (ADR 0018): tokens of theme.css only. The sizes of this page
+   * only are set once here. The tone is the ownership answer for this Work
+   * (Q8): green when the reader owns no Copy, orange when they own one.
+   */
   .book-page {
-    max-width: 880px;
+    --book-width: 880px;
+    --book-cover: 120px;
+    --book-title: var(--type-title);
+    --book-field: 160px;
+    --book-empty-cover: 72px;
+    --book-empty-width: 360px;
+    --tone: var(--not-owned);
+    --tone-deep: var(--not-owned-deep);
+    --tone-line: color-mix(in srgb, var(--tone) var(--alpha-tone-line), transparent);
+    position: relative;
+    isolation: isolate;
+    max-width: var(--book-width);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-16);
+  }
+
+  .book-page[data-tone='owned'] {
+    --tone: var(--owned);
+    --tone-deep: var(--owned-deep);
+  }
+
+  /* No glow, halo or rings before the book shows, nor with no book to show. */
+  .book-page:not([data-tone]) :is(.book-glow, .result-halo, .result-ring) {
+    display: none;
+  }
+
+  /* The blobs of the Shelf Check result, behind the top of the page, out to
+     the panel edges; they fade out at the top and under the first section. */
+  .book-glow {
+    inset: calc(var(--space-20) * -1) calc(var(--space-20) * -1) auto;
+    height: calc(var(--glow-unit) * 56);
+    z-index: -1;
+    overflow: clip;
+    mask-image: linear-gradient(transparent, black var(--space-28), black 50%, transparent);
   }
 
   .skeleton-text {
-    gap: 10px;
+    gap: var(--space-10);
   }
 
   .skeleton-title {
     width: 80%;
-    height: 26px;
+    height: var(--book-title);
   }
 
   .skeleton-line {
     width: 55%;
-    height: 14px;
+    height: var(--space-14);
   }
 
   .skeleton-line.short {
@@ -574,16 +631,16 @@ const choices = [
   }
 
   .message {
-    font-size: 14px;
+    font-size: var(--type-body);
   }
 
   .not-found {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    max-width: 360px;
-    margin: 48px auto 0;
+    gap: var(--space-8);
+    max-width: var(--book-empty-width);
+    margin: calc(var(--space-24) * 2) auto 0;
     text-align: center;
   }
 
@@ -595,40 +652,37 @@ const choices = [
   .not-found-cover {
     display: grid;
     place-items: center;
-    width: 72px;
+    width: var(--book-empty-cover);
     aspect-ratio: 2 / 3;
-    margin-bottom: 12px;
+    margin-bottom: var(--space-12);
     border-radius: var(--radius-cover);
-    background: var(--soft);
-    color: var(--secondary);
+    background: var(--fill-chip);
+    color: var(--text-quiet);
   }
 
   .not-found-title {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-size: var(--type-heading);
+    letter-spacing: var(--tracking-tight);
   }
 
   .not-found-text {
-    margin: 0;
-    color: var(--secondary);
-    font-size: 14px;
+    color: var(--text-quiet);
+    font-size: var(--type-body);
   }
 
   .not-found-actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 8px;
-    margin-top: 16px;
+    gap: var(--space-8);
+    margin-top: var(--space-16);
   }
 
   /* Phone: cover and title side by side, then the sections at full width. */
   .book {
     display: grid;
-    grid-template-columns: 96px minmax(0, 1fr);
-    gap: 28px 16px;
+    grid-template-columns: var(--book-cover) minmax(0, 1fr);
+    gap: var(--space-24) var(--space-16);
     align-items: end;
   }
 
@@ -640,70 +694,92 @@ const choices = [
     grid-column: 1 / -1;
   }
 
-  .cover {
+  /* The big cover (Q9): large corners, the halo and the rings of the Shelf
+     Check result, behind the sections. Every size follows the cover width (--w). */
+  .stage {
+    --w: var(--book-cover);
+    position: relative;
+    z-index: -1;
     flex: none;
-    width: 96px;
-    align-self: flex-start;
+    align-self: start;
+    width: var(--w);
+  }
+
+  .cover {
+    position: relative;
+    width: var(--w);
+  }
+
+  .cover:not([data-cover='loaded']),
+  .cover[data-cover='loaded'] :global(img) {
+    border-radius: var(--radius-cover-large);
+    box-shadow:
+      0 0 0 var(--hairline) var(--line-control),
+      var(--shadow-cover-large);
   }
 
   .head-text {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
   }
 
+  /* The big title keeps its tightening (Q11). */
   .title {
-    font-size: 26px;
+    font-size: var(--book-title);
     font-weight: 700;
     line-height: 1.15;
-    letter-spacing: -0.03em;
+    letter-spacing: var(--tracking-tight);
   }
 
   .line {
-    color: var(--secondary);
-    font-size: 14px;
+    color: var(--text-quiet);
+    font-size: var(--type-body);
   }
 
   .line.strong {
     color: var(--ink);
-    font-size: 16px;
   }
 
   .line:empty {
     display: none;
   }
 
+  /* When the Series line wraps, the tall tap target of "Change" reaches the
+     line above: the Series link stays on top of it. */
+  .series-line :global(a) {
+    position: relative;
+    z-index: 1;
+  }
+
   .strong {
     font-weight: 600;
   }
 
+  /* A section: a card under its small heading. */
   .group {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
-  }
-
-  .group-title {
-    font-size: 16px;
+    gap: var(--space-12);
   }
 
   .label {
-    font-size: 14px;
+    font-size: var(--type-small);
     font-weight: 600;
   }
 
   .hint {
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
   }
 
   .finished {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .copies {
@@ -713,22 +789,28 @@ const choices = [
     margin: 0;
     padding: 0;
     list-style: none;
-    border-top: 1px solid var(--line);
   }
 
   .copy {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--line);
+    gap: var(--space-10);
+    padding: var(--space-12) 0;
+  }
+
+  .copy:first-child {
+    padding-top: 0;
+  }
+
+  .copy + .copy {
+    border-top: var(--hairline) solid var(--line-card);
   }
 
   .copy-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
   .copy-text {
@@ -755,12 +837,12 @@ const choices = [
   .copy-menu {
     inset: auto;
     margin: 0;
-    padding: 4px;
-    border: 1px solid var(--line);
+    padding: var(--space-4);
+    border: var(--hairline) solid var(--line-card);
     border-radius: var(--radius-control);
     background: var(--surface);
     color: var(--ink);
-    box-shadow: 0 8px 24px var(--page-shadow);
+    box-shadow: 0 var(--space-8) var(--space-24) var(--page-shadow);
   }
 
   .copy-menu-item {
@@ -769,7 +851,7 @@ const choices = [
   }
 
   .copy-menu-item:hover:not(:disabled) {
-    background: var(--soft);
+    background: var(--fill-chip);
   }
 
   .loan,
@@ -777,7 +859,7 @@ const choices = [
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .loan[hidden],
@@ -787,21 +869,21 @@ const choices = [
   }
 
   .loan-text {
-    flex: 1 1 200px;
+    flex: 1 1 var(--book-field);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
-    font-size: 14px;
+    font-size: var(--type-body);
     font-weight: 600;
   }
 
   /* With Lend and Cancel, on one row at 390 px. */
   .lend-field {
-    flex: 1 1 160px;
+    flex: 1 1 var(--book-field);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
@@ -817,27 +899,34 @@ const choices = [
   .past-loan-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin: 8px 0 0;
+    gap: var(--space-4);
+    margin: var(--space-8) 0 0;
     padding: 0;
     list-style: none;
-    font-size: 13px;
+    font-size: var(--type-small);
   }
 
-  /* Desktop: cover at the left, the rest beside it; the title is content (ui-direction: Detail). */
+  /* Desktop: cover at the left, the rest beside it; the title is content
+     (ui-direction: Detail). CSS reads no variable in a media condition. */
   @media (min-width: 960px) {
     .book-page {
-      margin: 16px auto 0;
+      --book-cover: 200px;
+      --book-title: 36px;
+      margin: var(--space-16) auto 0;
     }
 
-    .skeleton-title {
-      height: 36px;
+    /* The glow fades out at the sides too: the page is narrower than the panel. */
+    .book-glow {
+      mask-image:
+        linear-gradient(transparent, black var(--space-28), black 50%, transparent),
+        linear-gradient(90deg, transparent, black var(--glow-pad-blob), black calc(100% - var(--glow-pad-blob)), transparent);
+      mask-composite: intersect;
     }
 
     .book {
       display: flex;
       align-items: flex-start;
-      gap: 40px;
+      gap: calc(var(--space-20) * 2);
     }
 
     .content {
@@ -845,38 +934,16 @@ const choices = [
       min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 28px;
-    }
-
-    .cover {
-      width: 200px;
+      gap: var(--space-16);
     }
 
     .head-text {
-      gap: 6px;
-    }
-
-    .title {
-      font-size: 36px;
-    }
-
-    .group-title {
-      display: flex;
-      align-items: center;
-      align-self: stretch;
-      min-height: var(--row);
-      border-bottom: 1px solid var(--line);
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0;
-    }
-
-    .copies {
-      border-top: 0;
+      gap: var(--space-6);
+      margin-bottom: var(--space-12);
     }
 
     .lend-field {
-      flex: 0 1 320px;
+      flex: 0 1 calc(var(--book-field) * 2);
     }
   }
 </style>
@@ -886,121 +953,111 @@ const choices = [
 
   /* "Change" ends the Series line: a quiet text button, its tap target taller than the text. */
   .series-change {
-    margin: -12px -4px;
-    padding: 12px 4px;
+    margin: calc(var(--space-12) * -1) calc(var(--space-4) * -1);
+    padding: var(--space-12) var(--space-4);
     border: 0;
     background: none;
     color: inherit;
     font: inherit;
     text-decoration: underline;
-    text-underline-offset: 2px;
+    text-underline-offset: var(--stroke);
     cursor: pointer;
   }
 
+  /* A section of the page: a card under its small heading. */
   .work-privacy {
+    grid-column: 1 / -1;
     align-self: stretch;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-  }
-
-  .work-privacy-title {
-    font-size: 16px;
+    gap: var(--space-12);
   }
 
   .work-privacy-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: var(--space-16);
   }
 
   .work-privacy-label {
-    font-size: 14px;
+    font-size: var(--type-body);
     font-weight: 600;
   }
 
   .work-privacy-hint {
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
   }
 
   .labels {
     align-self: stretch;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
   .labels-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-8);
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  /* A Label chip, as in the Library toolbar: line and ink, never cobalt
-     (cobalt is for New Volumes, links and focus). */
+  /* A Label chip: the shared chip (ink levels, never cobalt). A long name
+     with no space wraps inside the chip. */
   .labels-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
     max-width: 100%;
-    min-height: var(--row);
-    padding: 0 12px;
-    border: 1px solid var(--line);
-    border-radius: calc(var(--row) / 2);
-    background: var(--surface);
-    color: var(--ink);
-    font-size: 13px;
-    font-weight: 600;
+    white-space: normal;
   }
 
-  /* A long name with no space wraps inside the chip, clear of its round ends. */
   .labels-chip-name {
     min-width: 0;
-    padding: 4px 0;
+    padding: var(--space-4) 0;
     overflow-wrap: anywhere;
     text-align: left;
   }
 
   /* On this book: the chip ends with its Remove button. */
-  li.labels-chip {
+  li.labels-chip:has(.labels-chip-remove) {
     padding-right: 0;
   }
 
+  /* As tall as the chip; its tap target is a row high. */
   .labels-chip-remove {
+    position: relative;
     flex: none;
     display: grid;
     place-items: center;
-    width: var(--row);
-    height: var(--row);
-    margin: -1px;
+    width: var(--chip-height);
+    height: var(--chip-height);
     padding: 0;
     border: 0;
-    border-radius: 50%;
+    border-radius: var(--radius-pill);
     background: transparent;
-    color: var(--secondary);
-    font-size: 16px;
+    color: var(--text-quiet);
+    font-size: var(--type-body);
     line-height: 1;
     cursor: pointer;
   }
 
+  .labels-chip-remove::after {
+    content: '';
+    position: absolute;
+    inset: calc((var(--chip-height) - var(--row)) / 2);
+  }
+
   .labels-chip-remove:hover:not(:disabled) {
-    background: var(--soft);
+    background: var(--fill-chip);
     color: var(--ink);
   }
 
-  /* From the Series: no Remove here, a small Series mark instead (the Series page removes it). */
-  li.labels-chip-series {
-    padding-right: 12px;
-  }
-
+  /* From the Series: no Remove here, its Series mark instead (the Series page removes it). */
   .labels-chip-mark {
     display: inline-flex;
-    color: var(--secondary);
+    color: var(--text-quiet);
   }
 
   /* The reader's other Labels sit in the row of "+ Label". */
@@ -1009,46 +1066,41 @@ const choices = [
   }
 
   /* One of the reader's other Labels: a tap puts it on this book. "+ Label" opens the New Label field. */
-  .labels-chip-add {
-    border-style: dashed;
-    cursor: pointer;
-  }
-
   .labels-chip-add:hover:not(:disabled) {
-    background: var(--soft);
+    background: linear-gradient(var(--fill-chip), var(--fill-chip)), var(--fill-chip);
   }
 
   .labels-chip-plus {
-    color: var(--secondary);
+    color: var(--text-quiet);
   }
 
   .labels-chip-add:disabled,
   .labels-chip-remove:disabled {
-    opacity: 0.6;
+    opacity: var(--alpha-disabled);
     cursor: default;
   }
 
   .labels-new {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-6);
   }
 
   .labels-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .labels-row .field {
-    flex: 1 1 160px;
-    max-width: 320px;
+    flex: 1 1 var(--book-field);
+    max-width: calc(var(--book-field) * 2);
   }
 
   .labels-hint {
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
   }
 
   .labels-hint[data-error] {
@@ -1063,23 +1115,25 @@ const choices = [
   .labels-edit-list {
     display: flex;
     flex-direction: column;
-    margin: 8px 0 0;
+    margin: var(--space-8) 0 0;
     padding: 0;
     list-style: none;
-    border-top: 1px solid var(--line);
   }
 
   .labels-edit-row {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--line);
+    gap: var(--space-6);
+    padding: var(--space-8) 0;
+  }
+
+  .labels-edit-row + .labels-edit-row {
+    border-top: var(--hairline) solid var(--line-card);
   }
 
   /* It names the Label: a long name with no space wraps, as in the chips. */
   .labels-ask {
-    font-size: 14px;
+    font-size: var(--type-body);
     font-weight: 600;
     overflow-wrap: anywhere;
   }

@@ -156,13 +156,13 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
       {carried.length + fromSeries.length > 0 ? (
         <ul class="labels-chips">
           {fromSeries.map(({ rkey, value }) => (
-            <li key={rkey} class="labels-chip labels-chip-series">
+            <li key={rkey} class="chip labels-chip labels-chip-series">
               <span class="labels-chip-name">{value.name}</span>
               <SeriesMark />
             </li>
           ))}
           {carried.map(({ rkey, value }) => (
-            <li key={rkey} class="labels-chip">
+            <li key={rkey} class="chip labels-chip">
               <span class="labels-chip-name">{value.name}</span>
               <button
                 class="labels-chip-remove"
@@ -187,7 +187,7 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
             {others.map(({ rkey, value }) => (
               <button
                 key={rkey}
-                class="labels-chip labels-chip-add"
+                class="chip labels-chip labels-chip-add"
                 type="button"
                 disabled={saving}
                 onClick={() => save(async (own) => (await saveLabel(own, attach(value, work), rkey)).state)}
@@ -200,7 +200,7 @@ export function BookLabels({ work, sources }: { work: string; sources: Sources }
             ))}
           </div>
         )}
-        <button class="labels-chip labels-chip-add" type="button" aria-expanded={adding} onClick={() => setAdding(!adding)}>
+        <button class="chip labels-chip labels-chip-add" type="button" aria-expanded={adding} onClick={() => setAdding(!adding)}>
           <span class="labels-chip-plus" aria-hidden="true">
             +
           </span>
