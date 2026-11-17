@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { memoryLocalCopy } from '../space/local-copy.fake';
 import { openOwnSpace, serverAuthClient } from './server-client';
 import { gate } from './session';
 
@@ -10,14 +11,14 @@ afterEach(() => {
 
 test('an open that failed is tried again on the next ask; once open, the page shares one store', async () => {
   // The session check fails once (the server is restarting), then answers.
-  const answers = [new Response(null, { status: 500 }), Response.json({ did: 'did:plc:reader', handle: 'reader.example' })];
+  const answers = [new Response(null, { status: 500 }), Response.json({ id: 'account-reader', handle: 'reader.example' })];
   vi.stubGlobal('fetch', () => Promise.resolve(answers.shift()));
 
   await expect(openOwnSpace()).rejects.toThrow('HTTP 500');
 
   const own = await openOwnSpace();
 
-  expect(own?.account).toEqual({ did: 'did:plc:reader', handle: 'reader.example' });
+  expect(own?.account).toEqual({ id: 'account-reader', handle: 'reader.example' });
   expect(await openOwnSpace()).toBe(own);
 });
 
@@ -28,7 +29,7 @@ describe('a session check the server never answers', () => {
     vi.spyOn(AbortSignal, 'timeout').mockReturnValue(AbortSignal.abort(new DOMException('Timed out', 'TimeoutError')));
     const storage = { getItem: () => saved, setItem: () => {}, removeItem: () => {} };
     const fetch = () => Promise.reject(new DOMException('Fetch is aborted', 'AbortError'));
-    return serverAuthClient({ fetch, storage, submitSignIn: () => {} });
+    return serverAuthClient({ fetch, storage, submitSignIn: () => {}, localCopy: memoryLocalCopy() });
   }
 
   test('sends a visitor with no saved account to the sign-in screen', async () => {
@@ -36,7 +37,7 @@ describe('a session check the server never answers', () => {
   });
 
   test('opens the account the device saw last, as offline', async () => {
-    const account = { did: 'did:plc:reader', handle: 'reader.example' };
+    const account = { id: 'account-reader', handle: 'reader.example' };
     expect(await clientWith(JSON.stringify(account)).init()).toEqual(account);
   });
 });

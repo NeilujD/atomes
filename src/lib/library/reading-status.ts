@@ -1,7 +1,7 @@
 // `app.atomes.readingStatus`: where the reader stands with a Work (ADR 0004, ADR 0010).
 // The record key is the Work identifier, so a Work has one Reading Status:
 // saving again replaces it. No record means unread.
-import type { Space, WriteState } from '../space/space';
+import type { Space, WriteState } from '../space/queued-store';
 import { isIsbn13, isWorkId } from './ids';
 import { listRecords, putRecord } from './records';
 

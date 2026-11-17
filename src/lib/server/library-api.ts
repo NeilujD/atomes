@@ -1,5 +1,5 @@
-// The instance API for Private records (ADR 0012), always for the DID of the
-// browser session. The device store (src/lib/space/instance-store.ts) calls it:
+// The instance API for Private records (ADR 0012), always for the Account of
+// the browser session (ADR 0016). The device store (src/lib/space/instance-store.ts) calls it:
 //   GET    /api/library?since=<rev>           Changes (library-store.ts): every collection
 //   GET    /api/library/<collection>          { records: [{ rkey, value }] }
 //   GET    /api/library/<collection>/<rkey>   { rkey, value } or 404 RecordNotFound
@@ -9,6 +9,7 @@
 // 409 StaleRecord when the record changed since (ADR 0012).
 // Errors: { error, message }, as XRPC answers. No message holds a record value.
 import { lexicons } from '../library/records';
+import type { AccountId } from './accounts';
 import { StaleRecordError, type LibraryStore } from './library-store';
 import { isValidRecordKey } from './record-key';
 
@@ -36,12 +37,12 @@ const fail = (status: number, error: string, message: string) => reply(status, {
 export async function handleLibraryRequest(
   request: Request,
   {
-    did,
+    account,
     store,
     rules,
     onWrite,
   }: {
-    did: string;
+    account: AccountId;
     store: LibraryStore;
     rules: RecordRules;
     // A put or a delete was stored (sharing mirrors it to the PDS, sharing.ts).
@@ -62,19 +63,19 @@ export async function handleLibraryRequest(
 
   if (!collection && rest.length === 0 && since !== undefined) {
     if (request.method !== 'GET') return fail(405, 'MethodNotAllowed', 'Use GET');
-    return reply(200, store.changesSince(did, since));
+    return reply(200, store.changesSince(account, since));
   }
   if (!collection || !rules.isCollection(collection)) return fail(400, 'InvalidCollection', 'Unknown record collection');
   if (rest.length > 0 || (rkey !== undefined && !isValidRecordKey(rkey))) return fail(400, 'InvalidRecordKey', 'Invalid record key');
 
   if (rkey === undefined) {
     if (request.method !== 'GET') return fail(405, 'MethodNotAllowed', 'Use GET');
-    return reply(200, { records: store.list(did, collection) });
+    return reply(200, { records: store.list(account, collection) });
   }
 
   switch (request.method) {
     case 'GET': {
-      const value = store.get(did, collection, rkey);
+      const value = store.get(account, collection, rkey);
       return value === undefined ? fail(404, 'RecordNotFound', 'Record not found') : reply(200, { rkey, value });
     }
     case 'PUT': {
@@ -90,10 +91,10 @@ export async function handleLibraryRequest(
         const reason = error instanceof Error ? `: ${error.message}` : '';
         return fail(400, 'InvalidRecord', `The record does not match the ${collection} lexicon${reason}`);
       }
-      return unlessStale(() => ({ rev: store.put(did, collection, rkey, record, base) }), () => onWrite?.(collection, rkey));
+      return unlessStale(() => ({ rev: store.put(account, collection, rkey, record, base) }), () => onWrite?.(collection, rkey));
     }
     case 'DELETE':
-      return unlessStale(() => ({ rev: store.delete(did, collection, rkey, base) }), () => onWrite?.(collection, rkey));
+      return unlessStale(() => ({ rev: store.delete(account, collection, rkey, base) }), () => onWrite?.(collection, rkey));
     default:
       return fail(405, 'MethodNotAllowed', 'Use GET, PUT or DELETE');
   }

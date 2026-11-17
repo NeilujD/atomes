@@ -23,8 +23,7 @@ test('every lexicon file is a valid lexicon whose id matches its path', async ()
   }
 });
 
-// The Space lexicon (lexicons-space/) stays out: the stable parser refuses
-// `type: "space"` (spike 0003). The server accepts these types only.
+// The server accepts these types only.
 const libraryTypes = [copyCollection, followCollection, labelCollection, loanCollection, readingStatusCollection, toBuyCollection].sort();
 
 test('the loaded lexicons are exactly the Library record types', async () => {
@@ -32,14 +31,6 @@ test('the loaded lexicons are exactly the Library record types', async () => {
 
   expect(docs.every((doc) => doc.defs.main?.type === 'record')).toBe(true);
   expect(docs.map((doc) => doc.id).sort()).toEqual(libraryTypes);
-});
-
-test('the Space lexicon, kept for the move to Spaces, lists the same record types', async () => {
-  const space = JSON.parse(await readFile(new URL('../../../lexicons-space/app/atomes/library.json', import.meta.url), 'utf8')) as {
-    defs: { main: { collections: string[] } };
-  };
-
-  expect([...space.defs.main.collections].sort()).toEqual(libraryTypes);
 });
 
 // ADR 0010, amendment 2026-11-09: Loans replace Lent To, so who has a Copy has one source.

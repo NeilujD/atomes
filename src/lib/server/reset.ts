@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { appEnvironment } from './settings.ts';
 
 // `auth.sqlite`: browser and OAuth sessions, so every browser is signed out.
-// `library.sqlite`: the Library. `catalog.sqlite`: the Catalog.
+// `library.sqlite`: the Accounts and their Library. `catalog.sqlite`: the Catalog.
 const databases = ['auth.sqlite', 'library.sqlite', 'catalog.sqlite'] as const;
 
 export interface Emptied {

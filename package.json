@@ -28,6 +28,7 @@
     "@lucide/astro": "^1.68.0",
     "astro": "^7.4.5",
     "barcode-detector": "3.2.3",
+    "nodemailer": "^10.6.0",
     "preact": "^11.2.0",
     "zxing-wasm": "3.1.6"
   },

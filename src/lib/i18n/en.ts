@@ -48,12 +48,10 @@ export const en = {
   'saved.refused': 'The Atomes server refused this change, so it is not saved.',
   'saved.refused-reason': (reason: string) => `Reason: ${reason}`,
 
-  // Errors (src/lib/space/space.ts, src/lib/auth/session.ts)
+  // Errors (src/lib/space/queued-store.ts, src/lib/auth/session.ts)
   'error.server-unreachable': 'Could not reach this Atomes server. Check your connection and try again.',
   'error.server-refused-request': (detail: string) => `The Atomes server refused the request: ${detail}`,
   'error.server-problem': (detail: string) => `The Atomes server has a problem (${detail}). Try again later.`,
-  'error.pds-refused-request': (detail: string) => `Your PDS refused the request: ${detail}`,
-  'error.pds-problem': (detail: string) => `Your PDS has a problem (${detail}). Try again later.`,
   'error.space-failed': 'Something went wrong with your Library. Try again.',
 
   // Sign-in (src/lib/auth/session.ts)
@@ -63,7 +61,8 @@ export const en = {
   'auth.signed-out-server-unreached':
     'Signed out on this device. The Atomes server could not be reached to end the session there.',
   'auth.cancelled': 'Sign-in was cancelled.',
-  'auth.not-allowed': 'This account may not sign in to this Atomes server. Ask its owner to add it.',
+  'auth.no-invite': 'You need an Invite to create an account on this Atomes server. Ask its owner for one.',
+  'auth.invite-used': 'This Invite was used or has expired. Ask the owner of this Atomes server for a new one.',
   'auth.session-ended': 'Your session has ended. Sign in again.',
   'auth.no-account': 'No account found for this handle. Check the spelling.',
   'auth.pds-unreachable': 'Could not reach your PDS. Try again later.',
@@ -78,6 +77,48 @@ export const en = {
   'signin.sharing': 'Atomes also asks your PDS for permission to write the records you choose to share: Reading Statuses, Followed Series, Labels. Nothing is Shared until you turn it on in Settings.',
   'signin.handle': 'Your handle',
   'signin.submit': 'Sign in',
+  'signin.privacy': 'Privacy notice',
+  'auth.account-deleted': 'Your account is deleted.',
+  'auth.account-deleted-shared-left':
+    'Your account is deleted, but Atomes could not reach your AT Protocol account: your Shared records (Reading Statuses, Followed Series, Labels) are still on it. Delete the app.atomes records there with an AT Protocol tool, or ask the operator of this instance.',
+  'signin.email-hint': 'Type your email address: Atomes sends you a Sign-in Code. There is no password.',
+  'signin.email': 'Your email address',
+  'signin.send-code': 'Send me a code',
+  'signin.code-sent': (email: string) => `If ${email} may sign in here, a Sign-in Code is on its way. It works for 10 minutes.`,
+  'signin.code': 'Sign-in Code',
+  'signin.paste-code': 'Paste the code',
+  'signin.no-code-copied': 'No 6-digit code was copied. Copy the code from the email, or type it.',
+  'signin.paste-refused': 'Atomes cannot read what you copied. Type the code, or paste it in the field.',
+  'signin.other-address': 'Use another address',
+  'signin.atproto': 'Bluesky or another AT Protocol account',
+  'auth.type-email': 'Type your email address, for example alice@example.org.',
+  'auth.type-code': 'Type the 6 digits of your Sign-in Code.',
+  'auth.wrong-code': 'This code is wrong or has expired. Check it, or ask for a new one.',
+  'auth.too-many': 'Too many tries. Wait a while, then try again.',
+  // The code emails (src/lib/server/mail.ts and mail-html.ts): a plain text part
+  // and an HTML part. The code comes first in the subject: phones read it from
+  // the notification to offer it above the keyboard.
+  'mail.code.subject': (code: string) => `${code} is your Atomes sign-in code`,
+  'mail.code.heading': 'Your sign-in code',
+  'mail.code.lead': 'Enter this code in Atomes to sign in. No password needed.',
+  'mail.code.ignore': 'Didn’t ask for this? Someone may have typed your address by mistake. You can ignore this email; your account stays safe.',
+  'mail.code.reason': 'because a sign-in was requested on',
+  'mail.code.text': (code: string) =>
+    `Your sign-in code for Atomes:\n\n${code}\n\nIt works once, for 10 minutes. Type it on the sign-in screen of Atomes.\n\nIf you did not ask for it, ignore this email: no one can sign in without the code.\n`,
+  'mail.link.subject': (code: string) => `${code} adds this address to your Atomes account`,
+  'mail.link.heading': 'Add this address',
+  'mail.link.lead': 'Enter this code in the Settings of Atomes to add this address to your account.',
+  'mail.link.ignore': 'Didn’t ask for this? You can ignore this email: no one can add your address without the code.',
+  'mail.link.reason': 'because someone asked to add it to an account on',
+  'mail.expires-before': 'Expires in',
+  'mail.expires-minutes': (minutes: number) => `${minutes} minutes`,
+  'mail.expires-after': 'and works once.',
+  'mail.never-ask': 'Atomes will never ask you for this code by email, phone or message.',
+  'mail.sent-to': (email: string) => `Sent to ${email}`,
+  'mail.private': 'Your Library stays private unless you share it.',
+  'mail.link.text': (code: string) =>
+    `Your code to add this address to your Atomes account:\n\n${code}\n\nIt works once, for 10 minutes, in the Settings screen where you asked for it.\n\nIf you did not ask for it, ignore this email: no one can add your address without the code.\n`,
+  'signin.invite-kept': 'Invite kept. Sign in to create your account.',
   'signout.title': 'Sign out of this device?',
   'signout.text': 'Atomes removes your Library from this device. Saves still waiting to be sent are lost.',
   'signout.cancel': 'Cancel',
@@ -108,11 +149,38 @@ export const en = {
   'settings.atproto-account': 'AT Protocol account',
   'settings.checking': 'Checking…',
   'settings.sign-out': 'Sign out',
-  'settings.signed-in-as': (handle: string) => `Signed in as @${handle}`,
+  'settings.signed-in-as': (name: string) => `Signed in as ${name}`,
+  'settings.email': 'Email address',
+  'settings.add-email': 'Add an email address',
+  'settings.add-email-hint': 'Atomes sends a Sign-in Code to it. Then you can sign in with this address too.',
+  'settings.add-email-sent': (email: string) => `A Sign-in Code is on its way to ${email}. It works for 10 minutes, on this screen only.`,
+  'settings.add': 'Add',
+  'settings.link-atproto': 'Link a Bluesky account',
+  'settings.link-atproto-hint': 'Or another AT Protocol account. You sign in on its own page; then you can share, and sign in with it too.',
+  'settings.link': 'Link',
+  'link.added': 'Email address added. You can sign in with it now.',
+  'link.linked': 'AT Protocol account linked. You can sign in with it, and share.',
+  'link.email-taken': 'This address belongs to another Atomes account. Nothing was changed.',
+  'link.atproto-taken': 'This AT Protocol account belongs to another Atomes account. Nothing was changed.',
+  'link.has-email': 'Your account has an email address already.',
+  'link.has-atproto': 'Your account has an AT Protocol account already.',
+  'link.other-session': 'This link was started in another browser or session. Start it again here.',
   'settings.display': 'Display',
   'settings.appearance': 'Appearance',
   'settings.language': 'Language',
   'settings.on-this-device': 'Kept on this device.',
+  'settings.your-data': 'Your data',
+  'settings.privacy': 'Privacy notice',
+  'settings.privacy-hint': 'What this instance keeps, who can read it, and your rights.',
+  'settings.export': 'Export my Library',
+  'settings.export-hint': 'One JSON file with every record of your Library, Loans included.',
+  'settings.delete': 'Delete my account',
+  'settings.delete-hint': 'Removes your Library and your Account from this instance. It cannot be undone.',
+  'settings.delete-failed': 'Your account could not be deleted. Check the network, then try again.',
+  'delete.title': 'Delete your account?',
+  'delete.text':
+    'Atomes deletes your Library (Loans included), your sharing choices and your Account from this instance, and your Shared records from your AT Protocol account. This cannot be undone. Export your Library first to keep a copy.',
+  'delete.cancel': 'Cancel',
 
   // Sharing (Settings, Book page; glossary: Shared, Private)
   'sharing.title': 'Sharing',
@@ -125,6 +193,7 @@ export const en = {
   'sharing.consent':
     'To share, Atomes needs permission to write on your AT Protocol account: Reading Statuses, Followed Series and Labels only. Your PDS asks you once, when you sign in again.',
   'sharing.still-shared': 'Still on your AT Protocol account: Atomes tries again.',
+  'sharing.needs-link': 'To share, link a Bluesky account in Account, above.',
   'sharing.sign-in-again': 'Sign in again',
   'sharing.pending': 'Some changes have not reached your PDS yet.',
   'sharing.retry': 'Try again',
@@ -487,4 +556,33 @@ export const en = {
   'select.moved': (count: number) => `${count} ${count === 1 ? 'book' : 'books'} moved. Every reader sees it.`,
   'select.unchanged': 'Nothing to change.',
   'select.undone': 'Undone.',
+
+  // Privacy notice (src/pages/privacy.astro, CORE-55), approved by the owner on
+  // 2026-11-16. A change to it needs the owner's approval and a new date.
+  'privacy.title': 'Privacy notice',
+  'privacy.intro': 'This page tells what this Atomes instance keeps about you, who can read it, and how to take it with you or delete it.',
+  'privacy.operator-heading': 'Who is responsible',
+  'privacy.operator':
+    'This instance is run by Julien Collard. The operator is the data controller for what the instance keeps. Contact: julien.collard14@gmail.com.',
+  'privacy.stores-heading': 'What the instance keeps',
+  'privacy.stores':
+    'Your Account: an email address, the AT Protocol account you linked, or both. Your Library: Copies, Loans, Reading Statuses, Labels, Followed Series and To Buy. Your sharing choices. Your sessions, so you stay signed in. A Series Correction you make keeps your Account as its author.',
+  'privacy.not-kept':
+    'No password: you sign in with a Sign-in Code or your AT Protocol account. The instance never writes your records in its logs. The Catalog learns only the ISBNs you look up, never who looked them up.',
+  'privacy.readers-heading': 'Who can read it',
+  'privacy.readers':
+    'You, and the operator of this instance, who can read every Library it keeps. Nobody else, except what you share. To keep your Library from any operator, run your own instance.',
+  'privacy.processors-heading': 'Who helps',
+  'privacy.processors':
+    'Scaleway (Transactional Email, Paris, France) sends your Sign-in Codes: it receives your email address and the code, for this only. Every hour, an encrypted copy of the Library is sent to Cloudflare R2 (Cloudflare, Inc.), in the EU jurisdiction, and kept for 30 days.',
+  'privacy.shared-heading': 'What you share',
+  'privacy.shared':
+    'Shared records (Reading Statuses, Followed Series, Labels) go to your AT Protocol account, where anyone can read them. Nothing is Shared until you turn it on. Copies, Loans and To Buy are never Shared.',
+  'privacy.basis-heading': 'Why',
+  'privacy.basis':
+    'The instance keeps this data to give you the service you asked for: your Library on all your devices. It never sells it and never uses it for advertising.',
+  'privacy.rights-heading': 'Take it with you, or delete it',
+  'privacy.rights':
+    'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account. The encrypted backups still hold it for up to 30 days. For any other request, write to julien.collard14@gmail.com.',
+  'privacy.updated': 'Last change: 16 November 2026.',
 };

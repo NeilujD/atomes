@@ -2,7 +2,7 @@
 // `lexicons/` (ADR 0010). The instance runs the same check on every write
 // (src/lib/server/library-api.ts, ADR 0012).
 import { Lexicons, parseLexiconDoc } from '@atproto/lexicon';
-import type { Space, WriteState } from '../space/space';
+import type { Space, WriteState } from '../space/queued-store';
 
 const files = import.meta.glob<unknown>('../../../lexicons/app/atomes/*.json', { eager: true, import: 'default' });
 export const lexicons = new Lexicons(Object.values(files).map((file) => parseLexiconDoc(file)));

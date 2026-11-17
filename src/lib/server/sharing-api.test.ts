@@ -1,37 +1,47 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import type { AccountId, Did } from './accounts';
 import { createLibraryStore, type LibraryStore } from './library-store';
+import { openDatabase } from './migrate';
+import { librarySteps } from './migrations';
 import { publicRepo } from './public-repo';
 import { fakePublicRepo, type FakePublicRepo } from './public-repo.fake';
 import { createSharing, type Sharing } from './sharing';
 import { handleSharingRequest } from './sharing-api';
 
-const owner = 'did:plc:owner';
-const other = 'did:plc:other';
+const owner = 'account-owner' as AccountId;
+const other = 'account-other' as AccountId;
+// The DID identity of each Account: the PDS knows only these.
+const dids = new Map<AccountId, Did>([
+  [owner, 'did:plc:owner'],
+  [other, 'did:plc:other'],
+]);
+const accountOf = (did: Did) => [...dids].find(([, each]) => each === did)![0];
 const at = '2026-11-13T10:00:00.000Z';
 
 let library: LibraryStore;
-let pds: Map<string, FakePublicRepo>;
+let pds: Map<AccountId, FakePublicRepo>;
 let noConsent: Set<string>;
 let unreachable: boolean;
 let sharing: Sharing;
 
 beforeEach(() => {
-  library = createLibraryStore(':memory:');
-  pds = new Map([owner, other].map((did) => [did, fakePublicRepo(did)]));
+  library = createLibraryStore(openDatabase(':memory:', librarySteps));
+  pds = new Map([owner, other].map((account) => [account, fakePublicRepo(dids.get(account)!)]));
   noConsent = new Set();
   unreachable = false;
   sharing = createSharing({
-    file: ':memory:',
+    db: openDatabase(':memory:', librarySteps),
     library,
     access: {
       repoOf: (did) => {
         if (unreachable) return Promise.reject(new TypeError('fetch failed'));
-        return Promise.resolve(noConsent.has(did) ? undefined : publicRepo(pds.get(did)!.handler, did));
+        return Promise.resolve(noConsent.has(accountOf(did)) ? undefined : publicRepo(pds.get(accountOf(did))!.handler, did));
       },
     },
+    didOf: (account) => dids.get(account),
   });
-  for (const did of [owner, other]) {
-    library.put(did, 'app.atomes.readingStatus', 'wd:Q1', { $type: 'app.atomes.readingStatus', work: 'wd:Q1', isbn: '9782723478991', status: 'read', updatedAt: at });
+  for (const account of [owner, other]) {
+    library.put(account, 'app.atomes.readingStatus', 'wd:Q1', { $type: 'app.atomes.readingStatus', work: 'wd:Q1', isbn: '9782723478991', status: 'read', updatedAt: at });
   }
 });
 
@@ -40,9 +50,9 @@ afterEach(() => {
   library.close();
 });
 
-function call(did: string, method: string, path: string, body?: unknown) {
+function call(account: AccountId, method: string, path: string, body?: unknown) {
   const init: RequestInit = body === undefined ? { method } : { method, body: JSON.stringify(body) };
-  return handleSharingRequest(new Request(`https://atomes.test/api/sharing${path}`, init), { did, sharing });
+  return handleSharingRequest(new Request(`https://atomes.test/api/sharing${path}`, init), { account, sharing });
 }
 
 describe('the sharing API', () => {
@@ -55,6 +65,7 @@ describe('the sharing API', () => {
       privateWorks: [],
       pending: false,
       canShare: true,
+      atproto: true,
     });
   });
 
@@ -99,8 +110,8 @@ describe('the sharing API', () => {
     expect([...pds.get(owner)!.records.keys()]).toEqual([]);
   });
 
-  test('acts only for the DID of the session, whatever the request names', async () => {
-    await call(owner, 'PUT', '/categories/readingStatuses', { shared: true, did: other, repo: other });
+  test('acts only for the Account of the session, whatever the request names', async () => {
+    await call(owner, 'PUT', '/categories/readingStatuses', { shared: true, account: other, did: dids.get(other), repo: dids.get(other) });
 
     expect([...pds.get(other)!.records.keys()]).toEqual([]);
     expect(await (await call(other, 'GET', '?did=did:plc:owner')).json()).toMatchObject({ shared: { readingStatuses: false } });

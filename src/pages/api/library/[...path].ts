@@ -12,11 +12,11 @@ export const ALL: APIRoute = async ({ request }) => {
   if (!reader) return signedOut();
   const sharing = await sharingService();
   return handleLibraryRequest(request, {
-    did: reader.did,
+    account: reader.account,
     store: libraryStore(),
     rules: lexiconRules,
     onWrite: (collection, rkey) => {
-      sharing.recordChanged(reader.did, collection, rkey).catch((error: unknown) => logFailure('mirror', error));
+      sharing.recordChanged(reader.account, collection, rkey).catch((error: unknown) => logFailure('mirror', error));
     },
   });
 };

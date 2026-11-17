@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { KeptCatalog } from '../catalog/device';
-import type { Space } from '../space/space';
+import type { Space } from '../space/queued-store';
 import { saveCopy } from './copy';
 import { saveFollow } from './follow';
 import { loadLibrary } from './library';

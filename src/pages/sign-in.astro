@@ -1,9 +1,15 @@
 ---
-// The sign-in screen (ADR 0013, amendment 2026-11-12): every other app screen
-// sends a visitor with no session here (the gate in AppShell), with the screen
-// asked as `?next=`. A Flow screen (ui-direction): no sidebar or tab bar.
-// The server sends a failed sign-in back here with `?auth=<result>`. The
-// service worker keeps this page by path: the script reads the query.
+// The sign-in screen (ADR 0013, amendment 2026-11-12; ADR 0016): every other
+// app screen sends a visitor with no session here (the gate in AppShell), with
+// the screen asked as `?next=`. A Flow screen (ui-direction): no sidebar or tab
+// bar. First the email address, then its Sign-in Code (email-sign-in.ts).
+// "Bluesky or another AT Protocol account" opens the handle field below: only
+// there does the text name a PDS or a handle.
+// The server sends a failed sign-in back here with `?auth=<result>`. An Invite
+// link opens it as `/sign-in#invite=<token>`: the fragment never reaches a
+// server, and the script sends the token to /api/invite, then drops it from
+// the address. The service worker keeps this page by path: the script reads the query.
+import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
@@ -15,75 +21,214 @@ const t = translator(requestLanguage(Astro.request));
   <section class="card" aria-labelledby="sign-in-title">
     <Mark size={48} />
     <h1 class="title" id="sign-in-title">{t('signin.heading')}</h1>
-    <p class="hint">{t('signin.hint')}</p>
-    <!-- The reason for the permission the PDS asks for (CORE-38). -->
-    <p class="hint">{t('signin.sharing')}</p>
-    <form class="sign-in" data-sign-in>
-      <label class="visually-hidden" for="handle">{t('signin.handle')}</label>
-      <input
-        class="field"
-        id="handle"
-        name="handle"
-        type="text"
-        inputmode="url"
-        autocomplete="username"
-        autocapitalize="none"
-        spellcheck="false"
-        enterkeyhint="go"
-        placeholder="alice.bsky.social"
-      />
-      <button class="button button-primary" type="submit">{t('signin.submit')}</button>
+    <form class="step" data-email-form>
+      <p class="hint">{t('signin.email-hint')}</p>
+      <label class="visually-hidden" for="email">{t('signin.email')}</label>
+      <div class="row">
+        <input
+          class="field"
+          id="email"
+          name="email"
+          type="email"
+          inputmode="email"
+          autocomplete="email"
+          autocapitalize="none"
+          spellcheck="false"
+          enterkeyhint="send"
+          placeholder="alice@example.org"
+        />
+        <button class="button button-primary" type="submit">{t('signin.send-code')}</button>
+      </div>
     </form>
+    <form class="step" data-code-form hidden>
+      <p class="hint" data-code-sent></p>
+      <label class="visually-hidden" for="code">{t('signin.code')}</label>
+      <div class="row">
+        <div class="code-field">
+          <input
+            class="field code"
+            id="code"
+            name="code"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            enterkeyhint="go"
+            placeholder="123456"
+          />
+          <!-- Shown only where the browser can read the clipboard. -->
+          <button class="paste" type="button" aria-label={t('signin.paste-code')} title={t('signin.paste-code')} data-paste-code hidden>
+            <Icon name="clipboard-paste" />
+          </button>
+        </div>
+        <button class="button button-primary" type="submit">{t('signin.submit')}</button>
+      </div>
+      <button class="button button-quiet" type="button" data-other-address>{t('signin.other-address')}</button>
+    </form>
+    <button class="button other" type="button" data-atproto aria-expanded="false" aria-controls="atproto">{t('signin.atproto')}</button>
+    <div class="step" id="atproto" hidden>
+      <p class="hint">{t('signin.hint')}</p>
+      <!-- The reason for the permission the PDS asks for (CORE-38). -->
+      <p class="hint">{t('signin.sharing')}</p>
+      <form class="row" data-sign-in>
+        <label class="visually-hidden" for="handle">{t('signin.handle')}</label>
+        <input
+          class="field"
+          id="handle"
+          name="handle"
+          type="text"
+          inputmode="url"
+          autocomplete="username"
+          autocapitalize="none"
+          spellcheck="false"
+          enterkeyhint="go"
+          placeholder="alice.bsky.social"
+        />
+        <button class="button button-primary" type="submit">{t('signin.submit')}</button>
+      </form>
+    </div>
     <p class="error" data-error role="alert" hidden></p>
+    <a class="privacy" href="/privacy">{t('signin.privacy')}</a>
   </section>
 </AppShell>
 
 <script>
   import { returnTarget } from '../lib/auth/return-to';
   import { createAuthClient } from '../lib/auth/server-client';
-  import { loadSession, signIn, signInResultMessage } from '../lib/auth/session';
+  import { t } from '../lib/i18n/i18n';
+  import { askSignInCode, codeIn, keepInvite, loadSession, signIn, signInResultMessage, signInWithCode } from '../lib/auth/session';
 
+  const emailForm = document.querySelector<HTMLFormElement>('[data-email-form]')!;
+  const codeForm = document.querySelector<HTMLFormElement>('[data-code-form]')!;
+  const emailInput = emailForm.querySelector<HTMLInputElement>('input[name="email"]')!;
+  const codeInput = codeForm.querySelector<HTMLInputElement>('input[name="code"]')!;
+  const codeSent = codeForm.querySelector<HTMLElement>('[data-code-sent]')!;
+  const atprotoButton = document.querySelector<HTMLButtonElement>('[data-atproto]')!;
+  const atproto = document.querySelector<HTMLElement>('#atproto')!;
   const form = document.querySelector<HTMLFormElement>('[data-sign-in]')!;
   const handleInput = form.querySelector<HTMLInputElement>('input[name="handle"]')!;
-  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const error = document.querySelector<HTMLElement>('[data-error]')!;
+  const send = (input: string, init?: RequestInit) => fetch(input, init);
 
-  // `?auth=` is read once, then dropped from the address, so a reload does not show it again.
+  // `?auth=` and `#invite=` are read once, then dropped from the address, so a
+  // reload does not show them again and the Invite is in no history entry.
   const url = new URL(location.href);
   const result = url.searchParams.get('auth');
+  const invite = new URLSearchParams(url.hash.slice(1)).get('invite');
   const next = returnTarget(url.searchParams.get('next'));
   url.searchParams.delete('auth');
+  url.hash = '';
   history.replaceState(history.state, '', url);
+  const inviteSaid = invite ? keepInvite(send, invite) : Promise.resolve(undefined);
+
+  // The address the code was sent to, while the code step shows.
+  let email = '';
 
   function say(message: string | undefined) {
     error.textContent = message ?? '';
     error.hidden = !message;
   }
 
-  function busy(on: boolean) {
-    handleInput.disabled = on;
-    submit.disabled = on;
-    submit.setAttribute('aria-busy', String(on));
+  // Disables the controls of a form while its request runs.
+  async function busy<T>(target: HTMLFormElement, run: () => Promise<T>): Promise<T> {
+    const controls = [...target.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button')];
+    const submit = target.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    for (const control of controls) control.disabled = true;
+    submit.setAttribute('aria-busy', 'true');
+    try {
+      return await run();
+    } finally {
+      for (const control of controls) control.disabled = false;
+      submit.setAttribute('aria-busy', 'false');
+    }
   }
 
+  function showCodeStep(address: string | undefined) {
+    email = address ?? '';
+    emailForm.hidden = address !== undefined;
+    codeForm.hidden = address === undefined;
+    codeSent.textContent = address ? t('signin.code-sent', address) : '';
+    codeInput.value = '';
+    (address ? codeInput : emailInput).focus();
+  }
+
+  function openAtproto() {
+    atproto.hidden = false;
+    atprotoButton.hidden = true;
+    atprotoButton.setAttribute('aria-expanded', 'true');
+  }
+
+  // A result of the AT Protocol sign-in (the server sends it back here) opens
+  // its part of the screen; the Account deleted messages do not.
+  if (result && !result.startsWith('deleted')) openAtproto();
+
   // Signed in already (on this device, or offline with a saved account): back to the screen asked.
-  void loadSession(createAuthClient()).then((state) => {
+  void Promise.all([loadSession(createAuthClient()), inviteSaid]).then(([state, inviteMessage]) => {
     if (state.status === 'signed-in') return location.replace(next);
-    say(state.message ?? signInResultMessage(result));
+    say(state.message ?? inviteMessage ?? signInResultMessage(result));
+  });
+
+  emailForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    say(undefined);
+    void busy(emailForm, () => askSignInCode(send, emailInput.value)).then((answer) => {
+      if ('email' in answer) showCodeStep(answer.email);
+      else say(answer.message);
+    });
+  });
+
+  codeForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void busy(codeForm, () => signInWithCode(send, email, codeInput.value)).then((message) => {
+      if (message === undefined) location.replace(next);
+      else say(message);
+    });
+  });
+
+  // A whole code, typed, pasted or suggested by the keyboard, signs in at once.
+  codeInput.addEventListener('input', () => {
+    const code = codeIn(codeInput.value);
+    if (code === undefined) return;
+    codeInput.value = code;
+    codeForm.requestSubmit();
+  });
+
+  const pasteButton = codeForm.querySelector<HTMLButtonElement>('[data-paste-code]')!;
+  pasteButton.hidden = typeof navigator.clipboard?.readText !== 'function';
+  pasteButton.addEventListener('click', () => {
+    say(undefined);
+    navigator.clipboard.readText().then(
+      (text) => {
+        const code = codeIn(text);
+        if (code === undefined) return say(t('signin.no-code-copied'));
+        codeInput.value = code;
+        codeForm.requestSubmit();
+      },
+      () => say(t('signin.paste-refused')),
+    );
+  });
+
+  codeForm.querySelector('[data-other-address]')!.addEventListener('click', () => {
+    say(undefined);
+    showCodeStep(undefined);
+  });
+
+  atprotoButton.addEventListener('click', () => {
+    openAtproto();
+    handleInput.focus();
   });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    busy(true);
-    void signIn(createAuthClient(), handleInput.value, next)
-      .then((state) => say(state.status === 'signed-out' ? state.message : undefined))
-      .finally(() => busy(false));
+    void busy(form, () => signIn(createAuthClient(), handleInput.value, next)).then((state) =>
+      say(state.status === 'signed-out' ? state.message : undefined),
+    );
   });
 </script>
 
 <style>
   .card {
     width: min(100%, 400px);
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -104,15 +249,84 @@ const t = translator(requestLanguage(Astro.request));
     text-wrap: pretty;
   }
 
-  .sign-in {
+  .step {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .step[hidden] {
+    display: none;
+  }
+
+  .row {
     width: 100%;
     display: flex;
     gap: 8px;
-    margin-top: 8px;
   }
 
-  .sign-in .field {
+  .row .field {
     flex: 1;
+  }
+
+  /* The field gives up its width first; the button keeps its words on one line. */
+  .row .button {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .code {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.2em;
+  }
+
+  /* The paste icon sits in the field, at its end. */
+  .code-field {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+  }
+
+  .code-field .field {
+    flex: 1;
+  }
+
+  .code-field:has(.paste:not([hidden])) .field {
+    padding-inline-end: var(--row);
+  }
+
+  .paste {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    width: var(--row);
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--secondary);
+    cursor: pointer;
+  }
+
+  .paste:hover {
+    color: var(--ink);
+  }
+
+  .other {
+    width: 100%;
+    margin-top: 8px;
+    /* On a narrow phone its words take two lines. */
+    padding-block: 8px;
+    text-wrap: balance;
+  }
+
+  .privacy {
+    margin-top: 8px;
+    font-size: 13px;
   }
 
   .error {

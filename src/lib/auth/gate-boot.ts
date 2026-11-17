@@ -1,4 +1,4 @@
-// The account this device saw last (DID and handle, no token), kept by
+// The Account this device saw last (its ID and handle, no token), kept by
 // server-client.ts so the session still opens offline (ADR 0002).
 export const accountKey = 'atomes-account';
 

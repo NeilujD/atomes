@@ -1,7 +1,7 @@
 // Test fake: the public repo of one account on a PDS, answering the
 // com.atproto.repo.* calls the server makes to share (public-repo.ts). The
 // tests read `records` to see what anyone could read.
-import type { FetchHandler } from '../space/space';
+import type { FetchHandler } from '../space/queued-store';
 
 export interface FakePublicRepo {
   handler: FetchHandler;

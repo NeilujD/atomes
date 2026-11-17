@@ -7,7 +7,7 @@
 import type { Edition } from '../catalog/catalog';
 import { coverUrl } from '../catalog/client';
 import { compareText, translator, type Language } from '../i18n/i18n';
-import type { Space, WriteState } from '../space/space';
+import type { Space, WriteState } from '../space/queued-store';
 import type { Copy } from './copy';
 import { editionWork, isIsbn13, readIsbn, type IsbnProblem } from './ids';
 import { editionLabel, isOwned, type Editions, type Library } from './model';

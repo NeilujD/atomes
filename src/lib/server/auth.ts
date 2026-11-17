@@ -1,25 +1,29 @@
 // Sign-in on the server (ADR 0013): the server holds the reader's OAuth session
 // and gives the browser only its own session cookie. The OAuth client sits
 // behind a small port (oauth.ts), so tests never call a PDS.
+import { createHash } from 'node:crypto';
 import { returnTarget, signInPath } from '../auth/return-to';
-import { NotAllowedError, type AuthStore, browserSessionLifetimeMs } from './auth-store';
+import { errorLogText, NoInviteError, type AccountId, type Accounts, type Did, type LinkResult } from './accounts';
+import { type AuthStore, browserSessionLifetimeMs } from './auth-store';
 
 export interface OAuthPort {
-  // The PDS page that asks the reader to sign in. Refuses a DID that is not
-  // allowed when the handle resolves, before the reader leaves. Keeps
-  // `returnTo` on the server for the callback.
-  authorize(handle: string, returnTo: string): Promise<URL>;
+  // The DID of the handle, resolved by this server.
+  didOf(handle: string): Promise<Did>;
+  // The PDS page that asks the reader to sign in, for a handle or a DID.
+  // Keeps `state` on the server for the callback: the return target of a
+  // sign-in, or the link of a browser session (linkState).
+  authorize(input: string, state: string): Promise<URL>;
   // Finishes the sign-in that comes back from the PDS. Gives the reader's DID
-  // and the `returnTo` of its authorize.
-  callback(params: URLSearchParams): Promise<{ did: string; returnTo?: string }>;
+  // and the `state` of its authorize.
+  callback(params: URLSearchParams): Promise<{ did: Did; state?: string }>;
   // The handle of the DID, or the DID when it has none.
-  handleOf(did: string): Promise<string>;
+  handleOf(did: Did): Promise<string>;
   // Ends the OAuth session: revokes it on the PDS and deletes it here.
-  revoke(did: string): Promise<void>;
+  revoke(did: Did): Promise<void>;
 }
 
 // What the sign-in screen tells after a failed sign-in (`?auth=` in its URL).
-export type SignInResult = 'not-allowed' | 'cancelled' | 'no-account' | 'unreachable' | 'failed';
+export type SignInResult = 'no-invite' | 'cancelled' | 'no-account' | 'unreachable' | 'failed';
 
 // A sign-in failure the OAuth port could name.
 export class SignInError extends Error {
@@ -35,11 +39,14 @@ export class SignInError extends Error {
 export interface AuthDeps {
   oauth: OAuthPort;
   store: AuthStore;
+  // The Accounts and Invites in library.sqlite. Sign-out ends the OAuth
+  // session of the DID of the Account.
+  accounts: Pick<Accounts, 'identitiesOf' | 'signIn' | 'maySignIn' | 'inviteIsOpen' | 'ofDid' | 'findDid' | 'link'>;
   // PUBLIC_APP_ORIGIN; undefined in local development.
   appOrigin?: string;
   // After a sign-in: sharing sends what waited for the reader's session
   // (sharing.ts). Not awaited; a failure is logged and the sign-in goes on.
-  onSignedIn?: (did: string) => Promise<void> | void;
+  onSignedIn?: (account: AccountId) => Promise<void> | void;
 }
 
 export const sessionCookie = 'atomes_session';
@@ -50,16 +57,31 @@ export function sessionCookieHeader(value: string, maxAgeSeconds: number): strin
   return `${sessionCookie}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
 }
 
-function cookieOf(request: Request): string | undefined {
+// The Invite opened in this browser, kept for the sign-in that follows
+// (keepInvite). HttpOnly and SameSite=Lax as the session cookie. Path=/: both
+// sign-ins read it, the OAuth one under /oauth and the Sign-in Code one under
+// /api/sign-in. One hour: open the link again after.
+export const inviteCookie = 'atomes_invite';
+export const inviteCookieHeader = (value: string, maxAgeSeconds: number) =>
+  `${inviteCookie}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
+
+export function cookieOf(request: Request, cookie = sessionCookie): string | undefined {
   for (const part of (request.headers.get('cookie') ?? '').split(';')) {
     const [name, ...value] = part.trim().split('=');
-    if (name === sessionCookie) return value.join('=') || undefined;
+    if (name === cookie) return value.join('=') || undefined;
   }
   return undefined;
 }
 
-const goTo = (location: string, headers: Record<string, string> = {}) =>
-  new Response(null, { status: 303, headers: { location, ...headers } });
+// What binds a proof (a link code, an OAuth link) to the browser session that
+// started it: a hash of its cookie, with the use, never the cookie itself.
+export const sessionScope = (use: string, cookie: string) => `${use}:${createHash('sha256').update(cookie).digest('base64url')}`;
+
+const goTo = (location: string, setCookies: string[] = []) => {
+  const headers = new Headers({ location });
+  for (const cookie of setCookies) headers.append('set-cookie', cookie);
+  return new Response(null, { status: 303, headers });
+};
 
 // Back to the sign-in screen, which tells the result and keeps the return target.
 function back(result: SignInResult, returnTo = '/') {
@@ -70,27 +92,42 @@ function back(result: SignInResult, returnTo = '/') {
 
 function resultOf(error: unknown): SignInResult {
   for (let cause = error; cause instanceof Error; cause = cause.cause) {
-    if (cause instanceof NotAllowedError) return 'not-allowed';
+    if (cause instanceof NoInviteError) return 'no-invite';
     if (cause instanceof SignInError) return cause.result;
   }
   return 'failed';
 }
 
-// Names only: an OAuth error never carries a token, but keep the log short.
+// An OAuth error never carries a token; a DID or an Account ID is left out.
+// No Invite token reaches a log line: no error holds one.
 function logFailure(step: string, error: unknown) {
-  const name = error instanceof Error ? `${error.name}: ${error.message}` : 'unknown error';
-  console.warn(`Sign-in ${step} failed: ${name}`);
+  console.warn(`Sign-in ${step} failed: ${errorLogText(error)}`);
+}
+
+// POST /api/invite, from the sign-in screen opened with an Invite link
+// (`/sign-in#invite=<token>`: the fragment never reaches a server log, and the
+// screen drops it from the address). Keeps an open Invite in its cookie: 204;
+// a used, expired or unknown one: 410, and nothing is kept.
+export async function keepInvite(request: Request, { accounts }: Pick<AuthDeps, 'accounts'>): Promise<Response> {
+  const body = (await request.json().catch(() => undefined)) as { invite?: unknown } | undefined;
+  const invite = body?.invite;
+  if (typeof invite !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(invite) || !accounts.inviteIsOpen(invite)) {
+    return Response.json({ error: 'InviteUsed' }, { status: 410, headers: { 'cache-control': 'no-store' } });
+  }
+  return new Response(null, { status: 204, headers: { 'set-cookie': inviteCookieHeader(invite, 3600), 'cache-control': 'no-store' } });
 }
 
 // POST /oauth/sign-in, from the sign-in screen: `handle`, and `next`, the
-// screen to land on after the sign-in.
-export async function signIn(request: Request, { oauth }: AuthDeps): Promise<Response> {
+// screen to land on after the sign-in. A DID with no Account and no open
+// Invite is refused before the PDS page: the reader does not sign in for nothing.
+export async function signIn(request: Request, { oauth, accounts }: AuthDeps): Promise<Response> {
   const form = await request.formData().catch(() => undefined);
   const field = form?.get('handle');
   const handle = typeof field === 'string' ? field.trim().replace(/^@/, '') : '';
   const returnTo = returnTarget(form?.get('next'));
   if (!handle) return back('no-account', returnTo);
   try {
+    if (!accounts.maySignIn(await oauth.didOf(handle), cookieOf(request, inviteCookie))) throw new NoInviteError();
     return goTo((await oauth.authorize(handle, returnTo)).href);
   } catch (error) {
     logFailure('start', error);
@@ -98,46 +135,121 @@ export async function signIn(request: Request, { oauth }: AuthDeps): Promise<Res
   }
 }
 
-// GET /oauth/callback: the PDS sends the reader back here. Signed in, the
-// reader lands on the screen asked first. A failure goes back to the sign-in
-// screen, with no return target.
-export async function callback(request: Request, { oauth, store, onSignedIn }: AuthDeps): Promise<Response> {
+// GET /oauth/callback: the PDS sends the reader back here. A link started in
+// Settings finishes in finishLink. Signed in, the reader lands on the screen
+// asked first. A failure goes back to the sign-in screen, with no return
+// target. A DID with no Account makes one with the kept Invite, which is used
+// up; with none, its new OAuth session ends at once.
+export async function callback(request: Request, deps: AuthDeps): Promise<Response> {
+  const { oauth, store, accounts, onSignedIn } = deps;
+  let linking = false;
   try {
-    const { did, returnTo } = await oauth.callback(new URL(request.url).searchParams);
-    const cookie = store.openBrowserSession({ did, handle: await oauth.handleOf(did) });
-    void Promise.resolve()
-      .then(() => onSignedIn?.(did))
-      .catch((error: unknown) => logFailure('follow-up', error));
-    return goTo(returnTarget(returnTo), { 'set-cookie': sessionCookieHeader(cookie, browserSessionLifetimeMs / 1000) });
+    const { did, state } = await oauth.callback(new URL(request.url).searchParams);
+    if (state?.startsWith(linkPrefix)) {
+      linking = true;
+      return await finishLink(request, deps, did, state);
+    }
+    let account: AccountId;
+    try {
+      account = accounts.signIn(did, cookieOf(request, inviteCookie));
+    } catch (error) {
+      if (error instanceof NoInviteError) await revokeQuietly(oauth, did);
+      throw error;
+    }
+    const { cookie } = store.openBrowserSession({ account, handle: await oauth.handleOf(did) });
+    followUp(account, onSignedIn);
+    return goTo(returnTarget(state), [sessionCookieHeader(cookie, browserSessionLifetimeMs / 1000), inviteCookieHeader('', 0)]);
   } catch (error) {
     logFailure('callback', error);
-    return back(resultOf(error));
+    return linking ? linkDone(linkFailure(error)) : back(resultOf(error));
   }
 }
 
-// GET /dev/sign-in-as, development only: a browser session for `did` (default:
-// the first allowed DID) with no PDS, so agents can test the app by hand. The
-// Library API reads only the browser session. A DID that is not allowed gets
-// 403 and nothing is written.
-export function signInAs(request: Request, { store }: Pick<AuthDeps, 'store'>, allowedDids: ReadonlySet<string>): Response {
-  const query = new URL(request.url).searchParams;
-  const did = query.get('did') ?? [...allowedDids][0] ?? '';
+const revokeQuietly = (oauth: OAuthPort, did: Did) => oauth.revoke(did).catch((error: unknown) => logFailure('revoke', error));
+
+// Not awaited; a failure is logged and the sign-in goes on.
+function followUp(account: AccountId, onSignedIn: AuthDeps['onSignedIn']) {
+  void Promise.resolve()
+    .then(() => onSignedIn?.(account))
+    .catch((error: unknown) => logFailure('follow-up', error));
+}
+
+// What Settings tells after a link (`?link=` in its URL). `other-session`: the
+// link was finished in another browser session than the one that started it.
+export type LinkOutcome = LinkResult | 'other-session' | Exclude<SignInResult, 'no-invite'>;
+
+const linkPrefix = 'link:';
+const linkDone = (outcome: LinkOutcome) => goTo(`/settings?${new URLSearchParams({ link: outcome })}`);
+const linkFailure = (error: unknown): LinkOutcome => {
+  const result = resultOf(error);
+  return result === 'no-invite' ? 'failed' : result;
+};
+
+// POST /oauth/link, from Settings: links an AT Protocol Account to the
+// Account of this browser session (ADR 0016), proved by the OAuth flow.
+// `handle`; empty, the AT Protocol Account linked already, to give the
+// permission to share again. The OAuth state binds the link to this session.
+// A handle of another Account is refused before the PDS page.
+export async function linkAtproto(request: Request, { oauth, store, accounts }: AuthDeps): Promise<Response> {
+  const cookie = cookieOf(request);
+  const reader = cookie ? store.browserSession(cookie) : undefined;
+  if (!cookie || !reader) return goTo(signInPath);
+  const form = await request.formData().catch(() => undefined);
+  const field = form?.get('handle');
+  const handle = typeof field === 'string' ? field.trim().replace(/^@/, '') : '';
+  const linked = accounts.identitiesOf(reader.account).did;
   try {
-    const cookie = store.openBrowserSession({ did, handle: query.get('handle') ?? 'test.reader' });
-    return goTo('/library', { 'set-cookie': sessionCookieHeader(cookie, browserSessionLifetimeMs / 1000) });
+    if (handle) {
+      const did = await oauth.didOf(handle);
+      const owner = accounts.findDid(did);
+      if (owner !== undefined && owner !== reader.account) return linkDone('taken');
+      if (linked && linked !== did) return linkDone('has-one');
+    } else if (!linked) return linkDone('no-account');
+    return goTo((await oauth.authorize(handle || linked!, sessionScope('link', cookie))).href);
   } catch (error) {
-    if (error instanceof NotAllowedError) return new Response(null, { status: 403 });
-    throw error;
+    logFailure('link start', error);
+    return linkDone(linkFailure(error));
   }
+}
+
+// The PDS proved `did`: it joins the Account of the browser session that
+// started the link, and only that one. A refused DID that belongs to no
+// Account loses its new OAuth session; one of another Account keeps it.
+async function finishLink(request: Request, { oauth, store, accounts, onSignedIn }: AuthDeps, did: Did, state: string): Promise<Response> {
+  const cookie = cookieOf(request);
+  const reader = cookie ? store.browserSession(cookie) : undefined;
+  const outcome: LinkOutcome = !cookie || !reader || sessionScope('link', cookie) !== state ? 'other-session' : accounts.link(reader.account, 'did', did);
+  if (outcome !== 'linked' || !reader) {
+    if (accounts.findDid(did) === undefined) await revokeQuietly(oauth, did);
+    if (outcome === 'other-session') console.warn('Link refused: finished in another session');
+    return linkDone(outcome);
+  }
+  store.setHandle(reader.account, await oauth.handleOf(did));
+  followUp(reader.account, onSignedIn);
+  return linkDone('linked');
+}
+
+// GET /dev/sign-in-as, development only: a browser session for the Account of
+// `did` (default: did:plc:testreader) with no PDS, so agents and the E2E
+// readers can test the app. The Account is made at its first sign-in with no
+// Invite. The Library API reads only the browser session. A value that is not
+// a DID gets 400 and nothing is written.
+export function signInAs(request: Request, { store, accounts }: { store: AuthStore; accounts: Pick<Accounts, 'ofDid'> }): Response {
+  const query = new URL(request.url).searchParams;
+  const did = query.get('did') ?? 'did:plc:testreader';
+  if (!/^did:[a-z0-9]+:[A-Za-z0-9._:%-]+$/.test(did)) return new Response(null, { status: 400 });
+  const { cookie } = store.openBrowserSession({ account: accounts.ofDid(did as Did), handle: query.get('handle') ?? 'test.reader' });
+  return goTo('/library', [sessionCookieHeader(cookie, browserSessionLifetimeMs / 1000)]);
 }
 
 // POST /oauth/sign-out. Ends the browser session and removes the cookie. The
 // OAuth session ends too when no other browser of the reader is signed in.
-export async function signOut(request: Request, { oauth, store }: AuthDeps): Promise<Response> {
+export async function signOut(request: Request, { oauth, store, accounts }: AuthDeps): Promise<Response> {
   const cookie = cookieOf(request);
-  const did = cookie && store.closeBrowserSession(cookie);
+  const account = cookie && store.closeBrowserSession(cookie);
+  const did = account && !store.hasBrowserSessions(account) ? accounts.identitiesOf(account).did : undefined;
   let pdsReached = true;
-  if (did && !store.hasBrowserSessions(did)) {
+  if (did) {
     pdsReached = await oauth.revoke(did).then(
       () => true,
       (error: unknown) => {
@@ -158,8 +270,12 @@ export function readerOf(request: Request, { store }: Pick<AuthDeps, 'store'>) {
 export const signedOut = () =>
   Response.json({ error: 'SignedOut', message: 'Sign in again' }, { status: 401, headers: { 'cache-control': 'no-store' } });
 
-// GET /api/session: who is signed in, for the device.
-export function session(request: Request, deps: Pick<AuthDeps, 'store'>): Response {
+// GET /api/session: who is signed in, for the device: { id, handle?, email?,
+// atproto }. `id` is the Account; the device keys its local copy with it.
+// `atproto`: an AT Protocol Account is linked (it can share).
+export function session(request: Request, deps: Pick<AuthDeps, 'store' | 'accounts'>): Response {
   const reader = readerOf(request, deps);
-  return reader ? Response.json(reader, { headers: { 'cache-control': 'no-store' } }) : signedOut();
+  if (!reader) return signedOut();
+  const { email, did } = deps.accounts.identitiesOf(reader.account);
+  return Response.json({ id: reader.account, handle: reader.handle || undefined, email, atproto: did !== undefined }, { headers: { 'cache-control': 'no-store' } });
 }

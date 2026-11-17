@@ -2,7 +2,7 @@
 // became of a save (the `saved.*` texts of src/lib/i18n), and send the waiting saves when the PDS can be reached again.
 import { t } from '../i18n/i18n';
 import { freshListing } from '../space/fresh-listing';
-import type { Space, WriteState } from '../space/space';
+import type { Space, WriteState } from '../space/queued-store';
 import { listCopies } from './copy';
 import { listFollows } from './follow';
 import { listLoans } from './loan';

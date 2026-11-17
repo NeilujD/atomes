@@ -10,6 +10,7 @@ const allPrivate: SharingState = {
   privateWorks: [],
   pending: false,
   canShare: true,
+  atproto: true,
 };
 
 // A server that keeps what the reader shares, and answers `next` once when set.
@@ -72,6 +73,14 @@ describe('Sharing in Settings', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign in again' }));
     expect(server.signIns).toBe(1);
+  });
+
+  test('with no AT Protocol Account linked, every switch is disabled with one line that says why, and no sign-in', async () => {
+    fakeServer({ ...allPrivate, canShare: false, atproto: false });
+
+    expect(await screen.findByText('To share, link a Bluesky account in Account, above.')).toBeTruthy();
+    for (const name of ['Reading Statuses', 'Followed Series', 'Labels']) expect(input(screen.getByRole('switch', { name })).disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Sign in again' })).toBeNull();
   });
 
   test('when the server answers that the permission is missing, asks for it', async () => {

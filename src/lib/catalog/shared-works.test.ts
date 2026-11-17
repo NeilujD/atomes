@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, test } from 'vitest';
-import { migrate } from './migrations';
+import { migrate } from '../server/migrate';
+import { catalogSteps } from './migrations';
 import { dropSharedWorks } from './shared-works';
 
 const shared = 'inv:91e782c2fc0f67739836a22c452f3623';
@@ -12,7 +13,7 @@ afterEach(() => dbs.splice(0).forEach((db) => db.close()));
 function catalogWith(editions: { isbn: string; volumes: number[] }[]) {
   const db = new DatabaseSync(':memory:');
   dbs.push(db);
-  migrate(db);
+  migrate(db, catalogSteps({ findDid: () => undefined }));
   db.prepare("insert into series (n, id, title) values (1, 'wd:Q15051307', 'Dragon Ball')").run();
   for (const { isbn, volumes } of editions)
     db.prepare(

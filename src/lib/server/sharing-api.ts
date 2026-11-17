@@ -1,4 +1,4 @@
-// The sharing API (CORE-38), always for the DID of the browser session:
+// The sharing API (CORE-38), always for the Account of the browser session:
 //   GET  /api/sharing                          SharingState
 //   PUT  /api/sharing/categories/<category>    body { shared: boolean }. SharingState
 //   PUT  /api/sharing/private-works/<work>     body { private: boolean }. SharingState
@@ -9,7 +9,8 @@
 // share. 503 PdsUnreachable: nothing was saved.
 import { isWorkId } from '../library/ids';
 import { isCategory } from '../sharing/categories';
-import { NeedsConsentError, type Sharing } from './sharing';
+import type { AccountId } from './accounts';
+import { logFailure, NeedsConsentError, type Sharing } from './sharing';
 
 export const sharingPath = '/api/sharing';
 
@@ -35,7 +36,7 @@ async function privateWorks(request: Request): Promise<{ works: string[]; kept: 
   return { works, kept };
 }
 
-export async function handleSharingRequest(request: Request, { did, sharing }: { did: string; sharing: Sharing }): Promise<Response> {
+export async function handleSharingRequest(request: Request, { account, sharing }: { account: AccountId; sharing: Sharing }): Promise<Response> {
   let parts: string[];
   try {
     parts = new URL(request.url).pathname.slice(sharingPath.length).split('/').filter(Boolean).map(decodeURIComponent);
@@ -46,16 +47,16 @@ export async function handleSharingRequest(request: Request, { did, sharing }: {
   const method = request.method;
 
   if (kind === undefined) {
-    return method === 'GET' ? reply(200, await sharing.state(did)) : fail(405, 'MethodNotAllowed', 'Use GET');
+    return method === 'GET' ? reply(200, await sharing.state(account)) : fail(405, 'MethodNotAllowed', 'Use GET');
   }
   if (kind === 'sync' && name === undefined) {
-    return method === 'POST' ? reply(200, await sharing.sync(did)) : fail(405, 'MethodNotAllowed', 'Use POST');
+    return method === 'POST' ? reply(200, await sharing.sync(account)) : fail(405, 'MethodNotAllowed', 'Use POST');
   }
   if (kind === 'private-works' && name === undefined) {
     if (method !== 'PUT') return fail(405, 'MethodNotAllowed', 'Use PUT');
     const asked = await privateWorks(request);
     if (!asked) return fail(400, 'InvalidRequest', `The body is { works: 1 to ${mostWorks} Catalog identifiers, private: boolean }`);
-    return reply(200, await sharing.setPrivateWorks(did, asked.works, asked.kept));
+    return reply(200, await sharing.setPrivateWorks(account, asked.works, asked.kept));
   }
   if ((kind !== 'categories' && kind !== 'private-works') || name === undefined || rest.length > 0) {
     return fail(404, 'NotFound', 'Unknown sharing path');
@@ -66,18 +67,17 @@ export async function handleSharingRequest(request: Request, { did, sharing }: {
     if (!isWorkId(name)) return fail(400, 'InvalidWork', 'A Work is a Catalog identifier');
     const kept = await flag(request, 'private');
     if (kept === undefined) return fail(400, 'InvalidRequest', 'The body is { private: boolean }');
-    return reply(200, await sharing.setPrivate(did, name, kept));
+    return reply(200, await sharing.setPrivate(account, name, kept));
   }
 
   if (!isCategory(name)) return fail(400, 'InvalidCategory', 'Unknown sharing category');
   const shared = await flag(request, 'shared');
   if (shared === undefined) return fail(400, 'InvalidRequest', 'The body is { shared: boolean }');
   try {
-    return reply(200, await sharing.setShared(did, name, shared));
+    return reply(200, await sharing.setShared(account, name, shared));
   } catch (error) {
     if (error instanceof NeedsConsentError) return fail(403, 'NeedsConsent', error.message);
-    const reason = error instanceof Error ? `${error.name}: ${error.message}` : 'unknown error';
-    console.warn(`Sharing start failed: ${reason}`);
+    logFailure('start', error);
     return fail(503, 'PdsUnreachable', 'The PDS could not be reached');
   }
 }

@@ -3,7 +3,7 @@
 // puts every record back as it was, for the Undo of its toast.
 import type { Correction, Edition, NewSeries } from '../catalog/catalog';
 import type { Language } from '../i18n/i18n';
-import type { Space, WriteState } from '../space/space';
+import type { Space, WriteState } from '../space/queued-store';
 import { attach, detach, labelCollection, labelNamed, type Label } from './label';
 import { worstState } from './library';
 import { statusChange, type Library } from './model';

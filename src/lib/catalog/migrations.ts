@@ -1,13 +1,11 @@
-// The schema of the Catalog file, one step per change. Reader records hold
-// `atomes:` identifiers that this file minted (ADR 0010), so the file is not a
-// cache that can be thrown away: change the schema with a new step at the end
-// of `steps`, never by editing a step that has run. `pragma user_version`
-// counts the steps a file has run; each step runs in one transaction.
-import type { DatabaseSync } from 'node:sqlite';
+// The schema of the Catalog file, one step per change (server/migrate.ts).
+// Reader records hold `atomes:` identifiers that this file minted (ADR 0010),
+// so the file is not a cache that can be thrown away: change the schema with a
+// new step at the end of `catalogSteps`, never by editing a step that has run.
+import type { AccountId, Did } from '../server/accounts';
+import type { Step } from '../server/migrate';
 import { key } from './facts';
 import { bookHeight, placeLine } from './lines';
-
-type Step = (db: DatabaseSync) => void;
 
 // Catalog v0 (CORE-27, CORE-31). Files made before steps existed have
 // user_version 0 and these tables already.
@@ -239,8 +237,41 @@ const seriesCorrections: Step = (db) =>
     create index if not exists series_correction_anchor on series_correction (anchor);
   `);
 
+// Series Corrections name their author by Account ID (ADR 0016, CORE-131): a
+// Correction made before Accounts named the reader's DID. Each DID becomes the
+// Account of that DID in `library.sqlite`; a DID with no Account keeps no
+// author, so `account` may now be null. No DID stays in this file. There is no
+// reverse: back up catalog.sqlite before the deploy.
+const correctionAuthors =
+  (accounts: DidAccounts): Step =>
+  (db) => {
+    db.exec(`
+      alter table series_correction rename to series_correction_v0;
+      drop index series_correction_anchor;
+      create table series_correction (
+        isbn text primary key,
+        anchor text,
+        series integer references series (n),
+        edition_line text,
+        volume real,
+        account text,
+        created_at text not null,
+        check ((anchor is not null and series is null and edition_line is null) or (anchor is null and series is not null and edition_line is not null))
+      );
+      insert into series_correction select * from series_correction_v0;
+      drop table series_correction_v0;
+      create index series_correction_anchor on series_correction (anchor);
+    `);
+    const dids = db.prepare("select distinct account as did from series_correction where account like 'did:%'").all() as { did: Did }[];
+    const move = db.prepare('update series_correction set account = ? where account = ?');
+    for (const { did } of dids) move.run(accounts.findDid(did) ?? null, did);
+  };
+
+// What the Catalog steps read of `library.sqlite`, after its own steps ran.
+export type DidAccounts = { findDid(did: Did): AccountId | undefined };
+
 // Add a step at the end; never edit or remove one.
-const steps: Step[] = [
+export const catalogSteps = (accounts: DidAccounts): readonly Step[] => [
   catalogV0,
   sameAs,
   omnibusVolumes,
@@ -250,27 +281,5 @@ const steps: Step[] = [
   oneWorkPerVolume,
   lineRecords,
   seriesCorrections,
+  correctionAuthors(accounts),
 ];
-
-export function migrate(db: DatabaseSync): void {
-  const { user_version: done } = db.prepare('pragma user_version').get() as { user_version: number };
-  for (let i = done; i < steps.length; i++) {
-    inTransaction(db, () => {
-      steps[i](db);
-      db.exec(`pragma user_version = ${i + 1}`);
-    });
-  }
-}
-
-// All of `run` is written, or nothing.
-export function inTransaction<T>(db: DatabaseSync, run: () => T): T {
-  db.exec('begin');
-  try {
-    const result = run();
-    db.exec('commit');
-    return result;
-  } catch (error) {
-    db.exec('rollback');
-    throw error;
-  }
-}

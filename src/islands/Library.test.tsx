@@ -8,7 +8,7 @@ import { deleteLabel, labelCollection, listLabels, saveLabel } from '../lib/libr
 import { memorySpace } from '../lib/library/memory-space.fake';
 import { saveReadingStatus } from '../lib/library/reading-status';
 import { reconnectEvent } from '../lib/network';
-import type { WriteState } from '../lib/space/space';
+import type { WriteState } from '../lib/space/queued-store';
 import { Library, type Sources } from './Library';
 import type { SelectionSources } from './Selection';
 
@@ -617,7 +617,7 @@ describe('Bulk select', () => {
 
   test('keeps the picked Works Private in one request; Undo lets go only the ones it changed', async () => {
     const calls: [string[], boolean][] = [];
-    const state = { shared: { readingStatuses: true, follows: false, labels: false }, privateWorks: [books[1].work.id], pending: false, canShare: true };
+    const state = { shared: { readingStatuses: true, follows: false, labels: false }, privateWorks: [books[1].work.id], pending: false, canShare: true, atproto: true };
     const sharing = {
       load: () => Promise.resolve({ state }),
       setPrivateWorks: (works: string[], kept: boolean) => {

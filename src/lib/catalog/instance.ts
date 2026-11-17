@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { version } from '../../../package.json';
 import { readerOf } from '../server/auth';
-import { authDeps } from '../server/instance';
+import { accountStore, authDeps } from '../server/instance';
 import { settings } from '../server/settings';
 import { type CatalogAccess, createIpLimit } from './access';
 import type { Catalog } from './catalog';
@@ -28,7 +28,7 @@ export function catalogAccess(): Promise<CatalogAccess> {
   access ??= authDeps().then((deps) => ({
     limit: createIpLimit({ max: 60, windowMs: 60_000 }),
     signedIn: (request) => readerOf(request, deps) !== undefined,
-    account: (request) => readerOf(request, deps)?.did,
+    account: (request) => readerOf(request, deps)?.account,
     writes: createIpLimit({ max: 200, windowMs: 3600_000 }),
   }));
   return access;
@@ -44,6 +44,8 @@ export function catalog(): Catalog {
       // Sources ask for a contact URL, never an email (spike 0002).
       fetch: recorded ?? politeFetch(`Atomes/${version} (+${origin ?? 'https://github.com/NeilujD/atomes'})`),
       host: origin ? new URL(origin).host : 'localhost',
+      // Opens library.sqlite after its own steps: a Catalog step reads its Accounts.
+      accounts: accountStore(),
     });
   }
   return instance;

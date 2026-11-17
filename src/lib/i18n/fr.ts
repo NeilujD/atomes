@@ -47,11 +47,9 @@ export const fr: typeof en = {
   'saved.refused-reason': (reason) => `Motif : ${reason}`,
   'saved.refused': 'Le serveur Atomes a refusé cette modification : elle n’est pas enregistrée.',
 
-  // Errors (src/lib/space/space.ts, src/lib/auth/session.ts)
+  // Errors (src/lib/space/queued-store.ts, src/lib/auth/session.ts)
   'error.server-unreachable': 'Impossible de joindre ce serveur Atomes. Vérifiez votre connexion et réessayez.',
   'error.server-problem': (detail) => `Le serveur Atomes a un problème (${detail}). Réessayez plus tard.`,
-  'error.pds-refused-request': (detail) => `Votre PDS a refusé la requête : ${detail}`,
-  'error.pds-problem': (detail) => `Votre PDS a un problème (${detail}). Réessayez plus tard.`,
   'error.space-failed': 'Un problème est survenu avec votre bibliothèque. Réessayez.',
 
   // Sign-in (src/lib/auth/session.ts)
@@ -61,7 +59,8 @@ export const fr: typeof en = {
   'auth.signed-out-server-unreached':
     'Déconnecté sur cet appareil. Le serveur Atomes n’a pas pu être joint pour y fermer la session.',
   'auth.cancelled': 'La connexion a été annulée.',
-  'auth.not-allowed': 'Ce compte ne peut pas se connecter à ce serveur Atomes. Demandez à son propriétaire de l’ajouter.',
+  'auth.no-invite': 'Il vous faut une Invitation pour créer un compte sur ce serveur Atomes. Demandez-en une à son propriétaire.',
+  'auth.invite-used': 'Cette Invitation a déjà servi ou a expiré. Demandez-en une nouvelle au propriétaire de ce serveur Atomes.',
   'error.server-refused-request': (detail) => `Le serveur Atomes a refusé la requête : ${detail}`,
   'auth.session-ended': 'Votre session est terminée. Reconnectez-vous.',
   'auth.no-account': 'Aucun compte trouvé pour cet identifiant. Vérifiez l’orthographe.',
@@ -78,6 +77,45 @@ export const fr: typeof en = {
     "Atomes demande aussi à votre PDS l'autorisation d'écrire ce que vous choisissez de partager : statuts de lecture, séries suivies, étiquettes. Rien n'est partagé tant que vous ne l'activez pas dans les Réglages.",
   'signin.handle': 'Votre identifiant',
   'signin.submit': 'Se connecter',
+  'signin.privacy': 'Politique de confidentialité',
+  'auth.account-deleted': 'Votre compte est supprimé.',
+  'auth.account-deleted-shared-left':
+    'Votre compte est supprimé, mais Atomes n’a pas pu joindre votre compte AT Protocol : vos enregistrements partagés (statuts de lecture, séries suivies, étiquettes) y sont encore. Supprimez-y les enregistrements app.atomes avec un outil AT Protocol, ou demandez-le à l’opérateur de cette instance.',
+  'signin.email-hint': 'Saisissez votre adresse e-mail : Atomes vous envoie un Code de connexion. Il n’y a pas de mot de passe.',
+  'signin.email': 'Votre adresse e-mail',
+  'signin.send-code': 'Recevoir un code',
+  'signin.code-sent': (email: string) => `Si ${email} peut se connecter ici, un Code de connexion arrive. Il sert pendant 10 minutes.`,
+  'signin.code': 'Code de connexion',
+  'signin.paste-code': 'Coller le code',
+  'signin.no-code-copied': 'Aucun code à 6 chiffres n’est copié. Copiez le code de l’e-mail, ou saisissez-le.',
+  'signin.paste-refused': 'Atomes ne peut pas lire ce que vous avez copié. Saisissez le code, ou collez-le dans le champ.',
+  'signin.other-address': 'Utiliser une autre adresse',
+  'signin.atproto': 'Bluesky ou un autre compte AT Protocol',
+  'auth.type-email': 'Saisissez votre adresse e-mail, par exemple alice@example.org.',
+  'auth.type-code': 'Saisissez les 6 chiffres de votre Code de connexion.',
+  'auth.wrong-code': 'Ce code est faux ou a expiré. Vérifiez-le, ou demandez-en un nouveau.',
+  'auth.too-many': 'Trop d’essais. Patientez un moment, puis réessayez.',
+  'mail.code.subject': (code: string) => `${code} est votre code de connexion Atomes`,
+  'mail.code.heading': 'Votre code de connexion',
+  'mail.code.lead': 'Saisissez ce code dans Atomes pour vous connecter. Pas de mot de passe.',
+  'mail.code.ignore': 'Vous ne l’avez pas demandé ? Quelqu’un a peut-être saisi votre adresse par erreur. Vous pouvez ignorer cet e-mail : votre compte ne risque rien.',
+  'mail.code.reason': 'car une connexion a été demandée sur',
+  'mail.code.text': (code: string) =>
+    `Votre code de connexion Atomes :\n\n${code}\n\nIl sert une fois, pendant 10 minutes. Saisissez-le sur l’écran de connexion d’Atomes.\n\nSi vous ne l’avez pas demandé, ignorez cet e-mail : personne ne peut se connecter sans ce code.\n`,
+  'mail.link.subject': (code: string) => `${code} ajoute cette adresse à votre compte Atomes`,
+  'mail.link.heading': 'Ajouter cette adresse',
+  'mail.link.lead': 'Saisissez ce code dans les Réglages d’Atomes pour ajouter cette adresse à votre compte.',
+  'mail.link.ignore': 'Vous ne l’avez pas demandé ? Vous pouvez ignorer cet e-mail : personne ne peut ajouter votre adresse sans ce code.',
+  'mail.link.reason': 'car quelqu’un a demandé à l’ajouter à un compte sur',
+  'mail.expires-before': 'Expire dans',
+  'mail.expires-minutes': (minutes: number) => `${minutes} minutes`,
+  'mail.expires-after': 'et ne sert qu’une fois.',
+  'mail.never-ask': 'Atomes ne vous demandera jamais ce code par e-mail, téléphone ou message.',
+  'mail.sent-to': (email: string) => `Envoyé à ${email}`,
+  'mail.private': 'Votre bibliothèque reste privée, sauf si vous la partagez.',
+  'mail.link.text': (code: string) =>
+    `Votre code pour ajouter cette adresse à votre compte Atomes :\n\n${code}\n\nIl sert une fois, pendant 10 minutes, dans l’écran Réglages où vous l’avez demandé.\n\nSi vous ne l’avez pas demandé, ignorez cet e-mail : personne ne peut ajouter votre adresse sans ce code.\n`,
+  'signin.invite-kept': 'Invitation gardée. Connectez-vous pour créer votre compte.',
   'signout.title': 'Se déconnecter de cet appareil ?',
   'signout.text': 'Atomes efface votre bibliothèque de cet appareil. Les enregistrements encore en attente sont perdus.',
   'signout.cancel': 'Annuler',
@@ -108,11 +146,38 @@ export const fr: typeof en = {
   'settings.atproto-account': 'Compte AT Protocol',
   'settings.checking': 'Vérification…',
   'settings.sign-out': 'Se déconnecter',
-  'settings.signed-in-as': (handle) => `Connecté en tant que @${handle}`,
+  'settings.signed-in-as': (name) => `Connecté en tant que ${name}`,
+  'settings.email': 'Adresse e-mail',
+  'settings.add-email': 'Ajouter une adresse e-mail',
+  'settings.add-email-hint': 'Atomes y envoie un Code de connexion. Vous pourrez ensuite vous connecter aussi avec cette adresse.',
+  'settings.add-email-sent': (email: string) => `Un Code de connexion arrive à ${email}. Il sert pendant 10 minutes, sur cet écran seulement.`,
+  'settings.add': 'Ajouter',
+  'settings.link-atproto': 'Lier un compte Bluesky',
+  'settings.link-atproto-hint': 'Ou un autre compte AT Protocol. Vous vous connectez sur sa propre page ; ensuite vous pouvez partager, et vous connecter aussi avec lui.',
+  'settings.link': 'Lier',
+  'link.added': 'Adresse e-mail ajoutée. Vous pouvez maintenant vous connecter avec elle.',
+  'link.linked': 'Compte AT Protocol lié. Vous pouvez vous connecter avec lui, et partager.',
+  'link.email-taken': 'Cette adresse appartient à un autre compte Atomes. Rien n’a changé.',
+  'link.atproto-taken': 'Ce compte AT Protocol appartient à un autre compte Atomes. Rien n’a changé.',
+  'link.has-email': 'Votre compte a déjà une adresse e-mail.',
+  'link.has-atproto': 'Votre compte a déjà un compte AT Protocol.',
+  'link.other-session': 'Ce lien a été commencé dans un autre navigateur ou une autre session. Recommencez-le ici.',
   'settings.display': 'Affichage',
   'settings.appearance': 'Apparence',
   'settings.language': 'Langue',
   'settings.on-this-device': 'Gardé sur cet appareil.',
+  'settings.your-data': 'Vos données',
+  'settings.privacy': 'Politique de confidentialité',
+  'settings.privacy-hint': 'Ce que cette instance garde, qui peut le lire, et vos droits.',
+  'settings.export': 'Exporter ma bibliothèque',
+  'settings.export-hint': 'Un fichier JSON avec chaque enregistrement de votre bibliothèque, prêts compris.',
+  'settings.delete': 'Supprimer mon compte',
+  'settings.delete-hint': 'Efface votre bibliothèque et votre compte de cette instance. C’est définitif.',
+  'settings.delete-failed': 'Votre compte n’a pas pu être supprimé. Vérifiez le réseau, puis réessayez.',
+  'delete.title': 'Supprimer votre compte ?',
+  'delete.text':
+    'Atomes efface votre bibliothèque (prêts compris), vos choix de partage et votre compte de cette instance, et vos enregistrements partagés de votre compte AT Protocol. C’est définitif. Exportez d’abord votre bibliothèque pour en garder une copie.',
+  'delete.cancel': 'Annuler',
 
   // Partage (Réglages, page d'un livre ; glossaire : Shared, Private)
   'sharing.title': 'Partage',
@@ -125,6 +190,7 @@ export const fr: typeof en = {
   'sharing.consent':
     "Pour partager, Atomes a besoin de l'autorisation d'écrire sur votre compte AT Protocol : statuts de lecture, séries suivies et étiquettes seulement. Votre PDS vous la demande une fois, quand vous vous reconnectez.",
   'sharing.still-shared': 'Encore sur votre compte AT Protocol : Atomes réessaie.',
+  'sharing.needs-link': 'Pour partager, liez un compte Bluesky dans Compte, plus haut.',
   'sharing.sign-in-again': 'Se reconnecter',
   'sharing.pending': 'Certains changements ne sont pas encore sur votre PDS.',
   'sharing.retry': 'Réessayer',
@@ -486,4 +552,32 @@ export const fr: typeof en = {
   'select.moved': (count) => `${count} ${count > 1 ? 'livres déplacés' : 'livre déplacé'}. Tous les lecteurs le voient.`,
   'select.unchanged': 'Rien à changer.',
   'select.undone': 'Annulé.',
+
+  'privacy.title': 'Politique de confidentialité',
+  'privacy.intro':
+    'Cette page dit ce que cette instance Atomes garde sur vous, qui peut le lire, et comment l’emporter ou l’effacer.',
+  'privacy.operator-heading': 'Qui est responsable',
+  'privacy.operator':
+    'Cette instance est gérée par Julien Collard. L’opérateur est responsable du traitement des données que l’instance garde. Contact : julien.collard14@gmail.com.',
+  'privacy.stores-heading': 'Ce que l’instance garde',
+  'privacy.stores':
+    'Votre compte : une adresse e-mail, le compte AT Protocol que vous avez lié, ou les deux. Votre bibliothèque : exemplaires, prêts, statuts de lecture, étiquettes, séries suivies et liste À acheter. Vos choix de partage. Vos sessions, pour rester connecté. Une correction de série que vous faites garde votre compte comme auteur.',
+  'privacy.not-kept':
+    'Aucun mot de passe : vous vous connectez avec un code de connexion ou votre compte AT Protocol. L’instance n’écrit jamais vos enregistrements dans ses journaux. Le catalogue n’apprend que les ISBN que vous cherchez, jamais qui les cherche.',
+  'privacy.readers-heading': 'Qui peut le lire',
+  'privacy.readers':
+    'Vous, et l’opérateur de cette instance, qui peut lire toutes les bibliothèques qu’elle garde. Personne d’autre, sauf ce que vous partagez. Pour garder votre bibliothèque hors de portée de tout opérateur, hébergez votre propre instance.',
+  'privacy.processors-heading': 'Qui aide',
+  'privacy.processors':
+    'Scaleway (service Transactional Email, Paris, France) envoie vos codes de connexion : il reçoit votre adresse e-mail et le code, pour cela seulement. Chaque heure, une copie chiffrée de la bibliothèque part vers Cloudflare R2 (Cloudflare, Inc.), dans la juridiction UE, et y reste 30 jours.',
+  'privacy.shared-heading': 'Ce que vous partagez',
+  'privacy.shared':
+    'Les enregistrements partagés (statuts de lecture, séries suivies, étiquettes) vont sur votre compte AT Protocol, où tout le monde peut les lire. Rien n’est partagé tant que vous ne l’activez pas. Les exemplaires, les prêts et la liste À acheter ne sont jamais partagés.',
+  'privacy.basis-heading': 'Pourquoi',
+  'privacy.basis':
+    'L’instance garde ces données pour vous rendre le service que vous avez demandé : votre bibliothèque sur tous vos appareils. Elle ne les vend jamais et ne s’en sert jamais pour de la publicité.',
+  'privacy.rights-heading': 'L’emporter, ou l’effacer',
+  'privacy.rights':
+    'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés. Les sauvegardes chiffrées la gardent encore 30 jours au plus. Pour toute autre demande, écrivez à julien.collard14@gmail.com.',
+  'privacy.updated': 'Dernière modification : 16 novembre 2026.',
 };

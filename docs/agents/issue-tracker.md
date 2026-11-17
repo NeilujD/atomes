@@ -5,7 +5,7 @@ Issues and specs for this repo live in Linear, team `CORE`.
 ## Access
 
 - Use the Linear MCP connector to read and write issues when it is authorized (`/mcp`).
-- If it is not, use the Linear GraphQL API (`https://api.linear.app/graphql`) with the API key saved in Jean's settings. Never print, log or commit the key.
+- If it is not, follow `CLAUDE.md` ("Issue tracker"): a sub-session uses the orchestrator brief; any other session stops and asks the user to check `/mcp`.
 - If neither works, stop and tell the user; do not fall back to local files.
 - Jean `list_linear_issues` can list issues read-only.
 - No Linear CLI.

@@ -1,7 +1,12 @@
-// The back arrow of a Book or Series page (ui-direction: View header). The
-// installed app has no browser Back button: the arrow is the way back. After an
-// Atomes page it steps back in history, so the Library opens as the reader left
-// it (src/lib/library/library-state.ts); else it is a link to the Library.
+// The back arrow of a Book or Series page (ui-direction: View header), and the
+// close icon of the privacy notice. The installed app has no browser Back
+// button: they are the way back. After an Atomes page they step back in
+// history, so the screen opens as the reader left it (the Library:
+// src/lib/library/library-state.ts); else they are a plain link.
+//
+// A tap can come before the page script has run (a slow phone, the CI runner):
+// the link then goes to its href. The privacy notice gets the screen that
+// opened it from the server (openerHref), so that tap goes there too.
 
 export interface Before {
   // `document.referrer`: an Atomes page sends it, another site does not
@@ -38,4 +43,16 @@ export function startBackArrow(): void {
     event.preventDefault();
     history.back();
   });
+}
+
+// The href of the close icon of the privacy notice: the path of the Atomes page
+// that opened it, from the Referer header (sent only by a same-origin page:
+// Referrer-Policy same-origin); Home else. The Host header, not the request
+// URL: the built server can put `localhost` there (src/middleware.ts).
+export function openerHref(referer: string | null, host: string | null): string {
+  if (!referer || !host || !URL.canParse(referer)) return '/';
+  const { host: from, pathname } = new URL(referer);
+  // Never `//other.site`: a path that starts with two slashes leaves the host.
+  if (from !== host || pathname === '/privacy' || pathname.startsWith('//')) return '/';
+  return pathname;
 }

@@ -29,12 +29,121 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
       <h2 class="group-title">{t('settings.account')}</h2>
       <div class="row">
         <div>
-          <p class="row-label">{t('settings.atproto-account')}</p>
+          <p class="row-label" data-auth-label>{t('settings.atproto-account')}</p>
           <p class="row-hint" data-auth-status aria-live="polite">{t('settings.checking')}</p>
         </div>
         <button class="button" type="button" data-sign-out hidden>{t('settings.sign-out')}</button>
       </div>
       <p class="row-error" data-auth-error role="alert" hidden></p>
+
+      <!-- Add an email address, proved with a Sign-in Code (CORE-82): src/lib/auth/link.ts. -->
+      <div class="row" data-add-email hidden>
+        <div>
+          <p class="row-label">{t('settings.add-email')}</p>
+          <p class="row-hint">{t('settings.add-email-hint')}</p>
+        </div>
+        <button class="button" type="button" data-add-email-open aria-expanded="false" aria-controls="add-email">{t('settings.add-email')}</button>
+      </div>
+      <div class="link-step" id="add-email" hidden>
+        <form class="link-form" data-email-form>
+          <label class="visually-hidden" for="link-email">{t('signin.email')}</label>
+          <input
+            class="field"
+            id="link-email"
+            name="email"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            autocapitalize="none"
+            spellcheck="false"
+            enterkeyhint="send"
+            placeholder="alice@example.org"
+          />
+          <button class="button button-primary" type="submit">{t('signin.send-code')}</button>
+        </form>
+        <form class="link-step" data-code-form hidden>
+          <p class="row-hint" data-code-sent></p>
+          <div class="link-form">
+            <label class="visually-hidden" for="link-code">{t('signin.code')}</label>
+            <input
+              class="field code"
+              id="link-code"
+              name="code"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              enterkeyhint="go"
+              placeholder="123456"
+            />
+            <button class="button button-primary" type="submit">{t('settings.add')}</button>
+          </div>
+        </form>
+        <p class="row-error" data-email-error role="alert" hidden></p>
+      </div>
+
+      <!-- Link an AT Protocol Account, proved with the OAuth flow (CORE-82): linkAtproto in src/lib/server/auth.ts. -->
+      <div class="row" data-link-atproto hidden>
+        <div>
+          <p class="row-label">{t('settings.link-atproto')}</p>
+          <p class="row-hint">{t('settings.link-atproto-hint')}</p>
+        </div>
+        <button class="button" type="button" data-link-open aria-expanded="false" aria-controls="link-atproto">{t('settings.link-atproto')}</button>
+      </div>
+      <form class="link-form" id="link-atproto" method="post" action="/oauth/link" hidden>
+        <label class="visually-hidden" for="link-handle">{t('signin.handle')}</label>
+        <input
+          class="field"
+          id="link-handle"
+          name="handle"
+          type="text"
+          inputmode="url"
+          autocomplete="username"
+          autocapitalize="none"
+          spellcheck="false"
+          enterkeyhint="go"
+          placeholder="alice.bsky.social"
+          required
+        />
+        <button class="button button-primary" type="submit">{t('settings.link')}</button>
+      </form>
+    </section>
+
+    <!-- Export and delete (CORE-55): src/lib/server/account-data.ts. -->
+    <section class="group" aria-labelledby="data-title" data-account-data>
+      <h2 class="group-title" id="data-title">{t('settings.your-data')}</h2>
+      <div class="row">
+        <div>
+          <p class="row-label">{t('settings.privacy')}</p>
+          <p class="row-hint">{t('settings.privacy-hint')}</p>
+        </div>
+        <a class="button" href="/privacy">{t('settings.privacy')}</a>
+      </div>
+      <div class="row">
+        <div>
+          <p class="row-label">{t('settings.export')}</p>
+          <p class="row-hint">{t('settings.export-hint')}</p>
+        </div>
+        <a class="button" href="/api/account/export" download data-export>{t('settings.export')}</a>
+      </div>
+      <div class="row">
+        <div>
+          <p class="row-label">{t('settings.delete')}</p>
+          <p class="row-hint">{t('settings.delete-hint')}</p>
+        </div>
+        <button class="button button-danger" type="button" data-delete-account>{t('settings.delete')}</button>
+      </div>
+      <p class="row-error" data-delete-error role="alert" hidden></p>
+      <!-- The confirm step: Cancel comes first, so the dialog focuses it. -->
+      <dialog class="confirm" data-delete-dialog aria-labelledby="delete-title" aria-describedby="delete-text">
+        <form method="dialog">
+          <h2 class="confirm-title" id="delete-title">{t('delete.title')}</h2>
+          <p class="confirm-text" id="delete-text">{t('delete.text')}</p>
+          <div class="confirm-actions">
+            <button class="button" value="cancel">{t('delete.cancel')}</button>
+            <button class="button button-danger" value="confirm">{t('settings.delete')}</button>
+          </div>
+        </form>
+      </dialog>
     </section>
 
     <!-- Sharing by category (src/islands/Sharing.tsx). -->
@@ -100,11 +209,19 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
   import { checkedAccount, signOutHere } from '../lib/auth/server-client';
   import { parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
   import { loadSession, type AuthState } from '../lib/auth/session';
+  import { deleteAccount } from '../lib/auth/delete-account';
+  import { deviceData } from '../lib/auth/device-data';
+  import { accountName, addAddress, askLinkCode, linkResultMessage } from '../lib/auth/link';
+  import { toast } from '../lib/toast';
+  import { indexedDbLocalCopy } from '../lib/space/local-copy';
 
   const auth = document.querySelector<HTMLElement>('[data-auth]')!;
   const status = auth.querySelector<HTMLElement>('[data-auth-status]')!;
   const signOutButton = auth.querySelector<HTMLButtonElement>('[data-sign-out]')!;
   const error = auth.querySelector<HTMLElement>('[data-auth-error]')!;
+  const label = auth.querySelector<HTMLElement>('[data-auth-label]')!;
+  const addEmailRow = auth.querySelector<HTMLElement>('[data-add-email]')!;
+  const linkRow = auth.querySelector<HTMLElement>('[data-link-atproto]')!;
 
   let state: AuthState = { status: 'signed-out' };
 
@@ -112,7 +229,11 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
   function render(next: AuthState) {
     state = next;
     const signedIn = next.status === 'signed-in';
-    status.textContent = signedIn ? t('settings.signed-in-as', next.account.handle) : '';
+    status.textContent = signedIn ? t('settings.signed-in-as', accountName(next.account)) : '';
+    label.textContent = signedIn && next.account.email ? t('settings.email') : t('settings.atproto-account');
+    // One address and one AT Protocol Account at most (ADR 0016).
+    addEmailRow.hidden = !signedIn || next.account.email !== undefined;
+    linkRow.hidden = !signedIn || next.account.atproto !== false;
     signOutButton.hidden = !signedIn;
     error.textContent = signedIn ? '' : (next.message ?? '');
     error.hidden = !error.textContent;
@@ -135,6 +256,100 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
     });
   });
 
+  // Delete my account, after the confirm step. Deleted: the sign-in screen
+  // says so. Else the reason stays here.
+  const deleteButton = document.querySelector<HTMLButtonElement>('[data-delete-account]')!;
+  const deleteDialog = document.querySelector<HTMLDialogElement>('[data-delete-dialog]')!;
+  const deleteError = document.querySelector<HTMLElement>('[data-delete-error]')!;
+  deleteButton.addEventListener('click', () => {
+    deleteDialog.returnValue = '';
+    deleteDialog.showModal();
+  });
+  deleteDialog.addEventListener('close', () => {
+    if (deleteDialog.returnValue !== 'confirm') return;
+    deleteButton.disabled = true;
+    deleteButton.setAttribute('aria-busy', 'true');
+    void deleteAccount({ fetch: (input, init) => fetch(input, init), storage: localStorage, device: deviceData(indexedDbLocalCopy()) }).then((result) => {
+      if ('next' in result) return location.replace(result.next);
+      deleteError.textContent = result.message;
+      deleteError.hidden = false;
+      deleteButton.disabled = false;
+      deleteButton.removeAttribute('aria-busy');
+    });
+  });
+
+  // An action row opens its form, once.
+  function opener(button: HTMLButtonElement, target: HTMLElement, focus: HTMLElement) {
+    button.addEventListener('click', () => {
+      target.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+      button.hidden = true;
+      focus.focus();
+    });
+  }
+
+  // Add an email address: the address, then the Sign-in Code sent to it.
+  const addEmail = auth.querySelector<HTMLElement>('#add-email')!;
+  const emailForm = addEmail.querySelector<HTMLFormElement>('[data-email-form]')!;
+  const emailInput = emailForm.querySelector<HTMLInputElement>('input[name="email"]')!;
+  const codeForm = addEmail.querySelector<HTMLFormElement>('[data-code-form]')!;
+  const codeInput = codeForm.querySelector<HTMLInputElement>('input[name="code"]')!;
+  const emailError = addEmail.querySelector<HTMLElement>('[data-email-error]')!;
+  let address: string | undefined;
+  opener(auth.querySelector('[data-add-email-open]')!, addEmail, emailInput);
+
+  function sayEmail(message?: string) {
+    emailError.textContent = message ?? '';
+    emailError.hidden = !message;
+  }
+
+  async function busyForm<T>(form: HTMLFormElement, run: () => Promise<T>): Promise<T> {
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    try {
+      return await run();
+    } finally {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
+  }
+
+  const send = (input: string, init?: RequestInit) => fetch(input, init);
+  emailForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void busyForm(emailForm, () => askLinkCode(send, emailInput.value)).then((answer) => {
+      if ('message' in answer) return sayEmail(answer.message);
+      sayEmail();
+      address = answer.email;
+      codeForm.hidden = false;
+      codeForm.querySelector<HTMLElement>('[data-code-sent]')!.textContent = t('settings.add-email-sent', answer.email);
+      codeInput.value = '';
+      codeInput.focus();
+    });
+  });
+  codeForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!address) return;
+    const email = address;
+    void busyForm(codeForm, () => addAddress(send, email, codeInput.value)).then((message) => {
+      if (message) return sayEmail(message);
+      sayEmail();
+      addEmail.hidden = true;
+      if (state.status === 'signed-in') render({ status: 'signed-in', account: { ...state.account, email } });
+      toast(t('link.added'));
+    });
+  });
+
+  // Link an AT Protocol Account: a plain form post; the PDS sends the reader
+  // back here with `?link=`, which is told once, then dropped from the address.
+  const linkForm = auth.querySelector<HTMLFormElement>('#link-atproto')!;
+  opener(auth.querySelector('[data-link-open]')!, linkForm, linkForm.querySelector('input')!);
+  const linked = linkResultMessage(new URLSearchParams(location.search).get('link'));
+  if (linked) {
+    toast(linked.text, { error: linked.error });
+    history.replaceState(history.state, '', location.pathname);
+  }
 
   const radios = document.querySelectorAll<HTMLInputElement>('[data-appearance-picker] input[name="appearance"]');
   const stored = readAppearance();
@@ -189,6 +404,27 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
   .settings :global(.row-hint) {
     color: var(--secondary);
     font-size: 13px;
+  }
+
+  .link-step {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .link-form {
+    display: flex;
+    gap: 8px;
+    max-width: 480px;
+  }
+
+  .link-form .field {
+    flex: 1;
+  }
+
+  .code {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.2em;
   }
 
   .settings :global(.row-error) {

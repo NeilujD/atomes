@@ -1,11 +1,20 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import type { AccountId, Did } from './accounts';
 import { createLibraryStore, type LibraryStore } from './library-store';
+import { openDatabase } from './migrate';
+import { librarySteps } from './migrations';
 import { fakePublicRepo, type FakePublicRepo } from './public-repo.fake';
 import { publicRepo } from './public-repo';
 import { createSharing, NeedsConsentError, type Sharing } from './sharing';
 
-const owner = 'did:plc:owner';
-const other = 'did:plc:other';
+const owner = 'account-owner' as AccountId;
+const other = 'account-other' as AccountId;
+// The DID identity of each Account: the PDS knows only these.
+const dids = new Map<AccountId, Did>([
+  [owner, 'did:plc:owner'],
+  [other, 'did:plc:other'],
+]);
+const accountOf = (did: Did) => [...dids].find(([, each]) => each === did)![0];
 const at = '2026-11-13T10:00:00.000Z';
 const onePiece = 'wd:Q1';
 const secret = 'wd:Q-secret';
@@ -18,21 +27,22 @@ const loan = { $type: 'app.atomes.loan', copy: '3l2copy', borrower: 'Alice', len
 const toBuy = { $type: 'app.atomes.toBuy', isbn: '9782723488525', createdAt: at };
 
 let library: LibraryStore;
-let pds: Map<string, FakePublicRepo>;
-// DIDs whose session may not write Shared records.
+let pds: Map<AccountId, FakePublicRepo>;
+// Accounts whose session may not write Shared records.
 let noConsent: Set<string>;
 let sharing: Sharing;
 
 beforeEach(() => {
-  library = createLibraryStore(':memory:');
-  pds = new Map([owner, other].map((did) => [did, fakePublicRepo(did)]));
+  library = createLibraryStore(openDatabase(':memory:', librarySteps));
+  pds = new Map([owner, other].map((account) => [account, fakePublicRepo(dids.get(account)!)]));
   noConsent = new Set();
   sharing = createSharing({
-    file: ':memory:',
+    db: openDatabase(':memory:', librarySteps),
     library,
     access: {
-      repoOf: (did) => Promise.resolve(noConsent.has(did) ? undefined : publicRepo(pds.get(did)!.handler, did)),
+      repoOf: (did) => Promise.resolve(noConsent.has(accountOf(did)) ? undefined : publicRepo(pds.get(accountOf(did))!.handler, did)),
     },
+    didOf: (account) => dids.get(account),
   });
 });
 
@@ -42,17 +52,17 @@ afterEach(() => {
 });
 
 // The whole Library of the owner: every record type.
-function fillLibrary(did = owner) {
-  library.put(did, 'app.atomes.readingStatus', onePiece, status(onePiece));
-  library.put(did, 'app.atomes.readingStatus', secret, status(secret));
-  library.put(did, 'app.atomes.label', '3l2label', label('Manga', [onePiece, secret]));
-  library.put(did, 'app.atomes.follow', 'wd:Q673', follow('wd:Q673'));
-  library.put(did, 'app.atomes.copy', '3l2copy', copy);
-  library.put(did, 'app.atomes.loan', '3l2loan', loan);
-  library.put(did, 'app.atomes.toBuy', '9782723488525', toBuy);
+function fillLibrary(account = owner) {
+  library.put(account, 'app.atomes.readingStatus', onePiece, status(onePiece));
+  library.put(account, 'app.atomes.readingStatus', secret, status(secret));
+  library.put(account, 'app.atomes.label', '3l2label', label('Manga', [onePiece, secret]));
+  library.put(account, 'app.atomes.follow', 'wd:Q673', follow('wd:Q673'));
+  library.put(account, 'app.atomes.copy', '3l2copy', copy);
+  library.put(account, 'app.atomes.loan', '3l2loan', loan);
+  library.put(account, 'app.atomes.toBuy', '9782723488525', toBuy);
 }
 
-const publicKeys = (did = owner) => [...pds.get(did)!.records.keys()].sort();
+const publicKeys = (account = owner) => [...pds.get(account)!.records.keys()].sort();
 
 describe('sharing a category', () => {
   test('writes its records to the public repo, and never a Copy, Loan or To Buy record', async () => {
@@ -295,10 +305,22 @@ describe('a change the PDS did not get', () => {
 });
 
 test('a record change never rejects, even when the sharing tables fail', async () => {
-  const broken = createSharing({ file: ':memory:', library, access: { repoOf: () => Promise.resolve(undefined) } });
+  const broken = createSharing({ db: openDatabase(':memory:', librarySteps), library, access: { repoOf: () => Promise.resolve(undefined) }, didOf: () => undefined });
   broken.close();
 
   await expect(broken.recordChanged(owner, 'app.atomes.readingStatus', onePiece)).resolves.toBeUndefined();
+});
+
+test('an Account with no DID cannot share, and no PDS is called', async () => {
+  fillLibrary(owner);
+  dids.delete(owner);
+  try {
+    await expect(sharing.setShared(owner, 'readingStatuses', true)).rejects.toBeInstanceOf(NeedsConsentError);
+    expect(await sharing.state(owner)).toMatchObject({ canShare: false, shared: { readingStatuses: false } });
+    expect(pds.get(owner)!.calls).toEqual([]);
+  } finally {
+    dids.set(owner, 'did:plc:owner');
+  }
 });
 
 describe('signing in again', () => {

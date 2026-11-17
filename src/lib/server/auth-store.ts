@@ -3,8 +3,11 @@
 // - OAuth sign-ins in progress and OAuth sessions (tokens, DPoP keys): sealed
 //   with SESSION_ENCRYPTION_KEY, never in plain text.
 // - Browser sessions: the cookie value is stored only as its SHA-256 hash.
+//   Each holds the Account it signs in to (ADR 0016); the OAuth session stays
+//   keyed by DID.
 import { createHash, randomBytes } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
+import type { AccountId, Did } from './accounts';
 import type { SecretBox } from './secret-box';
 
 // The store shape that `@atproto/oauth-client-node` asks for (`SimpleStore`).
@@ -15,33 +18,30 @@ export interface SealedStore<T> {
 }
 
 export interface BrowserSession {
-  did: string;
+  account: AccountId;
   handle: string;
 }
 
 export interface AuthStore {
   // OAuth sign-ins in progress, kept one hour.
   states<T>(): SealedStore<T>;
-  // OAuth sessions, one per DID. Refuses, and stores nothing for, a DID that
-  // is not allowed on this instance.
+  // OAuth sessions, one per DID. The sign-in (auth.ts) revokes the one of a
+  // DID that may not make an Account.
   sessions<T>(): SealedStore<T>;
-  // A new browser session; gives the cookie value.
-  openBrowserSession(session: BrowserSession): string;
-  // Undefined when the value is unknown, expired, or its DID is no longer allowed.
+  // A new browser session for the Account; gives the cookie value.
+  openBrowserSession(session: BrowserSession): { cookie: string };
+  // Undefined when the value is unknown or expired.
   browserSession(cookie: string): BrowserSession | undefined;
-  // Ends one browser session; gives its DID when there was one.
-  closeBrowserSession(cookie: string): string | undefined;
-  // True while another browser session of the DID is still open.
-  hasBrowserSessions(did: string): boolean;
+  // Ends one browser session; gives its Account when there was one.
+  closeBrowserSession(cookie: string): AccountId | undefined;
+  // The handle of every browser session of the Account, after a link.
+  setHandle(account: AccountId, handle: string): void;
+  // True while another browser session of the Account is still open.
+  hasBrowserSessions(account: AccountId): boolean;
+  // Ends every browser session of the Account, and deletes the OAuth session
+  // of its DID (CORE-55).
+  forget(account: AccountId, did?: Did): void;
   close(): void;
-}
-
-// The DID is not on ALLOWED_DIDS.
-export class NotAllowedError extends Error {
-  constructor(did: string) {
-    super(`${did} may not sign in to this instance`);
-    this.name = 'NotAllowedError';
-  }
 }
 
 const stateLifetimeMs = 3600 * 1000;
@@ -49,40 +49,18 @@ const stateLifetimeMs = 3600 * 1000;
 // for a new sign-in after this.
 export const browserSessionLifetimeMs = 180 * 24 * 3600 * 1000;
 
-const schema = `
-  create table if not exists oauth_state (
-    key text primary key,
-    sealed text not null,
-    created_at integer not null
-  );
-  create table if not exists oauth_session (
-    did text primary key,
-    sealed text not null,
-    updated_at integer not null
-  );
-  create table if not exists browser_session (
-    token_hash text primary key,
-    did text not null,
-    handle text not null,
-    expires_at integer not null
-  );
-  create index if not exists browser_session_did on browser_session (did);
-`;
-
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export function createAuthStore(options: {
-  file: string;
+  // Has run `authSteps` (migrations.ts). The store closes it.
+  db: DatabaseSync;
   box: SecretBox;
-  allowedDids: ReadonlySet<string>;
   now?: () => number;
 }): AuthStore {
-  const { box, allowedDids } = options;
+  const { db, box } = options;
   const now = options.now ?? Date.now;
-  const db = new DatabaseSync(options.file);
-  db.exec(schema);
 
-  function sealed<T>(table: 'oauth_state' | 'oauth_session', keyColumn: 'key' | 'did', allow: (key: string) => void) {
+  function sealed<T>(table: 'oauth_state' | 'oauth_session', keyColumn: 'key' | 'did', beforeSet: () => void = () => {}) {
     const timeColumn = table === 'oauth_state' ? 'created_at' : 'updated_at';
     const store: SealedStore<T> = {
       get: (key) => {
@@ -90,7 +68,7 @@ export function createAuthStore(options: {
         return Promise.resolve(row && (box.open(row.sealed) as T));
       },
       set: (key, value) => {
-        allow(key);
+        beforeSet();
         db.prepare(
           `insert into ${table} (${keyColumn}, sealed, ${timeColumn}) values (?, ?, ?)
            on conflict (${keyColumn}) do update set sealed = excluded.sealed, ${timeColumn} = excluded.${timeColumn}`,
@@ -110,36 +88,39 @@ export function createAuthStore(options: {
       sealed<T>('oauth_state', 'key', () => {
         db.prepare('delete from oauth_state where created_at < ?').run(now() - stateLifetimeMs);
       }),
-    sessions: <T>() =>
-      sealed<T>('oauth_session', 'did', (did) => {
-        if (!allowedDids.has(did)) throw new NotAllowedError(did);
-      }),
-    openBrowserSession({ did, handle }) {
-      if (!allowedDids.has(did)) throw new NotAllowedError(did);
+    sessions: <T>() => sealed<T>('oauth_session', 'did'),
+    openBrowserSession({ account, handle }) {
       const token = randomBytes(32).toString('base64url');
       db.prepare('delete from browser_session where expires_at < ?').run(now());
-      db.prepare('insert into browser_session (token_hash, did, handle, expires_at) values (?, ?, ?, ?)').run(
+      db.prepare('insert into browser_session (token_hash, account, handle, expires_at) values (?, ?, ?, ?)').run(
         hash(token),
-        did,
+        account,
         handle,
         now() + browserSessionLifetimeMs,
       );
-      return token;
+      return { cookie: token };
     },
     browserSession(cookie) {
       const row = db
-        .prepare('select did, handle from browser_session where token_hash = ? and expires_at > ?')
+        .prepare('select account, handle from browser_session where token_hash = ? and expires_at > ?')
         .get(hash(cookie), now()) as BrowserSession | undefined;
-      return row && allowedDids.has(row.did) ? { did: row.did, handle: row.handle } : undefined;
+      return row && { account: row.account, handle: row.handle };
     },
     closeBrowserSession(cookie) {
-      const row = db.prepare('delete from browser_session where token_hash = ? returning did').get(hash(cookie)) as
-        | { did: string }
+      const row = db.prepare('delete from browser_session where token_hash = ? returning account').get(hash(cookie)) as
+        | { account: AccountId }
         | undefined;
-      return row?.did;
+      return row?.account;
     },
-    hasBrowserSessions(did) {
-      return db.prepare('select 1 from browser_session where did = ? and expires_at > ?').get(did, now()) !== undefined;
+    setHandle(account, handle) {
+      db.prepare('update browser_session set handle = ? where account = ?').run(handle, account);
+    },
+    hasBrowserSessions(account) {
+      return db.prepare('select 1 from browser_session where account = ? and expires_at > ?').get(account, now()) !== undefined;
+    },
+    forget(account, did) {
+      db.prepare('delete from browser_session where account = ?').run(account);
+      if (did) db.prepare('delete from oauth_session where did = ?').run(did);
     },
     close: () => db.close(),
   };

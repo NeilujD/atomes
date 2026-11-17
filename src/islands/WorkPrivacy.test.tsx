@@ -11,6 +11,7 @@ const nothingShared: SharingState = {
   privateWorks: [],
   pending: false,
   canShare: true,
+  atproto: true,
 };
 
 function fakeServer(start: SharingState) {

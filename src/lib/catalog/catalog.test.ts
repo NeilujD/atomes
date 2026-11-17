@@ -4,9 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { isSeriesId } from '../library/ids';
+import { createAccounts } from '../server/accounts';
+import { migrate, openDatabase } from '../server/migrate';
+import { librarySteps } from '../server/migrations';
+import { checkBackToSources, createIpLimit } from './access';
 import { answerChoose, answerCorrect, answerCover, answerEdition, answerFindSeries, answerSearch, answerUncorrect, answerVolumes } from './api';
 import type { Catalog, Edition, LineSummary, SearchFound, SeriesFound } from './catalog';
 import { createCatalog } from './catalog';
+import { catalogSteps } from './migrations';
 import { fixtureDir, recordedFetch } from './recorded.fake';
 import { isCoverUrl, type SourceFetch } from './sources';
 
@@ -40,6 +45,9 @@ const kaamelott9 = '9782203085053';
 const asterixWhiteIris = '9781408730218'; // Sphere, 2023: SUDOC's Series is "Aterix", a typo
 const asterixEmpire = '9782864976165'; // L'Empire du Milieu, album of the film: Inventaire's Series is wd:Q42490
 
+// No DID has an Account: enough for a Catalog file with no Correction from before Accounts.
+const noAccounts = { findDid: () => undefined };
+
 const dirs: string[] = [];
 const open: Catalog[] = [];
 
@@ -50,11 +58,11 @@ function setup(down: string[] = [], covers?: (url: string) => Response) {
   const file = join(dir, 'catalog.sqlite');
   const sources = recordedFetch(down);
   const fetch: SourceFetch = (url) => (covers && isCoverUrl(url) ? Promise.resolve(covers(url)) : sources.fetch(url));
-  const catalog = createCatalog({ file, fetch, host: 'catalog.test' });
+  const catalog = createCatalog({ file, fetch, host: 'catalog.test', accounts: noAccounts });
   open.push(catalog);
   // A second Catalog on the same file, as after a server restart.
   const reopen = (fetch = recordedFetch().fetch) => {
-    const again = createCatalog({ file, fetch, host: 'catalog.test' });
+    const again = createCatalog({ file, fetch, host: 'catalog.test', accounts: noAccounts });
     open.push(again);
     return again;
   };
@@ -404,7 +412,7 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
     let bnfDown = false;
     const fetch: SourceFetch = (url) =>
       bnfDown && url.includes('bib.title') ? Promise.resolve(new Response('down', { status: 503 })) : sources.fetch(url);
-    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => clock });
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', accounts: noAccounts, now: () => clock });
     open.push(catalog);
     await answerEdition(catalog, spyFamily16);
     const searches = () => sources.calls.filter((url) => url.includes('bib.title')).length;
@@ -568,7 +576,7 @@ describe('One Work per Volume number (ADR 0010, amendment 2026-11-14)', () => {
   test('the dropped Work stays dropped when an Edition is fetched again a month later', async () => {
     const { file } = setup();
     const at = (iso: string) => {
-      const catalog = createCatalog({ file, fetch: recordedFetch().fetch, host: 'catalog.test', now: () => new Date(iso) });
+      const catalog = createCatalog({ file, fetch: recordedFetch().fetch, host: 'catalog.test', accounts: noAccounts, now: () => new Date(iso) });
       open.push(catalog);
       return catalog;
     };
@@ -607,7 +615,7 @@ describe('One Work per Volume number (ADR 0010, amendment 2026-11-14)', () => {
     old.close();
 
     const offline = recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
-    const migrated = createCatalog({ file, fetch: offline.fetch, host: 'catalog.test' });
+    const migrated = createCatalog({ file, fetch: offline.fetch, host: 'catalog.test', accounts: noAccounts });
     open.push(migrated);
 
     expect((await edition(await answerEdition(migrated, dragonBall1993[2]))).work.id).toBe(`isbn:${dragonBall1993[2]}`);
@@ -693,7 +701,7 @@ describe('Overlapping BnF Series records are separate Edition Lines (ADR 0010, a
     old.exec(`${beforeLineRecords} pragma user_version = 7`);
     old.close();
     const sources = recordedFetch();
-    const migrated = createCatalog({ file, fetch: sources.fetch, host: 'catalog.test' });
+    const migrated = createCatalog({ file, fetch: sources.fetch, host: 'catalog.test', accounts: noAccounts });
     open.push(migrated);
     expect((await answerOf(migrated, followed, signedOut)).volumes.length).toBeGreaterThan(50);
 
@@ -777,7 +785,7 @@ describe('A Catalog file from before book sizes (migration)', () => {
 
   test('splits a line by book size, from the first Edition looked up', async () => {
     const file = await mixedFile();
-    const catalog = createCatalog({ file, fetch: recordedFetch().fetch, host: 'catalog.test' });
+    const catalog = createCatalog({ file, fetch: recordedFetch().fetch, host: 'catalog.test', accounts: noAccounts });
     open.push(catalog);
 
     expect((await volumesOf(catalog, dragonBall1, signedOut)).map((v) => v.isbn)).toEqual([dragonBall1]);
@@ -789,7 +797,7 @@ describe('A Catalog file from before book sizes (migration)', () => {
   test('every Edition Line filled before fills again at its next ask, once', async () => {
     const file = await mixedFile();
     const sources = recordedFetch();
-    const catalog = createCatalog({ file, fetch: sources.fetch, host: 'catalog.test' });
+    const catalog = createCatalog({ file, fetch: sources.fetch, host: 'catalog.test', accounts: noAccounts });
     open.push(catalog);
     const searches = () => sources.calls.filter((url) => url.includes('bib.title')).length;
 
@@ -939,7 +947,7 @@ describe('An ISBN no source knows: find the Series or Work by title (CORE-40)', 
     let learnt = false;
     const fetch: SourceFetch = (url) =>
       sources.fetch(learnt && url.includes(`isbn=${kaamelott10}`) ? url.replace(kaamelott10, horde) : url);
-    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => clock });
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', accounts: noAccounts, now: () => clock });
     open.push(catalog);
     await choose(catalog, kaamelott10, kaamelott10Choice);
     const asked = sources.calls.length;
@@ -981,7 +989,7 @@ describe('Series Correction (ADR 0017)', () => {
     const file = join(dir, 'catalog.sqlite');
     const sources = recordedFetch();
     const make = () => {
-      const catalog = createCatalog({ file, fetch: sources.fetch, host: 'catalog.test', now: () => clock });
+      const catalog = createCatalog({ file, fetch: sources.fetch, host: 'catalog.test', accounts: noAccounts, now: () => clock });
       open.push(catalog);
       return catalog;
     };
@@ -1326,7 +1334,7 @@ describe('One Series across sources and identifiers (same_as, ADR 0010)', () => 
       const answer = await sources.fetch(url.replace('wd%3AQ99999', 'wd%3AQ673'));
       return new Response((await answer.text()).replaceAll('wd:Q673', 'wd:Q99999'), { status: answer.status });
     };
-    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => clock });
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', accounts: noAccounts, now: () => clock });
     open.push(catalog);
     expect((await edition(await answerEdition(catalog, onePiece56))).series?.id).toBe('wd:Q99999');
 
@@ -1349,7 +1357,7 @@ describe('One Series across sources and identifiers (same_as, ADR 0010)', () => 
       const answer = await sources.fetch(url);
       return new Response((await answer.text()).replaceAll('"One Piece"', '"Wan Pīsu"'), { status: answer.status });
     };
-    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', now: () => new Date('2026-11-11T10:00:00.000Z') });
+    const catalog = createCatalog({ file: ':memory:', fetch, host: 'catalog.test', accounts: noAccounts, now: () => new Date('2026-11-11T10:00:00.000Z') });
     open.push(catalog);
     edited = false;
     const minted = (await edition(await answerEdition(catalog, onePiece112))).series!.id;
@@ -1371,7 +1379,7 @@ describe('One Series across sources and identifiers (same_as, ADR 0010)', () => 
 
   test('two Series linked by hand are one: best identifier, its title, every Volume; the old title still joins', async () => {
     let clock = new Date('2026-11-11T10:00:00.000Z');
-    const catalog = createCatalog({ file: ':memory:', fetch: recordedFetch().fetch, host: 'catalog.test', now: () => clock });
+    const catalog = createCatalog({ file: ':memory:', fetch: recordedFetch().fetch, host: 'catalog.test', accounts: noAccounts, now: () => clock });
     open.push(catalog);
     // SUDOC's Series of Asterix and the White Iris is "Aterix", with no shared identifier.
     const aterix = (await edition(await answerEdition(catalog, asterixWhiteIris))).series!;
@@ -1420,7 +1428,7 @@ describe('A Catalog file from before same_as (migration)', () => {
     dirs.push(dir);
     const file = join(dir, 'catalog.sqlite');
     copyFileSync(new URL('catalog-v0.sqlite', fixtureDir), file);
-    const catalog = createCatalog({ file, fetch, host: 'catalog.test', now: () => now });
+    const catalog = createCatalog({ file, fetch, host: 'catalog.test', accounts: noAccounts, now: () => now });
     open.push(catalog);
     return catalog;
   }
@@ -1472,10 +1480,62 @@ describe('A Catalog file from before same_as (migration)', () => {
     open.splice(open.indexOf(catalog), 1);
     const file = join(dirs.at(-1)!, 'catalog.sqlite');
 
-    const again = createCatalog({ file, fetch: offline().fetch, host: 'catalog.test', now: () => new Date('2026-11-11T12:00:00.000Z') });
+    const again = createCatalog({ file, fetch: offline().fetch, host: 'catalog.test', accounts: noAccounts, now: () => new Date('2026-11-11T12:00:00.000Z') });
     open.push(again);
 
     expect(again.series(onePieceMinted)?.id).toBe(onePieceMinted);
     expect((await edition(await answerEdition(again, onePiece112))).series?.id).toBe(onePieceMinted);
+  });
+});
+
+describe('Series Corrections made before Accounts (migration, CORE-131)', () => {
+  // A catalog.sqlite from before CORE-79: each Correction names its reader by DID.
+  function beforeAccounts(rows: { isbn: string; account: string }[]) {
+    const dir = mkdtempSync(join(tmpdir(), 'atomes-catalog-'));
+    dirs.push(dir);
+    const file = join(dir, 'catalog.sqlite');
+    const old = new DatabaseSync(file);
+    migrate(old, catalogSteps(noAccounts).slice(0, 9));
+    const insert = old.prepare(
+      "insert into series_correction (isbn, anchor, volume, account, created_at) values (?, ?, 1, ?, '2026-11-15T10:00:00.000Z')",
+    );
+    for (const { isbn, account } of rows) insert.run(isbn, onePiece56, account);
+    old.close();
+    return file;
+  }
+
+  test('a Correction made by a DID names the Account of that DID, so "Back to the sources" by that Account is free', () => {
+    const library = createAccounts(openDatabase(':memory:', librarySteps));
+    const owner = library.ofDid('did:plc:owner');
+    const file = beforeAccounts([{ isbn: onePiece112, account: 'did:plc:owner' }]);
+
+    const catalog = createCatalog({ file, fetch: recordedFetch().fetch, host: 'catalog.test', accounts: library });
+    open.push(catalog);
+    library.close();
+
+    expect(catalog.correctionAccount(onePiece112)).toBe(owner);
+    const writes = { account: () => owner, writes: createIpLimit({ max: 1, windowMs: 3600_000 }) };
+    const back = () => new Request(`http://catalog.test/api/catalog/editions/${onePiece112}/correction`, { method: 'DELETE' });
+    expect([1, 2, 3].map(() => 'refused' in checkBackToSources(back(), writes, catalog.correctionAccount(onePiece112)))).toEqual([false, false, false]);
+  });
+
+  test('no Correction keeps a DID: one whose DID has no Account keeps no author, and counts for every reader', () => {
+    const library = createAccounts(openDatabase(':memory:', librarySteps));
+    const owner = library.ofDid('did:plc:owner');
+    const file = beforeAccounts([
+      { isbn: onePiece112, account: 'did:plc:owner' },
+      { isbn: onePiece1, account: 'did:plc:no-account' },
+    ]);
+
+    const catalog = createCatalog({ file, fetch: recordedFetch().fetch, host: 'catalog.test', accounts: library });
+    open.push(catalog);
+
+    expect(catalog.correctionAccount(onePiece1)).toBeUndefined();
+    expect(library.identitiesOf(owner)).toEqual({ did: 'did:plc:owner' });
+    library.close();
+    const db = new DatabaseSync(file, { readOnly: true });
+    const authors = db.prepare('select account from series_correction order by isbn').all() as { account: string | null }[];
+    db.close();
+    expect(authors.map((row) => row.account)).toEqual([owner, null]);
   });
 });

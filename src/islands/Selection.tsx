@@ -15,7 +15,7 @@ import type { Library } from '../lib/library/model';
 import { statuses, type Status } from '../lib/library/reading-status';
 import type { Saved } from '../lib/library/records';
 import { sharingClient, type SharingAnswer, type SharingClient } from '../lib/sharing/client';
-import { newRecordKey, spaceErrorMessage, type Space, type WriteState } from '../lib/space/space';
+import { newRecordKey, spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
 import { toast } from '../lib/toast';
 import { SeriesCorrection, type Sources as CorrectionSources } from './SeriesCorrection';
 

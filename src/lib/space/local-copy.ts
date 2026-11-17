@@ -14,7 +14,16 @@ export interface LocalCopy {
   // The last sync with a store that has revs; undefined before the first one.
   readSync(key: string): Promise<SyncState | undefined>;
   writeSync(key: string, state: SyncState): Promise<void>;
+  // Moves everything kept for the store `from` (its records, waiting writes
+  // and sync state: the keys `<from>/…` and `<from>#…`) to the store `to`, at
+  // once: no write is lost, and none is left to be sent twice.
+  move(from: string, to: string): Promise<void>;
   clear(): Promise<void>;
+}
+
+// The key under `to` of a key kept for the store `from`; undefined for another store's key.
+export function movedKey(key: string, from: string, to: string): string | undefined {
+  return key.startsWith(`${from}/`) || key.startsWith(`${from}#`) ? to + key.slice(from.length) : undefined;
 }
 
 const databaseName = 'atomes-local-copy';
@@ -59,6 +68,29 @@ export function indexedDbLocalCopy(): LocalCopy {
     readSync: (key) => run('readonly', (store) => store.get(key) as IDBRequest<SyncState | undefined>),
     writeSync: async (key, state) => {
       await run('readwrite', (store) => store.put(state, key));
+    },
+    move: async (from, to) => {
+      const database = await open();
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(storeName, 'readwrite');
+        const store = transaction.objectStore(storeName);
+        const cursor = store.openCursor();
+        cursor.onsuccess = () => {
+          const each = cursor.result;
+          if (!each) return;
+          // Every key of this store is a string.
+          const key = movedKey(each.key as string, from, to);
+          if (key !== undefined) {
+            store.put(each.value, key);
+            each.delete();
+          }
+          each.continue();
+        };
+        const fail = () => reject(transaction.error ?? new Error('Local copy move failed'));
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = fail;
+        transaction.onabort = fail;
+      });
     },
     clear: async () => {
       await run('readwrite', (store) => store.clear());

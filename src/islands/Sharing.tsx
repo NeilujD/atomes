@@ -3,15 +3,19 @@
 // The server writes and deletes the records on the PDS (src/lib/server/sharing.ts);
 // this file only renders and asks.
 import { useEffect, useState } from 'preact/hooks';
-import { checkedAccount, createAuthClient } from '../lib/auth/server-client';
 import { t } from '../lib/i18n/i18n';
 import { categoryNames, type Category, type SharingState } from '../lib/sharing/categories';
 import { sharingClient, type SharingAnswer, type SharingClient } from '../lib/sharing/client';
 
-// Back to the PDS, which asks for the permission to share, then back to Settings.
-async function signInAgain() {
-  const account = await checkedAccount();
-  if (account) await createAuthClient().signIn(account.handle, '/settings');
+// Back to the PDS of the linked AT Protocol Account, which asks for the
+// permission to share, then back to Settings (POST /oauth/link with no handle,
+// for this browser session only).
+function signInAgain() {
+  const form = document.createElement('form');
+  form.method = 'post';
+  form.action = '/oauth/link';
+  document.body.append(form);
+  form.submit();
 }
 
 // An unshared category may still be on the PDS while a change is pending.
@@ -21,12 +25,14 @@ function rowState(state: SharingState, category: Category) {
 }
 
 export default function SharingIsland() {
-  return <Sharing client={sharingClient()} signInAgain={() => void signInAgain()} />;
+  return <Sharing client={sharingClient()} signInAgain={signInAgain} />;
 }
 
 export function Sharing({ client, signInAgain }: { client: SharingClient; signInAgain: () => void }) {
   const [state, setState] = useState<SharingState>();
   const [needsConsent, setNeedsConsent] = useState(false);
+  // No AT Protocol Account linked: nothing can be Shared (ADR 0016).
+  const [unlinked, setUnlinked] = useState(false);
   const [problem, setProblem] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -37,7 +43,8 @@ export function Sharing({ client, signInAgain }: { client: SharingClient; signIn
       const answer = await ask();
       if ('state' in answer) {
         setState(answer.state);
-        setNeedsConsent(!answer.state.canShare);
+        setUnlinked(!answer.state.atproto);
+        setNeedsConsent(answer.state.atproto && !answer.state.canShare);
       } else if ('needsConsent' in answer) setNeedsConsent(true);
       else if ('signedOut' in answer) setProblem(t('auth.session-ended'));
       else if ('unreachable' in answer) setProblem(t('sharing.unreachable'));
@@ -58,7 +65,8 @@ export function Sharing({ client, signInAgain }: { client: SharingClient; signIn
   return (
     <div class="sharing">
       <p class="row-hint">{t('sharing.hint')}</p>
-      {needsConsent && (
+      {unlinked && <p class="row-hint">{t('sharing.needs-link')}</p>}
+      {needsConsent && !unlinked && (
         <div class="sharing-note">
           <p class="row-hint">{t('sharing.consent')}</p>
           <button class="button" type="button" onClick={signInAgain}>
@@ -86,7 +94,7 @@ export function Sharing({ client, signInAgain }: { client: SharingClient; signIn
               aria-describedby={`sharing-${category}-state`}
               checked={state.shared[category]}
               // Turning off needs no permission: the server deletes as soon as it can.
-              disabled={busy || (needsConsent && !state.shared[category])}
+              disabled={busy || ((needsConsent || unlinked) && !state.shared[category])}
               onChange={(event) => share(category, event.currentTarget.checked)}
             />
           </div>

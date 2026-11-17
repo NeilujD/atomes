@@ -1,7 +1,6 @@
 // The Library store the app uses: the reader's Private records on the Atomes
-// instance (ADR 0012), through its API (src/lib/server/library-api.ts). Same
-// `Space` contract, local copy and write queue as the Space store, so the
-// screens do not change and the move to Spaces later is a store swap.
+// instance (ADR 0012, ADR 0016), through its API (src/lib/server/library-api.ts),
+// with the local copy and write queue of queued-store.ts.
 import type { LocalCopy } from './local-copy';
 import {
   openQueuedStore,
@@ -13,19 +12,25 @@ import {
   type Remote,
   type Space,
   type SpaceRecord,
+  type FetchHandler,
   type StaleWrite,
 } from './queued-store';
-import type { FetchHandler } from './space';
 
 const apiPath = '/api/library';
 
 // Same-origin: the browser sends the session cookie, and no token.
 export const instanceFetch: FetchHandler = (pathname, init) => fetch(pathname, { ...init, credentials: 'same-origin' });
 
+// The name of the store of an Account in the local copy. A device of before
+// Accounts kept it under the reader's DID; server-client.ts moves it.
+export const instanceOwner = (account: string) => `atomes-instance:${account}`;
+
+// `account`: the key of the local copy, the Account ID (or, on a device that
+// has not seen the server since Accounts, the DID).
 // `onStale`: a write refused because another device changed the record first.
 export function openInstanceStore(
   fetchHandler: FetchHandler,
-  did: string,
+  account: string,
   localCopy: LocalCopy,
   onStale?: (write: StaleWrite) => void,
 ): Space {
@@ -76,5 +81,5 @@ export function openInstanceStore(
     },
   };
 
-  return openQueuedStore(remote, `atomes-instance:${did}`, localCopy, onStale);
+  return openQueuedStore(remote, instanceOwner(account), localCopy, onStale);
 }

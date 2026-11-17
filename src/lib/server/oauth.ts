@@ -18,7 +18,8 @@ import {
 } from '@atproto/oauth-client-node';
 import { callbackPath, confidentialClientMetadata, grantsSharing, oauthScope } from '../auth/client-config';
 import { isNetworkFailure } from '../network';
-import { NotAllowedError, type AuthStore } from './auth-store';
+import { NoInviteError } from './accounts';
+import type { AuthStore } from './auth-store';
 import { SignInError, type OAuthPort } from './auth';
 import { publicRepo } from './public-repo';
 import type { RepoAccess } from './sharing';
@@ -57,7 +58,7 @@ export async function createOAuthClient(settings: Settings, store: AuthStore): P
 }
 
 function signInError(error: unknown): unknown {
-  if (error instanceof NotAllowedError || error instanceof SignInError) return error;
+  if (error instanceof NoInviteError || error instanceof SignInError) return error;
   if (error instanceof OAuthCallbackError && error.params.get('error') === 'access_denied') {
     return new SignInError('cancelled', { cause: error });
   }
@@ -66,16 +67,19 @@ function signInError(error: unknown): unknown {
   return error;
 }
 
-export function oauthPort(client: NodeOAuthClient, allowedDids: ReadonlySet<string>): OAuthPort {
+export function oauthPort(client: NodeOAuthClient): OAuthPort {
   return {
-    async authorize(handle, returnTo) {
+    async didOf(handle) {
       try {
-        // Refused before the PDS page: the reader does not sign in for nothing.
-        // The session store refuses it again at the callback.
-        const { did } = await client.oauthResolver.resolveIdentity(handle);
-        if (!allowedDids.has(did)) throw new NotAllowedError(did);
+        return (await client.oauthResolver.resolveIdentity(handle)).did;
+      } catch (error) {
+        throw signInError(error);
+      }
+    },
+    async authorize(input, state) {
+      try {
         // The library keeps `state` with the sign-in in progress and gives it back at the callback.
-        return await client.authorize(handle, { scope: oauthScope, state: returnTo });
+        return await client.authorize(input, { scope: oauthScope, state });
       } catch (error) {
         throw signInError(error);
       }
@@ -83,7 +87,7 @@ export function oauthPort(client: NodeOAuthClient, allowedDids: ReadonlySet<stri
     async callback(params) {
       try {
         const { session, state } = await client.callback(params);
-        return { did: session.did, returnTo: state ?? undefined };
+        return { did: session.did, state: state ?? undefined };
       } catch (error) {
         throw signInError(error);
       }

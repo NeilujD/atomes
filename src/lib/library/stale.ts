@@ -3,7 +3,7 @@
 // change is kept, and the toast names the book.
 import type { Lookup } from '../catalog/catalog';
 import { t } from '../i18n/i18n';
-import type { Space, StaleWrite } from '../space/space';
+import type { Space, StaleWrite } from '../space/queued-store';
 import { copyCollection } from './copy';
 import { loanCollection } from './loan';
 

@@ -15,10 +15,13 @@
 //
 // What the reader chose is kept in `library.sqlite`, beside the records:
 // the Shared categories and the Works kept Private inside them. Each call is
-// limited to one reader's DID; nothing here takes a DID from a request.
+// limited to one Account (ADR 0016); nothing here takes an Account from a
+// request. The PDS is reached with the DID of the Account (`didOf`): an
+// Account with no DID cannot share.
 // Never logs a record value.
-import { DatabaseSync } from 'node:sqlite';
-import { inTransaction } from '../catalog/migrations';
+import type { DatabaseSync } from 'node:sqlite';
+import { errorLogText, type AccountId, type Did } from './accounts';
+import { inTransaction } from './migrate';
 import { categories, categoryNames, type Category, type SharingState } from '../sharing/categories';
 import type { LibraryStore } from './library-store';
 import type { PublicRepo } from './public-repo';
@@ -27,7 +30,7 @@ export interface RepoAccess {
   // The reader's public repo, or undefined when their OAuth session may not
   // write Shared records (none, ended, or signed in with a narrower scope):
   // they sign in again. Throws when the PDS cannot be reached.
-  repoOf(did: string): Promise<PublicRepo | undefined>;
+  repoOf(did: Did): Promise<PublicRepo | undefined>;
 }
 
 // Sharing needs the reader to sign in again first: nothing was saved.
@@ -40,38 +43,26 @@ export class NeedsConsentError extends Error {
 
 export interface Sharing {
   // Tries the PDS again first when something is pending.
-  state(did: string): Promise<SharingState>;
+  state(account: AccountId): Promise<SharingState>;
   // Turning a category on throws NeedsConsentError, and saves nothing, when
   // the session may not write Shared records. Turning one off always saves.
-  setShared(did: string, category: Category, shared: boolean): Promise<SharingState>;
-  setPrivate(did: string, work: string, kept: boolean): Promise<SharingState>;
+  setShared(account: AccountId, category: Category, shared: boolean): Promise<SharingState>;
+  setPrivate(account: AccountId, work: string, kept: boolean): Promise<SharingState>;
   // The same for many Works at once (bulk select), with one sync of the PDS.
-  setPrivateWorks(did: string, works: readonly string[], kept: boolean): Promise<SharingState>;
+  setPrivateWorks(account: AccountId, works: readonly string[], kept: boolean): Promise<SharingState>;
   // Brings the public repo in line with the instance.
-  sync(did: string): Promise<SharingState>;
+  sync(account: AccountId): Promise<SharingState>;
   // The reader signed in again: their session may now write what waited.
-  signedIn(did: string): Promise<void>;
+  signedIn(account: AccountId): Promise<void>;
   // A record of the instance changed (Library API): mirror it if its category
   // is Shared. Never rejects: a failure leaves the reader pending.
-  recordChanged(did: string, collection: string, rkey: string): Promise<void>;
+  recordChanged(account: AccountId, collection: string, rkey: string): Promise<void>;
+  // The Account is deleted (CORE-55): deletes every record of the Shared
+  // collections from its PDS, then its choices here, whatever the PDS
+  // answered. `sharedLeft`: the PDS may still hold Shared records.
+  forget(account: AccountId): Promise<{ sharedLeft: boolean }>;
   close(): void;
 }
-
-const schema = `
-  create table if not exists shared_category (
-    did text not null,
-    category text not null,
-    primary key (did, category)
-  );
-  create table if not exists private_work (
-    did text not null,
-    work text not null,
-    primary key (did, work)
-  );
-  create table if not exists sharing_pending (
-    did text primary key
-  );
-`;
 
 const categoryOf = (collection: string) => categoryNames.find((category) => categories[category] === collection);
 
@@ -109,47 +100,62 @@ function canonical(value: unknown): string {
 }
 
 export function logFailure(step: string, error: unknown) {
-  const name = error instanceof Error ? `${error.name}: ${error.message}` : 'unknown error';
-  console.warn(`Sharing ${step} failed: ${name}`);
+  console.warn(`Sharing ${step} failed: ${errorLogText(error)}`);
 }
 
-export function createSharing({ file, library, access }: { file: string; library: LibraryStore; access: RepoAccess }): Sharing {
-  const db = new DatabaseSync(file);
-  db.exec(schema);
+// `db` is a connection to `library.sqlite` that has run `librarySteps`
+// (migrations.ts). Sharing closes it. `didOf`: the DID identity of the
+// Account (accounts.ts).
+export function createSharing({
+  db,
+  library,
+  access,
+  didOf,
+}: {
+  db: DatabaseSync;
+  library: LibraryStore;
+  access: RepoAccess;
+  didOf: (account: AccountId) => Did | undefined;
+}): Sharing {
+  // Undefined for an Account with no DID: it cannot share.
+  const repoOf = async (account: AccountId) => {
+    const did = didOf(account);
+    return did && access.repoOf(did);
+  };
 
-  const sharedOf = (did: string) => {
-    const rows = db.prepare('select category from shared_category where did = ?').all(did) as { category: string }[];
+  const sharedOf = (account: AccountId) => {
+    const rows = db.prepare('select category from shared_category where account = ?').all(account) as { category: string }[];
     const on = new Set(rows.map((row) => row.category));
     return Object.fromEntries(categoryNames.map((category) => [category, on.has(category)])) as Record<Category, boolean>;
   };
-  const privateWorksOf = (did: string) =>
-    new Set((db.prepare('select work from private_work where did = ? order by work').all(did) as { work: string }[]).map((row) => row.work));
-  const isPending = (did: string) => db.prepare('select 1 from sharing_pending where did = ?').get(did) !== undefined;
-  function setPending(did: string, pending: boolean) {
-    if (pending) db.prepare('insert or ignore into sharing_pending (did) values (?)').run(did);
-    else db.prepare('delete from sharing_pending where did = ?').run(did);
+  const privateWorksOf = (account: AccountId) =>
+    new Set((db.prepare('select work from private_work where account = ? order by work').all(account) as { work: string }[]).map((row) => row.work));
+  const isPending = (account: AccountId) => db.prepare('select 1 from sharing_pending where account = ?').get(account) !== undefined;
+  function setPending(account: AccountId, pending: boolean) {
+    if (pending) db.prepare('insert or ignore into sharing_pending (account) values (?)').run(account);
+    else db.prepare('delete from sharing_pending where account = ?').run(account);
   }
 
   // One change at a time per reader, so two mirrors of a record never land out of order.
   const queues = new Map<string, Promise<unknown>>();
-  function serial<T>(did: string, task: () => Promise<T>): Promise<T> {
-    const run = (queues.get(did) ?? Promise.resolve()).then(task, task);
+  function serial<T>(account: AccountId, task: () => Promise<T>): Promise<T> {
+    const run = (queues.get(account) ?? Promise.resolve()).then(task, task);
     const settled = run.catch(() => undefined);
-    queues.set(did, settled);
+    queues.set(account, settled);
     void settled.then(() => {
-      if (queues.get(did) === settled) queues.delete(did);
+      if (queues.get(account) === settled) queues.delete(account);
     });
     return run;
   }
 
-  async function syncWith(did: string, repo: PublicRepo) {
-    const shared = sharedOf(did);
-    const privateWorks = privateWorksOf(did);
+  async function syncWith(account: AccountId, repo: PublicRepo) {
+    const shared = sharedOf(account);
+    const privateWorks = privateWorksOf(account);
     for (const category of categoryNames) {
       const collection = categories[category];
       const wanted = new Map<string, object>();
       if (shared[category]) {
-        for (const { rkey, value } of library.list(did, collection)) {
+        for (const { rkey, value } of library.list(account, collection)) {
           const record = publicValue(collection, rkey, value, privateWorks);
           if (record) wanted.set(rkey, record);
         }
@@ -161,94 +167,119 @@ export function createSharing({ file, library, access }: { file: string; library
   }
 
   // Runs the sync and remembers whether it must run again.
-  async function trySync(did: string, repo?: PublicRepo) {
+  async function trySync(account: AccountId, repo?: PublicRepo) {
     try {
-      const target = repo ?? (await access.repoOf(did));
-      if (!target) return setPending(did, true);
-      await syncWith(did, target);
-      setPending(did, false);
+      const target = repo ?? (await repoOf(account));
+      if (!target) return setPending(account, true);
+      await syncWith(account, target);
+      setPending(account, false);
     } catch (error) {
-      setPending(did, true);
+      setPending(account, true);
       logFailure('sync', error);
     }
   }
 
-  async function canShare(did: string) {
+  async function canShare(account: AccountId) {
     try {
-      return (await access.repoOf(did)) !== undefined;
+      return (await repoOf(account)) !== undefined;
     } catch {
       // The PDS is out of reach: that says nothing about the permission.
       return true;
     }
   }
 
-  async function state(did: string): Promise<SharingState> {
-    return { shared: sharedOf(did), privateWorks: [...privateWorksOf(did)], pending: isPending(did), canShare: await canShare(did) };
+  async function state(account: AccountId): Promise<SharingState> {
+    return {
+      shared: sharedOf(account),
+      privateWorks: [...privateWorksOf(account)],
+      pending: isPending(account),
+      canShare: await canShare(account),
+      atproto: didOf(account) !== undefined,
+    };
   }
 
-  function setPrivateWorks(did: string, works: readonly string[], kept: boolean) {
-    return serial(did, async () => {
+  function setPrivateWorks(account: AccountId, works: readonly string[], kept: boolean) {
+    return serial(account, async () => {
       const change = kept
-        ? db.prepare('insert or ignore into private_work (did, work) values (?, ?)')
-        : db.prepare('delete from private_work where did = ? and work = ?');
+        ? db.prepare('insert or ignore into private_work (account, work) values (?, ?)')
+        : db.prepare('delete from private_work where account = ? and work = ?');
       inTransaction(db, () => {
-        for (const work of works) change.run(did, work);
+        for (const work of works) change.run(account, work);
       });
-      await trySync(did);
-      return state(did);
+      await trySync(account);
+      return state(account);
     });
   }
 
   return {
-    state: (did) =>
-      serial(did, async () => {
-        if (isPending(did)) await trySync(did);
-        return state(did);
+    state: (account) =>
+      serial(account, async () => {
+        if (isPending(account)) await trySync(account);
+        return state(account);
       }),
-    setShared: (did, category, shared) =>
-      serial(did, async () => {
-        const repo = await access.repoOf(did).catch((error: unknown) => {
+    setShared: (account, category, shared) =>
+      serial(account, async () => {
+        const repo = await repoOf(account).catch((error: unknown) => {
           // Turning a category off still saves and deletes later.
           if (shared) throw error;
           return undefined;
         });
         if (shared && !repo) throw new NeedsConsentError();
-        if (shared) db.prepare('insert or ignore into shared_category (did, category) values (?, ?)').run(did, category);
-        else db.prepare('delete from shared_category where did = ? and category = ?').run(did, category);
-        await trySync(did, repo);
-        return state(did);
+        if (shared) db.prepare('insert or ignore into shared_category (account, category) values (?, ?)').run(account, category);
+        else db.prepare('delete from shared_category where account = ? and category = ?').run(account, category);
+        await trySync(account, repo);
+        return state(account);
       }),
-    setPrivate: (did, work, kept) => setPrivateWorks(did, [work], kept),
+    setPrivate: (account, work, kept) => setPrivateWorks(account, [work], kept),
     setPrivateWorks,
-    sync: (did) =>
-      serial(did, async () => {
-        await trySync(did);
-        return state(did);
+    sync: (account) =>
+      serial(account, async () => {
+        await trySync(account);
+        return state(account);
       }),
-    signedIn: (did) =>
-      serial(did, async () => {
-        if (isPending(did)) await trySync(did);
+    signedIn: (account) =>
+      serial(account, async () => {
+        if (isPending(account)) await trySync(account);
       }),
-    recordChanged: (did, collection, rkey) =>
-      serial(did, async () => {
+    recordChanged: (account, collection, rkey) =>
+      serial(account, async () => {
         try {
           const category = categoryOf(collection);
           if (!category) return;
-          if (isPending(did)) return await trySync(did);
-          if (!sharedOf(did)[category]) return;
-          const repo = await access.repoOf(did);
-          if (!repo) return setPending(did, true);
-          const record = publicValue(collection, rkey, library.get(did, collection, rkey), privateWorksOf(did));
+          if (isPending(account)) return await trySync(account);
+          if (!sharedOf(account)[category]) return;
+          const repo = await repoOf(account);
+          if (!repo) return setPending(account, true);
+          const record = publicValue(collection, rkey, library.get(account, collection, rkey), privateWorksOf(account));
           if (record) await repo.put(collection, rkey, record);
           else await repo.delete(collection, rkey);
         } catch (error) {
           logFailure('mirror', error);
           try {
-            setPending(did, true);
+            setPending(account, true);
           } catch (stored) {
             logFailure('mirror', stored);
           }
         }
+      }),
+    forget: (account) =>
+      serial(account, async () => {
+        let sharedLeft = false;
+        // Nothing was ever sent while no category is Shared and nothing waits.
+        if (isPending(account) || Object.values(sharedOf(account)).some(Boolean)) {
+          try {
+            const repo = await repoOf(account);
+            if (!repo) sharedLeft = true;
+            else for (const collection of Object.values(categories)) for (const { rkey } of await repo.list(collection)) await repo.delete(collection, rkey);
+          } catch (error) {
+            logFailure('delete', error);
+            sharedLeft = true;
+          }
+        }
+        inTransaction(db, () => {
+          for (const table of ['shared_category', 'private_work', 'sharing_pending']) db.prepare(`delete from ${table} where account = ?`).run(account);
+        });
+        return { sharedLeft };
       }),
     close: () => db.close(),
   };

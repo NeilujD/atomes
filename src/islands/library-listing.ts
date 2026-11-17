@@ -11,7 +11,7 @@ import type { Library } from '../lib/library/model';
 import type { Saved } from '../lib/library/records';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
-import { spaceErrorMessage, type Space } from '../lib/space/space';
+import { spaceErrorMessage, type Space } from '../lib/space/queued-store';
 import { toast } from '../lib/toast';
 
 // Where a screen reads from: the reader's Library store and the Catalog.

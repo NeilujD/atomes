@@ -1,9 +1,21 @@
 import { describe, expect, test } from 'vitest';
 import { memoryLocalCopy } from '../space/local-copy.fake';
 import { serverAuthClient } from './server-client';
-import { errorMessage, gate, loadSession, signIn, signInResultMessage, signOut, type AuthClient } from './session';
+import {
+  askSignInCode,
+  codeIn,
+  errorMessage,
+  gate,
+  keepInvite,
+  loadSession,
+  signIn,
+  signInResultMessage,
+  signInWithCode,
+  signOut,
+  type AuthClient,
+} from './session';
 
-const reader = { did: 'did:plc:reader', handle: 'reader.test' };
+const reader = { id: 'account-reader', handle: 'reader.test' };
 
 // The Atomes server as the device sees it: one browser session, behind a cookie
 // the device cannot read. `online = false` stands for the network off.
@@ -40,7 +52,12 @@ function memoryStorage() {
 function setup() {
   const { server, fetch } = fakeServer();
   const storage = memoryStorage();
-  const client = (): AuthClient => serverAuthClient({ fetch, storage, submitSignIn: (handle, returnTo) => server.submitted.push({ handle, returnTo }) });
+  const client = (): AuthClient => serverAuthClient({
+      fetch,
+      storage,
+      submitSignIn: (handle, returnTo) => server.submitted.push({ handle, returnTo }),
+      localCopy: memoryLocalCopy(),
+    });
   return { server, storage, client };
 }
 
@@ -199,7 +216,7 @@ describe('gate', () => {
 
 describe('signInResultMessage', () => {
   test.each([
-    ['not-allowed', 'This account may not sign in to this Atomes server. Ask its owner to add it.'],
+    ['no-invite', 'You need an Invite to create an account on this Atomes server. Ask its owner for one.'],
     ['cancelled', 'Sign-in was cancelled.'],
     ['no-account', 'No account found for this handle. Check the spelling.'],
     ['unreachable', 'Could not reach your PDS. Try again later.'],
@@ -212,11 +229,103 @@ describe('signInResultMessage', () => {
   });
 });
 
+describe('keepInvite', () => {
+  const answering = (status: number) => {
+    const sent: { url: string; init?: RequestInit }[] = [];
+    const fetch = (url: string, init?: RequestInit) => {
+      sent.push({ url, init });
+      return Promise.resolve(new Response(null, { status }));
+    };
+    return { fetch, sent };
+  };
+
+  test('an open Invite is kept on the server, and the screen says so', async () => {
+    const { fetch, sent } = answering(204);
+
+    expect(await keepInvite(fetch, 'token')).toBe('Invite kept. Sign in to create your account.');
+    expect(sent.map(({ url, init }) => [url, init?.method, init?.body])).toEqual([['/api/invite', 'POST', '{"invite":"token"}']]);
+  });
+
+  test('a used or expired Invite says so', async () => {
+    expect(await keepInvite(answering(410).fetch, 'token')).toBe('This Invite was used or has expired. Ask the owner of this Atomes server for a new one.');
+  });
+
+  test('with no network, says the server is out of reach', async () => {
+    const fetch = () => Promise.reject(new TypeError('Failed to fetch'));
+
+    expect(await keepInvite(fetch, 'token')).toBe(errorMessage(new TypeError('Failed to fetch')));
+  });
+});
+
 describe('errorMessage', () => {
   test.each([
     ['the server cannot be reached', new TypeError('Failed to fetch'), 'Could not reach this Atomes server. Check your connection and try again.'],
     ['anything else', new Error('HTTP 500 for /api/session'), 'Sign-in failed. Try again.'],
   ])('%s', (_, error, message) => {
     expect(errorMessage(error)).toBe(message);
+  });
+});
+
+describe('codeIn', () => {
+  test.each([
+    ['482913', '482913'],
+    ['482 913', '482913'],
+    [' 482\n913 ', '482913'],
+    ['Your sign-in code for Atomes:\n\n482913\n\nIt works once, for 10 minutes.', '482913'],
+    ['482913\n10 minutes', '482913'],
+  ])('finds the code in %j', (text, code) => {
+    expect(codeIn(text)).toBe(code);
+  });
+
+  test.each(['', '48291', '4829134', '482-913', 'no code here'])('finds no code in %j', (text) => {
+    expect(codeIn(text)).toBeUndefined();
+  });
+});
+
+describe('sign-in with a Sign-in Code', () => {
+  const answering = (status: number, body?: unknown) => {
+    const sent: { url: string; body: unknown }[] = [];
+    const fetch = (url: string, init?: RequestInit) => {
+      sent.push({ url, body: JSON.parse(init?.body as string) });
+      return Promise.resolve(body === undefined ? new Response(null, { status }) : Response.json(body, { status }));
+    };
+    return { fetch, sent };
+  };
+
+  test('asks a code for the trimmed, lower-cased address', async () => {
+    const { fetch, sent } = answering(204);
+
+    expect(await askSignInCode(fetch, ' Reader@Example.org ')).toEqual({ email: 'reader@example.org' });
+    expect(sent).toEqual([{ url: '/api/sign-in/code', body: { email: 'reader@example.org' } }]);
+  });
+
+  test.each([
+    ['an empty field', '', 204, 'Type your email address, for example alice@example.org.'],
+    ['an address the server refuses', 'reader@example', 400, 'Type your email address, for example alice@example.org.'],
+    ['too many asks', 'reader@example.org', 429, 'Too many tries. Wait a while, then try again.'],
+  ])('%s: the screen says why, and stays on the address', async (_, input, status, message) => {
+    expect(await askSignInCode(answering(status).fetch, input)).toEqual({ message });
+  });
+
+  test('a pasted code keeps its digits only', async () => {
+    const { fetch, sent } = answering(204);
+
+    expect(await signInWithCode(fetch, 'reader@example.org', ' 123 456\n')).toBeUndefined();
+    expect(sent).toEqual([{ url: '/api/sign-in/check', body: { email: 'reader@example.org', code: '123456' } }]);
+  });
+
+  test.each([
+    ['a short code', '12345', 204, undefined, 'Type the 6 digits of your Sign-in Code.'],
+    ['a wrong code', '123456', 400, { error: 'WrongCode' }, 'This code is wrong or has expired. Check it, or ask for a new one.'],
+    ['no Invite', '123456', 403, { error: 'NoInvite' }, 'You need an Invite to create an account on this Atomes server. Ask its owner for one.'],
+    ['too many tries', '123456', 429, { error: 'TooMany' }, 'Too many tries. Wait a while, then try again.'],
+  ])('%s: the screen says why', async (_, code, status, body, message) => {
+    expect(await signInWithCode(answering(status, body).fetch, 'reader@example.org', code)).toBe(message);
+  });
+
+  test('offline: the screen says the server is out of reach', async () => {
+    const offline = () => Promise.reject(new TypeError('Failed to fetch'));
+
+    expect(await signInWithCode(offline, 'reader@example.org', '123456')).toBe(errorMessage(new TypeError('Failed to fetch')));
   });
 });
