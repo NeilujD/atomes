@@ -4,7 +4,7 @@
 // tables live in `library.sqlite`, which is backed up.
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import { inviteIsOpen, useInvite } from './invites';
+import { inviteIsOpen, makeReaderInvite, readerInvite, useInvite, type ReaderInvite } from './invites';
 import { inTransaction } from './migrate';
 
 // An AT Protocol DID. An AccountId is not one, and the type says so: a store
@@ -44,13 +44,19 @@ export interface Accounts {
   maySignInEmail(email: string, invite: string | undefined): boolean;
   // The Invite is not used and not expired.
   inviteIsOpen(invite: string): boolean;
+  // The Invite the reader of `account` made in Settings (CORE-134).
+  inviteOf(account: AccountId): ReaderInvite;
+  // A new Invite of the reader, which cancels their open one; undefined once
+  // a person made an Account with one of their Invites.
+  makeInvite(account: AccountId): { token: string; expiresAt: number } | undefined;
   // Adds an identity the reader proved (Settings, ADR 0016). The same
   // identity again gives `linked`.
   link(account: AccountId, kind: 'did' | 'email', value: string): LinkResult;
   // Empty for an unknown Account.
   identitiesOf(account: AccountId): Identities;
-  // Deletes the Account and its identities (CORE-55). Its Invite stays used,
-  // with no Account.
+  // Deletes the Account and its identities (CORE-55). The Invite it signed up
+  // with stays used, with no Account; so does the Invite it made and a person
+  // used. Its open Invite is deleted.
   forget(account: AccountId): void;
   close(): void;
 }
@@ -107,6 +113,8 @@ export function createAccounts(db: DatabaseSync): Accounts {
     maySignIn: (did, invite) => maySignIn('did', did, invite),
     maySignInEmail: (email, invite) => maySignIn('email', email, invite),
     inviteIsOpen: (invite) => inviteIsOpen(db, invite),
+    inviteOf: (account) => readerInvite(db, account),
+    makeInvite: (account) => makeReaderInvite(db, account),
     link(account, kind, value) {
       return inTransaction(db, (): LinkResult => {
         const owner = find(kind, value);
@@ -123,6 +131,9 @@ export function createAccounts(db: DatabaseSync): Accounts {
     forget(account) {
       inTransaction(db, () => {
         db.prepare('update invite set used_by = null where used_by = ?').run(account);
+        // Its open Invite goes; its used one stays used, with no maker.
+        db.prepare('delete from invite where made_by = ? and used_at is null').run(account);
+        db.prepare('update invite set made_by = null where made_by = ?').run(account);
         db.prepare('delete from identity where account = ?').run(account);
         db.prepare('delete from account where id = ?').run(account);
       });

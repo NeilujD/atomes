@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -5,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createAccounts, type AccountId } from './accounts';
 import { createAuthStore } from './auth-store';
+import { inviteIsOpen } from './invites';
 import { createLibraryStore } from './library-store';
 import { migrate, openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
@@ -134,6 +136,23 @@ describe('library.sqlite made before Accounts', () => {
     expect(counts(again, ['account', 'identity', 'record', 'shared_category'])).toEqual([1, 1, 1, 0]);
     expect(createAccounts(again).ofDid(did)).toBe(account);
     again.close();
+  });
+});
+
+describe('library.sqlite made before readers made Invites', () => {
+  test('an owner Invite made before keeps working, made by nobody', () => {
+    const file = join(dir, 'library.sqlite');
+    const before = openDatabase(file, librarySteps.slice(0, 3));
+    // As scripts/invite.ts made it then: no `made_by` column yet.
+    const token = 'A'.repeat(43);
+    before.prepare('insert into invite (token_hash, expires_at) values (?, ?)').run(createHash('sha256').update(token).digest('hex'), Date.now() + 3600_000);
+    before.close();
+
+    const after = openDatabase(file, librarySteps);
+    expect(version(after)).toBe(librarySteps.length);
+    expect(inviteIsOpen(after, token)).toBe(true);
+    expect(after.prepare('select made_by as madeBy from invite').all()).toEqual([{ madeBy: null }]);
+    after.close();
   });
 });
 

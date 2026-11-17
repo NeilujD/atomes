@@ -19,6 +19,6 @@ test('An Invite link is kept for the sign-in, and its token leaves the address',
 test('A used or unknown Invite link says so', async ({ page }) => {
   await page.goto('/sign-in#invite=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
 
-  await expect(page.getByRole('alert')).toHaveText('This Invite was used or has expired. Ask the owner of this Atomes server for a new one.');
+  await expect(page.getByRole('alert')).toHaveText('This Invite was used or has expired. Ask the person who sent it for a new one.');
   expect(page.url()).not.toContain('invite');
 });

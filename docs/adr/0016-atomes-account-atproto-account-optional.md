@@ -27,7 +27,8 @@ Atomes must serve readers who are not technical. A code audit on 2026-11-13 show
 - **AT Protocol sign-in** (ADR 0013) is the second method, shown below as "Bluesky or another AT Protocol account". The words PDS, DID and handle leave the text shown to the reader.
 - The flow is written by hand in the instance's own tables. The session cookie of ADR 0013 is unchanged.
 - The server sends the code through SMTP (Nodemailer), so the sender is one setting. First sender: Scaleway Transactional Email (in the EU, no daily limit); second choice: Brevo. The sender is a data processor and is named in the privacy notice.
-- **Who may sign up**: one setting, `SIGN_UP=invite|open`, replaces `ALLOWED_DIDS`. In `invite` mode a new Account needs an **Invite**, a link that works once and that the owner makes with a script. `open` comes later, with quotas and abuse limits. A self-hosted instance stays on `invite`.
+- **Who may sign up**: one setting, `SIGN_UP=invite|open`, replaces `ALLOWED_DIDS`. In `invite` mode a new Account needs an **Invite**, a link that works once, for 14 days. The owner makes one with a script (`scripts/invite.ts`), with no limit. `open` comes later, with quotas and abuse limits. A self-hosted instance stays on `invite`.
+- Amended 2026-11-17 (CORE-134): **a reader makes an Invite too**, in Settings. Limit: one invited Account for each reader. Once a person makes an Account with an Invite of a reader, that reader makes no more, even after that Account is deleted. A reader has one open Invite at a time: a new link cancels it, because the token is not stored and the link cannot be shown again. An Invite that expires unused does not count. An invited reader has the same right. `invite.made_by` holds the Account that made it (null for the script); the server checks the limit and makes the Invite in one transaction.
 
 ## Consequences
 
