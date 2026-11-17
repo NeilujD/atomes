@@ -27,6 +27,10 @@ export interface Accounts {
   // The Account of the DID. Makes one, with this DID as its identity, the
   // first time, with no Invite: only for the migrations and /dev/sign-in-as.
   ofDid(did: Did): AccountId;
+  // As ofDid, for an email address that is trimmed and lower-cased already:
+  // only for the owner's Account on a pull request preview (settings.ts,
+  // PREVIEW_ACCOUNT_EMAIL). The reader still signs in with a Sign-in Code.
+  ofEmail(email: string): AccountId;
   // The Account of the DID, or undefined: makes none.
   findDid(did: Did): AccountId | undefined;
   // The Account of the DID. The first time, makes one only with an open
@@ -96,6 +100,7 @@ export function createAccounts(db: DatabaseSync): Accounts {
     find(kind, value) !== undefined || (invite !== undefined && inviteIsOpen(db, invite));
   return {
     ofDid: (did) => find('did', did) ?? make('did', did),
+    ofEmail: (email) => find('email', email) ?? make('email', email),
     signIn: (did, invite) => signIn('did', did, invite),
     signInEmail: (email, invite) => signIn('email', email, invite),
     findDid: (did) => find('did', did),

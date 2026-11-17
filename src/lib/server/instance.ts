@@ -35,12 +35,13 @@ export const outbox = devOutbox();
 // run once, before any store opens (ADR 0016).
 function dataDir() {
   if (migrated === undefined) {
-    const dir = settings().dataDir;
+    const { dataDir: dir, previewAccountEmail } = settings();
     mkdirSync(dir, { recursive: true });
     // The auth steps read the Accounts of library.sqlite.
     const libraryAccounts = createAccounts(openDatabase(join(dir, 'library.sqlite'), librarySteps));
     try {
       openDatabase(join(dir, 'auth.sqlite'), authSteps(libraryAccounts)).close();
+      if (previewAccountEmail) libraryAccounts.ofEmail(previewAccountEmail);
     } finally {
       libraryAccounts.close();
     }

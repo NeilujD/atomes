@@ -26,6 +26,11 @@ export interface Settings {
   // outbox (mail.ts) and sends none.
   smtpUrl?: string;
   mailFrom?: string;
+  // PREVIEW_ACCOUNT_EMAIL, trimmed and lower-cased: on a pull request preview
+  // only, the server makes an Account with this address at start, so the
+  // owner signs in with a Sign-in Code and no Invite. A preview gets the
+  // staging variables: staging and production ignore it.
+  previewAccountEmail?: string;
 }
 
 // No parameter property (`readonly problems` in the constructor): Node's type
@@ -99,6 +104,13 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
     problems.push(`APP_ENV must be production or staging. Found: ${appEnv}`);
   }
 
+  const previewAccountEmail = isPreview(env) ? env.PREVIEW_ACCOUNT_EMAIL?.trim().toLowerCase() || undefined : undefined;
+  // The rule of normalEmail (sign-in-codes.ts), which this file cannot import.
+  // The message names no address: the deployment log keeps it.
+  if (previewAccountEmail !== undefined && (previewAccountEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(previewAccountEmail))) {
+    problems.push('PREVIEW_ACCOUNT_EMAIL must be one email address, for example owner@example.org.');
+  }
+
   const port = Number(env.PORT ?? 4321);
   if (!Number.isInteger(port) || port <= 0) problems.push(`PORT must be a port number. Found: ${String(env.PORT)}`);
 
@@ -112,6 +124,7 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
     oauthPrivateKey,
     smtpUrl,
     mailFrom,
+    previewAccountEmail,
   };
 }
 
