@@ -45,9 +45,10 @@ const answers = [
       </button>
       <div class="camera-bottom">
         <p class="camera-text" data-camera-text aria-live="polite">{t('add.camera-starting')}</p>
-        <!-- Small: the camera is what the reader came for (CORE-97). -->
-        <button class="icon-button" type="button" aria-label={t('add.type-isbn')} title={t('add.type-isbn')} data-camera-close>
+        <!-- Small: the camera is what the reader came for (CORE-97). A short word by the icon; the name says it all. -->
+        <button class="button camera-type" type="button" aria-label={t('add.type-isbn')} title={t('add.type-isbn')} data-camera-close>
           <Icon name="keyboard" />
+          <span>{t('add.type-short')}</span>
         </button>
       </div>
     </dialog>
@@ -997,15 +998,22 @@ const answers = [
     }
   }
 
-  /* Close and Type the ISBN: round icon buttons (theme.css) in the camera's colours. */
-  .camera .icon-button {
+  /* Close, a round icon button, and Type the ISBN, a pill with a short word (theme.css), in the camera's colours. */
+  .camera .icon-button,
+  .camera .camera-type {
     border-color: var(--camera-line);
     background: var(--camera-control);
     color: var(--camera-ink);
   }
 
-  .camera .icon-button:hover {
+  .camera .icon-button:hover,
+  .camera .camera-type:hover {
     background: var(--camera-line);
+  }
+
+  .camera-type {
+    min-height: var(--icon-button);
+    border-radius: var(--radius-pill);
   }
 
   /* Cobalt is 2.1:1 on the camera ground: the focus ring takes the camera's ink. */

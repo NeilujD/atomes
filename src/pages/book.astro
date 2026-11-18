@@ -108,10 +108,10 @@ const choices = [
           <h2 class="small-heading" id="copies-title">{t('book.copies')}</h2>
           <p class="hint" data-no-copies hidden>{t('book.no-copies')}</p>
           <ul class="copies" data-copies></ul>
-          <!-- The main action of the page (Q7). -->
+          <!-- The main action of the page (Q7): "Add a Copy" while the reader has none (render()). -->
           <a class="button button-main" href="/check" data-add-copy>
             <Icon name="plus" />
-            <span>{t('book.add-copy')}</span>
+            <span data-add-copy-label>{t('book.add-copy')}</span>
           </a>
         </section>
       </div>
@@ -335,7 +335,9 @@ const choices = [
       renderedCopies = copies;
       copyList.replaceChildren(...page.copies.map(copyRow));
     }
-    article.querySelector<HTMLAnchorElement>('[data-add-copy]')!.href = `/check?isbn=${page.isbn}`;
+    const addCopy = article.querySelector<HTMLAnchorElement>('[data-add-copy]')!;
+    addCopy.href = `/check?isbn=${page.isbn}`;
+    addCopy.querySelector('[data-add-copy-label]')!.textContent = t(page.copies.length > 0 ? 'book.add-copy' : 'book.add-first-copy');
   }
 
   // The Catalog gives the Edition a Series Correction made or deleted: this

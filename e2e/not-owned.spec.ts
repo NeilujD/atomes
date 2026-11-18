@@ -22,6 +22,8 @@ test('read, then its only Copy removed: the Work shows as not owned in every mod
   await page.getByRole('button', { name: 'More actions for the Copy with ISBN 9782723478991' }).click();
   await page.getByRole('button', { name: 'Remove the Copy with ISBN 9782723478991' }).click();
   await expect(page.getByRole('button', { name: 'More actions for the Copy with ISBN 9782723478991' })).toHaveCount(0);
+  // No Copy left: the main action says "Add a Copy", not "Add another Copy".
+  await expect(page.getByRole('link', { name: 'Add a Copy' })).toBeVisible();
   // La Horde du Contrevent: owned, a standalone novel, so no Series Onboarding.
   await quickAdd(page, '9782072927515');
   await expect(page.getByText(/is in your Library/)).toBeVisible();

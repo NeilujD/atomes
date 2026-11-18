@@ -234,6 +234,8 @@ export const en = {
   'add.scan': 'Scan the barcode',
   'add.camera-starting': 'Starting the camera…',
   'add.type-isbn': 'Type the ISBN',
+  // The short word on the camera button; its accessible name stays add.type-isbn.
+  'add.type-short': 'Type',
   'add.isbn': 'ISBN',
   'add.look-up': 'Look up',
   'add.isbn-hint': 'The 13 digits under the barcode, on the back cover.',
@@ -306,6 +308,8 @@ export const en = {
   'book.copies': 'Your Copies',
   'book.no-copies': 'You have no Copy of this book.',
   'book.add-copy': 'Add another Copy',
+  // The main action of the Book page while the reader has no Copy of the Work.
+  'book.add-first-copy': 'Add a Copy',
   'book.remove': 'Remove',
   'book.remove-copy': (isbn: string) => `Remove the Copy with ISBN ${isbn}`,
   'book.lend-to': 'Lend to',
