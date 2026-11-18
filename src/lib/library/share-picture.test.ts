@@ -38,6 +38,7 @@ const numbers = (more: Partial<Statistics> = {}): Statistics => ({
   years: [2026],
   defaultPeriod: 2026,
   followed: 9,
+  pagesRead: null,
   ...more,
 });
 
