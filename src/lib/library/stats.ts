@@ -79,6 +79,9 @@ export interface Statistics {
   years: number[];
   // The current year when it is offered, else All time.
   defaultPeriod: Period;
+  // The Followed Series of today, whatever the period and the filters (a
+  // Follow has no Label): the share picture shows it.
+  followed: number;
 }
 
 export function statistics({ library, editions, labels, query, today, language }: StatsInput): Statistics {
@@ -135,6 +138,7 @@ export function statistics({ library, editions, labels, query, today, language }
     },
     years,
     defaultPeriod: years.includes(currentYear) ? currentYear : 'all',
+    followed: library.follows.filter(({ value }) => value.status === 'following').length,
   };
 }
 

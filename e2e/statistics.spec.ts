@@ -38,7 +38,8 @@ test('mark a book read, then a bulk mark; the period and the Label survive Back 
   // No read has a day yet: the totals, and how to add days.
   await expect(lead(page)).toHaveText(`0 read in ${year}`);
   await expect(page.getByText(/No book read has a finish day yet/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Share' })).toBeDisabled();
+  // The island has drawn: Share opens the picture (share-picture.spec.ts).
+  await expect(page.getByRole('button', { name: 'Share' })).toBeEnabled();
   await islandsLoaded(page);
 
   // Read, on the Book page of La Horde: today is its finish day.

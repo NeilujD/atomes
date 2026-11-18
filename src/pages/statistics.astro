@@ -6,6 +6,7 @@
 import AppShell from '../layouts/AppShell.astro';
 import '../styles/glow.css';
 import '../styles/charts.css';
+import '../styles/share-picture.css';
 import Icon from '../components/Icon.astro';
 import Statistics, { StatisticsSkeleton } from '../islands/Statistics';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
@@ -14,9 +15,9 @@ const t = translator(requestLanguage(Astro.request));
 ---
 
 <AppShell title={t('stats.title')} current="statistics">
-  <!-- The main action of the screen (filled cobalt). Disabled: the picture to
-       share comes with its own ticket (CORE-149), which enables it once the
-       island has drawn it (ui-direction: Before the scripts run). -->
+  <!-- The main action of the screen (filled cobalt): it opens the share
+       dialog (src/islands/SharePicture.tsx), which enables it once the island
+       has drawn (ui-direction: Before the scripts run). -->
   <button slot="actions" class="button button-main" type="button" disabled data-statistics-share>
     <Icon name="share" />
     {t('stats.share')}
