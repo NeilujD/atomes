@@ -85,7 +85,7 @@
   --alpha-fill-chip: 7%;
   /* The Edition Line drawn: a Volume not owned is faint, an owned one medium, a read one full ink. */
   --alpha-shade-faint: 14%;
-  --alpha-shade-medium: 55%;
+  --alpha-shade-medium: 62%;
   /* The ground under a round icon button, over a glow. */
   --alpha-veil: 35%;
   /* A colour of the screen (an ownership colour, cobalt) as a soft fill and its border: the answer pill. */

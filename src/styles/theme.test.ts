@@ -153,15 +153,26 @@ describe('theme colours of the one look (ADR 0018)', () => {
           expect(contrast(text, pill)).toBeGreaterThanOrEqual(4.5);
         });
 
-        // On a card (To Buy "Not owned"), the card's fill would darken the
-        // pill under 4.5:1 in light: the pill paints its tint on --surface.
-        it(`${tone} text reads at 4.5:1 or more on its pill on a card, ${theme}, ${step.name}`, () => {
+        // On a card (the "Not owned" chip) or over a glow (the Shelf Check
+        // answer pill), what is under would darken the tint under 4.5:1 in
+        // light: the pill and the chip paint their tint on --surface.
+        it(`${tone} text reads at 4.5:1 or more on its pill or chip, tinted on the panel, ${theme}, ${step.name}`, () => {
           const text = mix(ink[theme], step.share, pair(`${tone}-text-base`)[theme]);
           const pill = over(single(tone), alpha('--alpha-tone-fill'), pair('--surface')[theme]);
           expect(contrast(text, pill)).toBeGreaterThanOrEqual(4.5);
         });
       }
     }
+
+    // Series Onboarding: the number of an owned tile, in --surface, on
+    // --shade-medium over the card (desktop) and over the ground (phone).
+    it(`the number of an owned onboarding tile reads at 4.5:1 or more on the card and on the ground, ${theme}`, () => {
+      const card = over(ink[theme], alpha('--alpha-fill-card'), ground[theme]);
+      for (const under of [card, ground[theme]]) {
+        const tile = over(ink[theme], alpha('--alpha-shade-medium'), under);
+        expect(contrast(pair('--surface')[theme], tile)).toBeGreaterThanOrEqual(4.5);
+      }
+    });
 
     it(`borders are stronger in high contrast, ${theme}`, () => {
       for (const line of ['--alpha-line-card', '--alpha-line-control', '--alpha-line-button']) {

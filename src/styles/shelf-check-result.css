@@ -149,6 +149,8 @@
   }
 }
 
+/* The answer. Its tint is painted on --surface, as the "Not owned" chip, so
+   the glow behind it cannot lower its contrast (theme.test.ts). */
 .result-pill {
   display: inline-flex;
   align-items: center;
@@ -157,7 +159,7 @@
   padding: 0 var(--space-14);
   border: var(--hairline) solid var(--tone-line);
   border-radius: var(--radius-pill);
-  background: var(--tone-soft);
+  background: linear-gradient(var(--tone-soft), var(--tone-soft)), var(--surface);
   color: var(--tone-text);
   font-size: var(--type-small);
   font-weight: 600;
