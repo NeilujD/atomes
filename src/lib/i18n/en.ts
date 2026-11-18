@@ -654,7 +654,7 @@ export const en = {
   },
   'stats.add-dates': 'Add dates',
   'stats.empty':
-    'No book read has a finish day yet, so nothing shows by month. Mark a book read on its Book page and Atomes keeps the day; for a book you read before, type the day you finished it there.',
+    'No book read has a finish day yet, so no read shows by month. Mark a book read on its Book page and Atomes keeps the day; for a book you read before, type the day you finished it there.',
 
   // The share picture (src/lib/library/share-picture.ts) and its dialog (src/islands/SharePicture.tsx).
   'picture.brand': 'Atomes',
@@ -667,8 +667,11 @@ export const en = {
   'picture.followed': (_count: number) => 'Series followed',
   /* eslint-enable @typescript-eslint/no-unused-vars */
   'picture.made-with': 'Made with Atomes',
-  'picture.alt': (read: number, year: string | undefined, added: number, followed: number, names: string[]) =>
+  // The filters on, under the period: the name of the Label, "Owned only".
+  'picture.filters': (filters: string[]) => filters.join(' · '),
+  'picture.alt': (read: number, year: string | undefined, added: number, followed: number, names: string[], filters: string[]) =>
     `Picture: ${number(read)} read ${year ? `in ${year}` : 'in all'}, ${number(added)} added, ${number(followed)} Series followed.` +
+    (filters.length > 0 ? ` Filters: ${filters.join(', ')}.` : '') +
     (names.length > 0 ? ` Most read: ${names.join(', ')}.` : ''),
   'share.format': 'Format',
   'share.story': 'Story',

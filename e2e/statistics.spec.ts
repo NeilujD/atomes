@@ -38,6 +38,8 @@ test('mark a book read, then a bulk mark; the period and the Label survive Back 
   // No read has a day yet: the totals, and how to add days.
   await expect(lead(page)).toHaveText(`0 read in ${year}`);
   await expect(page.getByText(/No book read has a finish day yet/)).toBeVisible();
+  // The two Copies have a day: the column of this month shows them.
+  await expect(thisMonth(0, 2)).toHaveAttribute('aria-pressed', 'true');
   // The island has drawn: Share opens the picture (share-picture.spec.ts).
   await expect(page.getByRole('button', { name: 'Share' })).toBeEnabled();
   await islandsLoaded(page);

@@ -55,7 +55,7 @@ function canShareFiles(shared: unknown[]) {
 }
 
 async function openShare() {
-  render(<SharePicture numbers={numbers} period={2026} make={make} />);
+  render(<SharePicture numbers={numbers} period={2026} filters={{ label: null, ownedOnly: false }} make={make} />);
   await waitFor(() => expect(share.disabled).toBe(false));
   share.focus();
   fireEvent.click(share);
@@ -69,7 +69,7 @@ describe('the share dialog', () => {
     expect(screen.getByRole('img', { name: 'Picture: 47 read in 2026, 61 added, 9 Series followed. Most read: One Piece.' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'Story' })).toHaveProperty('checked', true);
     expect(screen.getByRole('switch', { name: 'Series names' })).toHaveProperty('checked', true);
-    await waitFor(() => expect(made).toEqual([{ numbers, period: 2026, format: 'story', language: 'en', names: true }]));
+    await waitFor(() => expect(made).toEqual([{ numbers, period: 2026, filters: { label: null, ownedOnly: false }, format: 'story', language: 'en', names: true }]));
   });
 
   test('a browser that cannot share a file shows Download only', async () => {

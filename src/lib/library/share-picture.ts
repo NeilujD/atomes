@@ -40,6 +40,9 @@ export type Step =
 export interface PictureChoice {
   numbers: Statistics;
   period: Period;
+  // The filters of the screen: the picture says them under the period.
+  // `label`: the name of the Label, the reader's own word (shown whatever "Series names").
+  filters: { label: string | null; ownedOnly: boolean };
   format: PictureFormat;
   language: Language;
   // "Series names": off, no Series name is on the picture.
@@ -70,7 +73,12 @@ function seriesShown({ numbers, format, names }: PictureChoice): { name: string;
   return format === 'story' && names ? numbers.mostRead.series.rows.slice(0, mostReadRows) : [];
 }
 
-// The text alternative of the preview: the numbers of the picture, and the Series it names.
+// The names of the filters on: the Label, "Owned only".
+function filterNames({ filters, language }: PictureChoice): string[] {
+  return [filters.label, filters.ownedOnly ? translator(language)('stats.owned-only') : null].filter((name) => name !== null);
+}
+
+// The text alternative of the preview: the numbers of the picture, the filters on, and the Series it names.
 export function pictureAlt(input: PictureChoice): string {
   const { numbers, period, language } = input;
   const year = period === 'all' ? undefined : String(period);
@@ -81,6 +89,7 @@ export function pictureAlt(input: PictureChoice): string {
     numbers.added,
     numbers.followed,
     seriesShown(input).map(({ name }) => name),
+    filterNames(input),
   );
 }
 
@@ -148,6 +157,12 @@ export function pictureSteps(input: PictureInput): Step[] {
   const caps = (value: string) => value.toLocaleUpperCase(language);
   text(pad, top + 9 * 0.8, caps(t('picture.period', period === 'all' ? undefined : String(period))), style(9, 500, 0.08), heading);
   top += 9 * 1.25;
+  // A filter on: its names on a line of their own, so the period is never cut.
+  const filters = filterNames(input);
+  if (filters.length > 0) {
+    text(pad, top + 9 * 0.8, caps(t('picture.filters', filters)), style(9, 500, 0.08), heading);
+    top += 9 * 1.25;
+  }
   // A number is never cut: a wide one gets smaller.
   const shrunk = (value: string, size: number, weight: TextStyle['weight'], tracking: number, room: number): TextStyle => {
     const full = style(size, weight, tracking);

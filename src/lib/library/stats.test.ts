@@ -433,8 +433,9 @@ describe('Pages read (CORE-152)', () => {
     expect(stats(library, [dune, noCount], { query: in2026 }).pagesRead).toBeNull();
   });
 
-  test('no dated read in the period: no page read', () => {
-    expect(stats({ readingStatuses: [read(dune)] }, [dune], { query: in2026 }).pagesRead).toEqual({ pages: 0, atLeast: false });
+  test('no dated read in the period: no tile', () => {
+    expect(stats({ readingStatuses: [read(dune)] }, [dune], { query: in2026 }).pagesRead).toBeNull();
+    expect(stats({ readingStatuses: [read(dune)] }, [dune], { query: allTime }).pagesRead).toBeNull();
   });
 
   test('each Work of an omnibus counts its share of the pages', () => {

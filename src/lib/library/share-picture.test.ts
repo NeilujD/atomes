@@ -42,7 +42,16 @@ const numbers = (more: Partial<Statistics> = {}): Statistics => ({
   ...more,
 });
 
-const input = (more: Partial<PictureInput> = {}): PictureInput => ({ numbers: numbers(), period: 2026, format: 'story', language: 'en', names: true, measure, ...more });
+const input = (more: Partial<PictureInput> = {}): PictureInput => ({
+  numbers: numbers(),
+  period: 2026,
+  filters: { label: null, ownedOnly: false },
+  format: 'story',
+  language: 'en',
+  names: true,
+  measure,
+  ...more,
+});
 const texts = (steps: Step[]) => steps.flatMap((step) => (step.kind === 'text' ? [step.text] : []));
 const bars = (steps: Step[]) => steps.filter((step) => step.kind === 'rect' && step.fill === pictureColours.ink && step.radius[2] === 0 && step.radius[0] > 0);
 
@@ -190,11 +199,40 @@ describe('a number is never cut', () => {
   });
 });
 
+describe('a filter is on', () => {
+  test('the line under the period names the Label and "Owned only", also with Series names off', () => {
+    const both = texts(pictureSteps(input({ filters: { label: 'Manga', ownedOnly: true }, names: false })));
+
+    expect(both.slice(1, 3)).toEqual(['MY READING · 2026', 'MANGA · OWNED ONLY']);
+    expect(texts(pictureSteps(input({ filters: { label: 'Manga', ownedOnly: false } })))).toContain('MANGA');
+    expect(texts(pictureSteps(input({ filters: { label: null, ownedOnly: true }, language: 'fr' })))).toContain('POSSÉDÉS SEULEMENT');
+  });
+
+  test('no filter: no line under the period', () => {
+    expect(texts(pictureSteps(input())).slice(1, 3)).toEqual(['MY READING · 2026', '47']);
+  });
+
+  test('a long Label name is cut with an ellipsis, and every step stays inside both formats', () => {
+    const filters = { label: 'Romans de science-fiction lus pendant les vacances d’été', ownedOnly: true };
+    const story = pictureSteps(input({ filters }));
+
+    expect(texts(story)[2]).toMatch(/…$/);
+    expectInside(story, 1080, 1920);
+    expectInside(pictureSteps(input({ filters, format: 'square', language: 'fr' })), 1080, 1080);
+  });
+});
+
 describe('the text alternative of the preview', () => {
   test('says the numbers of the picture, and the Series names when they are on it', () => {
     expect(pictureAlt(input())).toBe('Picture: 47 read in 2026, 61 added, 9 Series followed. Most read: One Piece, Blame!, Dune.');
     expect(pictureAlt(input({ names: false }))).toBe('Picture: 47 read in 2026, 61 added, 9 Series followed.');
     expect(pictureAlt(input({ format: 'square' }))).toBe('Picture: 47 read in 2026, 61 added, 9 Series followed.');
     expect(pictureAlt(input({ language: 'fr', period: 'all' }))).toBe('Image : 47 lus au total, 61 ajoutés, 9 séries suivies. Les plus lus : One Piece, Blame!, Dune.');
+    expect(pictureAlt(input({ filters: { label: 'Manga', ownedOnly: true }, names: false }))).toBe(
+      'Picture: 47 read in 2026, 61 added, 9 Series followed. Filters: Manga, Owned only.',
+    );
+    expect(pictureAlt(input({ filters: { label: null, ownedOnly: true }, language: 'fr', names: false }))).toBe(
+      'Image : 47 lus en 2026, 61 ajoutés, 9 séries suivies. Filtres : Possédés seulement.',
+    );
   });
 });

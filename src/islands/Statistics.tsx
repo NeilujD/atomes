@@ -75,8 +75,12 @@ export function Statistics({ sources }: { sources: Sources }) {
   };
   const format = pageFormat();
   const year = query.period === 'all' ? undefined : String(query.period);
-  // No read has a day: nothing to draw by time (the empty state).
-  const dated = all.read - all.undated.reads > 0;
+  // No read has a day: the empty state says how to add days.
+  const noDatedRead = all.read === all.undated.reads;
+  // The columns show what has a day in the period: a read, or a Copy.
+  const columns = numbers.columns.groups.some((group) => group.read + group.added > 0);
+  // "Most read" ranks the reads of the period (in All time, the undated ones too).
+  const ranked = dimensions.some((each) => numbers.mostRead[each].rows.length > 0);
   const labels = labelsAtoZ(read.labels, pageLanguage());
 
   return (
@@ -110,7 +114,8 @@ export function Statistics({ sources }: { sources: Sources }) {
         </div>
       </section>
 
-      {dated ? (
+      {noDatedRead && <p class="card stats-empty">{t('stats.empty')}</p>}
+      {columns && (
         <Columns
           // A new period starts on its own picked group.
           key={String(query.period)}
@@ -124,12 +129,10 @@ export function Statistics({ sources }: { sources: Sources }) {
           picked={pickedGroup(numbers, query.period)}
           format={format}
         />
-      ) : (
-        <p class="card stats-empty">{t('stats.empty')}</p>
       )}
 
       <div class="stats-pair">
-        {dated && <MostRead numbers={numbers} dimension={dimension} onDimension={setDimension} />}
+        {ranked && <MostRead numbers={numbers} dimension={dimension} onDimension={setDimension} />}
         <RankedBars
           title={t('stats.library-today')}
           nameHead={t('stats.status')}
@@ -168,7 +171,11 @@ export function Statistics({ sources }: { sources: Sources }) {
       )}
 
       {/* Share, the main action of the page: the picture of these numbers (CORE-149). */}
-      <SharePicture numbers={numbers} period={query.period} />
+      <SharePicture
+        numbers={numbers}
+        period={query.period}
+        filters={{ label: read.labels.find(({ rkey }) => rkey === query.label)?.value.name ?? null, ownedOnly: query.ownedOnly }}
+      />
     </div>
   );
 }

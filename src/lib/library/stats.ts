@@ -75,8 +75,8 @@ export interface Statistics {
     averageDays: number | null;
   };
   // The pages of the dated reads of the period (CORE-152). `atLeast` when
-  // some have no page count: the tile says "at least n pages". Null when none
-  // has one and some have none: no tile.
+  // some have no page count: the tile says "at least n pages". Null when no
+  // dated read of the period has one (or there is none): no tile.
   pagesRead: { pages: number; atLeast: boolean } | null;
   // Reads and Copies with no day: in All time totals, never in a column.
   undated: { reads: number; copies: number };
@@ -174,7 +174,7 @@ function mostRead(books: LibraryBook[], namesOf: (book: LibraryBook) => Record<D
 function pagesRead(read: (Edition | undefined)[]): Statistics['pagesRead'] {
   const counts = read.map((edition) => (edition?.pages ? edition.pages / Math.max(1, edition.volumes.length) : undefined));
   const known = counts.filter((pages) => pages !== undefined);
-  if (known.length === 0 && counts.length > 0) return null;
+  if (known.length === 0) return null;
   return { pages: Math.round(known.reduce((sum, pages) => sum + pages, 0)), atLeast: known.length < counts.length };
 }
 

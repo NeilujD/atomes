@@ -646,7 +646,7 @@ export const fr: typeof en = {
   },
   'stats.add-dates': 'Ajouter des dates',
   'stats.empty':
-    'Aucun livre lu n’a encore de jour de fin : rien ne s’affiche par mois. Marquez un livre comme lu sur sa page et Atomes garde le jour ; pour un livre lu avant, tapez-y le jour où vous l’avez fini.',
+    'Aucun livre lu n’a encore de jour de fin : aucune lecture ne s’affiche par mois. Marquez un livre comme lu sur sa page et Atomes garde le jour ; pour un livre lu avant, tapez-y le jour où vous l’avez fini.',
 
   'picture.brand': 'Atomes',
   'picture.period': (year?: string) => `Mes lectures · ${year ?? 'Depuis toujours'}`,
@@ -654,9 +654,11 @@ export const fr: typeof en = {
   'picture.added': (count: number) => `${count > 1 ? 'ajoutés' : 'ajouté'} à ma bibliothèque`,
   'picture.followed': (count: number) => (count > 1 ? 'Séries suivies' : 'Série suivie'),
   'picture.made-with': 'Fait avec Atomes',
-  'picture.alt': (read: number, year: string | undefined, added: number, followed: number, names: string[]) =>
+  'picture.filters': (filters: string[]) => filters.join(' · '),
+  'picture.alt': (read: number, year: string | undefined, added: number, followed: number, names: string[], filters: string[]) =>
     `Image : ${number(read)} ${read > 1 ? 'lus' : 'lu'} ${year ? `en ${year}` : 'au total'}, ${number(added)} ${added > 1 ? 'ajoutés' : 'ajouté'}, ` +
     `${number(followed)} ${followed > 1 ? 'séries suivies' : 'série suivie'}.` +
+    (filters.length > 0 ? ` Filtres : ${filters.join(', ')}.` : '') +
     (names.length > 0 ? ` Les plus lus : ${names.join(', ')}.` : ''),
   'share.format': 'Format',
   'share.story': 'Story',

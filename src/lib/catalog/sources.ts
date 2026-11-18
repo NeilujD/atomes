@@ -175,6 +175,7 @@ export async function openLibrary(fetch: SourceFetch, isbn: string): Promise<Fac
     cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : undefined,
     series: seriesId && isSeriesId(seriesId) ? { id: seriesId, title: doc.series_name?.[0] } : undefined,
     volumes: volumeNumbers(doc.series_position?.[0]),
+    // A median of other Editions: the last fallback, as fetchFacts puts Open Library after BnF and SUDOC.
     pages: doc.number_of_pages_median || undefined,
   };
 }

@@ -26,7 +26,14 @@ interface Picture {
   shareable: boolean;
 }
 
-export function SharePicture({ numbers, period, make = live }: { numbers: Statistics; period: Period; make?: MakePicture }) {
+interface SharePictureProps {
+  numbers: Statistics;
+  period: Period;
+  filters: PictureChoice['filters'];
+  make?: MakePicture;
+}
+
+export function SharePicture({ numbers, period, filters, make = live }: SharePictureProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [open, setOpen] = useState(false);
@@ -34,7 +41,7 @@ export function SharePicture({ numbers, period, make = live }: { numbers: Statis
   const [names, setNames] = useState(true);
   const [picture, setPicture] = useState<Picture | null>(null);
   const [failed, setFailed] = useState<'share' | 'draw' | null>(null);
-  const choice: PictureChoice = { numbers, period, format, language: pageLanguage(), names };
+  const choice: PictureChoice = { numbers, period, filters, format, language: pageLanguage(), names };
 
   // The Share button of the page: enabled now that the island has drawn. The
   // dialog has its own history entry, so browser Back closes it, not the page.
@@ -92,7 +99,7 @@ export function SharePicture({ numbers, period, make = live }: { numbers: Statis
     return () => {
       current = false;
     };
-  }, [open, numbers, period, format, names]);
+  }, [open, numbers, period, filters.label, filters.ownedOnly, format, names]);
 
   useEffect(() => () => picture && URL.revokeObjectURL(picture.url), [picture]);
 

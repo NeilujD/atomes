@@ -114,13 +114,39 @@ describe('Statistics screen', () => {
     expect(screen.getByRole('button', { name: /Filter/ }).textContent).toContain('2');
   });
 
-  test('no read has a day: the totals, how to add days, and no chart by time', async () => {
-    await statisticsScreen({ owned: [dune], read: [[horde]] });
+  test('the share picture says the filters on: the name of the Label and "Owned only"', async () => {
+    history.replaceState(null, '', '/statistics?period=2026&label=lbsf&owned=1');
+    await statisticsScreen({ owned: [dune], read: [[dune, '2026-11-17']], labels: [['SF', [dune]]] });
+    await lead('1 read in 2026');
+
+    // The preview, in the share dialog (closed: SharePicture.test.tsx opens it).
+    expect(screen.getByRole('img', { hidden: true, name: /Filters: SF, Owned only\./ })).toBeTruthy();
+  });
+
+  test('nothing has a day: the totals, how to add days, and no chart by time', async () => {
+    await statisticsScreen({ read: [[horde]] });
 
     expect(await screen.findByText(/No book read has a finish day yet/)).toBeTruthy();
     expect(screen.queryByRole('heading', { name: /Read and added/ })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Most read' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'Your Library today' })).toBeTruthy();
+  });
+
+  test('no read has a day, but a Copy has: how to add days, and the columns of what was added', async () => {
+    await statisticsScreen({ owned: [dune], read: [[horde]] });
+
+    expect(await screen.findByText(/No book read has a finish day yet/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Read and added, by month' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'November 2026: Read 0, Added 1' })).toBeTruthy();
+    // 2026 has no dated read: nothing to rank.
+    expect(screen.queryByRole('heading', { name: 'Most read' })).toBeNull();
+  });
+
+  test('All time ranks the reads with no day too', async () => {
+    await statisticsScreen({ read: [[horde]], labels: [['SF', [horde]]] });
+
+    expect(await screen.findByText(/No book read has a finish day yet/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Most read' })).toBeTruthy();
   });
 
   test('in French: the period, the month names and the numbers follow the page language', async () => {
