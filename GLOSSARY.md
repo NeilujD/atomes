@@ -22,7 +22,7 @@ _Avoid_: Version, release, book
 _French_: Édition
 
 **Copy**:
-A physical item the reader owns, which is an instance of an Edition. One Copy can contain several Works (an omnibus covering Volumes 1–3).
+A physical item the reader owns, which is an instance of an Edition. One Copy can contain several Works (an omnibus covering Volumes 1–3). It holds the day the reader got it, when known.
 _Avoid_: Book, item, possession
 _French_: Exemplaire
 
@@ -39,7 +39,7 @@ _French_: Catalogue
 ## Reading
 
 **Reading Status**:
-Where the reader stands with a Work: *unread*, *reading*, *read* or *abandoned*. It belongs to the Work, not to a Copy, and it can exist without any Copy (borrowed, library, ebook, or a Copy the reader no longer has).
+Where the reader stands with a Work: *unread*, *reading*, *read* or *abandoned*. It belongs to the Work, not to a Copy, and it can exist without any Copy (borrowed, library, ebook, or a Copy the reader no longer has). It holds the day the reader started the Work and the day they finished it, when known.
 _Avoid_: Progress, state
 _French_: Statut de lecture
 

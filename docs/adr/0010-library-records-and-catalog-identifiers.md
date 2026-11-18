@@ -1,13 +1,13 @@
 # Library records: five record types, Catalog identifiers and record keys
 
-Status: accepted. Amended by ADR 0017 (2026-11-14).
+Status: accepted. Amended by ADR 0017 (2026-11-14) and ADR 0019 (2026-11-18).
 
 The Library is stored as five record types, published as lexicons in `lexicons/app/atomes/` and listed in the Library Space (`app.atomes.library`). They follow ADR 0004 (own namespace, Editions by ISBN, Series by Catalog identifier) and ADR 0008 (an indexer can read them later without migration): records hold only ISBNs, Catalog identifiers and what the reader said, never data copied from the Catalog and never anything the app can compute.
 
 | Record type | One record per | Record key | Holds |
 |---|---|---|---|
 | `app.atomes.copy` | Copy (two Copies of one Edition are two records) | TID | Edition ISBN, the Works it contains, Lent To (replaced by `app.atomes.loan`, see the 2026-11-09 amendment), acquired date, book details typed by the reader when the Catalog does not know the ISBN |
-| `app.atomes.readingStatus` | Work | Work identifier | Work, ISBN of the Edition read, status (unread, reading, read, abandoned), optional finish date |
+| `app.atomes.readingStatus` | Work | Work identifier | Work, ISBN of the Edition read, status (unread, reading, read, abandoned), optional start day (added by the 2026-11-18 amendment) and finish day |
 | `app.atomes.follow` | Series | Series identifier | Series, anchor ISBN, optional `fromVolume`, status (following, dropped) |
 | `app.atomes.toBuy` | Edition added by hand | ISBN-13 | ISBN |
 | `app.atomes.label` | Label | TID | Name, the Works that carry it |
@@ -175,3 +175,14 @@ Decisions of the owner, 2026-11-14:
 - Rejected: the BnF Series record in the Edition Line key. 34338439 itself holds both editions, and One Piece Volume 1 and 98 to 100 sit in records of their own (amendment 2026-11-12).
 - Rejected: title words ("Perfect", "pastel"), a gap in years, ISBN-10 against ISBN-13. The three Dragon Ball records use the same title forms, One Piece 38888890 mixes 2000 and 2013 printings of one line, and every line before 2007 has ISBN-10 only.
 - The threshold of two shared Volume numbers is a guess from three Series. A real reissue that BnF files in a record of its own can become a line of its own; the reader moves its Volumes back with a Series Correction.
+
+## Amendment 2026-11-18: reading days and the day a Copy was got (ADR 0019)
+
+Statistics (ADR 0019) count reads and Copies by day, and the records held no reliable day. Decisions of the owner, grilling of 2026-11-18:
+
+- **`startedAt` on `app.atomes.readingStatus`.** A new optional datetime, next to `finishedAt`, as "Changing a lexicon" allows. Both hold a calendar day, `YYYY-MM-DDT00:00:00.000Z`, the form the Book page writes for `finishedAt`. The owner publishes the changed lexicon.
+- **The app sets the days of a dated change.** A change of one Work's Reading Status (Book page, Volume sheet, "Add and mark as read" in Shelf Check) is dated: *reading* sets `startedAt` to today unless one exists; *read* sets `finishedAt` to today and keeps `startedAt`; *abandoned* keeps `startedAt` and sets no `finishedAt`; *unread* removes both, with Undo in the toast. The reader corrects both on the Book page. Until now a change of status removed `finishedAt`.
+- **A change by Bulk select or Series Onboarding is not dated.** It sets no day and keeps a day that exists.
+- **`acquiredAt` on `app.atomes.copy` gets its rules.** Quick Add of one Copy writes today; the Book page lets the reader correct it. Series Onboarding writes none. The field does not change.
+- **No backfill.** `updatedAt` and `createdAt` are the time of a tap; no script copies them into `startedAt`, `finishedAt` or `acquiredAt`.
+- **Sharing.** A reader who shares Reading Statuses publishes `startedAt` with them, as `finishedAt` today. No new collection, so no new OAuth scope and no new sign-in.
