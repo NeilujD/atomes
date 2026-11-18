@@ -4,8 +4,8 @@
 // the first series, the medium shade for the second (ui-direction, Colour
 // roles). The caller gives the names and the formatter of its language.
 import { useRef, useState } from 'preact/hooks';
-import { t } from '../../lib/i18n/i18n';
-import { ChartFrame, pageFormat, type Format } from './ChartFrame';
+import { pageFormat, t, type Format } from '../../lib/i18n/i18n';
+import { ChartFrame } from './ChartFrame';
 
 export interface ColumnGroup {
   // Under the column: "J", "2025".

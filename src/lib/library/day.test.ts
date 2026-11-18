@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest';
-import { dayOf } from './day';
+import { dateFieldValue, dayOf, storedDay } from './day';
 
 // Node reads TZ again when it changes, so a test can stand in any time zone.
 const zone = process.env.TZ;
@@ -25,5 +25,17 @@ describe('The day of a date (ADR 0019)', () => {
     process.env.TZ = 'UTC';
 
     expect(dayOf(new Date('2027-01-05T12:00:00.000Z'))).toBe('2027-01-05T00:00:00.000Z');
+  });
+});
+
+describe('A day in a date field (the Book page)', () => {
+  test('a stored day shows as its date, and no day as an empty field', () => {
+    expect(dateFieldValue('2026-11-18T00:00:00.000Z')).toBe('2026-11-18');
+    expect(dateFieldValue(undefined)).toBe('');
+  });
+
+  test('a typed date is stored as its day, and an emptied field as no day', () => {
+    expect(storedDay('2026-11-18')).toBe('2026-11-18T00:00:00.000Z');
+    expect(storedDay('')).toBeUndefined();
   });
 });

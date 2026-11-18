@@ -1,19 +1,12 @@
 // Development only (src/pages/dev/charts.astro): each chart part with sample
 // data, for the stress test of the view type "Charts" (ui-direction). The
 // Statistics screen feeds the same parts from src/lib/library/stats.ts.
-import { pageLanguage } from '../../lib/i18n/i18n';
+import { monthNames, pageLanguage, type Language } from '../../lib/i18n/i18n';
 import { Columns } from './Columns';
 import { RankedBars } from './RankedBars';
 import { Tile } from './Tile';
 
-const months = (language: string) =>
-  Array.from({ length: 12 }, (_, month) => {
-    const day = new Date(Date.UTC(2026, month, 1));
-    return {
-      label: new Intl.DateTimeFormat(language, { month: 'narrow', timeZone: 'UTC' }).format(day),
-      name: new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(day),
-    };
-  });
+const months = (language: Language) => Array.from({ length: 12 }, (_, month) => monthNames(`2026-${String(month + 1).padStart(2, '0')}`, language));
 
 const years = ['2020', '2021', '2022', '2023', '2024', '2025', '2026'].map((year) => ({ label: year, name: year }));
 

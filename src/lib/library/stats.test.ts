@@ -9,7 +9,7 @@ import type { Loan } from './loan';
 import type { Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
-import { statistics, type StatsInput } from './stats';
+import { periodYear, statistics, type StatsInput } from './stats';
 
 // 18 November 2026 on the reader's device.
 const today = new Date(2026, 10, 18, 9, 30);
@@ -455,6 +455,12 @@ describe('Pages read (CORE-152)', () => {
     const labels = [label('scifi', 'SF', [dune])];
 
     expect(stats(library, [dune, noCount], { labels, query: { ...in2026, label: 'scifi' } }).pagesRead).toEqual({ pages: 600, atLeast: false });
+  });
+});
+
+describe('periodYear', () => {
+  test('a year as text, and none for All time', () => {
+    expect([periodYear(2026), periodYear('all')]).toEqual(['2026', undefined]);
   });
 });
 

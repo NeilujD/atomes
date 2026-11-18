@@ -4,15 +4,7 @@
 // src/styles/charts.css.
 import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
-import { pageLanguage, t } from '../../lib/i18n/i18n';
-
-// A number as the reader's language writes it. The caller passes the
-// formatter of its page (Intl); this is the default.
-export type Format = (value: number) => string;
-export function pageFormat(): Format {
-  const numbers = new Intl.NumberFormat(pageLanguage());
-  return (value) => numbers.format(value);
-}
+import { t } from '../../lib/i18n/i18n';
 
 export interface TableData {
   // The heads of the columns, the first one over the row names.

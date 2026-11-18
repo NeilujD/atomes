@@ -1,7 +1,7 @@
 // `app.atomes.copy`: a physical book the reader owns (ADR 0010). Never Shared.
 import { t } from '../i18n/i18n';
 import { newRecordKey, type Space, type WriteState } from '../space/queued-store';
-import { dayOf } from './day';
+import { dayOf, storedDay } from './day';
 import { isIsbn13, isWorkId } from './ids';
 import { listRecords, putRecord } from './records';
 
@@ -62,8 +62,9 @@ export function quickAddCopy(book: { isbn: string; work: string; details?: BookD
 // The Copy with the day the reader typed on the Book page (`YYYY-MM-DD`), or
 // with no day when they emptied the field.
 export function gotOn(copy: Copy, day: string): Copy {
-  const changed: Copy = { ...copy, acquiredAt: `${day}T00:00:00.000Z` };
-  if (!day) delete changed.acquiredAt;
+  const acquiredAt = storedDay(day);
+  const changed: Copy = { ...copy, acquiredAt };
+  if (!acquiredAt) delete changed.acquiredAt;
   return changed;
 }
 

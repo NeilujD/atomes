@@ -3,7 +3,8 @@
 // rows. A long name ends with an ellipsis on the screen and keeps its full
 // text for a screen reader and in the table.
 import type { ComponentChildren } from 'preact';
-import { ChartFrame, pageFormat, type Format } from './ChartFrame';
+import { pageFormat, type Format } from '../../lib/i18n/i18n';
+import { ChartFrame } from './ChartFrame';
 
 export interface RankedRow {
   name: string;

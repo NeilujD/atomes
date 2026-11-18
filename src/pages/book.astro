@@ -200,6 +200,7 @@ const choices = [
   import { isEditionWork, isWorkId } from '../lib/library/ids';
   import { reportNetwork, reportWaiting } from '../lib/connection';
   import { gotOn, saveCopy } from '../lib/library/copy';
+  import { dateFieldValue } from '../lib/library/day';
   import { saveFollow } from '../lib/library/follow';
   import { pageLanguage, t } from '../lib/i18n/i18n';
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
@@ -340,9 +341,9 @@ const choices = [
 
     statusSelect.value = page.status;
     started.hidden = page.status === 'unread';
-    startedAt.value = page.startedAt?.slice(0, 10) ?? '';
+    startedAt.value = dateFieldValue(page.startedAt);
     finished.hidden = page.status !== 'read';
-    finishedAt.value = page.finishedAt?.slice(0, 10) ?? '';
+    finishedAt.value = dateFieldValue(page.finishedAt);
     // Finished cannot be before Started: the date pickers say so too (dayCorrection).
     startedAt.max = finishedAt.value;
     finishedAt.min = startedAt.value;
@@ -356,7 +357,7 @@ const choices = [
     }
     // The day of each Copy, in place: a rebuild would take the focus from a day being typed.
     page.copies.forEach(({ acquiredAt }, index) => {
-      copyList.children[index].querySelector<HTMLInputElement>('[data-got-on]')!.value = acquiredAt?.slice(0, 10) ?? '';
+      copyList.children[index].querySelector<HTMLInputElement>('[data-got-on]')!.value = dateFieldValue(acquiredAt);
     });
     const addCopy = article.querySelector<HTMLAnchorElement>('[data-add-copy]')!;
     addCopy.href = `/check?isbn=${page.isbn}`;
@@ -578,7 +579,7 @@ const choices = [
     const next = dayCorrection(current, field, input.value, new Date());
     if ('problem' in next) {
       toast(t('book.finished-before-started'), { error: true });
-      input.value = current[field]?.slice(0, 10) ?? '';
+      input.value = dateFieldValue(current[field]);
       return;
     }
     void save(() => saveReadingStatus(space, next));

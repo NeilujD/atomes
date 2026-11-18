@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { en } from './en';
-import { compareText, languageCookie, pageLanguage, requestLanguage, t, translator } from './i18n';
+import { compareText, languageCookie, monthNames, numberFormat, pageLanguage, requestLanguage, t, translator } from './i18n';
 
 describe('dictionaries', () => {
   test('a language without every key is a type error', () => {
@@ -51,5 +51,19 @@ describe('compareText', () => {
 
   test('numbers sort by value', () => {
     expect(['Tome 10', 'Tome 2', 'Tome 1'].sort(compareText('fr'))).toEqual(['Tome 1', 'Tome 2', 'Tome 10']);
+  });
+});
+
+describe('numberFormat', () => {
+  test('writes a number as the language does', () => {
+    expect(numberFormat('en')(1234)).toBe('1,234');
+    expect(numberFormat('fr')(1234)).toBe('1\u202f234');
+  });
+});
+
+describe('monthNames', () => {
+  test('the letter of a month and its long name with the year, in the language', () => {
+    expect(monthNames('2026-11', 'en')).toEqual({ label: 'N', name: 'November 2026' });
+    expect(monthNames('2027-01', 'fr')).toEqual({ label: 'J', name: 'janvier 2027' });
   });
 });

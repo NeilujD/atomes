@@ -8,9 +8,9 @@
 //
 // The layout is the mock-up of the spec, drawn at 240 px wide for a Story
 // (300 px for a Square): every size below is in those pixels, then scaled.
-import { translator, type Language } from '../i18n/i18n';
+import { monthNames, numberFormat, translator, type Language } from '../i18n/i18n';
 import { pictureAlpha, pictureColours, pictureGlow, withAlpha } from './picture-colours';
-import type { Period, Statistics } from './stats';
+import { periodYear, type Period, type Statistics } from './stats';
 
 export const pictureFormats = ['story', 'square'] as const;
 export type PictureFormat = (typeof pictureFormats)[number];
@@ -64,7 +64,7 @@ export function pictureSize(format: PictureFormat): { width: number; height: num
 }
 
 export function pictureFileName(period: Period, format: PictureFormat): string {
-  return `atomes-${period === 'all' ? 'all-time' : period}-${format}.png`;
+  return `atomes-${periodYear(period) ?? 'all-time'}-${format}.png`;
 }
 
 // The Series on a Story with the names on, the most read first.
@@ -81,11 +81,10 @@ function filterNames({ filters, language }: PictureChoice): string[] {
 // The text alternative of the preview: the numbers of the picture, the filters on, and the Series it names.
 export function pictureAlt(input: PictureChoice): string {
   const { numbers, period, language } = input;
-  const year = period === 'all' ? undefined : String(period);
   return translator(language)(
     'picture.alt',
     numbers.read,
-    year,
+    periodYear(period),
     numbers.added,
     numbers.followed,
     seriesShown(input).map(({ name }) => name),
@@ -94,6 +93,17 @@ export function pictureAlt(input: PictureChoice): string {
 }
 
 const pad = 18;
+// The top of the mark and of the brand name.
+const markTop = 20;
+// The mark (src/components/Mark.astro) in the units of its viewBox, 584 × 552:
+// four spines of 96 × 520, 152 apart, 16 in from its corner, corners of 14.
+const markView = { width: 584, height: 552, inset: 16, step: 152, spine: 96, tall: 520, corner: 14 };
+// A tile: its padding, the size of its figure and of its label lines; its
+// labels start under the figure and a gap of 3.
+const tilePad = 8;
+const tileFigure = 17;
+const tileLabel = 8;
+const tileLabelsTop = tilePad + tileFigure * 1.05 + 3;
 const ink = pictureColours.ink;
 const heading = withAlpha(ink, pictureAlpha.textHeading);
 const quiet = withAlpha(ink, pictureAlpha.textQuiet);
@@ -101,8 +111,7 @@ const quiet = withAlpha(ink, pictureAlpha.textQuiet);
 export function pictureSteps(input: PictureInput): Step[] {
   const { numbers, period, format, language, measure } = input;
   const t = translator(language);
-  const numberFormat = new Intl.NumberFormat(language);
-  const number = (value: number) => numberFormat.format(value);
+  const number = numberFormat(language);
   const story = format === 'story';
   const { width, height, drawn } = sizes[format];
   const unit = width / drawn;
@@ -144,18 +153,25 @@ export function pictureSteps(input: PictureInput): Step[] {
 
   // The mark (src/components/Mark.astro): two ink books, the empty slot, the cobalt book.
   const mark = 13;
-  const scale = mark / 584;
+  const scale = mark / markView.width;
   const fills = [ink, ink, withAlpha(ink, pictureAlpha.shadeFaint), pictureColours.accent];
   fills.forEach((fill, at) => {
-    const corner = 14 * scale;
-    rect(pad + (16 + 152 * at) * scale, 20 + (mark - 552 * scale) / 2 + 16 * scale, 96 * scale, 520 * scale, fill, [corner, corner, corner, corner]);
+    const corner = markView.corner * scale;
+    rect(
+      pad + (markView.inset + markView.step * at) * scale,
+      markTop + (mark - markView.height * scale) / 2 + markView.inset * scale,
+      markView.spine * scale,
+      markView.tall * scale,
+      fill,
+      [corner, corner, corner, corner],
+    );
   });
-  text(pad + mark + 5, 20 + mark / 2 + 11 * 0.36, t('picture.brand'), style(11, 700, -0.02), ink, 'left', wide - mark - 5);
+  text(pad + mark + 5, markTop + mark / 2 + 11 * 0.36, t('picture.brand'), style(11, 700, -0.02), ink, 'left', wide - mark - 5);
 
   // The period, the lead number and "read".
-  let top = 20 + mark + (story ? 20 : 12);
+  let top = markTop + mark + (story ? 20 : 12);
   const caps = (value: string) => value.toLocaleUpperCase(language);
-  text(pad, top + 9 * 0.8, caps(t('picture.period', period === 'all' ? undefined : String(period))), style(9, 500, 0.08), heading);
+  text(pad, top + 9 * 0.8, caps(t('picture.period', periodYear(period))), style(9, 500, 0.08), heading);
   top += 9 * 1.25;
   // A filter on: its names on a line of their own, so the period is never cut.
   const filters = filterNames(input);
@@ -180,17 +196,21 @@ export function pictureSteps(input: PictureInput): Step[] {
   // Two tiles: Added and Series followed. A label takes two lines when it must.
   top += 16;
   const tile = (wide - 6) / 2;
+  // The room of a tile's text, inside its padding.
+  const inside = tile - tilePad * 2;
   const tiles = [
-    { value: numbers.added, label: wrap(t('picture.added', numbers.added), (tile - 16) * unit, style(8, 500), measure, language) },
-    { value: numbers.followed, label: wrap(t('picture.followed', numbers.followed), (tile - 16) * unit, style(8, 500), measure, language) },
+    { value: numbers.added, label: wrap(t('picture.added', numbers.added), inside * unit, style(tileLabel, 500), measure, language) },
+    { value: numbers.followed, label: wrap(t('picture.followed', numbers.followed), inside * unit, style(tileLabel, 500), measure, language) },
   ];
   const lines = Math.max(...tiles.map(({ label }) => label.length));
-  const tileHeight = 8 + 17 * 1.05 + 3 + lines * 8 * 1.3 + 6;
+  const tileHeight = tileLabelsTop + lines * tileLabel * 1.3 + 6;
   tiles.forEach(({ value, label }, at) => {
     const left = pad + at * (tile + 6);
     rect(left, top, tile, tileHeight, withAlpha(ink, pictureAlpha.fillCard), [8, 8, 8, 8], { color: withAlpha(ink, pictureAlpha.lineCard), width: 1 });
-    text(left + 8, top + 8 + 17 * 0.85, number(value), shrunk(number(value), 17, 700, 0, tile - 16), ink, 'left', tile - 16);
-    label.forEach((line, index) => text(left + 8, top + 8 + 17 * 1.05 + 3 + 8 * (1.3 * index + 1), line, style(8, 500), quiet, 'left', tile - 16));
+    text(left + tilePad, top + tilePad + tileFigure * 0.85, number(value), shrunk(number(value), tileFigure, 700, 0, inside), ink, 'left', inside);
+    label.forEach((line, index) =>
+      text(left + tilePad, top + tileLabelsTop + tileLabel * (1.3 * index + 1), line, style(tileLabel, 500), quiet, 'left', inside),
+    );
   });
   top += tileHeight;
 
@@ -244,9 +264,7 @@ export function pictureSteps(input: PictureInput): Step[] {
 
 // "2026-11": "N" in the language; "2026": the year.
 function groupLabel(at: string, language: Language): string {
-  if (at.length === 4) return at;
-  const day = new Date(Date.UTC(Number(at.slice(0, 4)), Number(at.slice(5, 7)) - 1, 1));
-  return new Intl.DateTimeFormat(language, { month: 'narrow', timeZone: 'UTC' }).format(day);
+  return at.length === 4 ? at : monthNames(at, language).label;
 }
 
 // The text, or as much of it as fits, cut at a letter (a grapheme) with an ellipsis.

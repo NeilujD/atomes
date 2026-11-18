@@ -7,11 +7,10 @@
 import { useMemo } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import { lookupEditions } from '../lib/catalog/client';
-import { pageLanguage, t } from '../lib/i18n/i18n';
+import { pageFormat, pageLanguage, t } from '../lib/i18n/i18n';
 import { libraryBooks, volumeLine, type LibraryBook } from '../lib/library/browse';
 import { ownedUnread, readingNow, yearCard, type YearCard } from '../lib/library/home';
 import { bookHref } from '../lib/library/model';
-import { pageFormat } from './charts/ChartFrame';
 import { Cover } from './Cover';
 import { useLibraryListing, type ListingSources } from './library-listing';
 

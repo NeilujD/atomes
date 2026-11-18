@@ -5,11 +5,7 @@
 import type { Period, StatsQuery } from './stats';
 
 // What the URL asks for. No period: the screen shows its default (stats.ts).
-export interface AskedStatistics {
-  period: Period | undefined;
-  label: string | null;
-  ownedOnly: boolean;
-}
+export type AskedStatistics = Omit<StatsQuery, 'period'> & { period?: Period };
 
 export function readStatisticsQuery(search: string): AskedStatistics {
   const params = new URLSearchParams(search);

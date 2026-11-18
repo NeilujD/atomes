@@ -16,6 +16,11 @@ import type { Saved } from './records';
 // A calendar year, or All time.
 export type Period = 'all' | number;
 
+// The year of a period as text ("2026"); none for All time.
+export function periodYear(period: Period): string | undefined {
+  return period === 'all' ? undefined : String(period);
+}
+
 export interface StatsQuery {
   period: Period;
   // The key of one Label; null for every book.

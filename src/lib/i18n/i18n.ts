@@ -62,3 +62,23 @@ export const t: Translate = (key, ...args) => translator(pageLanguage())(key, ..
 export function compareText(language: Language): (a: string, b: string) => number {
   return new Intl.Collator(language, { numeric: true }).compare;
 }
+
+// A number as the language writes it (Intl): "1,234", "1 234".
+export type Format = (value: number) => string;
+export function numberFormat(language: Language): Format {
+  const numbers = new Intl.NumberFormat(language);
+  return (value) => numbers.format(value);
+}
+
+// The number format of the page language.
+export function pageFormat(): Format {
+  return numberFormat(pageLanguage());
+}
+
+// A month ("2026-11") in the language: its letter under a column ("N"), and
+// its name with the year ("November 2026"). Read in UTC: no time zone moves it.
+export function monthNames(month: string, language: Language): { label: string; name: string } {
+  const first = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1));
+  const named = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(language, { ...options, timeZone: 'UTC' }).format(first);
+  return { label: named({ month: 'narrow' }), name: named({ month: 'long', year: 'numeric' }) };
+}

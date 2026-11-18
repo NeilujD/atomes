@@ -1,6 +1,6 @@
 // A tile of Statistics (ADR 0019): a number over its label, in a card. A
 // screen reader reads the label first, then the number.
-import { pageFormat, type Format } from './ChartFrame';
+import { pageFormat, type Format } from '../../lib/i18n/i18n';
 
 export interface TileProps {
   label: string;

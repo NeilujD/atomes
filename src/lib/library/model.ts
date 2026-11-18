@@ -5,7 +5,7 @@ import type { LineName } from '../catalog/lines';
 import { coverUrl } from '../catalog/client';
 import { pageLanguage, translator, type Language } from '../i18n/i18n';
 import type { Copy } from './copy';
-import { dayOf } from './day';
+import { dayOf, storedDay } from './day';
 import type { Follow } from './follow';
 import type { Loan } from './loan';
 import { statuses, type ReadingStatus, type Status } from './reading-status';
@@ -224,7 +224,8 @@ export function dayCorrection(
   now: Date,
 ): ReadingStatus | { problem: 'finished-before-started' } {
   const next: ReadingStatus = { ...current, updatedAt: now.toISOString() };
-  if (typed) next[field] = `${typed}T00:00:00.000Z`;
+  const stored = storedDay(typed);
+  if (stored) next[field] = stored;
   else delete next[field];
   if (next.startedAt && next.finishedAt && next.finishedAt < next.startedAt) return { problem: 'finished-before-started' };
   return next;

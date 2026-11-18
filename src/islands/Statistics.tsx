@@ -7,13 +7,13 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import { lookupEditions } from '../lib/catalog/client';
-import { pageLanguage, t } from '../lib/i18n/i18n';
+import { monthNames, pageFormat, pageLanguage, t } from '../lib/i18n/i18n';
+import { dayOf } from '../lib/library/day';
 import { labelsAtoZ, type Label } from '../lib/library/label';
 import type { Saved } from '../lib/library/records';
 import { askedPeriod, readStatisticsQuery, statisticsSearch, type AskedStatistics } from '../lib/library/statistics-state';
-import { dimensions, statistics, type Dimension, type Period, type Statistics as Numbers, type StatsQuery } from '../lib/library/stats';
+import { dimensions, periodYear, statistics, type Dimension, type Period, type Statistics as Numbers, type StatsQuery } from '../lib/library/stats';
 import { Columns } from './charts/Columns';
-import { pageFormat } from './charts/ChartFrame';
 import { RankedBars } from './charts/RankedBars';
 import { SharePicture } from './SharePicture';
 import { Tile } from './charts/Tile';
@@ -74,7 +74,7 @@ export function Statistics({ sources }: { sources: Sources }) {
     setAsked(next);
   };
   const format = pageFormat();
-  const year = query.period === 'all' ? undefined : String(query.period);
+  const year = periodYear(query.period);
   // No read has a day: the empty state says how to add days.
   const noDatedRead = all.read === all.undated.reads;
   // The columns show what has a day in the period: a read, or a Copy.
@@ -89,7 +89,7 @@ export function Statistics({ sources }: { sources: Sources }) {
         <div class="stats-periods" role="group" aria-label={t('stats.period')}>
           {(['all', ...all.years] as Period[]).map((period) => (
             <button key={period} class="chip" type="button" aria-pressed={period === query.period} onClick={() => choose({ period })}>
-              {period === 'all' ? t('stats.all-time') : String(period)}
+              {periodYear(period) ?? t('stats.all-time')}
             </button>
           ))}
         </div>
@@ -183,17 +183,14 @@ export function Statistics({ sources }: { sources: Sources }) {
 // "2026-11": "N" under the column, "November 2026" in the readout and the
 // table; "2026": the year. Month names come from the page language (Intl).
 function groupNames(at: string): { label: string; name: string } {
-  if (at.length === 4) return { label: at, name: at };
-  const day = new Date(Date.UTC(Number(at.slice(0, 4)), Number(at.slice(5, 7)) - 1, 1));
-  const named = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(pageLanguage(), { ...options, timeZone: 'UTC' }).format(day);
-  return { label: named({ month: 'narrow' }), name: named({ month: 'long', year: 'numeric' }) };
+  return at.length === 4 ? { label: at, name: at } : monthNames(at, pageLanguage());
 }
 
 // The month of today in the current year; else the last group.
 function pickedGroup(numbers: Numbers, period: Period): number {
-  const today = new Date();
-  const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-  const at = period === today.getFullYear() ? numbers.columns.groups.findIndex((group) => group.at === month) : -1;
+  // "2026-11": the month of the day on the device.
+  const month = dayOf(new Date()).slice(0, 7);
+  const at = period === Number(month.slice(0, 4)) ? numbers.columns.groups.findIndex((group) => group.at === month) : -1;
   return at >= 0 ? at : numbers.columns.groups.length - 1;
 }
 
