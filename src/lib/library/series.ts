@@ -11,8 +11,10 @@ import type { Status } from './reading-status';
 
 // The Series page of the Series of an Edition: `/series?isbn=<ISBN>`. The page
 // shows the Edition Line the reader follows, else the one of this Edition.
-export function seriesHref(isbn: string): string {
-  return `/series?isbn=${encodeURIComponent(isbn)}`;
+// From a Book page (`from: 'book'`), the page marks the Volume of that Book;
+// from anywhere else the ISBN only finds the Series, and no Volume is marked.
+export function seriesHref(isbn: string, from?: 'book'): string {
+  return `/series?isbn=${encodeURIComponent(isbn)}${from ? `&from=${from}` : ''}`;
 }
 
 // The Volumes the Catalog knows in the Edition Line of an ISBN (`/volumes`),

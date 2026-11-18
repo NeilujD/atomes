@@ -353,9 +353,25 @@ const icons = appIcons(appEnvironment(process.env));
     letter-spacing: -0.03em;
   }
 
+  /* Phone: the back arrow sticks at the top while the page scrolls, a round
+     button on the ground so it reads over a cover. Taps around it pass through
+     to the page, since the rest of the header is empty. */
   @media (max-width: 959.98px) {
     .view-header.detail {
+      position: sticky;
+      top: 0;
+      z-index: 3;
       padding-bottom: 8px;
+      pointer-events: none;
+    }
+
+    .view-header.detail .back {
+      margin-left: 0;
+      border: var(--hairline) solid var(--line-control);
+      border-radius: var(--radius-pill);
+      background: var(--surface);
+      color: var(--ink);
+      pointer-events: auto;
     }
 
     .view-header.detail .view-title {

@@ -39,6 +39,7 @@ test('back from a Book, the Library keeps its search, filter, scroll and Cover f
   await page.goto('/library');
   const books = page.getByRole('main').getByRole('list').getByRole('link');
   await expect(books).toHaveCount(17);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('searchbox', { name: 'Search your Library' }).fill('spy');
   await page.getByRole('button', { name: 'Sort and filter' }).click();
   await page.getByRole('button', { name: /^Not yet/ }).click();
@@ -79,7 +80,8 @@ test('back from a Book, the Library keeps its search, filter, scroll and Cover f
   await islandsLoaded(page);
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Library' }).click();
   await expect(page).toHaveURL(/\/library$/);
-  await expect(page.getByRole('searchbox', { name: 'Search your Library' })).toHaveValue('');
+  // No search: the field is closed, under its icon.
+  await expect(page.getByRole('searchbox', { name: 'Search your Library' })).toHaveCount(0);
   // No filter on, so no count (CORE-110); the Cover flow is over all 17 books.
   await expect(page.getByRole('button', { name: 'Sort and filter', exact: true })).toBeVisible();
   await expect(page.getByText('17 books', { exact: true })).toHaveCount(0);

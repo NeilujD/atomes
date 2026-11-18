@@ -61,12 +61,13 @@ const live: Sources = {
   scan: liveVolumeScan,
 };
 
-// `isbn`: an Edition of the Series, from the link (`seriesHref`).
-export default function SeriesIsland({ isbn }: { isbn: string }) {
-  return <Series isbn={isbn} sources={live} />;
+// `isbn`: an Edition of the Series, from the link (`seriesHref`). `markVolume`:
+// the link came from the Book page of that Edition, so its Volume is marked.
+export default function SeriesIsland({ isbn, markVolume }: { isbn: string; markVolume: boolean }) {
+  return <Series isbn={isbn} markVolume={markVolume} sources={live} />;
 }
 
-export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
+export function Series({ isbn, markVolume = false, sources }: { isbn: string; markVolume?: boolean; sources: Sources }) {
   const [library, setLibrary] = useState<Library>();
   // In place of the page when there is nothing to show.
   const [message, setMessage] = useState<string>();
@@ -298,6 +299,8 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   // One spine width for the whole Series: room for the widest number (series.css).
   const digits = String(standing.spines.at(-1)?.volume ?? 0).length;
   const spine = standing.spines.find(({ volume }) => volume === chosen);
+  // The Volume of the Book the reader came from: in colour, with a glow (Q10).
+  const isMarked = (volume: number) => markVolume && edition.volumes.includes(volume);
   const onToBuy = spine !== undefined && library.toBuy.some(({ value }) => value.isbn === spine.edition.isbn);
   const seriesTitle = edition.series.title;
   const pick = (volume: number) => setSelected(selected.includes(volume) ? selected.filter((each) => each !== volume) : [...selected, volume]);
@@ -486,7 +489,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
               class="series-spine"
               data-state={state}
               data-missing={missing.has(volume) ? '' : undefined}
-              data-current={edition.volumes.includes(volume) ? '' : undefined}
+              data-current={isMarked(volume) ? '' : undefined}
             >
               {/* Desktop: the cover above the spine while the mouse is on it. A tap only opens the sheet. */}
               {peek?.volume === volume && (
@@ -499,7 +502,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
                 type="button"
                 aria-haspopup={selecting ? undefined : 'dialog'}
                 aria-pressed={selecting ? selected.includes(volume) : undefined}
-                aria-current={edition.volumes.includes(volume) ? 'true' : undefined}
+                aria-current={isMarked(volume) ? 'true' : undefined}
                 onClick={() => (selecting ? pick(volume) : open(volume))}
                 onPointerEnter={(event) => event.pointerType === 'mouse' && setPeek({ volume, align: peekAlign(event.currentTarget) })}
                 onPointerLeave={() => setPeek(undefined)}

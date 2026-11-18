@@ -502,6 +502,8 @@ export const en = {
   'library.title': 'Library',
   'library.empty': 'Your Library is empty. Add a book with Quick Add: scan or type its ISBN.',
   'library.search': 'Search your Library',
+  'library.search-open': 'Search',
+  'library.search-close': 'Close search',
   'library.search-placeholder': 'Title, author, Series, Volume title',
   'library.search-in': 'Search in',
   'library.search-in.all': 'All fields',

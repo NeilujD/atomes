@@ -343,7 +343,7 @@ describe('On the phone', () => {
 
     expect(within(view()).getAllByRole('option').map((option) => option.textContent)).toEqual(['Grid', 'List', 'Cover flow']);
     expect(view().value).toBe('grid');
-    expect(view().closest('.library-search-row')).toBe(screen.getByRole('searchbox').closest('.library-search-row'));
+    expect(view().closest('.library-search-row')).toBe(screen.getByRole('button', { name: 'Search' }).closest('.library-search-row'));
     expect(screen.queryByRole('radiogroup', { name: 'View' })).toBeNull();
     expect(screen.getByRole('radio', { name: 'Series' })).toBeTruthy();
 
@@ -363,9 +363,32 @@ describe('On the phone', () => {
   test('in Series mode, the sheet shows as many Series as the cards', async () => {
     await libraryScreen([...books, ...volumes, gaston]);
     fireEvent.click(screen.getByRole('radio', { name: 'Series' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
     fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'oda' } });
 
     expect(screen.getByRole('button', { name: 'Show 1 Series', hidden: true })).toBeTruthy();
+  });
+
+  test('the search field opens from an icon, focused; closing it clears the search', async () => {
+    await libraryScreen();
+    expect(screen.queryByRole('searchbox')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    expect(document.activeElement).toBe(screen.getByRole('searchbox'));
+    fireEvent.input(screen.getByRole('searchbox'), { target: { value: 'dune' } });
+    expect(titles()).toEqual(['Dune']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close search' }));
+    expect(screen.queryByRole('searchbox')).toBeNull();
+    expect(titles()).toEqual(['Astérix', 'Dune', 'La Horde du Contrevent']);
+  });
+
+  test('back from a Book with a search, the field is open with it', async () => {
+    history.replaceState({ library: { query: { text: 'du' } } }, '');
+    await libraryScreen();
+
+    expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('du');
+    expect(document.activeElement).not.toBe(screen.getByRole('searchbox'));
   });
 });
 

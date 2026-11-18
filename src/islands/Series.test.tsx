@@ -46,6 +46,7 @@ const all = [...lineA, ...lineB];
 // The reader owns Volumes 1 and 3 of line A and read Volume 1; `follow` says how they follow Blacksad,
 // in a record saved under `followed`. `lines` are the Edition Lines the Catalog answers. The reader has `labels`.
 // `scan`: the Catalog the sheet of an unknown Volume asks (VolumeScan).
+// `markVolume`: the page opened from the Book page of Volume 3 (seriesHref).
 async function seriesPage(
   follow?: Follow['status'],
   editions: Edition[] = all,
@@ -53,6 +54,7 @@ async function seriesPage(
   lines = [lineA, lineB],
   labels: Label[] = [],
   scan?: VolumeScanSources,
+  markVolume = false,
 ) {
   const { space, stored } = memorySpace();
   for (const each of labels) await saveLabel(space, each);
@@ -70,7 +72,7 @@ async function seriesPage(
       ]),
     scan,
   };
-  render(<Series isbn={lineA[2].isbn} sources={sources} />);
+  render(<Series isbn={lineA[2].isbn} markVolume={markVolume} sources={sources} />);
   await screen.findByRole('region', { name: 'Volumes' });
   return {
     follows: () => stored(followCollection).map(({ value }) => value as Follow),
@@ -203,6 +205,16 @@ describe('Series page', () => {
 
     expect(await screen.findByText('This book is already in your Edition Line.')).toBeTruthy();
     expect(follows()[0]).toMatchObject({ anchorIsbn: lineA[0].isbn });
+  });
+
+  test('from the Book page of a Volume, that Volume is marked; from anywhere else, none is', async () => {
+    const marked = () => document.querySelectorAll('.series-spine[data-current] [aria-current="true"]');
+    await seriesPage(undefined, all, blacksad.id, [lineA, lineB], [], undefined, true);
+    expect([...marked()].map((spine) => spine.querySelector('[aria-hidden="true"]:not(.series-spine-bar)')?.textContent)).toEqual(['3']);
+
+    cleanup();
+    await seriesPage();
+    expect(marked()).toHaveLength(0);
   });
 
   test('a book of no Series says so', async () => {
