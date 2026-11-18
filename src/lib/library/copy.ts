@@ -52,7 +52,8 @@ function graphemes(text: string): number {
   return [...new Intl.Segmenter().segment(text)].length;
 }
 
-// The Copy Quick Add makes ("Add another Copy" too): got today (ADR 0019).
+// The Copy Quick Add makes ("Add another Copy" too), and "I bought it" on To Buy
+// and the Series page: got today (ADR 0019).
 // Series Onboarding makes its Copies with no day: they were got before.
 export function quickAddCopy(book: { isbn: string; work: string; details?: BookDetails }, now: Date): Copy {
   const { isbn, work, details } = book;

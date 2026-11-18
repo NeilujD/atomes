@@ -8,7 +8,7 @@ import type { Edition } from '../catalog/catalog';
 import { coverUrl } from '../catalog/client';
 import { compareText, translator, type Language } from '../i18n/i18n';
 import type { Space, WriteState } from '../space/queued-store';
-import type { Copy } from './copy';
+import { quickAddCopy, type Copy } from './copy';
 import { editionWork, isIsbn13, readIsbn, type IsbnProblem } from './ids';
 import { editionLabel, isOwned, type Editions, type Library } from './model';
 import { listRecords, putRecord } from './records';
@@ -111,7 +111,7 @@ function runs(items: ToBuyItem[]): string {
 
 // What to save when the reader says "I bought it" (To Buy, Series page): the Copy, and the hand-added record to delete, if any.
 export function bought(item: Pick<ToBuyItem, 'isbn' | 'work' | 'byHand'>, now: Date): { copy: Copy; remove: string | undefined } {
-  return { copy: { isbn: item.isbn, works: [item.work], createdAt: now.toISOString() }, remove: item.byHand ? item.isbn : undefined };
+  return { copy: quickAddCopy({ isbn: item.isbn, work: item.work }, now), remove: item.byHand ? item.isbn : undefined };
 }
 
 // The record to save when the reader adds an Edition by hand, or why not.

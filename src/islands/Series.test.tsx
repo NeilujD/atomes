@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { Edition } from '../lib/catalog/catalog';
 import { handOverAddedCopies, takeAddedCopies } from '../lib/library/added-copies';
 import { copyCollection, saveCopy, type Copy } from '../lib/library/copy';
@@ -85,7 +85,10 @@ async function seriesPage(
 const count = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling?.textContent;
 const missingList = () => within(screen.getByRole('region', { name: 'Missing Volumes' })).getAllByRole('listitem').map(({ textContent }) => textContent);
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('Series page', () => {
   test('shows the counts, the Missing Volume and the spine row', async () => {
@@ -278,14 +281,19 @@ describe('Volume sheet', () => {
     expect(sheet().getByRole('link', { name: 'Open' }).getAttribute('href')).toBe(bookHref(lineA[1].work.id));
   });
 
-  test('"I bought it" saves one Copy of the Volume and the spine turns owned', async () => {
+  test('"I bought it" saves one Copy of the Volume, got today, and the spine turns owned', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 18, 23, 30));
     const { copies } = await seriesPage('following');
 
     fireEvent.click(spine('Volume 2: not owned'));
     fireEvent.click(sheet().getByRole('button', { name: 'I bought it' }));
 
     await waitFor(() => expect(spine('Volume 2: owned, not read')).toBeTruthy());
-    expect(copies().filter(({ isbn: one }) => one === lineA[1].isbn)).toEqual([expect.objectContaining({ works: [lineA[1].work.id] })]);
+    // The day on the reader's device, as Quick Add writes it (ADR 0019).
+    expect(copies().filter(({ isbn: one }) => one === lineA[1].isbn)).toEqual([
+      expect.objectContaining({ works: [lineA[1].work.id], acquiredAt: '2026-11-18T00:00:00.000Z' }),
+    ]);
     expect(copies()).toHaveLength(3);
     // Owned now: no second Copy from the same sheet.
     expect(sheet().queryByRole('button', { name: 'I bought it' })).toBeNull();
