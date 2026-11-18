@@ -1,0 +1,119 @@
+/*
+ * The share dialog of Statistics (src/islands/SharePicture.tsx, ADR 0019):
+ * as the Shelf Check result, the whole screen on the phone, over the tab bar
+ * (a modal dialog is in the top layer), and a 420 px card on desktop. Light
+ * or dark with the Appearance setting; the picture keeps its own dark look.
+ * Global: the island renders on the device. Every value is a token of
+ * theme.css (tokens.test.ts checks it), or a size named here once.
+ */
+.share {
+  --share-width: 420px;
+  --share-height: 844px;
+  --share-margin: calc(var(--space-24) * 2);
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: max(var(--space-12), env(safe-area-inset-top)) max(var(--space-20), env(safe-area-inset-right)) max(var(--space-20), env(safe-area-inset-bottom))
+    max(var(--space-20), env(safe-area-inset-left));
+  border: 0;
+  overflow: hidden;
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.share[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.share::backdrop {
+  background: var(--scrim);
+}
+
+/* Close, the title, and an empty box of the same size, so the title stays centred. */
+.share-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.share-head-space {
+  flex: none;
+  width: var(--icon-button);
+  height: var(--icon-button);
+}
+
+/* The preview: the canvas, as large as the screen lets it, in its own ratio. */
+.share-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.share-canvas {
+  position: absolute;
+  inset: 0;
+  max-width: 100%;
+  max-height: 100%;
+  margin: auto;
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 0 0 var(--hairline) var(--line-control),
+    var(--shadow-cover-large);
+}
+
+.share-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.share-names {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  font-size: var(--type-small);
+}
+
+.share-names:has(input:disabled) {
+  color: var(--text-quiet);
+}
+
+.share-note {
+  margin: 0;
+  color: var(--text-quiet);
+  font-size: var(--type-small);
+  text-align: center;
+}
+
+.share-actions {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.share-actions svg {
+  width: var(--icon-size-inline);
+  height: var(--icon-size-inline);
+  stroke-width: var(--icon-stroke);
+}
+
+/* Until the PNG is ready. */
+.share-actions [aria-disabled='true'] {
+  opacity: var(--alpha-disabled);
+  pointer-events: none;
+}
+
+@media (min-width: 960px) {
+  .share {
+    width: var(--share-width);
+    height: min(var(--share-height), calc(100dvh - var(--share-margin)));
+    margin: auto;
+    border: var(--hairline) solid var(--line-card);
+    border-radius: var(--radius-card);
+  }
+}

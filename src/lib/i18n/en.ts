@@ -653,6 +653,30 @@ export const en = {
   'stats.empty':
     'No book read has a finish day yet, so nothing shows by month. Mark a book read on its Book page and Atomes keeps the day; for a book you read before, type the day you finished it there.',
 
+  // The share picture (src/lib/library/share-picture.ts) and its dialog (src/islands/SharePicture.tsx).
+  'picture.brand': 'Atomes',
+  // No year: All time.
+  'picture.period': (year?: string) => `My reading · ${year ?? 'All time'}`,
+  // The count: French inflects these words, English does not.
+  /* eslint-disable @typescript-eslint/no-unused-vars -- the type of every language takes the count */
+  'picture.read': (_count: number) => 'read',
+  'picture.added': (_count: number) => 'added to my Library',
+  'picture.followed': (_count: number) => 'Series followed',
+  /* eslint-enable @typescript-eslint/no-unused-vars */
+  'picture.made-with': 'Made with Atomes',
+  'picture.alt': (read: number, year: string | undefined, added: number, followed: number, names: string[]) =>
+    `Picture: ${number(read)} read ${year ? `in ${year}` : 'in all'}, ${number(added)} added, ${number(followed)} Series followed.` +
+    (names.length > 0 ? ` Most read: ${names.join(', ')}.` : ''),
+  'share.format': 'Format',
+  'share.story': 'Story',
+  'share.square': 'Square',
+  'share.names': 'Series names',
+  'share.send': 'Share the picture',
+  'share.download': 'Download',
+  'share.note': 'Made on this device. Nothing is published, and nothing goes to the server.',
+  'share.failed': 'The share sheet did not open. Download the picture instead.',
+  'share.not-drawn': 'This browser could not draw the picture.',
+
   // Privacy notice (src/pages/privacy.astro, CORE-55), approved by the owner on
   // 2026-11-16. A change to it needs the owner's approval and a new date.
   'privacy.title': 'Privacy notice',

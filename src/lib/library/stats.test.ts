@@ -410,3 +410,16 @@ describe('All time', () => {
     ]);
   });
 });
+
+describe('Series followed (the share picture)', () => {
+  test('the Followed Series of today, whatever the period and the filters; a Dropped Series does not count', () => {
+    const follow = (series: string, status: 'following' | 'dropped') => ({
+      rkey: series,
+      value: { series, anchorIsbn: '9782723478991', status, updatedAt: '2020-01-01T00:00:00.000Z' },
+    });
+    const follows = [follow('wd:Q1', 'following'), follow('wd:Q2', 'following'), follow('wd:Q3', 'dropped')];
+
+    expect(stats({ follows }).followed).toBe(2);
+    expect(stats({ follows }, [], { query: { period: 2019, label: 'lbnone', ownedOnly: true } }).followed).toBe(2);
+  });
+});

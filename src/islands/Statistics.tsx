@@ -15,6 +15,7 @@ import { dimensions, statistics, type Dimension, type Period, type Statistics as
 import { Columns } from './charts/Columns';
 import { pageFormat } from './charts/ChartFrame';
 import { RankedBars } from './charts/RankedBars';
+import { SharePicture } from './SharePicture';
 import { Tile } from './charts/Tile';
 import { useLibraryListing, type ListingSources } from './library-listing';
 
@@ -162,6 +163,9 @@ export function Statistics({ sources }: { sources: Sources }) {
           <a href="/library">{t('stats.add-dates')}</a>
         </p>
       )}
+
+      {/* Share, the main action of the page: the picture of these numbers (CORE-149). */}
+      <SharePicture numbers={numbers} period={query.period} />
     </div>
   );
 }
