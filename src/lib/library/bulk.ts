@@ -44,7 +44,7 @@ export async function writeAll(space: Space, writes: RecordWrite[]): Promise<Wri
 export function statusBulk(picked: Picked[], status: Status, library: Library, now: Date): Bulk {
   const bulk: Bulk = { writes: [], undo: [] };
   for (const { work, isbn } of picked) {
-    const change = statusChange(work, isbn, status, library, now);
+    const change = statusChange(work, isbn, status, library, now, { dated: false });
     if (!change) continue;
     const before = library.readingStatuses.find(({ rkey }) => rkey === work)?.value ?? null;
     bulk.writes.push({ collection: readingStatusCollection, rkey: work, value: change });

@@ -279,6 +279,20 @@ describe('Series Onboarding choices', () => {
     ]);
   });
 
+  test('Series Onboarding is not dated: a Volume marked read gets no day, and a start day is kept (ADR 0019)', () => {
+    const started = readOf(2, 'reading');
+    started.value.startedAt = '2026-10-01T00:00:00.000Z';
+    const before = library({ copies: [copyOf(1)], readingStatuses: [started] });
+    const some = seriesOnboarding(volume(1), volumes, before);
+
+    const saved = onboardingSave(some, before, { ...some.start, ownedUpTo: 2, readUpTo: 2 }, now).readingStatuses;
+
+    expect(saved.map(({ isbn, startedAt, finishedAt }) => [isbn, startedAt, finishedAt])).toEqual([
+      [isbns[0], undefined, undefined],
+      [isbns[1], '2026-10-01T00:00:00.000Z', undefined],
+    ]);
+  });
+
   test('the same choices as the start add no Copy and no Reading Status', () => {
     expect(onboardingSave(onboarding, afterQuickAdd, onboarding.start, now)).toMatchObject({ copies: [], readingStatuses: [] });
   });

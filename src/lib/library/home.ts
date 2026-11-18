@@ -13,9 +13,13 @@ export function ownedUnread(books: LibraryBook[], language: Language): LibraryBo
     .sort((a, b) => b.addedAt.localeCompare(a.addedAt) || compare(a.title, b.title));
 }
 
-// The Works being read, owned or not. The last started first.
+// The Works being read, owned or not. The last started first: by the start
+// day, else by the last change (a record with no day, ADR 0019).
 export function readingNow(books: LibraryBook[], library: Library, language: Language): LibraryBook[] {
   const compare = compareText(language);
-  const startedAt = (book: LibraryBook) => library.readingStatuses.find(({ rkey }) => rkey === book.work)?.value.updatedAt ?? '';
+  const startedAt = (book: LibraryBook) => {
+    const value = library.readingStatuses.find(({ rkey }) => rkey === book.work)?.value;
+    return value?.startedAt ?? value?.updatedAt ?? '';
+  };
   return books.filter((book) => book.status === 'reading').sort((a, b) => startedAt(b).localeCompare(startedAt(a)) || compare(a.title, b.title));
 }

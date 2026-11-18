@@ -46,11 +46,20 @@ describe('Reading Status records', () => {
     expect(stored(readingStatusCollection)[0].rkey).toBe('isbn:9791032722077');
   });
 
+  test('a start day and a finish day are saved with the status (ADR 0019)', async () => {
+    const { space, stored } = memorySpace();
+
+    await saveReadingStatus(space, { ...dune, status: 'read', startedAt: '2026-11-02T00:00:00.000Z', finishedAt: '2026-11-20T00:00:00.000Z' });
+
+    expect(stored(readingStatusCollection)[0].value).toMatchObject({ startedAt: '2026-11-02T00:00:00.000Z', finishedAt: '2026-11-20T00:00:00.000Z' });
+  });
+
   test.each<[string, Partial<ReadingStatus>]>([
     ['a Work that is not a Catalog identifier', { work: 'Dune' }],
     ['an ISBN with a wrong check digit', { isbn: '9782266320543' }],
     ['an unknown status', { status: 'lent' as ReadingStatus['status'] }],
     ['a finish date that is not a datetime', { finishedAt: '2026-11' }],
+    ['a start day that is not a datetime', { startedAt: '2026-11-02' }],
   ])('%s is refused and nothing is saved', async (_, change) => {
     const { space, stored } = memorySpace();
 

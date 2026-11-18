@@ -84,6 +84,17 @@ describe('sharing a category', () => {
   });
 });
 
+describe('a shared Reading Status with its days (ADR 0019)', () => {
+  test('carries its start day and finish day to the public repo', async () => {
+    const dated = { ...status(onePiece), startedAt: '2026-11-02T00:00:00.000Z', finishedAt: '2026-11-12T00:00:00.000Z' };
+    library.put(owner, 'app.atomes.readingStatus', onePiece, dated);
+
+    await sharing.setShared(owner, 'readingStatuses', true);
+
+    expect(pds.get(owner)!.records.get(`app.atomes.readingStatus/${onePiece}`)).toEqual(dated);
+  });
+});
+
 describe('a Work kept Private inside a Shared category', () => {
   test('keeps its Reading Status off the PDS and leaves it out of the shared Labels', async () => {
     fillLibrary();

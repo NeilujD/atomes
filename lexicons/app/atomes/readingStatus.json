@@ -25,6 +25,11 @@
             "type": "string",
             "knownValues": ["unread", "reading", "read", "abandoned"]
           },
+          "startedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "The day the reader started the Work, written as midnight UTC (YYYY-MM-DDT00:00:00.000Z). Absent when no one said."
+          },
           "finishedAt": {
             "type": "string",
             "format": "datetime",

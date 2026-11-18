@@ -86,4 +86,12 @@ describe('Reading now', () => {
 
     expect(home(records).readingNow).toEqual(['Fondation', 'Dune']);
   });
+
+  test('"started" is the start day when the record has one, else the last change (ADR 0019)', () => {
+    const startedEarly = status(fondation, 'reading', '2026-11-08T00:00:00.000Z');
+    startedEarly.value.startedAt = '2026-10-01T00:00:00.000Z';
+    const records = library({ readingStatuses: [status(dune, 'reading', '2026-11-06T00:00:00.000Z'), startedEarly] });
+
+    expect(home(records).readingNow).toEqual(['Dune', 'Fondation']);
+  });
 });

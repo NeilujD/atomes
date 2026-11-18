@@ -15,6 +15,8 @@ export interface ReadingStatus {
   // The Edition read or being read.
   isbn: string;
   status: Status;
+  // Calendar days, as `YYYY-MM-DDT00:00:00.000Z` (day.ts, ADR 0019).
+  startedAt?: string;
   finishedAt?: string;
   updatedAt: string;
 }

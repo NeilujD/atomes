@@ -591,7 +591,7 @@ const answers = [
       const copy = { isbn, works: [work], ...(typedBook && { details: typedBook }), createdAt: now.toISOString() };
       const states: WriteState[] = [];
       states.push((await saveCopy(space, copy)).state);
-      const change = chosen && statusChange(work, isbn, chosen, library, now);
+      const change = chosen && statusChange(work, isbn, chosen, library, now, { dated: true });
       if (change) states.push(await saveReadingStatus(space, change));
       const follow = chosen && followOnRead(current.edition, chosen, library, now);
       if (follow) states.push(await saveFollow(space, follow));

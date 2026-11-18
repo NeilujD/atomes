@@ -221,7 +221,7 @@ export function Series({ isbn, sources }: { isbn: string; sources: Sources }) {
   function markRead({ edition }: Spine) {
     if (!library) return;
     const now = new Date();
-    const change = statusChange(edition.work.id, edition.isbn, 'read', library, now);
+    const change = statusChange(edition.work.id, edition.isbn, 'read', library, now, { dated: true });
     if (!change) return;
     const follow = followOnRead(edition, 'read', library, now);
     void save(async (own) => {
