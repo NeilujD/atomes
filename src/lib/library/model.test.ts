@@ -68,6 +68,12 @@ describe('Book page', () => {
     expect([page?.status, page?.startedAt]).toEqual(['reading', undefined]);
   });
 
+  test('each Copy shows the day the reader got it, or none', () => {
+    const page = bookPage(work, library({ copies: [copy('3m2a', { acquiredAt: '2026-11-18T00:00:00.000Z' }), copy('3m2b')] }), catalog);
+
+    expect(page?.copies.map(({ acquiredAt }) => acquiredAt)).toEqual(['2026-11-18T00:00:00.000Z', undefined]);
+  });
+
   test('a status this app does not know counts as no record: unread', () => {
     const page = bookPage(work, library({ copies: [copy('3m2a')], readingStatuses: [status('lent' as Status)] }), catalog);
 

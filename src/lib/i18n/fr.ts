@@ -304,6 +304,8 @@ export const fr: typeof en = {
   'book.no-copies': 'Vous n’avez aucun exemplaire de ce livre.',
   'book.add-copy': 'Ajouter un autre exemplaire',
   'book.add-first-copy': 'Ajouter un exemplaire',
+  'book.got-on': 'Obtenu le',
+  'book.got-on-copy': (isbn) => `Obtenu le, exemplaire d’ISBN ${isbn}`,
   'book.remove': 'Retirer',
   'book.remove-copy': (isbn) => `Retirer l’exemplaire d’ISBN ${isbn}`,
   'book.lend-to': 'Prêter à',

@@ -147,6 +147,12 @@ const choices = [
           </div>
         </div>
       </div>
+      <!-- The day the reader got this Copy (ADR 0019): they change it, or empty the field to remove it. -->
+      <label class="got-on">
+        <span class="label">{t('book.got-on')}</span>
+        <input class="field" type="date" data-got-on />
+        <span class="hint">{t('book.optional')}</span>
+      </label>
       <!-- An open Loan: who has the Copy, since when. -->
       <div class="loan" data-loan hidden>
         <p class="loan-text">
@@ -193,6 +199,7 @@ const choices = [
   import { showCover } from '../lib/cover';
   import { isEditionWork, isWorkId } from '../lib/library/ids';
   import { reportNetwork, reportWaiting } from '../lib/connection';
+  import { gotOn, saveCopy } from '../lib/library/copy';
   import { saveFollow } from '../lib/library/follow';
   import { pageLanguage, t } from '../lib/i18n/i18n';
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
@@ -342,11 +349,15 @@ const choices = [
 
     article.querySelector<HTMLElement>('[data-no-copies]')!.hidden = page.copies.length > 0;
     // Rebuilt only when they change: a reload while offline must not clear a name being typed.
-    const copies = JSON.stringify(page.copies);
+    const copies = JSON.stringify(page.copies.map((copy) => ({ ...copy, acquiredAt: undefined })));
     if (copies !== renderedCopies) {
       renderedCopies = copies;
       copyList.replaceChildren(...page.copies.map(copyRow));
     }
+    // The day of each Copy, in place: a rebuild would take the focus from a day being typed.
+    page.copies.forEach(({ acquiredAt }, index) => {
+      copyList.children[index].querySelector<HTMLInputElement>('[data-got-on]')!.value = acquiredAt?.slice(0, 10) ?? '';
+    });
     const addCopy = article.querySelector<HTMLAnchorElement>('[data-add-copy]')!;
     addCopy.href = `/check?isbn=${page.isbn}`;
     addCopy.querySelector('[data-add-copy-label]')!.textContent = t(page.copies.length > 0 ? 'book.add-copy' : 'book.add-first-copy');
@@ -378,6 +389,13 @@ const choices = [
       back.setAttribute('aria-label', t('book.mark-returned-copy', copy.isbn));
       back.addEventListener('click', () => void save(() => markReturned(copy.rkey), back));
     }
+    const day = row.querySelector<HTMLInputElement>('[data-got-on]')!;
+    day.setAttribute('aria-label', t('book.got-on-copy', copy.isbn));
+    day.addEventListener('change', () => {
+      const saved = library.copies.find(({ rkey }) => rkey === copy.rkey);
+      if (saved) void save(async () => (await saveCopy(space, gotOn(saved.value, day.value), copy.rkey)).state);
+    });
+
     const input = lendForm.querySelector<HTMLInputElement>('input[name="borrower"]')!;
     lendForm.querySelector('[data-lend-button]')!.setAttribute('aria-label', t('book.lend-copy', copy.isbn));
     // The form takes the place of Lend while it is open, so one button only is named "Lend the Copy…".
@@ -825,7 +843,8 @@ const choices = [
     font-size: var(--type-small);
   }
 
-  .finished {
+  .finished,
+  .got-on {
     display: flex;
     align-items: center;
     flex-wrap: wrap;

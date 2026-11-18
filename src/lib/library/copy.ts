@@ -1,6 +1,7 @@
 // `app.atomes.copy`: a physical book the reader owns (ADR 0010). Never Shared.
 import { t } from '../i18n/i18n';
 import { newRecordKey, type Space, type WriteState } from '../space/queued-store';
+import { dayOf } from './day';
 import { isIsbn13, isWorkId } from './ids';
 import { listRecords, putRecord } from './records';
 
@@ -49,6 +50,21 @@ export function typedDetails(fields: TypedFields): { details: BookDetails } | { 
 
 function graphemes(text: string): number {
   return [...new Intl.Segmenter().segment(text)].length;
+}
+
+// The Copy Quick Add makes ("Add another Copy" too): got today (ADR 0019).
+// Series Onboarding makes its Copies with no day: they were got before.
+export function quickAddCopy(book: { isbn: string; work: string; details?: BookDetails }, now: Date): Copy {
+  const { isbn, work, details } = book;
+  return { isbn, works: [work], ...(details && { details }), acquiredAt: dayOf(now), createdAt: now.toISOString() };
+}
+
+// The Copy with the day the reader typed on the Book page (`YYYY-MM-DD`), or
+// with no day when they emptied the field.
+export function gotOn(copy: Copy, day: string): Copy {
+  const changed: Copy = { ...copy, acquiredAt: `${day}T00:00:00.000Z` };
+  if (!day) delete changed.acquiredAt;
+  return changed;
 }
 
 // A new Copy gets a new key; pass the key of an existing Copy to change it.

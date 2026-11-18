@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { copyCollection, deleteCopy, listCopies, saveCopy, typedDetails, type Copy } from './copy';
+import { copyCollection, deleteCopy, gotOn, listCopies, quickAddCopy, saveCopy, typedDetails, type Copy } from './copy';
 import { memorySpace } from './memory-space.fake';
 import { lexicons } from './records';
 
@@ -106,5 +106,47 @@ describe('Details typed by the reader', () => {
     ['an author name over 64 characters', { title: 'Dune', authors: 'é'.repeat(65) }, 'An author name has at most 64 characters.'],
   ])('%s: what to fix, and no details', (_, change, problem) => {
     expect(typed(change)).toEqual({ problem });
+  });
+});
+
+describe('The day the reader got a Copy', () => {
+  test('Quick Add makes a Copy that holds the day of today on this device', async () => {
+    const { space, stored } = memorySpace();
+    // 23:30 on 18 November, on the device: still the 18th, whatever the time zone.
+    const now = new Date(2026, 10, 18, 23, 30);
+
+    await saveCopy(space, quickAddCopy({ isbn: '9782723478991', work: 'wd:Q673' }, now));
+
+    expect(stored(copyCollection)[0].value).toEqual({
+      $type: copyCollection,
+      isbn: '9782723478991',
+      works: ['wd:Q673'],
+      acquiredAt: '2026-11-18T00:00:00.000Z',
+      createdAt: now.toISOString(),
+    });
+  });
+
+  test('Quick Add of a book the Catalog does not know keeps the typed details and the day', () => {
+    const details = { title: 'Jujutsu Kaisen Modulo' };
+
+    expect(quickAddCopy({ isbn: '9791032722077', work: 'isbn:9791032722077', details }, new Date(2026, 0, 2, 0, 5))).toMatchObject({
+      details,
+      acquiredAt: '2026-01-02T00:00:00.000Z',
+    });
+  });
+
+  test('the reader changes the day on the Book page: the same Copy holds the new day', async () => {
+    const { space } = memorySpace();
+    const { rkey } = await saveCopy(space, { ...onePiece56, acquiredAt: '2026-11-18T00:00:00.000Z' });
+
+    await saveCopy(space, gotOn(onePiece56, '2025-12-24'), rkey);
+
+    expect((await listCopies(space)).records).toEqual([
+      { rkey, value: { $type: copyCollection, ...onePiece56, acquiredAt: '2025-12-24T00:00:00.000Z' } },
+    ]);
+  });
+
+  test('the reader empties the field: the Copy holds no day', () => {
+    expect(gotOn({ ...onePiece56, acquiredAt: '2026-11-18T00:00:00.000Z' }, '')).toEqual(onePiece56);
   });
 });
