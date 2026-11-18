@@ -221,6 +221,12 @@ describe('the state of today and the filters', () => {
   test('a Label deleted since (on another device) filters nothing', () => {
     expect(stats(library, books, query({ label: '3lbgone' })).read).toBe(2);
   });
+
+  test('the line under "Your Library today": the Copies owned, their Series, and the Works read and not owned, whatever the period', () => {
+    expect(stats(library, books, query({ period: 2020 })).owned).toEqual({ copies: 3, series: 1, readNotOwned: 1 });
+    expect(stats(library, books, query({ label: '3lbsf' })).owned).toEqual({ copies: 1, series: 0, readNotOwned: 1 });
+    expect(stats(library, books, query({ ownedOnly: true })).owned.readNotOwned).toBe(0);
+  });
 });
 
 describe('Most read', () => {

@@ -2,6 +2,7 @@
 import ArrowLeft from '@lucide/astro/icons/arrow-left';
 import Bell from '@lucide/astro/icons/bell';
 import BookPlus from '@lucide/astro/icons/book-plus';
+import ChartColumn from '@lucide/astro/icons/chart-column';
 import Check from '@lucide/astro/icons/check';
 import ClipboardPaste from '@lucide/astro/icons/clipboard-paste';
 import ChevronDown from '@lucide/astro/icons/chevron-down';
@@ -21,6 +22,7 @@ import RefreshCw from '@lucide/astro/icons/refresh-cw';
 import ScanBarcode from '@lucide/astro/icons/scan-barcode';
 import Search from '@lucide/astro/icons/search';
 import Settings from '@lucide/astro/icons/settings';
+import Share from '@lucide/astro/icons/share';
 import ShoppingBag from '@lucide/astro/icons/shopping-bag';
 import Sun from '@lucide/astro/icons/sun';
 import Trash from '@lucide/astro/icons/trash';
@@ -32,6 +34,7 @@ export const icons = {
   'arrow-left': ArrowLeft,
   bell: Bell,
   'book-plus': BookPlus,
+  'chart-column': ChartColumn,
   check: Check,
   'clipboard-paste': ClipboardPaste,
   'chevron-down': ChevronDown,
@@ -51,6 +54,7 @@ export const icons = {
   'scan-barcode': ScanBarcode,
   search: Search,
   settings: Settings,
+  share: Share,
   'shopping-bag': ShoppingBag,
   sun: Sun,
   trash: Trash,

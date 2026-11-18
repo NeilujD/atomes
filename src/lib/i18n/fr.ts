@@ -4,6 +4,9 @@
 // space (U+202F) before "?", "!" and ";", so the sign never starts a line.
 import type { en } from './en';
 
+// A count in a sentence, as the language writes it (Intl).
+const number = (value: number) => new Intl.NumberFormat('fr').format(value);
+
 export const fr: typeof en = {
   // Frame (AppShell, ConnectionStatus, toasts)
   'nav.main': 'Navigation principale',
@@ -14,6 +17,7 @@ export const fr: typeof en = {
   'nav.library': 'Bibliothèque',
   'nav.new': 'Nouveautés et à paraître',
   'nav.to-buy': 'À acheter',
+  'nav.statistics': 'Statistiques',
   'nav.check': 'Vérifier',
   'nav.settings': 'Réglages',
   'nav.you': 'Vous',
@@ -183,6 +187,8 @@ export const fr: typeof en = {
   'settings.contrast': 'Contraste',
   'settings.language': 'Langue',
   'settings.on-this-device': 'Gardé sur cet appareil.',
+  'settings.reading': 'Votre lecture',
+  'settings.statistics-hint': 'Ce que vous avez lu et ajouté, par mois et par année.',
   'settings.your-data': 'Vos données',
   'settings.privacy': 'Politique de confidentialité',
   'settings.privacy-hint': 'Ce que cette instance garde, qui peut le lire, et vos droits.',
@@ -585,6 +591,59 @@ export const fr: typeof en = {
   'chart.year': 'Année',
   'chart.figure': (label: string, figure: string) => `${label} ${figure}`,
   'chart.group': (name: string, figures: string[]) => `${name} : ${figures.join(', ')}`,
+
+  // L'écran Statistiques (src/islands/Statistics.tsx, ADR 0019).
+  'stats.title': 'Statistiques',
+  'stats.share': 'Partager',
+  'stats.period': 'Période',
+  'stats.all-time': 'Depuis toujours',
+  'stats.filter': 'Filtrer',
+  'stats.filters-on': (count: number) => `${count} ${count > 1 ? 'filtres actifs' : 'filtre actif'}`,
+  'stats.label': 'Étiquette',
+  'stats.owned-only': 'Possédés seulement',
+  'stats.done': 'OK',
+  'stats.in-short': 'En bref',
+  'stats.read-in': (count: number, year?: string) => `${count > 1 ? 'lus' : 'lu'} ${year ? `en ${year}` : 'au total'}`,
+  'stats.added': 'Ajoutés',
+  'stats.reading': 'En cours',
+  'stats.owned-unread': 'Possédés non lus',
+  'stats.read': 'Lus',
+  'stats.by-month': 'Lus et ajoutés, par mois',
+  'stats.by-year': 'Lus et ajoutés, par année',
+  'stats.most-read': 'Les plus lus',
+  'stats.most-read-by': 'Les plus lus par',
+  'stats.dimension.series': 'Séries',
+  'stats.dimension.authors': 'Auteurs',
+  'stats.dimension.labels': 'Étiquettes',
+  'stats.dimension.publishers': 'Éditeurs',
+  'stats.outside.series': (count: number) => `${number(count)} ${count > 1 ? 'livres lus ne sont' : 'livre lu n’est'} dans aucune série.`,
+  'stats.outside.authors': (count: number) => `${number(count)} ${count > 1 ? 'livres lus n’ont' : 'livre lu n’a'} pas d’auteur.`,
+  'stats.outside.labels': (count: number) => `${number(count)} ${count > 1 ? 'livres lus n’ont' : 'livre lu n’a'} pas d’étiquette.`,
+  'stats.outside.publishers': (count: number) => `${number(count)} ${count > 1 ? 'livres lus n’ont' : 'livre lu n’a'} pas d’éditeur connu.`,
+  'stats.most-read-none': 'Aucun livre lu sur cette période.',
+  'stats.library-today': 'Votre bibliothèque aujourd’hui',
+  'stats.status': 'Statut de lecture',
+  'stats.works': 'Œuvres',
+  'stats.owned-line': (copies: number, series: number, readNotOwned: number) =>
+    `${number(copies)} ${copies > 1 ? 'exemplaires possédés' : 'exemplaire possédé'}, dans ${number(series)} ${series > 1 ? 'séries' : 'série'}.` +
+    (readNotOwned > 0 ? ` Et ${number(readNotOwned)} ${readNotOwned > 1 ? 'œuvres lues non possédées' : 'œuvre lue non possédée'}.` : ''),
+  'stats.loans': 'Prêts',
+  'stats.lent-now': 'Prêtés en ce moment',
+  'stats.loans-in': (year: string) => `Prêts en ${year}`,
+  'stats.loans-all': 'Prêts, depuis toujours',
+  'stats.average-days': 'Jours, en moyenne',
+  'stats.no-average': '–',
+  'stats.undated': (reads: number, copies: number) => {
+    const read = `${number(reads)} ${reads > 1 ? 'livres lus' : 'livre lu'}`;
+    const got = `${number(copies)} ${copies > 1 ? 'exemplaires' : 'exemplaire'}`;
+    const both = reads > 0 && copies > 0;
+    const many = both || reads > 1 || copies > 1;
+    const named = both ? `${read} et ${got}` : reads > 0 ? read : got;
+    return `${named} ${many ? 'n’ont' : 'n’a'} pas de date. ${many ? 'Ils comptent' : 'Il compte'} dans les totaux, pas par mois.`;
+  },
+  'stats.add-dates': 'Ajouter des dates',
+  'stats.empty':
+    'Aucun livre lu n’a encore de jour de fin : rien ne s’affiche par mois. Marquez un livre comme lu sur sa page et Atomes garde le jour ; pour un livre lu avant, tapez-y le jour où vous l’avez fini.',
 
   'privacy.title': 'Politique de confidentialité',
   'privacy.intro':

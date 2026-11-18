@@ -6,9 +6,10 @@ import { expect, test } from 'vitest';
 import Book from '../pages/book.astro';
 import Library from '../pages/library.astro';
 import Series from '../pages/series.astro';
+import Statistics from '../pages/statistics.astro';
 import ToBuy from '../pages/to-buy.astro';
 
-const screens = { Library, 'To Buy': ToBuy, Series, Book };
+const screens = { Library, 'To Buy': ToBuy, Statistics, Series, Book };
 const pages = new URL('../pages/', import.meta.url);
 
 // A route of src/pages: `/x` is x.astro, x.ts or x/index.astro. The query does not count.

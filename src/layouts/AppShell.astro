@@ -18,7 +18,7 @@ import { appIcons } from '../lib/environment';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 import { appEnvironment } from '../lib/server/settings';
 
-type Section = 'home' | 'library' | 'new' | 'to-buy' | 'check' | 'settings';
+type Section = 'home' | 'library' | 'new' | 'to-buy' | 'statistics' | 'check' | 'settings';
 
 interface Props {
   title: string;
@@ -50,6 +50,7 @@ const sidebarItems: { key: Section; href: string; label: string; icon: IconName 
   { key: 'home', href: '/', label: t('nav.home'), icon: 'house' },
   { key: 'library', href: '/library', label: t('nav.library'), icon: 'library' },
   { key: 'to-buy', href: '/to-buy', label: t('nav.to-buy'), icon: 'shopping-bag' },
+  { key: 'statistics', href: '/statistics', label: t('nav.statistics'), icon: 'chart-column' },
 ];
 
 // The Check tab and "Check a book" open the camera at once (CORE-97): in a shop,
@@ -65,6 +66,9 @@ const tabItems: { key: Section; href: string; label: string; icon: IconName }[] 
 ];
 
 const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
+// The tab bar keeps five entries (ui-direction): Statistics is reached from
+// You, so You shows as the place the reader is in.
+const tabCurrent = (key: Section) => ariaCurrent(key) ?? (key === 'settings' && current === 'statistics' ? 'true' : undefined);
 // Outside production, the favicon and home screen icon are orange (src/lib/environment.ts).
 const icons = appIcons(appEnvironment(process.env));
 ---
@@ -180,7 +184,7 @@ const icons = appIcons(appEnvironment(process.env));
                   <a
                     class:list={['tab', { 'tab-check': item.key === 'check' }]}
                     href={item.href}
-                    aria-current={ariaCurrent(item.key)}
+                    aria-current={tabCurrent(item.key)}
                   >
                     <span class="tab-icon">
                       <Icon name={item.icon} size={22} />
@@ -408,7 +412,7 @@ const icons = appIcons(appEnvironment(process.env));
     text-decoration: none;
   }
 
-  .tab[aria-current='page'] {
+  .tab[aria-current] {
     color: var(--ink);
     font-weight: 600;
   }

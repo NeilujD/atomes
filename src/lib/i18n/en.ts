@@ -4,6 +4,9 @@
 
 type TileState = 'read' | 'owned' | 'missing' | 'read-not-owned';
 
+// A count in a sentence, as the language writes it (Intl).
+const number = (value: number) => new Intl.NumberFormat('en').format(value);
+
 export const en = {
   // Frame (AppShell, ConnectionStatus, toasts)
   'nav.main': 'Main',
@@ -14,6 +17,7 @@ export const en = {
   'nav.library': 'Library',
   'nav.new': 'New & upcoming',
   'nav.to-buy': 'To Buy',
+  'nav.statistics': 'Statistics',
   'nav.check': 'Check',
   'nav.settings': 'Settings',
   'nav.you': 'You',
@@ -187,6 +191,8 @@ export const en = {
   'settings.language': 'Language',
   'settings.on-this-device': 'Kept on this device.',
   'settings.your-data': 'Your data',
+  'settings.reading': 'Your reading',
+  'settings.statistics-hint': 'What you read and added, by month and by year.',
   'settings.privacy': 'Privacy notice',
   'settings.privacy-hint': 'What this instance keeps, who can read it, and your rights.',
   'settings.export': 'Export my Library',
@@ -592,6 +598,59 @@ export const en = {
   'chart.year': 'Year',
   'chart.figure': (label: string, figure: string) => `${label} ${figure}`,
   'chart.group': (name: string, figures: string[]) => `${name}: ${figures.join(', ')}`,
+
+  // The Statistics screen (src/islands/Statistics.tsx, ADR 0019).
+  'stats.title': 'Statistics',
+  'stats.share': 'Share',
+  'stats.period': 'Period',
+  'stats.all-time': 'All time',
+  'stats.filter': 'Filter',
+  'stats.filters-on': (count: number) => `${count} ${count === 1 ? 'filter' : 'filters'} on`,
+  'stats.label': 'Label',
+  'stats.owned-only': 'Owned only',
+  'stats.done': 'Done',
+  'stats.in-short': 'In short',
+  // After the lead number; no year: All time.
+  'stats.read-in': (_count: number, year?: string) => (year ? `read in ${year}` : 'read in all'),
+  'stats.added': 'Added',
+  'stats.reading': 'Reading',
+  'stats.owned-unread': 'Owned, not read yet',
+  'stats.read': 'Read',
+  'stats.by-month': 'Read and added, by month',
+  'stats.by-year': 'Read and added, by year',
+  'stats.most-read': 'Most read',
+  'stats.most-read-by': 'Most read by',
+  'stats.dimension.series': 'Series',
+  'stats.dimension.authors': 'Authors',
+  'stats.dimension.labels': 'Labels',
+  'stats.dimension.publishers': 'Publishers',
+  'stats.outside.series': (count: number) => `${number(count)} ${count === 1 ? 'book read is' : 'books read are'} in no Series.`,
+  'stats.outside.authors': (count: number) => `${number(count)} ${count === 1 ? 'book read has' : 'books read have'} no author.`,
+  'stats.outside.labels': (count: number) => `${number(count)} ${count === 1 ? 'book read has' : 'books read have'} no Label.`,
+  'stats.outside.publishers': (count: number) => `${number(count)} ${count === 1 ? 'book read has' : 'books read have'} no known publisher.`,
+  'stats.most-read-none': 'No book read in this period.',
+  'stats.library-today': 'Your Library today',
+  'stats.status': 'Reading Status',
+  'stats.works': 'Works',
+  'stats.owned-line': (copies: number, series: number, readNotOwned: number) =>
+    `${number(copies)} ${copies === 1 ? 'Copy' : 'Copies'} owned, in ${number(series)} Series.` +
+    (readNotOwned > 0 ? ` ${number(readNotOwned)} more read and not owned.` : ''),
+  'stats.loans': 'Loans',
+  'stats.lent-now': 'Lent now',
+  'stats.loans-in': (year: string) => `Loans in ${year}`,
+  'stats.loans-all': 'Loans, all time',
+  'stats.average-days': 'Days, on average',
+  'stats.no-average': '–',
+  'stats.undated': (reads: number, copies: number) => {
+    const read = `${number(reads)} ${reads === 1 ? 'book read' : 'books read'}`;
+    const got = `${number(copies)} ${copies === 1 ? 'Copy' : 'Copies'}`;
+    const both = reads > 0 && copies > 0;
+    const named = both ? `${read} and ${got}` : reads > 0 ? read : got;
+    return `${named} ${both || reads + copies > 1 ? 'have' : 'has'} no date. ${both || reads + copies > 1 ? 'They count' : 'It counts'} in the totals, not by month.`;
+  },
+  'stats.add-dates': 'Add dates',
+  'stats.empty':
+    'No book read has a finish day yet, so nothing shows by month. Mark a book read on its Book page and Atomes keeps the day; for a book you read before, type the day you finished it there.',
 
   // Privacy notice (src/pages/privacy.astro, CORE-55), approved by the owner on
   // 2026-11-16. A change to it needs the owner's approval and a new date.

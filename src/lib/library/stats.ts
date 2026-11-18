@@ -53,6 +53,10 @@ export interface Statistics {
   ownedUnread: number;
   // The state of today too: one row per Reading Status.
   libraryToday: { status: Status; count: number }[];
+  // The line under it, the state of today too: the Copies the reader has (an
+  // omnibus once), the Series of the Works owned (by name, as "Most read"),
+  // and the Works read and not owned.
+  owned: { copies: number; series: number; readNotOwned: number };
   columns: {
     // By month in a year, by year in All time.
     scale: 'month' | 'year';
@@ -102,6 +106,11 @@ export function statistics({ library, editions, labels, query, today, language }
     reading: books.filter((book) => book.status === 'reading').length,
     ownedUnread: books.filter((book) => book.status === 'unread' && book.owned).length,
     libraryToday: statuses.map((status) => ({ status, count: books.filter((book) => book.status === status).length })),
+    owned: {
+      copies: copies.length,
+      series: new Set(books.flatMap(({ owned, series }) => (owned && series !== null ? [series] : []))).size,
+      readNotOwned: books.filter((book) => book.status === 'read' && !book.owned).length,
+    },
     columns: {
       scale: query.period === 'all' ? 'year' : 'month',
       groups: groups.map((at) => ({ at, read: finishDays.filter(inGroup(at)).length, added: acquiredDays.filter(inGroup(at)).length })),

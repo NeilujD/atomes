@@ -49,6 +49,7 @@ const checked: Record<string, string[]> = {
   '../pages/index.astro': [],
   '../pages/library.astro': ['../islands/LibraryCoverFlow.tsx', '../lib/cover.ts'],
   '../pages/to-buy.astro': [],
+  '../pages/statistics.astro': [],
   '../pages/book.astro': [],
   '../pages/settings.astro': [],
   '../pages/check.astro': [],
