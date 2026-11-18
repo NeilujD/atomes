@@ -10,9 +10,6 @@
   --tone: var(--not-owned);
   --tone-deep: var(--not-owned-deep);
   --tone-line: color-mix(in srgb, var(--tone) var(--alpha-tone-line), transparent);
-  /* The Edition Line drawn (Q8, Q10): the shades of the Shelf Check Series card, in the colour of ownership. */
-  --spine-owned: color-mix(in srgb, var(--owned-text) var(--alpha-shade-medium), transparent);
-  --spine-missing: color-mix(in srgb, var(--not-owned-text) var(--alpha-shade-faint), transparent);
   position: relative;
   isolation: isolate;
   /* The halo and the blobs spread past the page into the panel's padding, never past the panel. */

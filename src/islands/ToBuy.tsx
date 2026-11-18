@@ -19,6 +19,7 @@ import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
 import { toast } from '../lib/toast';
 import { Cover } from './Cover';
+import { NotOwnedChip } from './NotOwnedChip';
 
 // Where the screen reads from: the reader's Library store and the Catalog.
 export interface Sources extends CatalogAsk {
@@ -324,12 +325,7 @@ function Row({ item, saving, onBuy, onRemove }: { item: ToBuyItem; saving: strin
         <p class="to-buy-title">{item.title}</p>
         {series && <p class="to-buy-line">{series}</p>}
         <p class="to-buy-hint">{[item.edition, t('book.isbn', item.isbn)].filter(Boolean).join(' · ')}</p>
-        <span class="chip to-buy-mark">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
-          {t('tobuy.not-owned')}
-        </span>
+        <NotOwnedChip label={t('tobuy.not-owned')} />
       </div>
       <div class="to-buy-actions">
         <button class="button" type="button" aria-describedby={id} aria-busy={busy} disabled={saving !== undefined} onClick={onBuy}>

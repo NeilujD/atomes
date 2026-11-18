@@ -107,6 +107,9 @@
   --fill-chip: color-mix(in srgb, var(--ink) var(--alpha-fill-chip), transparent);
   --shade-faint: color-mix(in srgb, var(--ink) var(--alpha-shade-faint), transparent);
   --shade-medium: color-mix(in srgb, var(--ink) var(--alpha-shade-medium), transparent);
+  /* The same shades in the colour of ownership (Q8, Q10): a Volume owned and a Missing one, on the Series page spines and the Shelf Check Series card. */
+  --spine-owned: color-mix(in srgb, var(--owned-text) var(--alpha-shade-medium), transparent);
+  --spine-missing: color-mix(in srgb, var(--not-owned-text) var(--alpha-shade-faint), transparent);
   --fill-veil: color-mix(in srgb, var(--ground) var(--alpha-veil), transparent);
 
   --font: 'Schibsted Grotesk Variable', 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -459,6 +462,24 @@ button.chip {
 .chip:has(> input) {
   position: relative;
   cursor: pointer;
+}
+
+/*
+ * "Not owned" (Q8): one mark, in To Buy and the Library (src/islands/NotOwnedChip.tsx).
+ * A chip in green with a check. The tint is painted on --surface, not over
+ * what is under it (a card, a glow), so its text keeps 4.5:1 (theme.test.ts).
+ */
+.chip-not-owned {
+  --chip-tint: color-mix(in srgb, var(--not-owned) var(--alpha-tone-fill), transparent);
+  background: linear-gradient(var(--chip-tint), var(--chip-tint)), var(--surface);
+  color: var(--not-owned-text);
+}
+
+.chip-not-owned svg {
+  flex: none;
+  width: var(--icon-size-inline);
+  height: var(--icon-size-inline);
+  stroke-width: var(--icon-stroke);
 }
 
 /* Card: a group of content on a soft fill. Translucent, so a glow behind it shows through. */

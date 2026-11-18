@@ -22,6 +22,7 @@ import { Cover } from './Cover';
 import { LibraryCoverFlow } from './LibraryCoverFlow';
 import { useLibraryListing, type ListingSources } from './library-listing';
 import { LetterIndex, LibraryList } from './LibraryList';
+import { NotOwnedChip } from './NotOwnedChip';
 import { liveSelection, SelectionBar, type PickedBook, type SelectionSources } from './Selection';
 
 // Where the screen reads from: the reader's Library store and the Catalog.
@@ -492,7 +493,7 @@ function Book({ book, picked, onPick }: { book: LibraryBook; picked?: boolean; o
       <Cover class="library-cover" src={book.cover} title={book.title} series={book.series} volumeTitle={book.volumeTitle} volume={volume} />
       <span class="library-book-title">{book.title}</span>
       {line && <span class="library-book-line">{line}</span>}
-      {!book.owned && <span class="library-book-line library-not-owned-mark">{t('library.not-owned')}</span>}
+      {!book.owned && <NotOwnedChip class="library-book-mark" label={t('library.not-owned')} />}
     </>
   );
   return (

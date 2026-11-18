@@ -306,17 +306,24 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   /* A Work read with no Copy (CORE-100), in Grid, List and Cover flow: a grey,
-     faint cover, and the "Not owned" mark in the "not owned" colour (Q8). Only
-     the cover fades, so the text keeps its contrast. Picked in bulk select, it
+     faint cover, and the shared "Not owned" chip (theme.css, Q8). Only the
+     cover fades, so the text keeps its contrast. Picked in bulk select, it
      keeps its colours, so its ring stays cobalt (the filter would grey it). */
   .library-not-owned:not([aria-pressed='true']) .book-cover {
     filter: grayscale(1);
     opacity: var(--alpha-faded);
   }
 
-  .library-not-owned-mark {
-    color: var(--not-owned-text);
-    font-weight: 600;
+  /* In the Grid: under the text, as wide as its words. A phone column (107 px
+     at 390 px) is narrower than the chip: tighter padding, so "Non possédé"
+     fits on one line at 390 px; narrower still, the words wrap inside it. */
+  .library-book-mark {
+    align-self: flex-start;
+    gap: var(--space-4);
+    max-width: 100%;
+    margin-top: var(--space-4);
+    padding: var(--space-4) var(--space-6);
+    white-space: normal;
   }
 
   /* Phone: the controls in a sheet from the bottom. */
@@ -708,6 +715,17 @@ const t = translator(requestLanguage(Astro.request));
 
   .library-flow-position {
     font-size: var(--type-small);
+  }
+
+  /* As tall as the "Not owned" chip it may hold, so the controls under it do not move. */
+  .library-flow-line {
+    min-height: var(--chip-height);
+  }
+
+  /* The "Not owned" chip on a line of text (List, Cover flow): centred on the line. */
+  .library-row-status .chip-not-owned,
+  .library-flow-line .chip-not-owned {
+    vertical-align: middle;
   }
 
   .library-flow-title {

@@ -244,9 +244,10 @@
   gap: var(--space-4) var(--space-12);
 }
 
-/* The Edition Line drawn, in the shades of the Series page spines (Q10): not
-   owned faint, owned medium, read full ink, read and not owned faint with the
-   read mark (an ink dot); this Volume in the tone with a glow. */
+/* The Edition Line drawn, in the colours of the Series page spines (Q10):
+   not owned faint, owned the orange shade (--spine-owned), read full ink, read
+   and not owned faint with the read mark (an ink dot); this Volume in the tone
+   with a glow. A segment does not know Missing, so not owned stays faint. */
 .result-segments {
   display: flex;
   gap: var(--space-4);
@@ -260,7 +261,7 @@
 }
 
 .result-segment[data-state='owned'] {
-  background: var(--shade-medium);
+  background: var(--spine-owned);
 }
 
 .result-segment[data-state='read'] {
@@ -288,7 +289,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: var(--radius-pill);
-  background: var(--shade-medium);
+  background: var(--spine-owned);
 }
 
 .result-bar-mark {

@@ -5,6 +5,7 @@ import { volumeLine, type LibraryBook } from '../lib/library/browse';
 import { otherLetters, type Listed } from '../lib/library/letters';
 import { bookHref } from '../lib/library/model';
 import { Cover } from './Cover';
+import { NotOwnedChip } from './NotOwnedChip';
 
 // "#" reads badly aloud.
 const spoken = (letter: string | null) => (letter === otherLetters ? t('library.other-letters') : undefined);
@@ -72,7 +73,7 @@ function Row({ book }: { book: LibraryBook }) {
         <span class="library-row-status">
           {book.status !== 'unread' && t(`status.${book.status}`)}
           {book.status !== 'unread' && !book.owned && ' · '}
-          {!book.owned && <span class="library-not-owned-mark">{t('library.not-owned')}</span>}
+          {!book.owned && <NotOwnedChip label={t('library.not-owned')} />}
         </span>
       </a>
     </li>
