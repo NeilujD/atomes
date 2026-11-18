@@ -5,6 +5,7 @@ import { volumeLine, type LibraryBook } from '../lib/library/browse';
 import { otherLetters, type Listed } from '../lib/library/letters';
 import { bookHref } from '../lib/library/model';
 import { Cover } from './Cover';
+import { NotOwnedChip } from './NotOwnedChip';
 
 // "#" reads badly aloud.
 const spoken = (letter: string | null) => (letter === otherLetters ? t('library.other-letters') : undefined);
@@ -42,7 +43,7 @@ export function LibraryList({ groups }: Pick<Listed, 'groups'>) {
     <div class="library-list">
       {groups.map(({ letter, target, books }) => (
         <section key={target} id={target} class="library-group" aria-labelledby={`${target}-title`} tabIndex={-1}>
-          <h2 id={`${target}-title`} class="library-letter" aria-label={spoken(letter)}>
+          <h2 id={`${target}-title`} class="library-letter small-heading" aria-label={spoken(letter)}>
             {letter ?? t('library.sort.added')}
           </h2>
           <ul>
@@ -68,8 +69,12 @@ function Row({ book }: { book: LibraryBook }) {
           {line && <span class="library-row-line">{line}</span>}
         </span>
         <span class="library-row-author">{book.authors.join(', ')}</span>
-        {/* Unread is most books: it says nothing (CORE-110). */}
-        <span class="library-row-status">{[book.status === 'unread' ? '' : t(`status.${book.status}`), book.owned ? '' : t('library.not-owned')].filter(Boolean).join(' · ')}</span>
+        {/* Unread is most books: it says nothing (CORE-110). "Not owned" in its colour (Q8). */}
+        <span class="library-row-status">
+          {book.status !== 'unread' && t(`status.${book.status}`)}
+          {book.status !== 'unread' && !book.owned && ' · '}
+          {!book.owned && <NotOwnedChip label={t('library.not-owned')} />}
+        </span>
       </a>
     </li>
   );

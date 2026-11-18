@@ -3,6 +3,7 @@
 // Editions added by hand (src/islands/ToBuy.tsx). Rendered on the device: it
 // reads the Library.
 import AppShell from '../layouts/AppShell.astro';
+import '../styles/glow.css';
 import Icon from '../components/Icon.astro';
 import ToBuy, { ToBuySkeleton } from '../islands/ToBuy';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
@@ -11,11 +12,12 @@ const t = translator(requestLanguage(Astro.request));
 ---
 
 <AppShell title={t('tobuy.title')} current="to-buy">
-  <!-- The screen's add action: opens the island's "Add by ISBN" sheet. Disabled
-       until the list has loaded and the island draws the sheet (ToBuy.tsx). -->
+  <!-- The "+" opens the island's "Add by ISBN" sheet. Disabled until the list
+       has loaded and the island has drawn the sheet; the island also wires the
+       tap (ToBuy.tsx), so a tap before the scripts run is never lost. -->
   <button
     slot="actions"
-    class="to-buy-open"
+    class="icon-button"
     type="button"
     disabled
     aria-label={t('tobuy.add-open')}
@@ -25,34 +27,36 @@ const t = translator(requestLanguage(Astro.request));
   >
     <Icon name="plus" />
   </button>
+  <!-- Green blobs behind the top of the screen (Q9): nothing on To Buy is owned. -->
+  <div class="glow to-buy-glow" aria-hidden="true">
+    <span class="glow-blob glow-b1 to-buy-b1"></span>
+    <span class="glow-blob glow-b2 to-buy-b2"></span>
+    <span class="glow-blob glow-b3 to-buy-b3"></span>
+  </div>
   <ToBuy client:only="preact">
     <ToBuySkeleton slot="fallback" />
   </ToBuy>
 </AppShell>
 
-<script>
-  document.querySelector('[data-to-buy-open]')?.addEventListener('click', () => {
-    document.querySelector<HTMLDialogElement>('#to-buy-add-sheet')?.showModal();
-  });
-</script>
-
 <style is:global>
   /* Global: the island renders on the device, outside this page's scoped styles. */
   .to-buy {
-    max-width: 880px;
+    /* The size of this screen that has no token: the row thumbnail. */
+    --to-buy-cover: 40px;
+    max-width: var(--page-width);
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-28);
   }
 
   .to-buy-message {
-    font-size: 14px;
+    font-size: var(--type-body);
   }
 
   .to-buy-hint,
   .to-buy-empty {
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
   }
 
   .to-buy-hint[data-error] {
@@ -60,78 +64,58 @@ const t = translator(requestLanguage(Astro.request));
     font-weight: 600;
   }
 
-  /* The "+" of the view header: right of the large title on the phone, in the 48 px header on desktop.
-     Cobalt: the primary action of the screen. */
-  .to-buy-open {
-    flex: none;
-    width: var(--row);
-    height: var(--row);
-    display: grid;
-    place-items: center;
-    padding: 0;
-    border: 0;
-    border-radius: var(--radius-control);
-    background: none;
-    color: var(--accent);
-    cursor: pointer;
+  /*
+   * The glow (Q9): it holds to the panel, so it scrolls away with the top of
+   * the screen, and sits under the content (the panel isolates it). Soft
+   * edges from radial gradients on padded boxes, as on Shelf Check; it fades
+   * out before the lists.
+   */
+  [data-frame='panel']:has(.to-buy-glow) {
+    position: relative;
+    isolation: isolate;
   }
 
-  .to-buy-open:hover:not(:disabled) {
-    background: var(--soft);
+  .to-buy-glow {
+    --tone: var(--not-owned);
+    --tone-deep: var(--not-owned-deep);
+    inset: 0 0 auto;
+    z-index: -1;
+    height: calc(var(--glow-unit) * 32);
+    overflow: hidden;
+    mask-image: linear-gradient(black var(--glow-stop-3), transparent);
   }
 
-  .to-buy-open:disabled {
-    opacity: 0.6;
-    cursor: default;
+  /* The blobs (glow.css): where each sits. */
+  .to-buy-b1 {
+    left: calc(var(--glow-unit) * -8);
+    top: calc(var(--glow-unit) * -10);
+    width: calc(var(--glow-unit) * 30);
+    height: calc(var(--glow-unit) * 30);
   }
 
-  /* The "Add by ISBN" sheet: from the bottom on the phone, a card on desktop. */
-  .to-buy-sheet {
-    inset: auto 0 0;
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    padding: 20px 20px max(20px, env(safe-area-inset-bottom));
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
-    background: var(--surface);
-    color: var(--ink);
+  .to-buy-b2 {
+    right: calc(var(--glow-unit) * -10);
+    top: calc(var(--glow-unit) * -6);
+    width: calc(var(--glow-unit) * 26);
+    height: calc(var(--glow-unit) * 26);
   }
 
-  .to-buy-sheet::backdrop {
-    background: rgb(0 0 0 / 0.4);
+  .to-buy-b3 {
+    left: calc(var(--glow-unit) * 10);
+    top: calc(var(--glow-unit) * 2);
+    width: calc(var(--glow-unit) * 20);
+    height: calc(var(--glow-unit) * 20);
   }
 
-  .to-buy-add {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .to-buy-label {
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  .to-buy-add-row {
-    display: flex;
-    gap: 8px;
-  }
-
-  .to-buy-add-row .field {
-    flex: 1;
-    max-width: 280px;
-  }
-
+  /* Groups: a small heading over cards (Q11, CORE-122). */
   .to-buy-group {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-10);
   }
 
-  .to-buy-group-title {
-    font-size: 18px;
+  .to-buy-card {
+    padding: var(--space-4) var(--space-16);
   }
 
   .to-buy-list {
@@ -145,29 +129,28 @@ const t = translator(requestLanguage(Astro.request));
   .to-buy-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--line);
+    gap: var(--space-12);
+    padding: var(--space-12) 0;
+  }
+
+  .to-buy-item + .to-buy-item {
+    border-top: var(--hairline) solid var(--line-card);
   }
 
   .to-buy-cover {
     flex: none;
-    width: 40px;
+    width: var(--to-buy-cover);
   }
 
   .to-buy-series {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-  }
-
-  .to-buy-series + .to-buy-series {
-    margin-top: 2px;
   }
 
   .to-buy-series-title {
-    font-size: 14px;
+    font-size: var(--type-body);
     font-weight: 600;
+    letter-spacing: 0;
     font-variant-numeric: tabular-nums;
   }
 
@@ -175,10 +158,11 @@ const t = translator(requestLanguage(Astro.request));
   .to-buy-series-toggle {
     display: flex;
     align-items: center;
-    gap: 8px;
-    width: 100%;
+    gap: var(--space-8);
+    width: calc(100% + 2 * var(--space-8));
     min-height: var(--row);
-    padding: 0 4px;
+    margin: var(--space-4) calc(var(--space-8) * -1);
+    padding: 0 var(--space-8);
     border: 0;
     border-radius: var(--radius-control);
     background: none;
@@ -189,47 +173,39 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   .to-buy-series-toggle:hover {
-    background: var(--soft);
+    background: var(--fill-chip);
   }
 
-  .to-buy-series-toggle::before {
-    content: '';
+  .to-buy-chevron {
     flex: none;
-    width: 6px;
-    height: 6px;
-    border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor;
-    transform: rotate(-45deg);
-    transition: transform 0.15s ease-out;
+    width: var(--icon-size-inline);
+    height: var(--icon-size-inline);
+    stroke-width: var(--icon-stroke);
+    color: var(--text-quiet);
   }
 
-  .to-buy-series-toggle[aria-expanded='true']::before {
-    transform: rotate(45deg);
+  .to-buy-series-toggle[aria-expanded='true'] .to-buy-chevron {
+    rotate: 90deg;
   }
 
   .to-buy-series-volumes {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-  }
-
-  .to-buy-series-volumes[hidden] {
-    display: none;
+    padding-bottom: var(--space-4);
   }
 
   .to-buy-series-link {
     align-self: flex-start;
-    font-size: 13px;
+    margin-top: var(--space-4);
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+    text-decoration-color: var(--line-link);
+    text-underline-offset: var(--space-4);
   }
 
   .to-buy-more {
     align-self: flex-start;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .to-buy-series-toggle::before {
-      transition: none;
-    }
+    margin-bottom: var(--space-8);
   }
 
   .to-buy-text {
@@ -237,33 +213,34 @@ const t = translator(requestLanguage(Astro.request));
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    align-items: flex-start;
+    gap: var(--space-4);
   }
 
   .to-buy-title {
-    font-size: 14px;
+    font-size: var(--type-body);
     font-weight: 600;
   }
 
   .to-buy-line {
-    font-size: 13px;
+    font-size: var(--type-small);
     font-variant-numeric: tabular-nums;
   }
 
   .to-buy-actions {
     flex: none;
     display: flex;
-    gap: 4px;
+    gap: var(--space-4);
   }
 
   .to-buy-skeleton-title {
     width: 50%;
-    height: 14px;
+    height: var(--space-14);
   }
 
   .to-buy-skeleton-line {
     width: 30%;
-    height: 12px;
+    height: var(--space-12);
   }
 
   /* Phone: the actions go under the text, so long titles keep their room. */
@@ -274,29 +251,57 @@ const t = translator(requestLanguage(Astro.request));
 
     .to-buy-actions {
       width: 100%;
-      padding-left: 52px;
+      padding-left: calc(var(--to-buy-cover) + var(--space-12));
     }
   }
 
-  /* Desktop: groups read as list groups on a hairline (ui-direction). */
+  /* The "Add by ISBN" sheet: a raised card from the bottom on the phone, in the middle on desktop. */
+  .to-buy-sheet {
+    inset: auto 0 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: var(--space-24) var(--space-20) max(var(--space-20), env(safe-area-inset-bottom));
+    border: var(--hairline) solid var(--line-card);
+    border-bottom: 0;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    background: linear-gradient(var(--fill-card), var(--fill-card)), var(--surface);
+    color: var(--ink);
+  }
+
+  .to-buy-sheet::backdrop {
+    background: var(--scrim);
+  }
+
+  .to-buy-add {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-12);
+  }
+
+  .to-buy-label {
+    font-size: var(--type-heading);
+    font-weight: 700;
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .to-buy-add-row {
+    display: flex;
+    gap: var(--space-8);
+  }
+
+  .to-buy-add-row .field {
+    flex: 1;
+  }
+
   @media (min-width: 960px) {
     .to-buy-sheet {
       inset: 0;
-      width: 440px;
+      width: min(100% - 2 * var(--space-16), var(--confirm-width));
       margin: auto;
-      padding: 24px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-panel);
-    }
-
-    .to-buy-group-title {
-      display: flex;
-      align-items: center;
-      min-height: var(--row);
-      border-bottom: 1px solid var(--line);
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0;
+      padding: var(--space-24);
+      border-bottom: var(--hairline) solid var(--line-card);
+      border-radius: var(--radius-card);
     }
   }
 </style>

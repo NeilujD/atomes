@@ -24,9 +24,9 @@ export const fr: typeof en = {
   'connection.offline': 'Hors ligne',
   'connection.reconnect': 'Reconnecter',
   'connection.waiting': (count) => `${count} ${count > 1 ? 'enregistrements' : 'enregistrement'} en attente`,
-  'environment.staging': 'Staging',
-  'environment.preview': 'Aperçu',
-  'environment.local': 'Local',
+  'environment.staging': 'staging',
+  'environment.preview': 'aperçu',
+  'environment.local': 'local',
 
   // Shared words and links
   'link.home': 'Aller à l’accueil',
@@ -180,6 +180,7 @@ export const fr: typeof en = {
   'invite.failed': 'L’Invitation n’a pas pu être créée. Réessayez.',
   'settings.display': 'Affichage',
   'settings.appearance': 'Apparence',
+  'settings.contrast': 'Contraste',
   'settings.language': 'Langue',
   'settings.on-this-device': 'Gardé sur cet appareil.',
   'settings.your-data': 'Vos données',
@@ -220,6 +221,8 @@ export const fr: typeof en = {
   'appearance.system': 'Système',
   'appearance.light': 'Clair',
   'appearance.dark': 'Sombre',
+  'contrast.system': 'Système',
+  'contrast.more': 'Renforcé',
   'language.browser': 'Navigateur',
   'language.fr': 'Français',
   'language.en': 'English',
@@ -228,6 +231,7 @@ export const fr: typeof en = {
   'add.scan': 'Scanner le code-barres',
   'add.camera-starting': 'Démarrage de la caméra…',
   'add.type-isbn': 'Saisir l’ISBN',
+  'add.type-short': 'Saisir',
   'add.isbn': 'ISBN',
   'add.look-up': 'Rechercher',
   'add.isbn-hint': 'Les 13 chiffres sous le code-barres, au dos du livre.',
@@ -297,6 +301,7 @@ export const fr: typeof en = {
   'book.copies': 'Vos exemplaires',
   'book.no-copies': 'Vous n’avez aucun exemplaire de ce livre.',
   'book.add-copy': 'Ajouter un autre exemplaire',
+  'book.add-first-copy': 'Ajouter un exemplaire',
   'book.remove': 'Retirer',
   'book.remove-copy': (isbn) => `Retirer l’exemplaire d’ISBN ${isbn}`,
   'book.lend-to': 'Prêter à',
@@ -443,6 +448,7 @@ export const fr: typeof en = {
   'tobuy.by-hand': 'Ajoutés à la main',
   'tobuy.bought': 'Je l’ai acheté',
   'tobuy.remove': 'Retirer',
+  'tobuy.not-owned': 'Non possédé',
 
   // Page d’une série (src/islands/Series.tsx)
   'series.title': 'Série',

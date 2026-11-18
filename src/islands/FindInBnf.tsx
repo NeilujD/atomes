@@ -82,8 +82,8 @@ export function FindInBnf({ isbn, typed, onChosen, onTyped, sources = live }: Fi
 
   const nothing = found && found.lines.length === 0 && found.works.length === 0;
   return (
-    <section class="find" aria-labelledby="find-title">
-      <h3 class="label" id="find-title">
+    <section class="find card" aria-labelledby="find-title">
+      <h3 class="small-heading" id="find-title">
         {t('find.title')}
       </h3>
       <p class="hint">{t('find.hint')}</p>

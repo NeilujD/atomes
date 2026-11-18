@@ -112,7 +112,7 @@ const icons = appIcons(appEnvironment(process.env));
                 <span>Atomes</span>
               </a>
               <EnvironmentBadge place="sidebar" />
-              <a class="icon-button" href="/library" aria-label={t('nav.search')}>
+              <a class="frame-icon" href="/library" aria-label={t('nav.search')}>
                 <Icon name="search" />
               </a>
             </div>
@@ -158,7 +158,7 @@ const icons = appIcons(appEnvironment(process.env));
               <div class="view-heading">
                 {
                   detail && (
-                    <a class="icon-button back" href="/library" aria-label={t('nav.back')} data-back>
+                    <a class="frame-icon back" href="/library" aria-label={t('nav.back')} data-back>
                       <Icon name="arrow-left" />
                     </a>
                   )
@@ -202,7 +202,7 @@ const icons = appIcons(appEnvironment(process.env));
           <p class="confirm-text" id="sign-out-text">{t('signout.text')}</p>
           <div class="confirm-actions">
             <button class="button" value="cancel">{t('signout.cancel')}</button>
-            <button class="button button-primary" value="confirm">{t('settings.sign-out')}</button>
+            <button class="button button-main" value="confirm">{t('settings.sign-out')}</button>
           </div>
         </form>
       </dialog>
@@ -224,7 +224,7 @@ const icons = appIcons(appEnvironment(process.env));
 </html>
 
 <script>
-  import { applyAppearance, readAppearance } from '../lib/appearance';
+  import { applyAppearance, applyContrast, readAppearance, readContrast } from '../lib/appearance';
   import { openPaths } from '../lib/auth/return-to';
   import { confirmSignOut } from '../lib/auth/confirm-sign-out';
   import { gateScreen, signOutHere } from '../lib/auth/server-client';
@@ -253,9 +253,12 @@ const icons = appIcons(appEnvironment(process.env));
   startBackArrow();
 
   // Keep the theme-color metas right, follow the system while open, and follow
-  // a change made in Settings in another tab.
+  // a change of Appearance or contrast made in Settings in another tab.
   const systemDark = matchMedia('(prefers-color-scheme: dark)');
-  const sync = () => applyAppearance(document, readAppearance(), systemDark.matches);
+  const sync = () => {
+    applyAppearance(document, readAppearance(), systemDark.matches);
+    applyContrast(document, readContrast());
+  };
   sync();
   systemDark.addEventListener('change', sync);
   addEventListener('storage', sync);
@@ -488,7 +491,7 @@ const icons = appIcons(appEnvironment(process.env));
     text-decoration: none;
   }
 
-  .icon-button {
+  .frame-icon {
     width: var(--row);
     height: var(--row);
     display: grid;
@@ -547,7 +550,7 @@ const icons = appIcons(appEnvironment(process.env));
   }
 
   .nav-item:hover,
-  .icon-button:hover,
+  .frame-icon:hover,
   .check-button:hover {
     background: var(--soft);
     color: var(--ink);
@@ -568,39 +571,6 @@ const icons = appIcons(appEnvironment(process.env));
     padding: 0 8px;
     color: var(--secondary);
     font-size: 12px;
-  }
-
-  /* Confirm dialogs: sign-out here, delete in Settings. */
-  :global(.confirm) {
-    width: min(100% - 32px, 400px);
-    padding: 24px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--surface);
-    color: var(--ink);
-  }
-
-  :global(.confirm::backdrop) {
-    background: var(--scrim);
-  }
-
-  :global(.confirm-title) {
-    font-size: 18px;
-    letter-spacing: -0.02em;
-  }
-
-  :global(.confirm-text) {
-    margin-top: 8px;
-    color: var(--secondary);
-    font-size: 14px;
-    text-wrap: pretty;
-  }
-
-  :global(.confirm-actions) {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 20px;
   }
 
   /* Phone: centred above the tab bar. Desktop: bottom right of the panel. */

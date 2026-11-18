@@ -1,5 +1,5 @@
 ---
-// "Staging", "Preview" or "Local": a grey pill outside production, so the
+// "staging", "preview" or "local": a grey pill outside production, so the
 // reader never changes production data by mistake (ui-direction: Environment
 // badge). Nothing in production. AppShell puts one next to the wordmark
 // (desktop), one at the top of the phone screen, and one on Flow screens.
@@ -24,30 +24,34 @@ const t = translator(requestLanguage(Astro.request));
 }
 
 <style>
-  /* Grey, not a colour role: caution yellow is for offline, cobalt for New Volumes and links. */
+  /*
+   * Grey, not a colour role: caution yellow is for offline, cobalt for New
+   * Volumes and links. Lowercase in the strings themselves, in the tech font,
+   * with no letter spacing.
+   */
   .pill {
     display: inline-block;
-    padding: 1px 8px;
-    border-radius: 999px;
+    padding: 0 var(--space-8);
+    border-radius: var(--radius-pill);
     background: var(--soft);
     color: var(--secondary);
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 18px;
-    letter-spacing: 0.02em;
+    font-family: var(--font-tech);
+    font-size: var(--type-badge);
+    font-weight: 500;
+    line-height: var(--badge-height);
     white-space: nowrap;
   }
 
   .sidebar {
     margin-right: auto;
-    margin-left: 8px;
+    margin-left: var(--space-8);
   }
 
   /* Phone: above the large title, in the safe area. Desktop: the sidebar has its own. */
   .top {
     display: flex;
     justify-content: center;
-    padding: max(8px, env(safe-area-inset-top)) 20px 0;
+    padding: max(var(--space-8), env(safe-area-inset-top)) var(--space-20) 0;
   }
 
   @media (min-width: 960px) {
@@ -61,6 +65,6 @@ const t = translator(requestLanguage(Astro.request));
   .flow {
     display: flex;
     justify-content: center;
-    margin: 0 0 16px;
+    margin: 0 0 var(--space-16);
   }
 </style>

@@ -13,7 +13,13 @@
   --ink: light-dark(#17181c, #f1f1ec);
   --soft: light-dark(#ecece6, #25282e);
   --accent: light-dark(#2e46d1, #8a9bff);
-  --accent-tint: light-dark(#e9ecfb, #1f2547);
+  /*
+   * The main action (CORE-122): filled cobalt, in light text, in both themes.
+   * --accent is a light cobalt in dark, too pale under white text, so the fill
+   * has its own pair: 7.2:1 light, 5.1:1 dark under --on-accent (theme.test.ts).
+   */
+  --accent-fill: light-dark(#2e46d1, #4b5fe6);
+  --on-accent: #ffffff;
   --secondary-base: light-dark(#5c606a, #a3a7b0);
   --line-base: light-dark(#e3e3de, #2c2f36);
   --off-base: light-dark(#c9cac4, #4a4e57);
@@ -35,18 +41,19 @@
   --camera-ink: #ffffff;
   --camera-control: rgb(255 255 255 / 0.14);
   /*
-   * The Shelf Check result screen (check.astro, CORE-120): always dark, not
-   * themed, like the camera. Green says the reader does not own the book,
-   * orange that they do; these two colours are for this screen only. Dark
-   * text on an accent button; theme.test.ts keeps every pair at 4.5:1 or more.
+   * Ownership (ADR 0018): green says the reader does not own the book, orange
+   * that they do, only where ownership is answered. The bright value fills a
+   * button and colours glows and rings, in both themes, under dark text
+   * (--on-ownership). Text takes the -text value: a darker shade on the light
+   * ground. -deep tints the third glow blob. theme.test.ts keeps text at 4.5:1.
    */
-  --shelf-ground: #0e0f0c;
-  --shelf-ink: #f3f1ea;
-  --shelf-on-accent: #0e0f0c;
-  --shelf-go: #3ddc97;
-  --shelf-go-deep: #1f8f5f;
-  --shelf-owned: #ff9f43;
-  --shelf-owned-deep: #c2561b;
+  --not-owned: #3ddc97;
+  --not-owned-deep: #1f8f5f;
+  --not-owned-text-base: light-dark(#1a7850, #3ddc97);
+  --owned: #ff9f43;
+  --owned-deep: #c2561b;
+  --owned-text-base: light-dark(#ad4d18, #ff9f43);
+  --on-ownership: #0e0f0c;
 
   /*
    * Contrast: how far secondary text, lines and inactive controls move toward
@@ -59,14 +66,220 @@
   --line: color-mix(in oklab, var(--ink) var(--contrast), var(--line-base));
   --off: color-mix(in oklab, var(--ink) var(--contrast), var(--off-base));
   --danger: color-mix(in oklab, var(--ink) var(--contrast), var(--danger-base));
+  --not-owned-text: color-mix(in oklab, var(--ink) var(--contrast), var(--not-owned-text-base));
+  --owned-text: color-mix(in oklab, var(--ink) var(--contrast), var(--owned-text-base));
+
+  /*
+   * The one look (ADR 0018): text, lines and fills are ink at an alpha level,
+   * so a glow behind them shows through. The levels are shares of ink; text
+   * and lines move toward full ink with --contrast, fills do not.
+   */
+  --alpha-text-chip: 82%;
+  --alpha-text-heading: 75%;
+  --alpha-text-quiet: 72%;
+  --alpha-line-card: 9%;
+  --alpha-line-control: 14%;
+  --alpha-line-button: 18%;
+  --alpha-line-link: 35%;
+  --alpha-fill-card: 5%;
+  --alpha-fill-chip: 7%;
+  /* The Edition Line drawn: a Volume not owned is faint, an owned one medium, a read one full ink. */
+  --alpha-shade-faint: 14%;
+  --alpha-shade-medium: 62%;
+  /* The ground under a round icon button, over a glow. */
+  --alpha-veil: 35%;
+  /* A colour of the screen (an ownership colour, cobalt) as a soft fill and its border: the answer pill. */
+  --alpha-tone-fill: 14%;
+  --alpha-tone-line: 40%;
+  /* Disabled controls. */
+  --alpha-disabled: 60%;
+  /* The cover of a book read and not owned, in the Library. */
+  --alpha-faded: 60%;
+
+  --text-chip: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-text-chip), transparent));
+  --text-heading: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-text-heading), transparent));
+  --text-quiet: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-text-quiet), transparent));
+  --line-card: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-line-card), transparent));
+  --line-control: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-line-control), transparent));
+  --line-button: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-line-button), transparent));
+  --line-link: color-mix(in oklab, var(--ink) var(--contrast), color-mix(in srgb, var(--ink) var(--alpha-line-link), transparent));
+  --fill-card: color-mix(in srgb, var(--ink) var(--alpha-fill-card), transparent);
+  --fill-chip: color-mix(in srgb, var(--ink) var(--alpha-fill-chip), transparent);
+  --shade-faint: color-mix(in srgb, var(--ink) var(--alpha-shade-faint), transparent);
+  --shade-medium: color-mix(in srgb, var(--ink) var(--alpha-shade-medium), transparent);
+  /* The same shades in the colour of ownership (Q8, Q10): a Volume owned and a Missing one, on the Series page spines and the Shelf Check Series card. */
+  --spine-owned: color-mix(in srgb, var(--owned-text) var(--alpha-shade-medium), transparent);
+  --spine-missing: color-mix(in srgb, var(--not-owned-text) var(--alpha-shade-faint), transparent);
+  --fill-veil: color-mix(in srgb, var(--ground) var(--alpha-veil), transparent);
 
   --font: 'Schibsted Grotesk Variable', 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Technical labels (the environment badge): the system monospace, no web font. */
+  --font-tech: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Type: sizes and tracking. */
+  --type-title: 26px;
+  --type-body: 15px;
+  --type-button-large: 16px;
+  --type-button: 15px;
+  /* The title of a dialog or a sheet. */
+  --type-heading: 18px;
+  --type-small: 13px;
+  --type-chip: 12px;
+  /* The count of the selection bar. */
+  --type-count: 14px;
+  /* The environment badge, in --font-tech. */
+  --type-badge: 11px;
+  --tracking-tight: -0.02em;
+  --tracking-caps: 0.08em;
+  /* The digits of a Sign-in Code, spaced so they read one by one. */
+  --tracking-code: 0.2em;
+
+  /* Space, by its size in px. */
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
 
   /* Row height follows the input, not a preference: dense for a pointer, roomy for a thumb. */
   --row: 32px;
+  --hairline: 1px;
+  --stroke: 2px;
   --radius-control: 8px;
   --radius-panel: 12px;
   --radius-cover: 4px;
+  /* A cover 120 px wide or more. */
+  --radius-cover-large: 10px;
+  --radius-card: 16px;
+  --radius-button: 16px;
+  --radius-chip: 14px;
+  --radius-pill: 999px;
+
+  /* Controls of the one look. Phone sizes; the desktop step is below. */
+  --button-height-large: 54px;
+  --button-height: 50px;
+  --icon-button: 44px;
+  --radius-icon-button: calc(var(--icon-button) / 2);
+  --icon-size: 20px;
+  --icon-size-inline: 16px;
+  --icon-stroke: 2;
+  --pill-height: 32px;
+  --chip-height: 28px;
+  --badge-height: 20px;
+  --spinner: 16px;
+  /* The widest a confirm dialog grows. */
+  --confirm-width: 400px;
+  /* The Edition Line drawn as a bar: its height, and the width of the mark of one Volume. */
+  --track: 6px;
+  --track-mark: 4px;
+
+  /*
+   * Glow: blobs and a halo of soft colour behind the content. The soft edge
+   * comes from a radial gradient on a padded box, never a blur filter (a blur
+   * on a moving layer is drawn again on every frame). Blobs are laid out on
+   * a grid of --glow-unit. In light, a glow shows at --glow-light of its colour.
+   */
+  --glow-unit: 10px;
+  --glow-pad-blob: 72px;
+  --glow-pad-halo: 45px;
+  --glow-alpha-1: 70%;
+  --glow-alpha-2: 48%;
+  --glow-alpha-3: 24%;
+  --glow-alpha-4: 7%;
+  --glow-stop-2: 30%;
+  --glow-stop-3: 55%;
+  --glow-stop-4: 78%;
+  --glow-opacity-1: 0.55;
+  --glow-opacity-2: 0.4;
+  --glow-opacity-3: 0.3;
+  --glow-light: 50%;
+  --glow-blur-ring: 24px;
+  --glow-blur-mark: 12px;
+  --shadow-cover-large: 0 24px 48px light-dark(rgb(23 24 28 / 0.2), rgb(0 0 0 / 0.55));
+
+  /* Motion. None of it runs with reduced motion. */
+  --ease-arrive: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-wave: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --motion-arrive: 1.2s;
+  --motion-stagger: 0.05s;
+  --motion-drift-1: 13s;
+  --motion-drift-2: 17s;
+  --motion-drift-3: 11s;
+  --motion-breathe: 4.5s;
+  --motion-wave: 1s;
+  --motion-wave-stagger: 0.18s;
+  --motion-wave-calm: 7s;
+  --motion-wave-rest: 1.8s;
+  --motion-spin: 0.7s;
+  --motion-spin-reduced: 1.6s;
+  --motion-pulse: 1.4s;
+  /* The Cover flow position mark; a fade in place of a motion. */
+  --motion-slide: 0.25s;
+  --motion-fade: 0.2s;
+  /* The animated mark: the books lift one after the other; a book lands in the slot. */
+  --motion-lift: 1.2s;
+  --motion-lift-stagger: 0.12s;
+  --motion-land: 520ms;
+  --ease-land: cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  /* The camera: the scan line sweeps, a wrong barcode shakes, the found mark pops, the frame changes state. */
+  --motion-sweep: 1.6s;
+  --motion-shake: 0.3s;
+  --motion-pop: 0.2s;
+  --motion-state: 0.15s;
+
+  /*
+   * The Shelf Check result screen (src/styles/shelf-check-result.css): the
+   * cover width, alone and with the Series card, on a tall and a short
+   * screen; the height the Series card holds while it loads.
+   */
+  --shelf-cover: 168px;
+  --shelf-cover-with-card: 112px;
+  --shelf-cover-short: 128px;
+  --shelf-cover-short-with-card: 88px;
+  --shelf-card-height: 106px;
+  /* A cover grid on desktop (Home, Library Grid): its narrowest column. */
+  --grid-cover: 140px;
+
+  /* The widest a page grows (Book, Series, To Buy, Settings). */
+  --page-width: 880px;
+
+  /*
+   * The Series page (src/styles/series.css): its big cover; the cover above a
+   * spine and in the Volume sheet; the width of the sheet and of the switch
+   * form; one spine, its corner and its number; the smallest tap target
+   * (WCAG 2.5.8), the column of a spine.
+   */
+  --series-cover: 160px;
+  --series-thumb: 96px;
+  --series-narrow: 440px;
+  --spine-width: 14px;
+  --spine-height: 44px;
+  --radius-spine: 3px;
+  --type-spine: 10px;
+  --target-min: 24px;
+
+  /* Flow screens: the column of Sign in, and the wider column of the privacy notice. */
+  --flow-width: 400px;
+  --notice-width: 640px;
+
+  /* Phone: the room the tab bar takes, and the selection bar above it (src/styles/selection.css). */
+  --tab-bar-room: 68px;
+  --selection-bar-room: 196px;
+}
+
+/* Desktop with a pointer (Q12): smaller buttons. Lists keep --row. */
+@media (min-width: 960px) and (pointer: fine) {
+  :root {
+    --button-height-large: 44px;
+    --button-height: 40px;
+    --icon-button: 36px;
+  }
 }
 
 :root[data-appearance='light'] {
@@ -102,7 +315,7 @@ body {
   background: var(--ground);
   color: var(--ink);
   font-family: var(--font);
-  font-size: 15px;
+  font-size: var(--type-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -113,7 +326,7 @@ h3 {
   margin: 0;
   font-weight: 700;
   line-height: 1.15;
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-tight);
 }
 
 p {
@@ -139,68 +352,237 @@ a {
   display: none !important;
 }
 
-/* Controls shared by every screen. */
+/*
+ * The shared parts of the one look (CORE-122; ui-direction "The one look").
+ * Buttons: `.button` is the secondary button; add `.button-main` for the one
+ * main action of a screen, `.button-quiet` for a text button, `.button-danger`
+ * for an action that destroys. Heights step down on desktop (Q12): lists and
+ * toolbar rows keep --row.
+ */
 .button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: var(--row);
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--surface);
+  gap: var(--space-8);
+  min-height: var(--button-height);
+  padding: 0 var(--space-16);
+  border: var(--hairline) solid var(--line-button);
+  border-radius: var(--radius-button);
+  background: transparent;
   color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--type-button);
+  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
 }
 
-.button:hover:not(:disabled) {
-  background: var(--soft);
+.button:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--fill-chip);
 }
 
-/* Ink fill: a confirm, or the action of a sheet. The primary action of a screen is `.button-accent`. */
-.button-primary,
-.button-primary:hover:not(:disabled) {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--surface);
+/* The one main action of a screen (Q7): filled cobalt, light text. At most one shows at a time. */
+.button-main,
+.button-main:hover:not(:disabled, [aria-disabled='true']) {
+  --busy-ink: var(--on-accent);
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-weight: 600;
 }
 
+/* A text button: no line, no fill; as tall as a row, so toolbars stay dense. */
 .button-quiet {
+  min-height: var(--row);
+  padding: 0 var(--space-12);
   border-color: transparent;
-  background: transparent;
-  color: var(--secondary);
+  color: var(--text-quiet);
 }
 
-/* The one primary action of a screen: cobalt text, icon and 1 px outline, never a fill. */
-.button-accent {
-  --busy-ink: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* An action that destroys: muted red text and icon, nothing else. */
+/* An action that destroys: muted red text and icon, on the secondary shape, never a fill. */
 .button-danger {
   --busy-ink: var(--danger);
   color: var(--danger);
 }
 
+/* Round icon button (Q11): a circle with a line, over a veil of the ground, so a glow shows through. */
+.icon-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-button);
+  height: var(--icon-button);
+  padding: 0;
+  border: var(--hairline) solid var(--line-control);
+  border-radius: var(--radius-icon-button);
+  background: var(--fill-veil);
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--fill-chip);
+}
+
+.icon-button svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  stroke-width: var(--icon-stroke);
+}
+
+/* Chip: a filled label, no line. A filter chip is a button with aria-pressed: pressed, it fills with ink. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: var(--chip-height);
+  padding: 0 var(--space-12);
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: var(--fill-chip);
+  color: var(--text-chip);
+  font-size: var(--type-chip);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+button.chip {
+  cursor: pointer;
+}
+
+/*
+ * Touch: a chip that takes a tap keeps its look, and its tap area is a row
+ * high (--row, 44 px), above and below it: an empty ::after on a button chip,
+ * the unseen radio itself on a label chip (so the tap lands on the radio).
+ * Only these: a chip that holds its own button (a Label with Remove) must
+ * leave it the tap.
+ */
+@media (pointer: coarse) {
+  button.chip {
+    position: relative;
+  }
+
+  button.chip::after,
+  label.chip > input {
+    content: '';
+    position: absolute;
+    inset: calc((var(--chip-height) - var(--row)) / 2) 0;
+  }
+}
+
+/* A chip can hold a radio (a choice in Settings): checked, it fills as a pressed chip. */
+.chip[aria-pressed='true'],
+.chip:has(> input:checked) {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.chip:has(> input) {
+  position: relative;
+  cursor: pointer;
+}
+
+/*
+ * "Not owned" (Q8): one mark, in To Buy and the Library (src/islands/NotOwnedChip.tsx).
+ * A chip in green with a check. The tint is painted on --surface, not over
+ * what is under it (a card, a glow), so its text keeps 4.5:1 (theme.test.ts).
+ */
+.chip-not-owned {
+  --chip-tint: color-mix(in srgb, var(--not-owned) var(--alpha-tone-fill), transparent);
+  background: linear-gradient(var(--chip-tint), var(--chip-tint)), var(--surface);
+  color: var(--not-owned-text);
+}
+
+.chip-not-owned svg {
+  flex: none;
+  width: var(--icon-size-inline);
+  height: var(--icon-size-inline);
+  stroke-width: var(--icon-stroke);
+}
+
+/* Card: a group of content on a soft fill. Translucent, so a glow behind it shows through. */
+.card {
+  padding: var(--space-16);
+  border: var(--hairline) solid var(--line-card);
+  border-radius: var(--radius-card);
+  background: var(--fill-card);
+}
+
+/* A card that floats over content (a dialog, the selection bar): the same fill on the panel colour. */
+.card-raised {
+  background: linear-gradient(var(--fill-card), var(--fill-card)), var(--surface);
+}
+
+/* Small heading (Q11): the title of a section. */
+.small-heading {
+  margin: 0;
+  color: var(--text-heading);
+  font-size: var(--type-small);
+  font-weight: 500;
+  line-height: inherit;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+/*
+ * Confirm dialog: only for an action that cannot be undone (Sign out, Delete
+ * my account). A raised card; Cancel is the secondary button.
+ */
+.confirm {
+  width: min(100% - 2 * var(--space-16), var(--confirm-width));
+  padding: var(--space-24);
+  border: var(--hairline) solid var(--line-card);
+  border-radius: var(--radius-card);
+  background: linear-gradient(var(--fill-card), var(--fill-card)), var(--surface);
+  color: var(--ink);
+}
+
+.confirm::backdrop {
+  background: var(--scrim);
+}
+
+.confirm-title {
+  font-size: var(--type-heading);
+  letter-spacing: var(--tracking-tight);
+}
+
+.confirm-text {
+  margin-top: var(--space-8);
+  color: var(--text-quiet);
+  font-size: var(--type-body);
+  text-wrap: pretty;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  margin-top: var(--space-20);
+}
+
 .field {
   min-width: 0;
   min-height: var(--row);
-  padding: 0 10px;
-  border: 1px solid var(--line);
+  padding: 0 var(--space-10);
+  border: var(--hairline) solid var(--line);
   border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--ink);
 }
 
+/*
+ * Disabled (Q7): one share for every control. A control a script drives stays
+ * disabled until its script is ready. aria-disabled keeps a button in the tab
+ * order (Cover flow Previous and Next).
+ */
 .button:disabled,
+.button[aria-disabled='true'],
+.icon-button:disabled,
 .field:disabled {
-  opacity: 0.6;
+  opacity: var(--alpha-disabled);
   cursor: default;
 }
 
@@ -209,7 +591,6 @@ a {
  * moves. Set `aria-busy="true"` while the action runs.
  */
 .button[aria-busy='true'] {
-  position: relative;
   color: transparent;
   pointer-events: none;
 }
@@ -222,24 +603,20 @@ a {
   content: '';
   position: absolute;
   inset: 0;
-  width: 16px;
-  height: 16px;
+  width: var(--spinner);
+  height: var(--spinner);
   margin: auto;
-  border: 2px solid var(--busy-ink, var(--ink));
+  border: var(--stroke) solid var(--busy-ink, var(--ink));
   border-right-color: transparent;
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-.button-primary {
-  --busy-ink: var(--surface);
+  animation: spin var(--motion-spin) linear infinite;
 }
 
 /* Placeholder blocks while content loads. */
 .skeleton {
   border-radius: var(--radius-control);
   background: var(--soft);
-  animation: pulse 1.4s ease-in-out infinite;
+  animation: pulse var(--motion-pulse) ease-in-out infinite;
 }
 
 @keyframes spin {
@@ -256,7 +633,7 @@ a {
 
 @media (prefers-reduced-motion: reduce) {
   .button[aria-busy='true']::after {
-    animation-duration: 1.6s;
+    animation-duration: var(--motion-spin-reduced);
   }
 
   .skeleton {
@@ -413,6 +790,8 @@ a {
   cursor: pointer;
 }
 
+/* The radio of a chip or a segment: over the whole of it, unseen; the label shows the choice. */
+.chip > input,
 .segment input {
   position: absolute;
   inset: 0;
@@ -432,8 +811,8 @@ a {
   outline-offset: 2px;
 }
 
-/* The Reading Status: one small chip, a native select (the system picker on a
-   phone) drawn as a Label chip, with a chevron. Line and ink, never cobalt. */
+/* The Reading Status: one chip, a native select (the system picker on a
+   phone) drawn as a chip, with a chevron. Ink levels, never cobalt. */
 .status-chip {
   position: relative;
   display: inline-flex;
@@ -445,33 +824,31 @@ a {
   appearance: none;
   field-sizing: content;
   max-width: 100%;
-  min-height: var(--row);
+  min-height: var(--chip-height);
   margin: 0;
-  padding: 0 30px 0 12px;
-  border: 1px solid var(--line);
-  border-radius: calc(var(--row) / 2);
-  background: var(--surface);
-  color: var(--ink);
+  padding: 0 var(--space-28) 0 var(--space-12);
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: var(--fill-chip);
+  color: var(--text-chip);
   font: inherit;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--type-chip);
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
 }
 
-.status-chip select:hover:not(:disabled) {
-  background: var(--soft);
-}
-
 .status-chip select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--stroke) solid var(--accent);
+  outline-offset: var(--stroke);
 }
 
 .status-chip svg {
   position: absolute;
-  right: 10px;
-  color: var(--secondary);
+  right: var(--space-10);
+  width: var(--icon-size-inline);
+  height: var(--icon-size-inline);
+  color: var(--text-chip);
   pointer-events: none;
 }
 
@@ -515,7 +892,7 @@ a {
 }
 
 .switch:disabled {
-  opacity: 0.5;
+  opacity: var(--alpha-disabled);
   cursor: default;
 }
 

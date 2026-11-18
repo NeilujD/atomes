@@ -41,6 +41,10 @@ test('An Account made with an AT Protocol Account adds an address, signs out and
   await page.getByLabel('Your email address').fill(address);
   await page.getByRole('button', { name: 'Send me a code' }).click();
   await expect(page.getByText(`A Sign-in Code is on its way to ${address}.`, { exact: false })).toBeVisible();
+  // The address step steps back, as on Sign in: one main action shows at a time (Q7).
+  await expect(page.getByLabel('Your email address')).toBeHidden();
+  await expect(page.locator('main .button-main:visible')).toHaveCount(1);
+  await expect(page.locator('main .button-main:visible')).toHaveText('Add');
   await page.getByLabel('Sign-in Code').fill(await mailedCode(page, address));
   await page.getByRole('button', { name: 'Add', exact: true }).click();
 

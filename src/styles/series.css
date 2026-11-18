@@ -1,0 +1,552 @@
+/*
+ * The Series page (src/islands/Series.tsx, SeriesLabels.tsx) in the one look
+ * of ADR 0018 (CORE-126). Global: the island renders on the device, outside
+ * the page's scoped styles. Every value is a token of theme.css
+ * (tokens.test.ts checks it); the page sets only its tone colours.
+ */
+
+/* Orange when the reader owns every Volume the Catalog lists, green otherwise (Q9). */
+.series {
+  --tone: var(--not-owned);
+  --tone-deep: var(--not-owned-deep);
+  --tone-line: color-mix(in srgb, var(--tone) var(--alpha-tone-line), transparent);
+  position: relative;
+  isolation: isolate;
+  /* The halo and the blobs spread past the page into the panel's padding, never past the panel. */
+  overflow: clip;
+  overflow-clip-margin: var(--space-20);
+  max-width: var(--page-width);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.series[data-tone='owned'] {
+  --tone: var(--owned);
+  --tone-deep: var(--owned-deep);
+}
+
+.series-message {
+  font-size: var(--type-body);
+}
+
+/* The glow behind the top of the page (glow.css): three blobs that drift slowly, never behind the spines. */
+.series-glow {
+  z-index: -1;
+  inset: calc(var(--space-20) * -1) calc(var(--space-20) * -1) auto;
+  height: calc(var(--glow-unit) * 46);
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, transparent, black var(--space-20) 55%, transparent);
+}
+
+.series-b1 {
+  left: calc(var(--glow-unit) * -6);
+  top: calc(var(--glow-unit) * -8);
+  width: calc(var(--glow-unit) * 34);
+  height: calc(var(--glow-unit) * 34);
+}
+
+.series-b2 {
+  left: calc(var(--glow-unit) * 30);
+  top: calc(var(--glow-unit) * -4);
+  width: calc(var(--glow-unit) * 30);
+  height: calc(var(--glow-unit) * 30);
+}
+
+.series-b3 {
+  left: calc(var(--glow-unit) * 10);
+  top: calc(var(--glow-unit) * 16);
+  width: calc(var(--glow-unit) * 26);
+  height: calc(var(--glow-unit) * 26);
+}
+
+.series-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-24);
+}
+
+/* The big cover with its halo and rings (Q9, glow.css), as on the Shelf Check result: sizes follow the cover width (--w). */
+.series-stage {
+  --w: var(--series-cover);
+  position: relative;
+  flex: none;
+  width: var(--w);
+  aspect-ratio: 2 / 3;
+}
+
+.series-cover {
+  position: relative;
+  width: var(--w);
+}
+
+/* The large corner, on the loaded image (the box only holds it). */
+.series-cover:not([data-cover='loaded']),
+.series-cover[data-cover='loaded'] img {
+  border-radius: var(--radius-cover-large);
+  box-shadow:
+    0 0 0 var(--hairline) var(--line-control),
+    var(--shadow-cover-large);
+}
+
+.series-text {
+  flex: 1 1 var(--series-narrow);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.series-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+/* The heading is the view title (Series.tsx): this large title is content, as on the Book page. */
+.series-title {
+  font-size: var(--type-title);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: var(--tracking-tight);
+  overflow-wrap: anywhere;
+}
+
+.series-authors {
+  color: var(--text-quiet);
+  font-size: var(--type-body);
+}
+
+/* "Where you stand": a card with the small heading (Q11). */
+.series-standing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  margin-top: var(--space-6);
+}
+
+.series-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-24);
+  margin: 0;
+}
+
+/* The number above its label; the markup keeps the term first. */
+.series-count {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.series-count dd {
+  margin: 0;
+  font-size: var(--type-title);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.series-count dt {
+  color: var(--text-quiet);
+  font-size: var(--type-small);
+}
+
+/* Ownership (Q8): the owned count in orange, the missing count in green. */
+.series-count[data-tone='owned'] dd {
+  color: var(--owned-text);
+}
+
+.series-count[data-tone='not-owned'] dd {
+  color: var(--not-owned-text);
+}
+
+.series-actions,
+.series-switch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+/* Labels on the Series (SeriesLabels.tsx): shared chips; Remove is a small round button inside its chip. */
+.series-labels,
+.series-labels-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.series-labels-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.series-label-chip {
+  max-width: 100%;
+  white-space: normal;
+}
+
+li.series-label-chip {
+  gap: 0;
+  padding-right: 0;
+}
+
+.series-label-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.series-label-remove {
+  display: grid;
+  place-items: center;
+  width: var(--chip-height);
+  height: var(--chip-height);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--text-quiet);
+  font: inherit;
+  font-size: var(--type-body);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.series-label-add {
+  color: var(--text-quiet);
+}
+
+.series-label-add:hover:not(:disabled),
+.series-label-remove:hover:not(:disabled) {
+  background: var(--fill-chip);
+  color: var(--ink);
+}
+
+.series-label-add:disabled,
+.series-label-remove:disabled {
+  opacity: var(--alpha-disabled);
+  cursor: default;
+}
+
+/* Switch Edition Line: a card under the head. */
+.series-switch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: var(--series-narrow);
+}
+
+.series-label {
+  font-size: var(--type-small);
+  font-weight: 600;
+}
+
+/* The other Edition Lines, by name, above the ISBN field. */
+.series-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+  margin: 0 0 var(--space-8);
+  padding: 0;
+  border: 0;
+}
+
+.series-lines legend {
+  padding: 0;
+  margin-bottom: var(--space-6);
+}
+
+.series-switch-row .field {
+  flex: 1;
+}
+
+.series-hint {
+  color: var(--text-quiet);
+  font-size: var(--type-small);
+}
+
+.series-hint[data-error] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* "Missing Volumes": a card with the small heading (Q11); the list in green (Q8). */
+.series-missing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+/* The ranges read as one line of text: "1–12, 13, 14–55". On many lines, a
+   gap between them: the hatched Volumes do not touch. */
+.series-missing-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) 0;
+  margin: 0;
+  padding: 0;
+  color: var(--not-owned-text);
+  font-weight: 600;
+  list-style: none;
+}
+
+.series-missing-list li:not(:last-child)::after {
+  content: ',\00a0';
+}
+
+/* Not in the Catalog: hatched, as the unknown tile of Series Onboarding. A tap target of --target-min. */
+.series-missing-unknown {
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  padding: 0 var(--space-4);
+  border: var(--hairline) solid var(--line-control);
+  border-radius: var(--radius-cover);
+  background: repeating-linear-gradient(135deg, transparent 0 var(--space-4), var(--line-control) var(--space-4) var(--space-6));
+  color: var(--text-quiet);
+  font: inherit;
+  cursor: help;
+}
+
+.series-volumes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.series-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+/*
+ * The spine row (Q10): one spine per Volume, filled, no outline. Read is full
+ * ink, owned the medium shade in orange, not owned the faint shade (green when
+ * Missing); read but not owned keeps the read mark. Readable without colour:
+ * the shade and the mark. One column width for the whole Series, from its
+ * widest number (--spine-digits, Series.tsx), so the rows line up past Volume 99.
+ */
+.series-spines {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, max(var(--target-min), calc(var(--spine-digits, 2) * 1ch + var(--space-10))));
+  gap: var(--space-4) 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--type-spine);
+  font-variant-numeric: tabular-nums;
+}
+
+.series-spine {
+  position: relative;
+}
+
+/* A tap target of at least --target-min wide around the spine; room on top for the lift and its focus ring. */
+.series-spine-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-width: var(--target-min);
+  padding: var(--space-6) var(--space-4) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text-quiet);
+  font: inherit;
+  cursor: pointer;
+}
+
+/*
+ * Mouse hover only (the island shows it for a mouse pointer): the cover just
+ * above the lifted spine, over the row above. Centred, or lined up with the
+ * end of the spine row it would pass (data-align, Series.tsx).
+ */
+.series-peek {
+  position: absolute;
+  bottom: calc(100% + var(--space-6));
+  left: 50%;
+  z-index: 2;
+  width: var(--series-thumb);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.series-peek[data-align='start'] {
+  left: 0;
+  transform: none;
+}
+
+.series-peek[data-align='end'] {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.series-peek-cover {
+  width: 100%;
+}
+
+.series-spine-bar {
+  position: relative;
+  width: var(--spine-width);
+  height: var(--spine-height);
+  border-radius: var(--radius-spine);
+  background: var(--shade-faint);
+  transition: transform calc(3 * var(--motion-stagger)) ease-out;
+}
+
+/* A book pulled a little off the shelf, with a mouse or the keyboard: the only hover sign (no fill). */
+@media (hover: hover) {
+  .series-spine-button:hover .series-spine-bar {
+    transform: translateY(calc(var(--space-4) * -1));
+  }
+}
+
+.series-spine-button:focus-visible .series-spine-bar {
+  transform: translateY(calc(var(--space-4) * -1));
+}
+
+.series-spine[data-state='read'] .series-spine-bar {
+  background: var(--ink);
+}
+
+.series-spine[data-state='owned'] .series-spine-bar {
+  background: var(--spine-owned);
+}
+
+.series-spine[data-missing] .series-spine-bar {
+  background: var(--spine-missing);
+}
+
+/* The read mark: a dot at the foot of the spine. */
+.series-spine[data-state='read-not-owned'] .series-spine-bar::after,
+.series-spine[data-current][data-state='read'] .series-spine-bar::after {
+  content: '';
+  position: absolute;
+  bottom: var(--space-4);
+  left: 50%;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+  background: var(--ink);
+  transform: translateX(-50%);
+}
+
+/* The Volume of the page's ISBN: in the colour of its ownership, with a glow (Q10). */
+.series-spine[data-current] {
+  --spine-colour: var(--not-owned);
+  --spine-text: var(--not-owned-text);
+}
+
+.series-spine[data-current]:is([data-state='owned'], [data-state='read']) {
+  --spine-colour: var(--owned);
+  --spine-text: var(--owned-text);
+}
+
+.series-spine[data-current] .series-spine-bar {
+  background: var(--spine-colour);
+  box-shadow: 0 0 var(--glow-blur-mark) var(--spine-colour);
+}
+
+.series-spine[data-current] .series-spine-bar::after {
+  background: var(--on-ownership);
+}
+
+.series-spine[data-current] .series-spine-button {
+  color: var(--spine-text);
+  font-weight: 700;
+}
+
+/* The Volume sheet: from the bottom on the phone, a raised card on desktop. */
+.series-sheet {
+  inset: auto 0 0;
+  width: 100%;
+  max-width: none;
+  max-height: 85dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: var(--hairline) solid var(--line-card);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  background: linear-gradient(var(--fill-card), var(--fill-card)), var(--surface);
+  color: var(--ink);
+}
+
+.series-sheet::backdrop {
+  background: var(--scrim);
+}
+
+.series-sheet-body {
+  display: grid;
+  grid-template-columns: var(--series-thumb) minmax(0, 1fr);
+  gap: var(--space-16) var(--space-20);
+  align-items: start;
+  padding: var(--space-20) var(--space-20) max(var(--space-20), env(safe-area-inset-bottom));
+}
+
+.series-sheet-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-size: var(--type-body);
+}
+
+.series-sheet-title {
+  font-size: var(--type-heading);
+  line-height: 1.2;
+  letter-spacing: var(--tracking-tight);
+}
+
+.series-sheet .series-actions {
+  margin-top: var(--space-12);
+}
+
+.series-sheet-close {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+@media (min-width: 960px) {
+  .series-sheet {
+    inset: 0;
+    width: var(--series-narrow);
+    margin: auto;
+    border: var(--hairline) solid var(--line-card);
+    border-radius: var(--radius-card);
+  }
+
+  .series-sheet-body {
+    padding: var(--space-24);
+  }
+}
+
+.series-skeleton-title {
+  width: 50%;
+  height: var(--pill-height);
+}
+
+.series-skeleton-line {
+  width: 30%;
+  height: var(--space-14);
+}
+
+/* Nothing moves (the glow, halo and rings: glow.css); the halo stays at the strength of the first blob; the spines do not lift. */
+@media (prefers-reduced-motion: reduce) {
+  .series-stage .glow-halo {
+    opacity: var(--glow-opacity-1);
+  }
+
+  .series-spine-bar {
+    transition: none;
+  }
+}

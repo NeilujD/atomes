@@ -24,9 +24,9 @@ export const en = {
   'connection.offline': 'Offline',
   'connection.reconnect': 'Reconnect',
   'connection.waiting': (count: number) => `${count} ${count === 1 ? 'save' : 'saves'} waiting`,
-  'environment.staging': 'Staging',
-  'environment.preview': 'Preview',
-  'environment.local': 'Local',
+  'environment.staging': 'staging',
+  'environment.preview': 'preview',
+  'environment.local': 'local',
 
   // Shared words and links
   'link.home': 'Go to Home',
@@ -183,6 +183,7 @@ export const en = {
   'invite.failed': 'The Invite could not be made. Try again.',
   'settings.display': 'Display',
   'settings.appearance': 'Appearance',
+  'settings.contrast': 'Contrast',
   'settings.language': 'Language',
   'settings.on-this-device': 'Kept on this device.',
   'settings.your-data': 'Your data',
@@ -222,6 +223,8 @@ export const en = {
   'appearance.system': 'System',
   'appearance.light': 'Light',
   'appearance.dark': 'Dark',
+  'contrast.system': 'System',
+  'contrast.more': 'High',
   'language.browser': 'Browser',
   // Each language by its own name, the same in every dictionary.
   'language.fr': 'Français',
@@ -231,6 +234,8 @@ export const en = {
   'add.scan': 'Scan the barcode',
   'add.camera-starting': 'Starting the camera…',
   'add.type-isbn': 'Type the ISBN',
+  // The short word on the camera button; its accessible name stays add.type-isbn.
+  'add.type-short': 'Type',
   'add.isbn': 'ISBN',
   'add.look-up': 'Look up',
   'add.isbn-hint': 'The 13 digits under the barcode, on the back cover.',
@@ -303,6 +308,8 @@ export const en = {
   'book.copies': 'Your Copies',
   'book.no-copies': 'You have no Copy of this book.',
   'book.add-copy': 'Add another Copy',
+  // The main action of the Book page while the reader has no Copy of the Work.
+  'book.add-first-copy': 'Add a Copy',
   'book.remove': 'Remove',
   'book.remove-copy': (isbn: string) => `Remove the Copy with ISBN ${isbn}`,
   'book.lend-to': 'Lend to',
@@ -446,6 +453,7 @@ export const en = {
   'tobuy.by-hand': 'Added by hand',
   'tobuy.bought': 'I bought it',
   'tobuy.remove': 'Remove',
+  'tobuy.not-owned': 'Not owned',
 
   // Series page (src/islands/Series.tsx)
   'series.title': 'Series',

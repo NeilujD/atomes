@@ -14,6 +14,7 @@ import { volumeLine, type LibraryBook } from '../lib/library/browse';
 import { flowDrag, flowMove, flowPosition, flowRest, flowSpring, flowStand, type FlowMove } from '../lib/library/flow';
 import { bookHref } from '../lib/library/model';
 import { Cover } from './Cover';
+import { NotOwnedChip } from './NotOwnedChip';
 
 // How far a cover on the side turns.
 const tiltDeg = 62;
@@ -76,7 +77,15 @@ export function LibraryCoverFlow({ books, moved, onMove, wide }: { books: Librar
           {book.title}
         </a>
         <span>{[volumeLine(book), book.volumeTitle].filter(Boolean).join(' · ')}</span>
-        <span class="library-flow-line">{[book.authors.join(', '), t(`status.${book.status}`), notOwned(book)].filter(Boolean).join(' · ')}</span>
+        <span class="library-flow-line">
+          {[book.authors.join(', '), t(`status.${book.status}`)].filter(Boolean).join(' · ')}
+          {!book.owned && (
+            <>
+              {' · '}
+              <NotOwnedChip label={t('library.not-owned')} />
+            </>
+          )}
+        </span>
       </div>
 
       {wide ? (

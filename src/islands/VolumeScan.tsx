@@ -207,7 +207,7 @@ export function VolumeScan({ volume, anchor, onChanged, onClose, sources = liveV
             {problem}
           </p>
           <div class="correction-actions">
-            <button class="button button-primary" type="submit" disabled={busy} aria-busy={busy}>
+            <button class="button button-main" type="submit" disabled={busy} aria-busy={busy}>
               {t('scan-volume.save', volume)}
             </button>
           </div>

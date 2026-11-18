@@ -3,153 +3,219 @@ import Icon from '../components/Icon.astro';
 import type { IconName } from '../components/icons';
 import Sharing from '../islands/Sharing';
 import AppShell from '../layouts/AppShell.astro';
-import type { Appearance } from '../lib/appearance';
-import { languageCookie, parseLanguage, requestLanguage, translator, type Language } from '../lib/i18n/i18n';
+import { languageCookie, parseLanguage, requestLanguage, translator } from '../lib/i18n/i18n';
 
 const t = translator(requestLanguage(Astro.request));
 
-const options: { value: Appearance; label: string; icon: IconName }[] = [
-  { value: 'system', label: t('appearance.system'), icon: 'monitor' },
-  { value: 'light', label: t('appearance.light'), icon: 'sun' },
-  { value: 'dark', label: t('appearance.dark'), icon: 'moon' },
-];
-
+// The choices of the Display group, each a radio group of chips. The page
+// script checks the kept Appearance and contrast; the server knows the language.
 // '' follows the browser's language. Each language is named in itself.
-const languageOptions: { value: Language | ''; label: string }[] = [
-  { value: '', label: t('language.browser') },
-  { value: 'fr', label: t('language.fr') },
-  { value: 'en', label: t('language.en') },
+const pickers: { name: string; label: string; checked: string; options: { value: string; label: string; icon?: IconName; lang?: string }[] }[] = [
+  {
+    name: 'appearance',
+    label: t('settings.appearance'),
+    checked: 'system',
+    options: [
+      { value: 'system', label: t('appearance.system'), icon: 'monitor' },
+      { value: 'light', label: t('appearance.light'), icon: 'sun' },
+      { value: 'dark', label: t('appearance.dark'), icon: 'moon' },
+    ],
+  },
+  {
+    name: 'contrast',
+    label: t('settings.contrast'),
+    checked: 'system',
+    options: [
+      { value: 'system', label: t('contrast.system') },
+      { value: 'more', label: t('contrast.more') },
+    ],
+  },
+  {
+    name: 'language',
+    label: t('settings.language'),
+    checked: parseLanguage(Astro.cookies.get(languageCookie)?.value) ?? '',
+    options: [
+      { value: '', label: t('language.browser') },
+      { value: 'fr', label: t('language.fr'), lang: 'fr' },
+      { value: 'en', label: t('language.en'), lang: 'en' },
+    ],
+  },
 ];
-const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?? '';
 ---
 
 <AppShell title={t('settings.title')} current="settings">
   <div class="settings">
-    <section class="group" data-auth>
-      <h2 class="group-title">{t('settings.account')}</h2>
-      <div class="row">
-        <div>
-          <p class="row-label" data-auth-label>{t('settings.atproto-account')}</p>
-          <p class="row-hint" data-auth-status aria-live="polite">{t('settings.checking')}</p>
+    <section class="group" aria-labelledby="account-title" data-auth>
+      <h2 class="small-heading" id="account-title">{t('settings.account')}</h2>
+      <div class="card group-card">
+        <div class="row">
+          <div>
+            <p class="row-label" data-auth-label>{t('settings.atproto-account')}</p>
+            <p class="row-hint" data-auth-status aria-live="polite">{t('settings.checking')}</p>
+          </div>
+          <button class="button" type="button" data-sign-out hidden>{t('settings.sign-out')}</button>
         </div>
-        <button class="button" type="button" data-sign-out hidden>{t('settings.sign-out')}</button>
-      </div>
-      <p class="row-error" data-auth-error role="alert" hidden></p>
+        <p class="row-error" data-auth-error role="alert" hidden></p>
 
-      <!-- Add an email address, proved with a Sign-in Code (CORE-82): src/lib/auth/link.ts. -->
-      <div class="row" data-add-email hidden>
-        <div>
-          <p class="row-label">{t('settings.add-email')}</p>
-          <p class="row-hint">{t('settings.add-email-hint')}</p>
+        <!-- Add an email address, proved with a Sign-in Code (CORE-82): src/lib/auth/link.ts. -->
+        <div class="row" data-add-email hidden>
+          <div>
+            <p class="row-label">{t('settings.add-email')}</p>
+            <p class="row-hint">{t('settings.add-email-hint')}</p>
+          </div>
+          <button class="button" type="button" data-add-email-open aria-expanded="false" aria-controls="add-email">{t('settings.add-email')}</button>
         </div>
-        <button class="button" type="button" data-add-email-open aria-expanded="false" aria-controls="add-email">{t('settings.add-email')}</button>
-      </div>
-      <div class="link-step" id="add-email" hidden>
-        <form class="link-form" data-email-form>
-          <label class="visually-hidden" for="link-email">{t('signin.email')}</label>
+        <div class="link-step" id="add-email" hidden>
+          <form class="link-form" data-email-form>
+            <label class="visually-hidden" for="link-email">{t('signin.email')}</label>
+            <input
+              class="field"
+              id="link-email"
+              name="email"
+              type="email"
+              inputmode="email"
+              autocomplete="email"
+              autocapitalize="none"
+              spellcheck="false"
+              enterkeyhint="send"
+              placeholder="alice@example.org"
+            />
+            <button class="button button-main" type="submit">{t('signin.send-code')}</button>
+          </form>
+          <form class="link-step" data-code-form hidden>
+            <p class="row-hint" data-code-sent></p>
+            <div class="link-form">
+              <label class="visually-hidden" for="link-code">{t('signin.code')}</label>
+              <input
+                class="field code"
+                id="link-code"
+                name="code"
+                type="text"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                enterkeyhint="go"
+                placeholder="123456"
+              />
+              <button class="button button-main" type="submit">{t('settings.add')}</button>
+            </div>
+            <button class="button button-quiet" type="button" data-other-address>{t('signin.other-address')}</button>
+          </form>
+          <p class="row-error" data-email-error role="alert" hidden></p>
+        </div>
+
+        <!-- Link an AT Protocol Account, proved with the OAuth flow (CORE-82): linkAtproto in src/lib/server/auth.ts. -->
+        <div class="row" data-link-atproto hidden>
+          <div>
+            <p class="row-label">{t('settings.link-atproto')}</p>
+            <p class="row-hint">{t('settings.link-atproto-hint')}</p>
+          </div>
+          <button class="button" type="button" data-link-open aria-expanded="false" aria-controls="link-atproto">{t('settings.link-atproto')}</button>
+        </div>
+        <form class="link-form" id="link-atproto" method="post" action="/oauth/link" hidden>
+          <label class="visually-hidden" for="link-handle">{t('signin.handle')}</label>
           <input
             class="field"
-            id="link-email"
-            name="email"
-            type="email"
-            inputmode="email"
-            autocomplete="email"
+            id="link-handle"
+            name="handle"
+            type="text"
+            inputmode="url"
+            autocomplete="username"
             autocapitalize="none"
             spellcheck="false"
-            enterkeyhint="send"
-            placeholder="alice@example.org"
+            enterkeyhint="go"
+            placeholder="alice.bsky.social"
+            required
           />
-          <button class="button button-primary" type="submit">{t('signin.send-code')}</button>
+          <button class="button button-main" type="submit">{t('settings.link')}</button>
         </form>
-        <form class="link-step" data-code-form hidden>
-          <p class="row-hint" data-code-sent></p>
-          <div class="link-form">
-            <label class="visually-hidden" for="link-code">{t('signin.code')}</label>
-            <input
-              class="field code"
-              id="link-code"
-              name="code"
-              type="text"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              enterkeyhint="go"
-              placeholder="123456"
-            />
-            <button class="button button-primary" type="submit">{t('settings.add')}</button>
-          </div>
-        </form>
-        <p class="row-error" data-email-error role="alert" hidden></p>
       </div>
+    </section>
 
-      <!-- Link an AT Protocol Account, proved with the OAuth flow (CORE-82): linkAtproto in src/lib/server/auth.ts. -->
-      <div class="row" data-link-atproto hidden>
-        <div>
-          <p class="row-label">{t('settings.link-atproto')}</p>
-          <p class="row-hint">{t('settings.link-atproto-hint')}</p>
-        </div>
-        <button class="button" type="button" data-link-open aria-expanded="false" aria-controls="link-atproto">{t('settings.link-atproto')}</button>
+    <!-- Appearance, contrast and language, kept on this device (src/lib/appearance.ts, src/lib/i18n). -->
+    <section class="group" aria-labelledby="display-title">
+      <h2 class="small-heading" id="display-title">{t('settings.display')}</h2>
+      <div class="card group-card">
+        {
+          pickers.map((picker) => (
+            <div class="row">
+              <div>
+                <p class="row-label" id={`${picker.name}-label`}>
+                  {picker.label}
+                </p>
+                <p class="row-hint" id={`${picker.name}-hint`}>
+                  {t('settings.on-this-device')}
+                </p>
+              </div>
+              <div class="choices" role="radiogroup" aria-labelledby={`${picker.name}-label`} aria-describedby={`${picker.name}-hint`}>
+                {picker.options.map((option) => (
+                  <label class="chip choice">
+                    <input type="radio" name={picker.name} value={option.value} checked={option.value === picker.checked} disabled />
+                    {option.icon && <Icon name={option.icon} />}
+                    <span lang={option.lang}>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))
+        }
       </div>
-      <form class="link-form" id="link-atproto" method="post" action="/oauth/link" hidden>
-        <label class="visually-hidden" for="link-handle">{t('signin.handle')}</label>
-        <input
-          class="field"
-          id="link-handle"
-          name="handle"
-          type="text"
-          inputmode="url"
-          autocomplete="username"
-          autocapitalize="none"
-          spellcheck="false"
-          enterkeyhint="go"
-          placeholder="alice.bsky.social"
-          required
-        />
-        <button class="button button-primary" type="submit">{t('settings.link')}</button>
-      </form>
+    </section>
+
+    <!-- Sharing by category (src/islands/Sharing.tsx). -->
+    <section class="group" aria-labelledby="sharing-title">
+      <h2 class="small-heading" id="sharing-title">{t('sharing.title')}</h2>
+      <div class="card">
+        <Sharing client:only="preact" />
+      </div>
     </section>
 
     <!-- Invite a friend (CORE-134): src/lib/auth/invite.ts, src/lib/server/reader-invite.ts.
          The button shows once the script knows that the reader may make an Invite. -->
     <section class="group" aria-labelledby="invite-title" data-invite>
-      <h2 class="group-title" id="invite-title">{t('settings.invite')}</h2>
-      <div class="row">
-        <p class="row-hint" data-invite-status aria-live="polite">{t('settings.checking')}</p>
-        <button class="button" type="button" data-invite-make hidden>{t('invite.make')}</button>
+      <h2 class="small-heading" id="invite-title">{t('settings.invite')}</h2>
+      <div class="card group-card">
+        <div class="row">
+          <p class="row-hint" data-invite-status aria-live="polite">{t('settings.checking')}</p>
+          <button class="button" type="button" data-invite-make hidden>{t('invite.make')}</button>
+        </div>
+        <div class="link-form invite-link" data-invite-made hidden>
+          <label class="visually-hidden" for="invite-link">{t('invite.link')}</label>
+          <input class="field" id="invite-link" type="text" readonly data-invite-link />
+          <button class="button" type="button" data-invite-copy>{t('invite.copy')}</button>
+          <button class="button" type="button" data-invite-share hidden>{t('invite.share')}</button>
+        </div>
+        <p class="row-error" data-invite-error role="alert" hidden></p>
       </div>
-      <div class="link-form invite-link" data-invite-made hidden>
-        <label class="visually-hidden" for="invite-link">{t('invite.link')}</label>
-        <input class="field" id="invite-link" type="text" readonly data-invite-link />
-        <button class="button" type="button" data-invite-copy>{t('invite.copy')}</button>
-        <button class="button" type="button" data-invite-share hidden>{t('invite.share')}</button>
-      </div>
-      <p class="row-error" data-invite-error role="alert" hidden></p>
     </section>
 
     <!-- Export and delete (CORE-55): src/lib/server/account-data.ts. -->
     <section class="group" aria-labelledby="data-title" data-account-data>
-      <h2 class="group-title" id="data-title">{t('settings.your-data')}</h2>
-      <div class="row">
-        <div>
-          <p class="row-label">{t('settings.privacy')}</p>
-          <p class="row-hint">{t('settings.privacy-hint')}</p>
+      <h2 class="small-heading" id="data-title">{t('settings.your-data')}</h2>
+      <div class="card group-card">
+        <div class="row">
+          <div>
+            <p class="row-label">{t('settings.privacy')}</p>
+            <p class="row-hint">{t('settings.privacy-hint')}</p>
+          </div>
+          <a class="button" href="/privacy">{t('settings.privacy')}</a>
         </div>
-        <a class="button" href="/privacy">{t('settings.privacy')}</a>
-      </div>
-      <div class="row">
-        <div>
-          <p class="row-label">{t('settings.export')}</p>
-          <p class="row-hint">{t('settings.export-hint')}</p>
+        <div class="row">
+          <div>
+            <p class="row-label">{t('settings.export')}</p>
+            <p class="row-hint">{t('settings.export-hint')}</p>
+          </div>
+          <a class="button" href="/api/account/export" download data-export>{t('settings.export')}</a>
         </div>
-        <a class="button" href="/api/account/export" download data-export>{t('settings.export')}</a>
-      </div>
-      <div class="row">
-        <div>
-          <p class="row-label">{t('settings.delete')}</p>
-          <p class="row-hint">{t('settings.delete-hint')}</p>
+        <div class="row">
+          <div>
+            <p class="row-label">{t('settings.delete')}</p>
+            <p class="row-hint">{t('settings.delete-hint')}</p>
+          </div>
+          <!-- Disabled until its script is ready (ui-direction: Before the scripts run). -->
+          <button class="button button-danger" type="button" data-delete-account disabled>{t('settings.delete')}</button>
         </div>
-        <button class="button button-danger" type="button" data-delete-account>{t('settings.delete')}</button>
+        <p class="row-error" data-delete-error role="alert" hidden></p>
       </div>
-      <p class="row-error" data-delete-error role="alert" hidden></p>
       <!-- The confirm step: Cancel comes first, so the dialog focuses it. -->
       <dialog class="confirm" data-delete-dialog aria-labelledby="delete-title" aria-describedby="delete-text">
         <form method="dialog">
@@ -162,66 +228,20 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
         </form>
       </dialog>
     </section>
-
-    <!-- Sharing by category (src/islands/Sharing.tsx). -->
-    <section class="group" aria-labelledby="sharing-title">
-      <h2 class="group-title" id="sharing-title">{t('sharing.title')}</h2>
-      <Sharing client:only="preact" />
-    </section>
-
-    <section class="group">
-      <h2 class="group-title">{t('settings.display')}</h2>
-      <div class="row">
-        <div>
-          <p class="row-label" id="appearance-label">{t('settings.appearance')}</p>
-          <p class="row-hint" id="appearance-hint">{t('settings.on-this-device')}</p>
-        </div>
-        <div
-          class="segmented"
-          role="radiogroup"
-          aria-labelledby="appearance-label"
-          aria-describedby="appearance-hint"
-          data-appearance-picker
-        >
-          {
-            options.map((option) => (
-              <label class="segment">
-                <input type="radio" name="appearance" value={option.value} checked={option.value === 'system'} />
-                <Icon name={option.icon} />
-                <span>{option.label}</span>
-              </label>
-            ))
-          }
-        </div>
-      </div>
-      <div class="row">
-        <div>
-          <p class="row-label" id="language-label">{t('settings.language')}</p>
-          <p class="row-hint" id="language-hint">{t('settings.on-this-device')}</p>
-        </div>
-        <div
-          class="segmented"
-          role="radiogroup"
-          aria-labelledby="language-label"
-          aria-describedby="language-hint"
-          data-language-picker
-        >
-          {
-            languageOptions.map((option) => (
-              <label class="segment">
-                <input type="radio" name="language" value={option.value} checked={option.value === chosenLanguage} />
-                <span lang={option.value || undefined}>{option.label}</span>
-              </label>
-            ))
-          }
-        </div>
-      </div>
-    </section>
   </div>
 </AppShell>
 
 <script>
-  import { applyAppearance, parseAppearance, readAppearance, saveAppearance } from '../lib/appearance';
+  import {
+    applyAppearance,
+    applyContrast,
+    parseAppearance,
+    parseContrast,
+    readAppearance,
+    readContrast,
+    saveAppearance,
+    saveContrast,
+  } from '../lib/appearance';
   import { confirmSignOut } from '../lib/auth/confirm-sign-out';
   import { checkedAccount, signOutHere } from '../lib/auth/server-client';
   import { parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
@@ -295,6 +315,7 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
       deleteButton.removeAttribute('aria-busy');
     });
   });
+  deleteButton.disabled = false;
 
   // An action row opens its form, once.
   function opener(button: HTMLButtonElement, target: HTMLElement, focus: HTMLElement) {
@@ -306,7 +327,8 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
     });
   }
 
-  // Add an email address: the address, then the Sign-in Code sent to it.
+  // Add an email address: the address, then the Sign-in Code sent to it. One
+  // step shows at a time, so one main action does (Q7), as on Sign in.
   const addEmail = auth.querySelector<HTMLElement>('#add-email')!;
   const emailForm = addEmail.querySelector<HTMLFormElement>('[data-email-form]')!;
   const emailInput = emailForm.querySelector<HTMLInputElement>('input[name="email"]')!;
@@ -340,11 +362,19 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
       if ('message' in answer) return sayEmail(answer.message);
       sayEmail();
       address = answer.email;
+      emailForm.hidden = true;
       codeForm.hidden = false;
       codeForm.querySelector<HTMLElement>('[data-code-sent]')!.textContent = t('settings.add-email-sent', answer.email);
       codeInput.value = '';
       codeInput.focus();
     });
+  });
+  codeForm.querySelector('[data-other-address]')!.addEventListener('click', () => {
+    sayEmail();
+    address = undefined;
+    codeForm.hidden = true;
+    emailForm.hidden = false;
+    emailInput.focus();
   });
   codeForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -434,10 +464,9 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
     navigator.share({ title: t('invite.share-title'), url: inviteLink.value }).catch(() => undefined);
   });
 
-  const radios = document.querySelectorAll<HTMLInputElement>('[data-appearance-picker] input[name="appearance"]');
-  const stored = readAppearance();
-  for (const radio of radios) {
-    radio.checked = radio.value === stored;
+  const storedAppearance = readAppearance();
+  for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="appearance"]')) {
+    radio.checked = radio.value === storedAppearance;
     radio.addEventListener('change', () => {
       const appearance = parseAppearance(radio.value);
       saveAppearance(appearance);
@@ -445,64 +474,117 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
     });
   }
 
+  // High raises the contrast on every screen; System follows the device.
+  const storedContrast = readContrast();
+  for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="contrast"]')) {
+    radio.checked = radio.value === storedContrast;
+    radio.addEventListener('change', () => {
+      const contrast = parseContrast(radio.value);
+      saveContrast(contrast);
+      applyContrast(document, contrast);
+    });
+  }
+
   // The server renders each page in the language: reload to show this one in it.
-  for (const radio of document.querySelectorAll<HTMLInputElement>('[data-language-picker] input[name="language"]')) {
+  for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="language"]')) {
     radio.addEventListener('change', () => {
       saveLanguage(parseLanguage(radio.value));
       location.reload();
     });
   }
+
+  // The choices stay disabled until their script is ready (ui-direction: Before the scripts run).
+  for (const radio of document.querySelectorAll<HTMLInputElement>('.choice input')) radio.disabled = false;
 </script>
 
 <style>
   .settings {
-    max-width: 880px;
+    max-width: var(--page-width);
     display: flex;
     flex-direction: column;
-    gap: 32px;
+    gap: var(--space-28);
   }
 
   .group {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-10);
   }
 
-  .group-title {
-    font-size: 18px;
+  .group-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-16);
   }
 
   .settings :global(.row) {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--space-10);
+  }
+
+  /* A row's button keeps its label on one line; the text beside it wraps. */
+  .settings :global(.row > .button) {
+    flex: none;
   }
 
   .settings :global(.row-label) {
-    font-size: 14px;
     font-weight: 600;
   }
 
   .settings :global(.row-hint) {
-    color: var(--secondary);
-    font-size: 13px;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+    text-wrap: pretty;
+  }
+
+  .settings :global(.row-error) {
+    color: var(--ink);
+    font-size: var(--type-small);
+  }
+
+  /* A choice of the Display group: a chip with its radio over it (theme.css); checked, it fills with ink, as a pressed chip. */
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+  }
+
+  .choice:has(input:disabled) {
+    opacity: var(--alpha-disabled);
+  }
+
+  .choice:has(input:disabled),
+  .choice input:disabled {
+    cursor: default;
+  }
+
+  .choice:has(input:focus-visible) {
+    outline: var(--stroke) solid var(--accent);
+    outline-offset: var(--stroke);
   }
 
   .link-step {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
+  .link-step > .button-quiet {
+    align-self: flex-start;
+  }
+
+  /* An inline form: the field as tall as its button, the whole no wider than a confirm dialog. */
   .link-form {
     display: flex;
-    gap: 8px;
-    max-width: 480px;
+    gap: var(--space-8);
+    max-width: var(--confirm-width);
   }
 
   .link-form .field {
     flex: 1;
+    min-height: var(--button-height);
   }
 
   /* The whole link on its own line; Copy and Share under it. */
@@ -516,29 +598,24 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
 
   .code {
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.2em;
-  }
-
-  .settings :global(.row-error) {
-    color: var(--ink);
-    font-size: 13px;
+    letter-spacing: var(--tracking-code);
   }
 
   /* The Sharing island renders on the device: its rows reach here with :global. */
   .group :global(.sharing) {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-12);
   }
 
   .group :global(.sharing-note) {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
-    padding: 12px;
+    gap: var(--space-8);
+    padding: var(--space-12);
     border-radius: var(--radius-control);
-    background: var(--soft);
+    background: var(--fill-chip);
   }
 
   /* On the phone too, a category and its switch share a line. */
@@ -546,30 +623,20 @@ const chosenLanguage = parseLanguage(Astro.cookies.get(languageCookie)?.value) ?
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: var(--space-16);
   }
 
-  /* Desktop: list group on a hairline, label left and control right. */
+  /* Desktop: label left, control right. */
   @media (min-width: 960px) {
-    .settings {
-      gap: 28px;
-    }
-
-    .group-title {
-      display: flex;
-      align-items: center;
-      min-height: var(--row);
-      border-bottom: 1px solid var(--line);
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0;
-    }
-
     .settings :global(.row) {
       flex-direction: row;
       align-items: center;
       justify-content: space-between;
-      gap: 24px;
+      gap: var(--space-24);
+    }
+
+    .choices {
+      flex: none;
     }
   }
 </style>

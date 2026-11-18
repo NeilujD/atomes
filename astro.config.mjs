@@ -18,7 +18,15 @@ function precacheAppShell() {
     hooks: {
       'astro:build:done': async ({ dir }) => {
         const assets = (await readdir(new URL('_astro/', dir))).sort().map((file) => `/_astro/${file}`);
-        const version = createHash('sha256').update(assets.join('\n')).digest('hex').slice(0, 12);
+        // The app icons keep their names when scripts/icons.ts draws them again: their bytes go in the version.
+        const isIcon = (/** @type {string} */ file) => /\.(png|svg)$/.test(file);
+        const icons = [
+          ...(await readdir(dir)).filter(isIcon),
+          ...(await readdir(new URL('icons/', dir))).filter(isIcon).map((file) => `icons/${file}`),
+        ].sort();
+        const hash = createHash('sha256').update(assets.join('\n'));
+        for (const icon of icons) hash.update(await readFile(new URL(icon, dir)));
+        const version = hash.digest('hex').slice(0, 12);
         const swUrl = new URL('sw.js', dir);
         const source = await readFile(swUrl, 'utf8');
         const placeholder = "const BUILD = { version: 'dev', assets: [] };";

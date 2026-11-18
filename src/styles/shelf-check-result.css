@@ -1,102 +1,73 @@
 /*
  * The Shelf Check result screen (src/islands/ShelfCheckResult.tsx), from the
- * owner's design "Atomes – Scan result" (CORE-120). Global: the island
- * renders on the device, outside this page's scoped styles. Colours are the
- * --shelf-* tokens; the design's alpha steps are mixes of them.
+ * owner's design "Atomes – Scan result" (CORE-120), in the one look of
+ * ADR 0018: light or dark with the Appearance setting, stronger text and
+ * borders in high contrast. Global: the island renders on the device, outside
+ * this page's scoped styles. Every value is a token of theme.css
+ * (tokens.test.ts checks it); the screen sets only its tone colours.
  */
 .result-screen {
-  --tone: var(--shelf-go);
-  --tone-deep: var(--shelf-go-deep);
-  --tone-soft: color-mix(in srgb, var(--tone) 14%, transparent);
-  --tone-line: color-mix(in srgb, var(--tone) 40%, transparent);
-  --ink-72: color-mix(in srgb, var(--shelf-ink) 72%, transparent);
+  --tone: var(--not-owned);
+  --tone-deep: var(--not-owned-deep);
+  --tone-text: var(--not-owned-text);
+  --tone-on: var(--on-ownership);
+  --tone-soft: color-mix(in srgb, var(--tone) var(--alpha-tone-fill), transparent);
+  --tone-line: color-mix(in srgb, var(--tone) var(--alpha-tone-line), transparent);
   position: relative;
   height: 100%;
   overflow: hidden;
-  background: var(--shelf-ground);
-  color: var(--shelf-ink);
+  background: var(--ground);
+  color: var(--ink);
 }
 
 .result-screen[data-tone='owned'] {
-  --tone: var(--shelf-owned);
-  --tone-deep: var(--shelf-owned-deep);
+  --tone: var(--owned);
+  --tone-deep: var(--owned-deep);
+  --tone-text: var(--owned-text);
 }
 
 /* This device cannot tell: no colour, no glow, no rings. */
 .result-screen[data-tone='unknown'] {
-  --tone: var(--shelf-ink);
+  --tone: var(--ink);
+  --tone-text: var(--ink);
+  --tone-on: var(--ground);
 }
 
-.result-screen[data-tone='unknown'] :is(.result-glow, .result-ring, .result-halo) {
+.result-screen[data-tone='unknown'] :is(.glow, .glow-ring, .glow-halo) {
   display: none;
 }
 
+/* The glow (glow.css), on the whole screen; it arrives with the answer. */
 .result-glow {
-  position: absolute;
   inset: 0;
-  pointer-events: none;
-}
-
-/* Soft edges come from the gradient itself, on a box widened by 72 px on each
-   side (1.5 times the blur of the design): no blur filter. A blur on a moving
-   layer is drawn again on every frame; in WebKit with no GPU it held the
-   change to Series Onboarding for 5 s. */
-.result-blob {
-  --blob: var(--tone);
-  position: absolute;
-  box-sizing: content-box;
-  margin: -72px;
-  padding: 72px;
-  background: radial-gradient(
-    circle closest-side,
-    color-mix(in oklab, var(--blob) 70%, transparent) 0%,
-    color-mix(in oklab, var(--blob) 48%, transparent) 30%,
-    color-mix(in oklab, var(--blob) 24%, transparent) 55%,
-    color-mix(in oklab, var(--blob) 7%, transparent) 78%,
-    transparent 100%
-  );
-  will-change: transform;
 }
 
 .result-b1 {
-  left: -90px;
-  top: -60px;
-  width: 340px;
-  height: 340px;
-  opacity: 0.55;
-  animation:
-    atIntro1 1.1s cubic-bezier(0.16, 1, 0.3, 1) both,
-    atDrift1 13s ease-in-out 1.1s infinite;
+  left: calc(var(--glow-unit) * -9);
+  top: calc(var(--glow-unit) * -6);
+  width: calc(var(--glow-unit) * 34);
+  height: calc(var(--glow-unit) * 34);
 }
 
 .result-b2 {
-  right: -110px;
-  top: 120px;
-  width: 300px;
-  height: 300px;
-  opacity: 0.4;
-  animation:
-    atIntro2 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both,
-    atDrift2 17s ease-in-out 1.25s infinite;
+  right: calc(var(--glow-unit) * -11);
+  top: calc(var(--glow-unit) * 12);
+  width: calc(var(--glow-unit) * 30);
+  height: calc(var(--glow-unit) * 30);
 }
 
 .result-b3 {
-  left: 60px;
-  top: 300px;
-  width: 260px;
-  height: 260px;
-  opacity: 0.3;
-  --blob: var(--tone-deep);
-  animation:
-    atIntro3 1.3s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both,
-    atDrift3 11s ease-in-out 1.4s infinite;
+  left: calc(var(--glow-unit) * 6);
+  top: calc(var(--glow-unit) * 30);
+  width: calc(var(--glow-unit) * 26);
+  height: calc(var(--glow-unit) * 26);
 }
 
 /* The glow fades into the ground under the cover. */
 .result-fade {
   position: absolute;
-  inset: 380px 0 0;
-  background: linear-gradient(180deg, transparent 0%, var(--shelf-ground) 38%);
+  inset: calc(var(--glow-unit) * 38) 0 0;
+  background: linear-gradient(180deg, transparent 0%, var(--ground) 38%);
 }
 
 /* Scrolls when the screen is shorter than the design (844 px); the actions
@@ -107,111 +78,41 @@
   overflow: hidden auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 0 max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left));
+  gap: var(--space-20);
+  padding: 0 max(var(--space-20), env(safe-area-inset-right)) 0 max(var(--space-20), env(safe-area-inset-left));
 }
 
 .result-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: max(12px, env(safe-area-inset-top));
+  padding-top: max(var(--space-12), env(safe-area-inset-top));
 }
 
-.result-round,
+/* Close and Scan are round icon buttons, the title a small heading (theme.css).
+   With no Scan, an empty box of the same size keeps the title centred. */
 .result-round-space {
   flex: none;
-  width: 44px;
-  height: 44px;
-}
-
-.result-round {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--shelf-ink) 14%, transparent);
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--shelf-ground) 35%, transparent);
-  color: var(--shelf-ink);
-  cursor: pointer;
-}
-
-.result-heading {
-  color: color-mix(in srgb, var(--shelf-ink) 75%, transparent);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  width: var(--icon-button);
+  height: var(--icon-button);
 }
 
 .result-top {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
-  padding-top: 6px;
+  gap: var(--space-18);
+  padding-top: var(--space-6);
 }
 
-/* The cover with its halo and rings; every size follows the cover width (--w). */
+/* The cover with its halo and rings (glow.css); every size follows the cover
+   width (--w). A cover 120 px wide or more takes the large corner. */
 .result-stage {
-  --w: 168px;
+  --w: var(--shelf-cover);
+  --cover-corner: var(--radius-cover-large);
   position: relative;
   width: var(--w);
   aspect-ratio: 2 / 3;
-}
-
-.result-ring {
-  position: absolute;
-  left: calc(var(--w) * -16 / 168);
-  top: calc(var(--w) * 26 / 168);
-  width: calc(var(--w) * 200 / 168);
-  aspect-ratio: 1;
-  border: 2px solid var(--tone);
-  border-radius: 50%;
-  box-shadow: 0 0 24px var(--tone-line);
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Three rings at once, then a calm one every 7 s (3.5 s apart). */
-.result-r1 {
-  animation:
-    atWave 1s cubic-bezier(0.2, 0.7, 0.3, 1) 0s both,
-    atWaveCalm 7s ease-out 1.8s infinite;
-}
-
-.result-r2 {
-  animation:
-    atWave 1s cubic-bezier(0.2, 0.7, 0.3, 1) 0.18s both,
-    atWaveCalm 7s ease-out 5.3s infinite;
-}
-
-.result-r3 {
-  animation: atWave 1s cubic-bezier(0.2, 0.7, 0.3, 1) 0.36s both;
-}
-
-.result-halo {
-  position: absolute;
-  left: calc(var(--w) * -46 / 168);
-  top: calc(var(--w) * -34 / 168);
-  width: calc(var(--w) * 260 / 168);
-  height: calc(var(--w) * 320 / 168);
-  /* As the blobs: soft edges from the gradient, 45 px wider on each side, no blur filter. */
-  box-sizing: content-box;
-  margin: -45px;
-  padding: 45px;
-  background: radial-gradient(
-    closest-side,
-    color-mix(in oklab, var(--tone) 70%, transparent) 0%,
-    color-mix(in oklab, var(--tone) 48%, transparent) 30%,
-    color-mix(in oklab, var(--tone) 24%, transparent) 55%,
-    color-mix(in oklab, var(--tone) 7%, transparent) 78%,
-    transparent 100%
-  );
-  animation:
-    atHaloIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) both,
-    atBreathe 4.5s ease-in-out 1.2s infinite;
 }
 
 .result-cover {
@@ -221,42 +122,46 @@
 
 .result-cover:not([data-cover='loaded']),
 .result-stage .result-cover[data-cover='loaded'] img {
-  border-radius: 10px;
+  border-radius: var(--cover-corner);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--shelf-ink) 14%, transparent),
-    0 24px 48px rgb(0 0 0 / 0.55);
+    0 0 0 var(--hairline) var(--line-control),
+    var(--shadow-cover-large);
 }
 
 /* With a Series card (or its skeleton, so the cover does not jump when it
    comes): a smaller cover, so the card, the chips and "Added on" fit above
    the actions on a phone screen. */
 .result-screen:has(.result-card) .result-stage {
-  --w: 112px;
+  --w: var(--shelf-cover-with-card);
+  --cover-corner: var(--radius-cover);
 }
 
 /* A short screen (a phone browser with its bars, or a desktop card under
-   844 px): a smaller cover, so the answer and the title show at once. */
+   844 px): a smaller cover, so the answer and the title show at once. CSS
+   reads no variable in a media condition: these sizes stay typed. */
 @media (max-height: 760px), (min-width: 960px) and (max-height: 891px) {
   .result-stage {
-    --w: 128px;
+    --w: var(--shelf-cover-short);
   }
 
   .result-screen:has(.result-card) .result-stage {
-    --w: 88px;
+    --w: var(--shelf-cover-short-with-card);
   }
 }
 
+/* The answer. Its tint is painted on --surface, as the "Not owned" chip, so
+   the glow behind it cannot lower its contrast (theme.test.ts). */
 .result-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 0 14px;
-  border: 1px solid var(--tone-line);
-  border-radius: 16px;
-  background: var(--tone-soft);
-  color: var(--tone);
-  font-size: 13px;
+  gap: var(--space-8);
+  min-height: var(--pill-height);
+  padding: 0 var(--space-14);
+  border: var(--hairline) solid var(--tone-line);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(var(--tone-soft), var(--tone-soft)), var(--surface);
+  color: var(--tone-text);
+  font-size: var(--type-small);
   font-weight: 600;
   text-align: center;
 }
@@ -273,65 +178,63 @@
 .result-text {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-6);
   text-align: center;
 }
 
 .result-title {
-  font-size: 26px;
+  font-size: var(--type-title);
   line-height: 1.15;
   font-weight: 700;
+  letter-spacing: var(--tracking-tight);
   overflow-wrap: anywhere;
 }
 
 .result-title a {
   color: inherit;
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--shelf-ink) 35%, transparent);
-  text-underline-offset: 4px;
+  text-decoration-color: var(--line-link);
+  text-underline-offset: var(--space-4);
 }
 
 .result-subline {
-  color: var(--ink-72);
-  font-size: 15px;
+  color: var(--text-quiet);
+  font-size: var(--type-body);
 }
 
 .result-quiet {
-  color: var(--ink-72);
-  font-size: 13px;
+  color: var(--text-quiet);
+  font-size: var(--type-small);
 }
 
 .result-added {
-  margin-top: -8px;
+  margin-top: calc(var(--space-8) * -1);
   text-align: center;
 }
 
+/* The Series card, on the shared card (theme.css). */
 .result-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--shelf-ink) 9%, transparent);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--shelf-ink) 5%, transparent);
+  gap: var(--space-10);
 }
 
 /* Holds the place of the Series card while its Edition Line loads. */
 .result-card-skeleton {
   flex: none;
-  height: 106px;
-  animation: pulse 1.4s ease-in-out infinite;
+  height: var(--shelf-card-height);
+  animation: pulse var(--motion-pulse) ease-in-out infinite;
 }
 
 .result-card-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-12);
 }
 
 .result-card-title {
-  font-size: 13px;
+  font-size: var(--type-small);
   font-weight: 600;
 }
 
@@ -340,62 +243,74 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 4px 12px;
+  gap: var(--space-4) var(--space-12);
 }
 
+/* The Edition Line drawn, in the colours of the Series page spines (Q10):
+   not owned faint, owned the orange shade (--spine-owned), read full ink, read
+   and not owned faint with the read mark (an ink dot); this Volume in the tone
+   with a glow. A segment does not know Missing, so not owned stays faint. */
 .result-segments {
   display: flex;
-  gap: 4px;
+  gap: var(--space-4);
 }
 
 .result-segment {
   flex: 1;
-  height: 6px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--shelf-ink) 14%, transparent);
+  height: var(--track);
+  border-radius: var(--radius-pill);
+  background: var(--shade-faint);
 }
 
 .result-segment[data-state='owned'] {
-  background: color-mix(in srgb, var(--shelf-ink) 55%, transparent);
+  background: var(--spine-owned);
+}
+
+.result-segment[data-state='read'] {
+  background: var(--ink);
+}
+
+.result-segment[data-state='read-not-owned'] {
+  background: radial-gradient(circle, var(--ink) calc(var(--track-mark) / 2), transparent calc(var(--track-mark) / 2)), var(--shade-faint);
 }
 
 .result-segment[data-state='this'],
 .result-bar-mark {
   background: var(--tone);
-  box-shadow: 0 0 12px var(--tone);
+  box-shadow: 0 0 var(--glow-blur-mark) var(--tone);
 }
 
 .result-bar {
   position: relative;
-  height: 6px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--shelf-ink) 14%, transparent);
+  height: var(--track);
+  border-radius: var(--radius-pill);
+  background: var(--shade-faint);
 }
 
 .result-bar-fill {
   position: absolute;
   inset: 0 auto 0 0;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--shelf-ink) 55%, transparent);
+  border-radius: var(--radius-pill);
+  background: var(--spine-owned);
 }
 
 .result-bar-mark {
   position: absolute;
-  top: -3px;
-  width: 4px;
-  height: 12px;
-  margin-left: -2px;
-  border-radius: 2px;
+  top: calc(var(--track) / -2);
+  width: var(--track-mark);
+  height: calc(var(--track) * 2);
+  margin-left: calc(var(--track-mark) / -2);
+  border-radius: var(--radius-pill);
 }
 
 .result-follow {
   min-height: var(--row);
-  padding: 0 14px;
-  border: 1px solid color-mix(in srgb, var(--shelf-ink) 18%, transparent);
-  border-radius: 999px;
+  padding: 0 var(--space-14);
+  border: var(--hairline) solid var(--line-button);
+  border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--shelf-ink);
-  font-size: 13px;
+  color: var(--ink);
+  font-size: var(--type-small);
   font-weight: 600;
   cursor: pointer;
 }
@@ -404,22 +319,14 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-8);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* The shared chip (theme.css), with figures that line up (the ISBN). */
 .result-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--shelf-ink) 7%, transparent);
-  color: color-mix(in srgb, var(--shelf-ink) 82%, transparent);
-  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -428,10 +335,10 @@
   bottom: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-10);
   margin-top: auto;
-  padding-bottom: max(28px, env(safe-area-inset-bottom));
-  background: var(--shelf-ground);
+  padding-bottom: max(var(--space-28), env(safe-area-inset-bottom));
+  background: var(--ground);
 }
 
 /* What scrolls under the actions fades out above them. */
@@ -439,34 +346,35 @@
   content: '';
   position: absolute;
   inset: auto 0 100%;
-  height: 24px;
-  background: linear-gradient(180deg, transparent, var(--shelf-ground));
+  height: var(--space-24);
+  background: linear-gradient(180deg, transparent, var(--ground));
   pointer-events: none;
 }
 
 .result-action {
   position: relative;
-  border-radius: 16px;
+  border-radius: var(--radius-button);
   cursor: pointer;
 }
 
+/* Filled with the tone; dark text on green and orange, in both themes. */
 .result-primary {
-  --busy-ink: var(--shelf-on-accent);
-  height: 54px;
+  --busy-ink: var(--tone-on);
+  height: var(--button-height-large);
   border: 0;
   background: var(--tone);
-  color: var(--shelf-on-accent);
-  font-size: 16px;
+  color: var(--tone-on);
+  font-size: var(--type-button-large);
   font-weight: 600;
 }
 
 .result-secondary {
-  --busy-ink: var(--shelf-ink);
-  height: 50px;
-  border: 1px solid color-mix(in srgb, var(--shelf-ink) 18%, transparent);
+  --busy-ink: var(--ink);
+  height: var(--button-height);
+  border: var(--hairline) solid var(--line-button);
   background: transparent;
-  color: var(--shelf-ink);
-  font-size: 15px;
+  color: var(--ink);
+  font-size: var(--type-button);
   font-weight: 500;
 }
 
@@ -475,9 +383,8 @@
 }
 
 .result-action:disabled:not([aria-busy='true']),
-.result-round:disabled,
 .result-follow:disabled:not([aria-busy='true']) {
-  opacity: 0.6;
+  opacity: var(--alpha-disabled);
 }
 
 /* While it saves: a spinner in place of the label, at the same size. */
@@ -491,151 +398,27 @@
   content: '';
   position: absolute;
   inset: 0;
-  width: 16px;
-  height: 16px;
+  width: var(--spinner);
+  height: var(--spinner);
   margin: auto;
-  border: 2px solid var(--busy-ink, var(--shelf-ink));
+  border: var(--stroke) solid var(--busy-ink, var(--ink));
   border-right-color: transparent;
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  animation: spin var(--motion-spin) linear infinite;
 }
 
 .result-follow[aria-busy='true'] {
   position: relative;
 }
 
-@keyframes atDrift1 {
-  0% {
-    transform: translate(-40px, -20px) scale(1);
-  }
-  50% {
-    transform: translate(50px, 40px) scale(1.2);
-  }
-  100% {
-    transform: translate(-40px, -20px) scale(1);
-  }
-}
-
-@keyframes atDrift2 {
-  0% {
-    transform: translate(30px, 10px) scale(1.1);
-  }
-  50% {
-    transform: translate(-60px, -30px) scale(0.9);
-  }
-  100% {
-    transform: translate(30px, 10px) scale(1.1);
-  }
-}
-
-@keyframes atDrift3 {
-  0% {
-    transform: translate(0, 0) scale(0.9);
-  }
-  50% {
-    transform: translate(20px, -50px) scale(1.15);
-  }
-  100% {
-    transform: translate(0, 0) scale(0.9);
-  }
-}
-
-@keyframes atBreathe {
-  0%,
-  100% {
-    opacity: 0.45;
-    transform: scale(0.92);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.06);
-  }
-}
-
-@keyframes atIntro1 {
-  0% {
-    opacity: 0;
-    transform: translate(60px, 120px) scale(0.3);
-  }
-  100% {
-    transform: translate(-40px, -20px) scale(1);
-  }
-}
-
-@keyframes atIntro2 {
-  0% {
-    opacity: 0;
-    transform: translate(-80px, 60px) scale(0.3);
-  }
-  100% {
-    transform: translate(30px, 10px) scale(1.1);
-  }
-}
-
-@keyframes atIntro3 {
-  0% {
-    opacity: 0;
-    transform: translate(40px, -120px) scale(0.3);
-  }
-  100% {
-    transform: translate(0, 0) scale(0.9);
-  }
-}
-
-@keyframes atHaloIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-  35% {
-    opacity: 1;
-    transform: scale(1.18);
-  }
-  100% {
-    opacity: 0.45;
-    transform: scale(0.92);
-  }
-}
-
-@keyframes atWave {
-  0% {
-    opacity: 0.85;
-    transform: scale(0.5);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(2.9);
-  }
-}
-
-@keyframes atWaveCalm {
-  0% {
-    opacity: 0;
-    transform: scale(0.7);
-  }
-  20% {
-    opacity: 0.3;
-  }
-  100% {
-    opacity: 0;
-    transform: scale(2.4);
-  }
-}
-
-/* Nothing moves: the glow and halo stay still, the rings do not show. */
+/* Nothing moves (the glow and halo: glow.css). */
 @media (prefers-reduced-motion: reduce) {
-  .result-blob,
-  .result-halo,
   .result-card-skeleton {
     animation: none;
   }
 
-  .result-ring {
-    display: none;
-  }
-
   .result-action[aria-busy='true']::after,
   .result-follow[aria-busy='true']::after {
-    animation-duration: 1.6s;
+    animation-duration: var(--motion-spin-reduced);
   }
 }

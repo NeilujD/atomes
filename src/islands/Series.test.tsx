@@ -119,6 +119,26 @@ describe('Series page', () => {
     expect(screen.getByRole('button', { name: 'Volume 3, not in the Catalog yet' })).toBeTruthy();
   });
 
+  // The reader owns Volumes 1 and 3 of line A; here Volume 3 is numbered 2.
+  const tone = () => document.querySelector<HTMLElement>('.series')?.dataset.tone;
+  const two = volume(3, 'A', { volumes: [2], volume: 2 });
+
+  test('the glow is green while the reader does not own every Volume the Catalog lists, even with none Missing', async () => {
+    // Volumes 1 and 2 owned, 3 and 4 not: nothing is Missing (none before the latest owned), yet 3 and 4 are not owned.
+    const line = [lineA[0], two, volume(4, 'A', { volumes: [3], volume: 3 }), volume(5, 'A', { volumes: [4], volume: 4 })];
+    await seriesPage('following', [...line, ...lineB], blacksad.id, [line, lineB]);
+
+    expect(count('missing')).toBe('0');
+    expect(tone()).toBe('not-owned');
+  });
+
+  test('the glow is orange when the reader owns every Volume the Catalog lists', async () => {
+    const line = [lineA[0], two];
+    await seriesPage('following', [...line, ...lineB], blacksad.id, [line, lineB]);
+
+    expect(tone()).toBe('owned');
+  });
+
   test('"Stop following" drops the Series, and Follow follows it again', async () => {
     const { follows } = await seriesPage('following');
 

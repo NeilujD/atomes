@@ -105,7 +105,7 @@ describe('shelfCheck', () => {
       line,
     );
 
-    expect(answer).toMatchObject({ kind: 'missing', series: { owned: 2, read: 2, ownedVolumes: [1, 4], total: 6 } });
+    expect(answer).toMatchObject({ kind: 'missing', series: { owned: 2, read: 2, ownedVolumes: [1, 4], readVolumes: [1, 5], total: 6 } });
   });
 
   test('a Volume the reader read and does not own (borrowed) is not missing: the answer says it was read', () => {
@@ -129,7 +129,7 @@ describe('shelfCheck', () => {
   test('a Volume after the latest one owned is not missing, and names the Followed Series', () => {
     const answer = shelfCheck(line[5].isbn, line[5], library({ copies: [copy(line[0]), copy(line[3])], follows: [follow()] }), line);
 
-    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: blacksad, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [1, 4], total: 6, followable: false } });
+    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: blacksad, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [1, 4], readVolumes: [], total: 6, followable: false } });
   });
 
   test('a Series followed under another identifier (sameAs) is followed', () => {
@@ -142,7 +142,7 @@ describe('shelfCheck', () => {
   test('a Dropped Series is not followed: no Missing Volume', () => {
     const answer = shelfCheck(line[2].isbn, line[2], library({ copies: [copy(line[0]), copy(line[3])], follows: [follow({ status: 'dropped' })] }), line);
 
-    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [1, 4], total: 6, followable: false } });
+    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [1, 4], readVolumes: [], total: 6, followable: false } });
   });
 
   test('a Followed Series whose Edition Line could not be asked: followed, but not called missing', () => {
@@ -162,27 +162,33 @@ describe('shelfCheck', () => {
   test('owned wins over missing: a Copy of the Volume in a Followed Series', () => {
     const answer = shelfCheck(line[2].isbn, line[2], library({ copies: [copy(line[2]), copy(line[3])], follows: [follow()] }), line);
 
-    expect(answer).toEqual({ kind: 'owned', status: 'unread', followed: blacksad, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [3, 4], total: 6, followable: false } });
+    expect(answer).toEqual({ kind: 'owned', status: 'unread', followed: blacksad, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [3, 4], readVolumes: [], total: 6, followable: false } });
   });
 });
 
 describe('seriesBar: how the Series card draws the Edition Line', () => {
+  const none = { ownedVolumes: [], readVolumes: [] };
+
   test('up to 30 Volumes: one segment each, owned, not owned, or this book (an omnibus marks each of its Volumes)', () => {
-    expect(seriesBar({ total: 6, ownedVolumes: [1, 2, 4] }, [5])).toEqual({ segments: ['owned', 'owned', 'not-owned', 'owned', 'this', 'not-owned'] });
-    expect(seriesBar({ total: 4, ownedVolumes: [1] }, [2, 3])).toEqual({ segments: ['owned', 'this', 'this', 'not-owned'] });
-    expect(seriesBar({ total: 30, ownedVolumes: [] }, [])).toEqual({ segments: Array.from({ length: 30 }, () => 'not-owned') });
+    expect(seriesBar({ total: 6, ownedVolumes: [1, 2, 4], readVolumes: [] }, [5])).toEqual({ segments: ['owned', 'owned', 'not-owned', 'owned', 'this', 'not-owned'] });
+    expect(seriesBar({ total: 4, ownedVolumes: [1], readVolumes: [] }, [2, 3])).toEqual({ segments: ['owned', 'this', 'this', 'not-owned'] });
+    expect(seriesBar({ total: 30, ...none }, [])).toEqual({ segments: Array.from({ length: 30 }, () => 'not-owned') });
   });
 
-  test('this book owned: its segment is still this book', () => {
-    expect(seriesBar({ total: 3, ownedVolumes: [1, 2, 3] }, [3])).toEqual({ segments: ['owned', 'owned', 'this'] });
+  test('a Volume read shows read, as its spine on the Series page: owned and read, or read and not owned', () => {
+    expect(seriesBar({ total: 5, ownedVolumes: [1, 2], readVolumes: [1, 3] }, [5])).toEqual({ segments: ['read', 'owned', 'read-not-owned', 'not-owned', 'this'] });
+  });
+
+  test('this book owned or read: its segment is still this book', () => {
+    expect(seriesBar({ total: 3, ownedVolumes: [1, 2, 3], readVolumes: [3] }, [3])).toEqual({ segments: ['owned', 'owned', 'this'] });
   });
 
   test('more than 30 Volumes: one bar filled to the share owned, a mark in the middle of this Volume', () => {
-    expect(seriesBar({ total: 113, ownedVolumes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }, [56])).toEqual({ ownedShare: 10 / 113, at: 55.5 / 113 });
+    expect(seriesBar({ total: 113, ownedVolumes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], readVolumes: [1] }, [56])).toEqual({ ownedShare: 10 / 113, at: 55.5 / 113 });
   });
 
   test('more than 30 Volumes, a book with no Volume number in the line: no mark', () => {
-    expect(seriesBar({ total: 40, ownedVolumes: [] }, [])).toEqual({ ownedShare: 0, at: undefined });
+    expect(seriesBar({ total: 40, ...none }, [])).toEqual({ ownedShare: 0, at: undefined });
   });
 });
 
@@ -196,13 +202,13 @@ describe('shelfCheck: the Series line under the answer', () => {
     const answer = shelfCheck(gapped[12].isbn, gapped[12], library({ copies: [copy(gapped[12])] }), gapped);
 
     expect(gapped[12].volume).toBe(14);
-    expect(answer).toEqual({ kind: 'owned', status: 'unread', followed: null, series: { owned: 1, read: 0, missing: 12, ownedVolumes: [14], total: 15, followable: true } });
+    expect(answer).toEqual({ kind: 'owned', status: 'unread', followed: null, series: { owned: 1, read: 0, missing: 12, ownedVolumes: [14], readVolumes: [], total: 15, followable: true } });
   });
 
   test('a Volume not owned of a Series not followed: the same counts, from the line of this Edition', () => {
     const answer = shelfCheck(gapped[1].isbn, gapped[1], library({ copies: [copy(gapped[0]), copy(gapped[3])] }), gapped);
 
-    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [1, 4], total: 15, followable: true } });
+    expect(answer).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [1, 4], readVolumes: [], total: 15, followable: true } });
   });
 
   test('a Followed Series: the counts, and no Follow', () => {
@@ -295,7 +301,7 @@ describe('deviceShelfCheck: the answer with no network, from this device only', 
   test('a Volume after the latest one owned: not in the Library, and names the Followed Series', async () => {
     const answer = await deviceShelfCheck(line[5].isbn, library({ copies: [copy(line[0]), copy(line[3])], follows: [follow()] }), kept);
 
-    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: blacksad, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [1, 4], total: 6, followable: false } });
+    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: blacksad, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [1, 4], readVolumes: [], total: 6, followable: false } });
   });
 
   test('a book this device knows, in no Followed Series and not in the Library', async () => {
@@ -331,7 +337,7 @@ describe('deviceShelfCheck: the answer with no network, from this device only', 
   test('a Series not followed: the Series line from the Edition Line this device kept for this ISBN', async () => {
     const answer = await deviceShelfCheck(line[2].isbn, library({ copies: [copy(line[0])] }), device([line[2]], { [line[2].isbn]: line }));
 
-    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 1, read: 0, missing: 0, ownedVolumes: [1], total: 6, followable: true } });
+    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 1, read: 0, missing: 0, ownedVolumes: [1], readVolumes: [], total: 6, followable: true } });
   });
 
   test('a Series not followed whose Edition Line is not on this device: the answer, with no Series line', async () => {
@@ -347,7 +353,7 @@ describe('deviceShelfCheck: the answer with no network, from this device only', 
       device([line[2]], { [line[0].isbn]: line }),
     );
 
-    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [1, 4], total: 6, followable: false } });
+    expect(answer.check).toEqual({ kind: 'new', status: 'unread', followed: null, series: { owned: 2, read: 0, missing: 2, ownedVolumes: [1, 4], readVolumes: [], total: 6, followable: false } });
   });
 });
 

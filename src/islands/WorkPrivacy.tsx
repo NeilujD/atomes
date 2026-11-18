@@ -43,8 +43,8 @@ export function WorkPrivacy({ work, client }: { work: string; client: SharingCli
   const kept = state.privateWorks.includes(work);
 
   return (
-    <section class="work-privacy" aria-labelledby="visibility-title">
-      <h2 class="work-privacy-title" id="visibility-title">
+    <section class="work-privacy card" aria-labelledby="visibility-title">
+      <h2 class="small-heading" id="visibility-title">
         {t('sharing.visibility')}
       </h2>
       <div class="work-privacy-row">

@@ -5,9 +5,9 @@ import type { AppEnv } from './server/settings';
 
 const names: Record<AppEnv, string> = {
   production: 'Atomes',
-  staging: 'Atomes Staging',
-  preview: 'Atomes Preview',
-  local: 'Atomes Local',
+  staging: 'Atomes staging',
+  preview: 'Atomes preview',
+  local: 'Atomes local',
 };
 
 export interface AppIcons {

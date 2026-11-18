@@ -8,6 +8,7 @@ interface Props {
 
 const { name, size = 16 } = Astro.props;
 const LucideIcon = icons[name];
+// Stroke 2, the lucide default, is --icon-stroke (theme.css); a round icon button sets 20 px from CSS.
 ---
 
-<LucideIcon size={size} stroke-width={1.75} aria-hidden="true" />
+<LucideIcon size={size} aria-hidden="true" />

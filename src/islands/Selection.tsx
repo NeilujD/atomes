@@ -186,7 +186,7 @@ export function SelectionBar({ picked, onAll, onDone, space, library, onSaved, s
   const { carried, others } = labelGroups(labelsAtoZ(labels, pageLanguage()), works);
 
   return (
-    <div class="selection-bar" role="toolbar" aria-label={t('select.bar')}>
+    <div class="selection-bar card card-raised" role="toolbar" aria-label={t('select.bar')}>
       <div class="selection-row">
         <p class="selection-count" aria-live="polite">
           {t('select.count', count)}

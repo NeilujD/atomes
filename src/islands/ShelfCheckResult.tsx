@@ -69,24 +69,24 @@ export function ShelfCheckResult(props: ResultProps) {
   const added = check.kind === 'owned' && addedAt ? t('check.added-on', new Intl.DateTimeFormat(pageLanguage(), { dateStyle: 'long' }).format(new Date(addedAt))) : '';
 
   return (
-    <div class="result-screen" data-tone={resultTone(check.kind)}>
-      <div class="result-glow" aria-hidden="true">
-        <span class="result-blob result-b1" />
-        <span class="result-blob result-b2" />
-        <span class="result-blob result-b3" />
+    <div class="result-screen glow-arrive" data-tone={resultTone(check.kind)}>
+      <div class="glow result-glow" aria-hidden="true">
+        <span class="glow-blob glow-b1 result-b1" />
+        <span class="glow-blob glow-b2 result-b2" />
+        <span class="glow-blob glow-b3 result-b3" />
         <span class="result-fade" />
       </div>
       <div class="result-scroll">
         <div class="result-header">
-          <button class="result-round" type="button" aria-label={t('common.close')} disabled={saving !== undefined} onClick={onClose}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <button class="icon-button" type="button" aria-label={t('common.close')} disabled={saving !== undefined} onClick={onClose}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </button>
-          <span class="result-heading">{t('check.result')}</span>
+          <span class="small-heading">{t('check.result')}</span>
           {canScan ? (
-            <button class="result-round" type="button" aria-label={t('add.scan')} disabled={saving !== undefined} onClick={onScan}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <button class="icon-button" type="button" aria-label={t('add.scan')} disabled={saving !== undefined} onClick={onScan}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16" />
               </svg>
             </button>
@@ -97,10 +97,10 @@ export function ShelfCheckResult(props: ResultProps) {
 
         <div class="result-top">
           <div class="result-stage">
-            <span class="result-ring result-r1" aria-hidden="true" />
-            <span class="result-ring result-r2" aria-hidden="true" />
-            <span class="result-ring result-r3" aria-hidden="true" />
-            <span class="result-halo" aria-hidden="true" />
+            <span class="glow-ring glow-r1" aria-hidden="true" />
+            <span class="glow-ring glow-r2" aria-hidden="true" />
+            <span class="glow-ring glow-r3" aria-hidden="true" />
+            <span class="glow-halo" aria-hidden="true" />
             <Cover
               class="result-cover"
               src={cover}
@@ -112,7 +112,7 @@ export function ShelfCheckResult(props: ResultProps) {
           </div>
           {/* Focused when the screen opens, not tabbable: screen readers say the answer first. */}
           <p class="result-pill" tabindex={-1} data-result-answer>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               {check.kind === 'owned' ? (
                 <>
                   <circle cx="12" cy="12" r="9" />
@@ -137,18 +137,18 @@ export function ShelfCheckResult(props: ResultProps) {
         {check.series ? (
           <SeriesCard series={check.series} volumes={volumes} following={props.following ?? false} onFollow={props.onFollow} />
         ) : (
-          seriesLoading && <div class="result-card result-card-skeleton" aria-hidden="true" />
+          seriesLoading && <div class="card result-card result-card-skeleton" aria-hidden="true" />
         )}
         {added && <p class="result-quiet result-added">{added}</p>}
 
         <ul class="result-chips">
           {chips.map((chip) => (
-            <li key={chip} class="result-chip">
+            <li key={chip} class="chip result-chip">
               {chip}
             </li>
           ))}
           {/* One quiet mention (CORE-111): a Copy is never Shared, nothing to change. */}
-          <li class="result-chip">
+          <li class="chip result-chip">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect width="18" height="11" x="3" y="11" rx="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -202,7 +202,7 @@ function Actions({ book, check, saving, canScan, onScan, onAdd }: ResultProps) {
 function SeriesCard({ series, volumes, following, onFollow }: { series: SeriesLine; volumes: number[]; following: boolean; onFollow?: () => void }) {
   const bar = seriesBar(series, volumes);
   return (
-    <section class="result-card" aria-label={t('check.your-series')}>
+    <section class="card result-card" aria-label={t('check.your-series')}>
       <div class="result-card-head">
         <span class="result-card-title">{t('check.your-series')}</span>
         <span class="result-quiet">{t('check.series-counts', series.owned, series.read)}</span>

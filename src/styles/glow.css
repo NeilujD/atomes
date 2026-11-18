@@ -1,0 +1,252 @@
+/*
+ * Glow (ui-direction Q9): blobs of soft colour behind the top of a screen,
+ * and the halo and rings of a big cover. A screen sets only its colours
+ * (--tone, --tone-deep, --tone-line), the box of its glow and where each blob
+ * sits; a stage sets --w, the cover width that sizes its halo and rings.
+ * Soft edges come from a radial gradient on a padded box, never a blur
+ * filter (a blur on a moving layer is drawn again on every frame). Every
+ * value is a token of theme.css (tokens.test.ts checks it). Nothing here
+ * takes a tap. `.glow-arrive` around the parts adds the arrival of the
+ * Shelf Check result. With reduced motion, nothing moves and rings do not show.
+ */
+.glow,
+.glow-blob,
+.glow-halo,
+.glow-ring {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* A glow at its strength: half its colour on the light ground (--glow-light). */
+.glow-blob,
+.glow-halo {
+  --glow: light-dark(color-mix(in oklab, var(--blob) var(--glow-light), transparent), var(--blob));
+  box-sizing: content-box;
+  background: radial-gradient(
+    circle closest-side,
+    color-mix(in oklab, var(--glow) var(--glow-alpha-1), transparent),
+    color-mix(in oklab, var(--glow) var(--glow-alpha-2), transparent) var(--glow-stop-2),
+    color-mix(in oklab, var(--glow) var(--glow-alpha-3), transparent) var(--glow-stop-3),
+    color-mix(in oklab, var(--glow) var(--glow-alpha-4), transparent) var(--glow-stop-4),
+    transparent
+  );
+}
+
+.glow-blob {
+  --blob: var(--tone);
+  margin: calc(var(--glow-pad-blob) * -1);
+  padding: var(--glow-pad-blob);
+  will-change: transform;
+}
+
+.glow-b1 {
+  opacity: var(--glow-opacity-1);
+}
+
+.glow-b2 {
+  opacity: var(--glow-opacity-2);
+}
+
+.glow-b3 {
+  --blob: var(--tone-deep);
+  opacity: var(--glow-opacity-3);
+}
+
+.glow-halo {
+  --blob: var(--tone);
+  left: calc(var(--w) * -46 / 168);
+  top: calc(var(--w) * -34 / 168);
+  width: calc(var(--w) * 260 / 168);
+  height: calc(var(--w) * 320 / 168);
+  margin: calc(var(--glow-pad-halo) * -1);
+  padding: var(--glow-pad-halo);
+}
+
+.glow-ring {
+  left: calc(var(--w) * -16 / 168);
+  top: calc(var(--w) * 26 / 168);
+  width: calc(var(--w) * 200 / 168);
+  aspect-ratio: 1;
+  border: var(--stroke) solid var(--tone);
+  border-radius: 50%;
+  box-shadow: 0 0 var(--glow-blur-ring) var(--tone-line);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .glow-b1 {
+    animation: glowDrift1 var(--motion-drift-1) ease-in-out infinite;
+  }
+
+  .glow-b2 {
+    animation: glowDrift2 var(--motion-drift-2) ease-in-out infinite;
+  }
+
+  .glow-b3 {
+    animation: glowDrift3 var(--motion-drift-3) ease-in-out infinite;
+  }
+
+  .glow-halo {
+    animation: glowBreathe var(--motion-breathe) ease-in-out infinite;
+  }
+
+  /* Three rings at once, then a calm one every --motion-wave-calm, half of it apart. */
+  .glow-r1 {
+    animation:
+      glowWave var(--motion-wave) var(--ease-wave) both,
+      glowWaveCalm var(--motion-wave-calm) ease-out var(--motion-wave-rest) infinite;
+  }
+
+  .glow-r2 {
+    animation:
+      glowWave var(--motion-wave) var(--ease-wave) var(--motion-wave-stagger) both,
+      glowWaveCalm var(--motion-wave-calm) ease-out calc(var(--motion-wave-rest) + var(--motion-wave-calm) / 2) infinite;
+  }
+
+  .glow-r3 {
+    animation: glowWave var(--motion-wave) var(--ease-wave) calc(2 * var(--motion-wave-stagger)) both;
+  }
+
+  /* The arrival: the blobs fly in, one after the other, then drift; the halo swells, then breathes. */
+  .glow-arrive .glow-b1 {
+    animation:
+      glowIntro1 calc(var(--motion-arrive) - 2 * var(--motion-stagger)) var(--ease-arrive) both,
+      glowDrift1 var(--motion-drift-1) ease-in-out calc(var(--motion-arrive) - 2 * var(--motion-stagger)) infinite;
+  }
+
+  .glow-arrive .glow-b2 {
+    animation:
+      glowIntro2 var(--motion-arrive) var(--ease-arrive) var(--motion-stagger) both,
+      glowDrift2 var(--motion-drift-2) ease-in-out calc(var(--motion-arrive) + var(--motion-stagger)) infinite;
+  }
+
+  .glow-arrive .glow-b3 {
+    animation:
+      glowIntro3 calc(var(--motion-arrive) + 2 * var(--motion-stagger)) var(--ease-arrive) calc(2 * var(--motion-stagger)) both,
+      glowDrift3 var(--motion-drift-3) ease-in-out calc(var(--motion-arrive) + 4 * var(--motion-stagger)) infinite;
+  }
+
+  .glow-arrive .glow-halo {
+    animation:
+      glowHaloIn var(--motion-arrive) var(--ease-arrive) both,
+      glowBreathe var(--motion-breathe) ease-in-out var(--motion-arrive) infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-ring {
+    display: none;
+  }
+}
+
+@keyframes glowDrift1 {
+  0%,
+  100% {
+    transform: translate(-40px, -20px) scale(1);
+  }
+  50% {
+    transform: translate(50px, 40px) scale(1.2);
+  }
+}
+
+@keyframes glowDrift2 {
+  0%,
+  100% {
+    transform: translate(30px, 10px) scale(1.1);
+  }
+  50% {
+    transform: translate(-60px, -30px) scale(0.9);
+  }
+}
+
+@keyframes glowDrift3 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(0.9);
+  }
+  50% {
+    transform: translate(20px, -50px) scale(1.15);
+  }
+}
+
+@keyframes glowIntro1 {
+  0% {
+    opacity: 0;
+    transform: translate(60px, 120px) scale(0.3);
+  }
+  100% {
+    transform: translate(-40px, -20px) scale(1);
+  }
+}
+
+@keyframes glowIntro2 {
+  0% {
+    opacity: 0;
+    transform: translate(-80px, 60px) scale(0.3);
+  }
+  100% {
+    transform: translate(30px, 10px) scale(1.1);
+  }
+}
+
+@keyframes glowIntro3 {
+  0% {
+    opacity: 0;
+    transform: translate(40px, -120px) scale(0.3);
+  }
+  100% {
+    transform: translate(0, 0) scale(0.9);
+  }
+}
+
+@keyframes glowBreathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes glowHaloIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  100% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes glowWave {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.9);
+  }
+}
+
+@keyframes glowWaveCalm {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  20% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}

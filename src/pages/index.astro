@@ -1,7 +1,10 @@
 ---
 // Home: the books the reader owns and has not read, then the books being read
 // (src/islands/Home.tsx). Rendered on the device: it reads the Library.
+// The cobalt glow behind the top of the screen is drawn here, on the server,
+// so it shows before the island (ui-direction Q9).
 import AppShell from '../layouts/AppShell.astro';
+import '../styles/glow.css';
 import Home, { HomeSkeleton } from '../islands/Home';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
@@ -9,47 +12,103 @@ const t = translator(requestLanguage(Astro.request));
 ---
 
 <AppShell title={t('home.title')} current="home">
-  <Home client:only="preact">
-    <HomeSkeleton slot="fallback" />
-  </Home>
+  <div class="home-page">
+    <div class="glow home-glow" aria-hidden="true">
+      <div class="glow-blob glow-b1 home-b1"></div>
+      <div class="glow-blob glow-b2 home-b2"></div>
+      <div class="glow-blob glow-b3 home-b3"></div>
+    </div>
+    <Home client:only="preact">
+      <HomeSkeleton slot="fallback" />
+    </Home>
+  </div>
 </AppShell>
 
 <style is:global>
   /* Global: the island renders on the device, outside this page's scoped styles. */
+  .home-page {
+    position: relative;
+  }
+
+  /*
+   * The glow (Q9): cobalt blobs behind the title and the first section, faded
+   * out before the covers. Phone: it reaches up behind the large title, under
+   * it in the page (z-index -1). Desktop: the view header stays as it is
+   * (Q13), so the glow starts at the top of the panel body.
+   */
+  .home-glow {
+    --tone: var(--accent-fill);
+    --tone-deep: var(--accent);
+    z-index: -1;
+    inset: calc(var(--glow-unit) * -14) calc(var(--space-20) * -1) auto;
+    height: calc(var(--glow-unit) * 34);
+    overflow: hidden;
+    /* Only the alpha of a mask counts: full ink is opaque in both themes. */
+    mask-image: linear-gradient(var(--ink) var(--glow-stop-3), transparent);
+  }
+
+  /* The blobs (glow.css): where each sits. */
+  .home-b1 {
+    left: calc(var(--glow-unit) * -9);
+    top: calc(var(--glow-unit) * -6);
+    width: calc(var(--glow-unit) * 30);
+    height: calc(var(--glow-unit) * 30);
+  }
+
+  .home-b2 {
+    right: calc(var(--glow-unit) * -10);
+    top: calc(var(--glow-unit) * 2);
+    width: calc(var(--glow-unit) * 24);
+    height: calc(var(--glow-unit) * 24);
+  }
+
+  .home-b3 {
+    left: calc(var(--glow-unit) * 12);
+    top: calc(var(--glow-unit) * 10);
+    width: calc(var(--glow-unit) * 18);
+    height: calc(var(--glow-unit) * 18);
+  }
+
   .home {
-    max-width: 880px;
     display: flex;
     flex-direction: column;
-    gap: 32px;
+    gap: var(--space-28);
   }
 
   .home-message {
-    font-size: 14px;
+    color: var(--text-quiet);
+  }
+
+  .home-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-16);
   }
 
   .home-group {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-  }
-
-  .home-group-title {
-    font-size: 18px;
+    gap: var(--space-12);
   }
 
   .home-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 20px 14px;
+    gap: var(--space-20) var(--space-14);
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
+  /* The width of a cell is the width of its cover: the corners follow it. */
+  .home-grid > li {
+    container-type: inline-size;
+  }
+
   .home-book {
     display: flex;
     flex-direction: column;
-    gap: 2px;
     min-width: 0;
     color: var(--ink);
     text-decoration: none;
@@ -57,7 +116,15 @@ const t = translator(requestLanguage(Astro.request));
 
   .home-cover {
     width: 100%;
-    margin-bottom: 6px;
+    margin-bottom: var(--space-8);
+  }
+
+  /* A cover 120 px wide or more takes the large corners (CSS reads no variable in a condition). */
+  @container (width >= 120px) {
+    .home-grid .home-cover,
+    .home-grid .home-cover[data-cover='loaded'] img {
+      border-radius: var(--radius-cover-large);
+    }
   }
 
   .home-book-title,
@@ -69,13 +136,13 @@ const t = translator(requestLanguage(Astro.request));
   }
 
   .home-book-title {
-    font-size: 13px;
+    font-size: var(--type-small);
     font-weight: 600;
   }
 
   .home-book-line {
-    color: var(--secondary);
-    font-size: 12px;
+    color: var(--text-quiet);
+    font-size: var(--type-chip);
     font-variant-numeric: tabular-nums;
   }
 
@@ -83,25 +150,20 @@ const t = translator(requestLanguage(Astro.request));
     text-decoration: underline;
   }
 
-  /* Desktop: sections read as list groups (header row on a hairline), not as cards. */
   @media (min-width: 960px) {
-    .home {
-      gap: 28px;
+    /* Over the panel: its own stacking context, so the glow stays on the panel and under the sticky view header. */
+    .home-page {
+      isolation: isolate;
     }
 
-    .home-group-title {
-      display: flex;
-      align-items: center;
-      min-height: var(--row);
-      border-bottom: 1px solid var(--line);
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0;
+    .home-glow {
+      inset: calc(var(--space-24) * -1) calc(var(--space-24) * -1) auto;
+      height: calc(var(--glow-unit) * 28);
     }
 
     .home-grid {
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 28px 24px;
+      grid-template-columns: repeat(auto-fill, minmax(var(--grid-cover), 1fr));
+      gap: var(--space-28) var(--space-24);
     }
   }
 </style>

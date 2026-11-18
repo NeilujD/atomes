@@ -223,7 +223,7 @@ export function SeriesCorrection({ editions, button, onCorrected, sources = live
         <button class="button button-quiet" type="button" onClick={() => setStep({ search: true })}>
           {t('correction.back')}
         </button>
-        <button class="button button-primary" type="submit" disabled={busy} aria-busy={busy}>
+        <button class="button button-main" type="submit" disabled={busy} aria-busy={busy}>
           {t('correction.save')}
         </button>
       </div>
