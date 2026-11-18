@@ -615,6 +615,9 @@ export const en = {
   'stats.added': 'Added',
   'stats.reading': 'Reading',
   'stats.owned-unread': 'Owned, not read yet',
+  // Some books read in the period have no page count in the Catalog.
+  'stats.pages-read': 'Pages read',
+  'stats.pages-read-at-least': 'Pages read, at least',
   'stats.read': 'Read',
   'stats.by-month': 'Read and added, by month',
   'stats.by-year': 'Read and added, by year',

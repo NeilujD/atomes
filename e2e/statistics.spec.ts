@@ -53,6 +53,8 @@ test('mark a book read, then a bulk mark; the period and the Label survive Back 
   await expect(lead(page)).toHaveText(`1 read in ${year}`);
   await expect(thisMonth(1, 2)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText(/no date/)).toHaveCount(0);
+  // The recorded BnF answer gives La Horde "1 vol. (700 p.)" (CORE-152).
+  await expect(page.locator('dl').filter({ has: page.getByRole('term').getByText('Pages read', { exact: true }) }).getByRole('definition')).toHaveText('700');
   await islandsLoaded(page);
 
   // A bulk mark in the Library: One Piece 56 read, with no day. Also a Label on La Horde.

@@ -52,6 +52,9 @@ export interface Edition {
   // amendment 2026-11-14). Optional: answers kept on a device from before
   // have none.
   year?: number | null;
+  // The page count, of all its Volumes for an omnibus (CORE-152). Optional:
+  // answers kept on a device from before have none.
+  pages?: number | null;
   // Licence Ouverte (BnF, SUDOC) asks to show the source and its date.
   // `reader`: no source knows the ISBN, a reader picked its Series (CORE-40).
   sources: EditionSource[];
@@ -223,6 +226,7 @@ type EditionRow = {
   edition_line: string | null;
   year: number | null;
   bnf_id: string | null;
+  pages: number | null;
   sources: string;
   fetched_at: string;
   corrected: number;
@@ -408,6 +412,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       volumes,
       volume: volumes[0] ?? null,
       year: pick((f) => f.year) ?? null,
+      pages: pick((f) => f.pages) ?? null,
       sources: facts.map((f) => f.source),
       fetchedAt: now().toISOString(),
     };
@@ -427,8 +432,8 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const series = edition.series && byIdentifier(edition.series.id);
     db.prepare(
       `insert or replace into edition (isbn, title, volume_title, authors, publisher, language, format, cover, work_id,
-        work_title, series, volume, volumes, edition_line, year, bnf_id, sources, fetched_at)
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        work_title, series, volume, volumes, edition_line, year, bnf_id, pages, sources, fetched_at)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       edition.isbn,
       edition.title,
@@ -446,6 +451,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
       line,
       edition.year ?? null,
       record ?? null,
+      edition.pages ?? null,
       JSON.stringify(edition.sources),
       edition.fetchedAt,
     );
@@ -913,6 +919,7 @@ function toEdition(row: EditionRow): Edition {
     volumes: row.volumes ? (JSON.parse(row.volumes) as number[]) : row.volume === null ? [] : [row.volume],
     volume: row.volume,
     year: row.year,
+    pages: row.pages,
     sources: JSON.parse(row.sources) as EditionSource[],
     fetchedAt: row.fetched_at,
     ...(row.corrected ? { corrected: true as const } : {}),

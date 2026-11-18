@@ -267,6 +267,15 @@ const correctionAuthors =
     for (const { did } of dids) move.run(accounts.findDid(did) ?? null, did);
   };
 
+// Page counts (CORE-152, ADR 0019): a new column, with no value for the
+// Editions stored before. Each gets its page count at its next fetch (30
+// days); no row is fetched again or changed now. Only adds the column if it is
+// missing, so a step that ran in part cannot fail on it.
+const pageCounts: Step = (db) => {
+  const columns = db.prepare('pragma table_info(edition)').all() as { name: string }[];
+  if (!columns.some(({ name }) => name === 'pages')) db.exec('alter table edition add column pages integer');
+};
+
 // What the Catalog steps read of `library.sqlite`, after its own steps ran.
 export type DidAccounts = { findDid(did: Did): AccountId | undefined };
 
@@ -282,4 +291,5 @@ export const catalogSteps = (accounts: DidAccounts): readonly Step[] => [
   lineRecords,
   seriesCorrections,
   correctionAuthors(accounts),
+  pageCounts,
 ];

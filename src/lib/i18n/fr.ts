@@ -607,6 +607,8 @@ export const fr: typeof en = {
   'stats.added': 'Ajoutés',
   'stats.reading': 'En cours',
   'stats.owned-unread': 'Possédés non lus',
+  'stats.pages-read': 'Pages lues',
+  'stats.pages-read-at-least': 'Pages lues, au moins',
   'stats.read': 'Lus',
   'stats.by-month': 'Lus et ajoutés, par mois',
   'stats.by-year': 'Lus et ajoutés, par année',

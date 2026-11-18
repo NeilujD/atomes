@@ -35,3 +35,36 @@ describe('UNIMARC Series and Volume', () => {
     expect(publishedYear(record('One Piece'))).toBe(2026);
   });
 });
+
+// 215 `$a` as the recorded BnF and SUDOC answers hold it (CORE-152).
+const described = (extent: string) =>
+  unimarcRecords(`<mxc:record>
+    <mxc:datafield tag="200" ind1="1" ind2=" "><mxc:subfield code="a">One Piece</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="215" ind1=" " ind2=" "><mxc:subfield code="a">${extent}</mxc:subfield><mxc:subfield code="d">18 cm</mxc:subfield></mxc:datafield>
+  </mxc:record>`)[0];
+
+describe('UNIMARC page count (215 $a)', () => {
+  test.each([
+    ['1 vol. (192 p.)', 192],
+    ['192 p.', 192],
+    ['1 vol. (non paginé [ca 200] p.)', 200],
+    ['1 vol. (12, 180 p.)', 192],
+    ['1 vol. (180 p.-[4] dépl.)', 180],
+    ['1 vol. (non paginé [208 p.])', 208],
+    ['1 volume 210 p', 210],
+    ['1 volume (700 pages)', 700],
+    ['1 vol. [46 p.]', 46],
+    ['2 vol. (176, 181p.)', 357],
+    ['1 vol. (48 p.-[16] p. de pl.)', 48],
+    ['1 vol.', undefined],
+    ['1 vol. (non paginé)', undefined],
+    ['Shonen manga', undefined],
+    ['3 DVD vidéo monofaces simple couche zone 2 (6 h 51 min)', undefined],
+  ])('"%s" gives %s pages', (extent, pages) => {
+    expect(unimarcFacts(described(extent), 'BnF').pages).toBe(pages);
+  });
+
+  test('a record with no 215 has no page count', () => {
+    expect(unimarcFacts(record('One Piece'), 'BnF').pages).toBeUndefined();
+  });
+});

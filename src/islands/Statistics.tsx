@@ -103,6 +103,9 @@ export function Statistics({ sources }: { sources: Sources }) {
           <Tile label={t('stats.added')} value={numbers.added} format={format} />
           <Tile label={t('stats.reading')} value={numbers.reading} format={format} />
           <Tile label={t('stats.owned-unread')} value={numbers.ownedUnread} format={format} />
+          {numbers.pagesRead && (
+            <Tile label={t(numbers.pagesRead.atLeast ? 'stats.pages-read-at-least' : 'stats.pages-read')} value={numbers.pagesRead.pages} format={format} />
+          )}
         </div>
       </section>
 
