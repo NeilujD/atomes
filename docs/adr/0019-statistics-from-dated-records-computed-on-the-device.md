@@ -1,6 +1,6 @@
 # Statistics come from dated records, computed on the device
 
-Status: accepted (2026-11-18). Amends ADR 0010. Not built yet: milestone "M11 · Statistics". Research: spike 0004 (`docs/spikes/0004-reading-statistics-on-atproto.md`) and spike 0005 (`docs/spikes/0005-charts-and-share-pictures.md`).
+Status: accepted (2026-11-18). Amends ADR 0010. Built in milestone "M11 · Statistics". Research: spike 0004 (`docs/spikes/0004-reading-statistics-on-atproto.md`) and spike 0005 (`docs/spikes/0005-charts-and-share-pictures.md`).
 
 A reader cannot see what they read and got over time. The Library answers "do I own it, did I read it" for one Work, not "how much did I read this year" or "do I buy more than I read". The records of today cannot answer: a Reading Status has an optional finish date that the reader types and that a change of status removes; its `updatedAt` is the time of the last tap, and Series Onboarding stamps it on Volumes read years before; no screen writes the date a Copy was got. Decision (grilling of 2026-11-18, Q1 to Q10 and R1 to R8): **a Statistics screen ("Statistiques") computes every number on the device from dated records, and the reader shares a picture that the device draws.**
 
@@ -35,3 +35,5 @@ A reader cannot see what they read and got over time. The Library answers "do I 
 - The export and Delete my account cover the new fields with no change.
 - A removed Copy leaves no trace, so "added" counts the Copies the reader still has. The end of a Copy (ADR 0010, amendment 2026-11-09, "later") would correct it.
 - Charts are HTML and CSS with no chart library (spike 0005, section A); their colours are in `docs/design/ui-direction.md`.
+- "Pages read" counts the pages of the dated reads of the period, from the Catalog page count. An omnibus Copy's pages are split equally between its Works (`stats.ts`): reading every Volume of an omnibus counts the book once, and one Volume read counts its share.
+- The share picture holds its colours as hex (`src/lib/library/picture-colours.ts`), the dark values of `theme.css`, on purpose: a canvas reads no CSS variable. `picture-colours.test.ts` fails when one differs from `theme.css`. This is the same exception as the Sign-in Code email (ADR 0018).
