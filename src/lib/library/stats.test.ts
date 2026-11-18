@@ -393,6 +393,70 @@ describe('the years offered and the default period', () => {
   });
 });
 
+describe('Pages read (CORE-152)', () => {
+  const dune = edition('Dune', { pages: 600 });
+  const fondation = edition('Fondation', { pages: 250 });
+  const noCount = edition('One Piece 1', { pages: null });
+  const in2026 = { period: 2026, label: null, ownedOnly: false } as const;
+  const allTime = { period: 'all', label: null, ownedOnly: false } as const;
+
+  test('every dated read of the period has a page count: the pages read', () => {
+    const library = { readingStatuses: [read(dune, '2026-03-14'), read(fondation, '2026-11-02')] };
+
+    expect(stats(library, [dune, fondation], { query: in2026 }).pagesRead).toEqual({ pages: 850, atLeast: false });
+  });
+
+  test('a dated read of the period has no page count: at least the pages of the others', () => {
+    const library = { readingStatuses: [read(dune, '2026-03-14'), read(noCount, '2026-05-01')] };
+
+    expect(stats(library, [dune, noCount], { query: in2026 }).pagesRead).toEqual({ pages: 600, atLeast: true });
+  });
+
+  test('an Edition the Catalog does not know, or one kept on the device from before page counts, has no page count', () => {
+    const unknown = edition('Lanfeust 1');
+    const kept: Edition = { ...fondation, pages: undefined };
+    const library = { readingStatuses: [read(dune, '2026-03-14'), read(unknown, '2026-05-01'), read(kept, '2026-06-01')] };
+
+    expect(stats(library, [dune, kept], { query: in2026 }).pagesRead).toEqual({ pages: 600, atLeast: true });
+  });
+
+  test('reads of another year and reads with no day count in no period, All time included', () => {
+    const library = { readingStatuses: [read(dune, '2025-12-31'), read(fondation, '2026-01-01'), read(noCount)] };
+
+    expect(stats(library, [dune, fondation, noCount], { query: in2026 }).pagesRead).toEqual({ pages: 250, atLeast: false });
+    expect(stats(library, [dune, fondation, noCount], { query: allTime }).pagesRead).toEqual({ pages: 850, atLeast: false });
+  });
+
+  test('no dated read of the period has a page count, but some have none: no tile', () => {
+    const library = { readingStatuses: [read(dune, '2025-03-14'), read(noCount, '2026-05-01')] };
+
+    expect(stats(library, [dune, noCount], { query: in2026 }).pagesRead).toBeNull();
+  });
+
+  test('no dated read in the period: no page read', () => {
+    expect(stats({ readingStatuses: [read(dune)] }, [dune], { query: in2026 }).pagesRead).toEqual({ pages: 0, atLeast: false });
+  });
+
+  test('each Work of an omnibus counts its share of the pages', () => {
+    const omnibus = edition('Lanfeust Tomes 1-2', { volumes: [1, 2], pages: 400 });
+    const tome1 = edition('Lanfeust 1');
+    const tome2 = edition('Lanfeust 2');
+    const library = {
+      copies: [copy([tome1, tome2], { isbn: omnibus.isbn })],
+      readingStatuses: [read(tome1, '2026-02-01'), status(tome2, 'read', { isbn: omnibus.isbn, finishedAt: day('2026-02-03') })],
+    };
+
+    expect(stats(library, [omnibus], { query: in2026 }).pagesRead).toEqual({ pages: 400, atLeast: false });
+  });
+
+  test('a filter keeps the pages of the reads it keeps', () => {
+    const library = { readingStatuses: [read(dune, '2026-03-14'), read(noCount, '2026-05-01')] };
+    const labels = [label('scifi', 'SF', [dune])];
+
+    expect(stats(library, [dune, noCount], { labels, query: { ...in2026, label: 'scifi' } }).pagesRead).toEqual({ pages: 600, atLeast: false });
+  });
+});
+
 describe('All time', () => {
   test('the columns are the years from the first dated read or Copy to the last, empty years included', () => {
     const old = edition('Dune');

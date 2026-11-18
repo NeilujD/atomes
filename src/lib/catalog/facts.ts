@@ -19,6 +19,8 @@ export interface Facts {
   volumes?: number[];
   // The year of publication of this printing.
   year?: number;
+  // The page count of the Edition: of all its Volumes for an omnibus.
+  pages?: number;
 }
 
 // An omnibus holds a few Volumes: "1-2", "Tomes 1 à 3", "Tome 1 & 2", "T01 à T03".

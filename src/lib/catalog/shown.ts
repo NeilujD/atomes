@@ -6,7 +6,7 @@
 // Editions with no Correction come straight from `edition`, so a query on
 // the Edition Line, which SQLite passes into both parts, uses its index.
 const sourceColumns = `e.isbn, e.title, e.volume_title, e.authors, e.publisher, e.language, e.format, e.cover,
-    e.work_id, e.work_title, e.year, e.bnf_id, e.sources, e.fetched_at`;
+    e.work_id, e.work_title, e.year, e.bnf_id, e.pages, e.sources, e.fetched_at`;
 export const shownEditions = `(select ${sourceColumns}, e.series, e.edition_line, e.volume, e.volumes, 0 as corrected
     from edition e where e.isbn not in (select isbn from series_correction)
   union all

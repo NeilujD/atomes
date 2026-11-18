@@ -214,6 +214,11 @@ const t = translator(requestLanguage(Astro.request));
     gap: var(--space-8);
   }
 
+  /* With "Pages read", four tiles: two rows of two. */
+  .stats-tiles:has(> :nth-child(4)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   /* Empty state: no read has a day yet. */
   .stats-empty {
     margin: 0;

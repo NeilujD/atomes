@@ -71,6 +71,23 @@ export function publishedYear(record: UnimarcRecord): number | undefined {
   return year ? Number(year) : undefined;
 }
 
+// The page count in 215 `$a`: the first numbers before "p.", "p" or "pages",
+// added up when there are several ("2 vol. (181, 208 p.)", "12, 180 p."); an
+// estimate counts ("non paginé [ca 200] p."). Plates and fold-outs after it
+// ("-[4] dépl.") do not. "1 vol.", "Shonen manga" or a DVD have none.
+const pagesPattern = /(\d+(?:\s*,\s*\d+)*)\s*\]?\s*p(?:ages?)?(?![\p{L}])/iu;
+
+function pageCount(record: UnimarcRecord): number | undefined {
+  for (const field of record.filter((f) => f.tag === '215')) {
+    for (const [code, value] of field.subfields) {
+      const numbers = code === 'a' ? pagesPattern.exec(value)?.[1] : undefined;
+      const pages = numbers?.split(',').reduce((sum, each) => sum + Number(each), 0);
+      if (pages) return pages;
+    }
+  }
+  return undefined;
+}
+
 // A title that holds the Volume, as records made before publication have it:
 // "One Piece - Édition originale - Tome 113", "Spy x Family - Tome 16",
 // "Dragon Ball Super - Tomes 1-2".
@@ -107,5 +124,6 @@ export function unimarcFacts(record: UnimarcRecord, source: SourceName): Facts {
     series: seriesTitle ? { title: seriesTitle, bnfId: bnfSeries } : undefined,
     volumes,
     year: publishedYear(record),
+    pages: pageCount(record),
   };
 }

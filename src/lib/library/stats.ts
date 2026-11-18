@@ -3,6 +3,7 @@
 // disagree. Pure and computed on the device: no I/O, no clock ("today" is an
 // input). A stored day is the device-local day at midnight UTC (day.ts):
 // its year and month are read from the string, never through a time zone.
+import type { Edition } from '../catalog/catalog';
 import { compareText, type Language } from '../i18n/i18n';
 import { allBooks, browse, libraryBooks, type LibraryBook } from './browse';
 import { dayOf } from './day';
@@ -73,6 +74,10 @@ export interface Statistics {
     // Of the Loans returned in the period, in whole days; null when none came back.
     averageDays: number | null;
   };
+  // The pages of the dated reads of the period (CORE-152). `atLeast` when
+  // some have no page count: the tile says "at least n pages". Null when none
+  // has one and some have none: no tile.
+  pagesRead: { pages: number; atLeast: boolean } | null;
   // Reads and Copies with no day: in All time totals, never in a column.
   undated: { reads: number; copies: number };
   // Each year with a finish day or an acquisition day, the latest first.
@@ -132,6 +137,9 @@ export function statistics({ library, editions, labels, query, today, language }
       library.loans.flatMap(({ value }) => (copies.some(({ rkey }) => rkey === value.copy) ? [value] : [])),
       inPeriod,
     ),
+    pagesRead: pagesRead(
+      reads.flatMap(({ book, finishedAt }) => (finishedAt !== undefined && inPeriod(finishedAt) ? [workEdition(book.work, library, editions)] : [])),
+    ),
     undated: {
       reads: finishDays.filter((stored) => stored === undefined).length,
       copies: acquiredDays.filter((stored) => stored === undefined).length,
@@ -159,6 +167,15 @@ function mostRead(books: LibraryBook[], namesOf: (book: LibraryBook) => Record<D
       return [dimension, { rows, outside: named.filter((names) => names[dimension].length === 0).length }];
     }),
   ) as Record<Dimension, Ranked>;
+}
+
+// The Edition of each read. A read of one Work of an omnibus counts its share
+// of the omnibus pages, so reading every Volume counts the book once.
+function pagesRead(read: (Edition | undefined)[]): Statistics['pagesRead'] {
+  const counts = read.map((edition) => (edition?.pages ? edition.pages / Math.max(1, edition.volumes.length) : undefined));
+  const known = counts.filter((pages) => pages !== undefined);
+  if (known.length === 0 && counts.length > 0) return null;
+  return { pages: Math.round(known.reduce((sum, pages) => sum + pages, 0)), atLeast: known.length < counts.length };
 }
 
 // The Loans of the Copies kept. A Loan holds the moment of the tap (`lend`,

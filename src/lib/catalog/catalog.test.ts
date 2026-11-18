@@ -13,7 +13,7 @@ import type { Catalog, Edition, LineSummary, SearchFound, SeriesFound } from './
 import { createCatalog } from './catalog';
 import { catalogSteps } from './migrations';
 import { fixtureDir, recordedFetch } from './recorded.fake';
-import { isCoverUrl, type SourceFetch } from './sources';
+import { isCoverUrl, openLibrary, type SourceFetch } from './sources';
 
 const onePiece1 = '9782723488525'; // 2013 printing, in its own BnF Series record (43702987)
 const onePiece56 = '9782723478991';
@@ -755,6 +755,108 @@ describe('Overlapping BnF Series records are separate Edition Lines (ADR 0010, a
     expect(volumes).toHaveLength(71);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({ publisher: 'Kana', first: 2002 });
+  });
+});
+
+describe('Page count of an Edition (CORE-152)', () => {
+  test.each([
+    [onePiece56, 208], // BnF "1 vol. (208 p.)"
+    [horde, 700], // BnF "1 vol. (700 p.)"
+    [dragonBallSuper1to2, 389], // omnibus: BnF "2 vol. (181, 208 p.)"
+    [spyFamily16, 210], // BnF "1 vol. (non paginé [ca 210] p.)"
+    [dragonBall1, 175], // SUDOC only: "1 vol. (175 p.)"
+  ])('%s has %s pages, also when served from SQLite', async (isbn, pages) => {
+    const { catalog, reopen } = setup();
+
+    const found = await edition(await answerEdition(catalog, isbn));
+    const stored = await edition(await answerEdition(reopen(), isbn));
+
+    expect([found.pages, stored.pages]).toEqual([pages, pages]);
+  });
+
+  test('an Edition no source knows, as a reader picked it, has no page count', async () => {
+    const { catalog, reopen } = setup();
+    const choice = { anchor: kaamelott9, volume: 10, title: 'Kaamelott 10', authors: [] };
+
+    const chosen = await edition(await answerChoose(catalog, kaamelott10, choice, { signedIn: true }));
+    const stored = await edition(await answerEdition(reopen(), kaamelott10));
+
+    expect(chosen.pages ?? null).toBeNull();
+    expect(stored.pages).toBeNull();
+  });
+
+  // The recorded Open Library answers hold no page count: this one is written by hand.
+  test('Open Library gives its median page count, when it has one', async () => {
+    const answer = { docs: [{ key: '/works/OL15505243W', title: 'La Horde du Contrevent', number_of_pages_median: 704 }] };
+    const fetch: SourceFetch = (url) => Promise.resolve(url.includes('number_of_pages_median') ? Response.json(answer) : new Response('', { status: 404 }));
+
+    expect((await openLibrary(fetch, horde))?.pages).toBe(704);
+    expect((await openLibrary(recordedFetch().fetch, horde))?.pages).toBeUndefined();
+  });
+
+  test('the Editions a fill adds have their page count', async () => {
+    const { catalog } = setup();
+
+    const { volumes } = (await (await answerVolumes(catalog, spyFamily16, signedIn)).json()) as { volumes: Edition[] };
+
+    expect(volumes.filter((v) => typeof v.pages === 'number' && v.pages > 0).length).toBeGreaterThan(10);
+  });
+});
+
+describe('A Catalog file of today, before page counts (migration, CORE-152)', () => {
+  const offline = () => recordedFetch(['catalogue.bnf.fr', 'www.sudoc.fr', 'inventaire.io', 'openlibrary.org']);
+  const rowsOf = (file: string, columns = '*') => {
+    const db = new DatabaseSync(file, { readOnly: true });
+    const rows = db.prepare(`select ${columns} from edition order by isbn`).all();
+    db.close();
+    return rows;
+  };
+
+  // catalog-v0.sqlite brought up to the last step before page counts.
+  function fileOfToday() {
+    const dir = mkdtempSync(join(tmpdir(), 'atomes-catalog-'));
+    dirs.push(dir);
+    const file = join(dir, 'catalog.sqlite');
+    copyFileSync(new URL('catalog-v0.sqlite', fixtureDir), file);
+    const old = new DatabaseSync(file);
+    migrate(old, catalogSteps(noAccounts).slice(0, 10));
+    old.close();
+    return file;
+  }
+
+  test('opens, gets the page count column with no value, and keeps every row', async () => {
+    const file = fileOfToday();
+    const before = rowsOf(file);
+    const columns = Object.keys(before[0]).join(', ');
+
+    const catalog = createCatalog({ file, fetch: offline().fetch, host: 'catalog.test', accounts: noAccounts, now: () => new Date('2026-11-11T12:00:00.000Z') });
+    open.push(catalog);
+
+    expect(before.length).toBeGreaterThan(10);
+    expect(rowsOf(file, columns)).toEqual(before);
+    expect(rowsOf(file, 'pages')).toEqual(before.map(() => ({ pages: null })));
+    expect((await edition(await answerEdition(catalog, onePiece112))).pages).toBeNull();
+  });
+
+  test('an Edition gets its page count at its next fetch, 30 days on', async () => {
+    const file = fileOfToday();
+
+    const catalog = createCatalog({ file, fetch: recordedFetch().fetch, host: 'catalog.test', accounts: noAccounts, now: () => new Date('2027-01-11T12:00:00.000Z') });
+    open.push(catalog);
+
+    expect((await edition(await answerEdition(catalog, onePiece56))).pages).toBe(208);
+  });
+
+  test('a migrated file opens again with no change', () => {
+    const file = fileOfToday();
+    const first = createCatalog({ file, fetch: offline().fetch, host: 'catalog.test', accounts: noAccounts });
+    first.close();
+    const after = rowsOf(file);
+
+    const again = createCatalog({ file, fetch: offline().fetch, host: 'catalog.test', accounts: noAccounts });
+    open.push(again);
+
+    expect(rowsOf(file)).toEqual(after);
   });
 });
 
