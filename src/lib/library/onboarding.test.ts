@@ -148,6 +148,16 @@ describe('Series Onboarding from an omnibus', () => {
   });
 });
 
+describe('Series Onboarding writes no day on its Copies', () => {
+  test('the Volumes were got before: no Copy holds the day the reader got it', () => {
+    const onboarding = seriesOnboarding(volume(1), volumes, library());
+    const save = onboardingSave(onboarding, library(), { ...onboarding.start, ownedUpTo: 3 }, now);
+
+    expect(save.copies).toHaveLength(3);
+    expect(save.copies.map((copy) => copy.acquiredAt)).toEqual([undefined, undefined, undefined]);
+  });
+});
+
 describe('Series Onboarding choices', () => {
   // Quick Add just saved Volume 1, read.
   const afterQuickAdd = library({ copies: [copyOf(1)], readingStatuses: [readOf(1)] });

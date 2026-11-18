@@ -310,6 +310,8 @@ export const en = {
   'book.add-copy': 'Add another Copy',
   // The main action of the Book page while the reader has no Copy of the Work.
   'book.add-first-copy': 'Add a Copy',
+  'book.got-on': 'Got on',
+  'book.got-on-copy': (isbn: string) => `Got on, Copy with ISBN ${isbn}`,
   'book.remove': 'Remove',
   'book.remove-copy': (isbn: string) => `Remove the Copy with ISBN ${isbn}`,
   'book.lend-to': 'Lend to',

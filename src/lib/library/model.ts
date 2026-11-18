@@ -47,6 +47,8 @@ export interface BookCopy {
   isbn: string;
   // Publisher, language and format, as far as the Catalog knows them.
   edition: string;
+  // The day the reader got it, if they said (ADR 0019).
+  acquiredAt: string | undefined;
   // Who has this Copy now; undefined when the reader has it.
   loan: { rkey: string; borrower: string; lentAt: string } | undefined;
   // Returned Loans, latest first.
@@ -99,6 +101,7 @@ export function bookPage(work: string, library: Library, editions: Editions, lan
         rkey,
         isbn: value.isbn,
         edition: editionLabel(editions.get(value.isbn), language),
+        acquiredAt: value.acquiredAt,
         loan: open && { rkey: open.rkey, borrower: open.value.borrower, lentAt: open.value.lentAt },
         pastLoans: loans.flatMap(({ value: { borrower, lentAt, returnedAt } }) => (returnedAt ? [{ borrower, lentAt, returnedAt }] : [])),
       };
