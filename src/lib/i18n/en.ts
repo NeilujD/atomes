@@ -585,6 +585,14 @@ export const en = {
   'select.unchanged': 'Nothing to change.',
   'select.undone': 'Undone.',
 
+  // The chart parts of Statistics (src/islands/charts/, ADR 0019).
+  'chart.table': 'Table',
+  'chart.legend': 'Legend',
+  'chart.month': 'Month',
+  'chart.year': 'Year',
+  'chart.figure': (label: string, figure: string) => `${label} ${figure}`,
+  'chart.group': (name: string, figures: string[]) => `${name}: ${figures.join(', ')}`,
+
   // Privacy notice (src/pages/privacy.astro, CORE-55), approved by the owner on
   // 2026-11-16. A change to it needs the owner's approval and a new date.
   'privacy.title': 'Privacy notice',

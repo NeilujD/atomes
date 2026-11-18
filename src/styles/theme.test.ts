@@ -174,6 +174,18 @@ describe('theme colours of the one look (ADR 0018)', () => {
       }
     });
 
+    // Charts (ADR 0019): a bar is ink ("read") or --shade-medium ("added"),
+    // on a card over the ground (phone) or over the panel (desktop). A bar
+    // needs 3:1 against what is next to it (spike 0005, section B). Fills do
+    // not move with --contrast, so one check covers high contrast too.
+    it(`both chart bars stand out at 3:1 or more from a card on the ground and on the panel, ${theme}`, () => {
+      for (const under of [ground[theme], pair('--surface')[theme]]) {
+        const card = over(ink[theme], alpha('--alpha-fill-card'), under);
+        expect(contrast(ink[theme], card), '--ink').toBeGreaterThanOrEqual(3);
+        expect(contrast(over(ink[theme], alpha('--alpha-shade-medium'), card), card), '--shade-medium').toBeGreaterThanOrEqual(3);
+      }
+    });
+
     it(`borders are stronger in high contrast, ${theme}`, () => {
       for (const line of ['--alpha-line-card', '--alpha-line-control', '--alpha-line-button']) {
         const [normal, high] = contrastSteps.map((step) => contrast(over(ink[theme], level(line, step.share), ground[theme]), ground[theme]));
