@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { devOutbox, linkCodeMail, signInCodeMail, smtpSender } from './mail';
+import { faintSpine } from './mail-mark';
 
 const site = 'https://atomes.example.org';
 
@@ -42,6 +43,17 @@ describe('the code mails', () => {
 
     expect(html).not.toMatch(/<link|<img|<script|src=|url\(/i);
     expect([...html!.matchAll(/href="([^"]*)"/g)].map(([, href]) => href)).toEqual([site]);
+  });
+
+  test('the mark of the HTML part draws the empty slot as a faint spine, in light and dark', () => {
+    const { light, dark } = faintSpine;
+    const { html } = signInCodeMail('reader@example.org', '042917', 'en', site);
+
+    expect(html).toContain(`class="sp-fa" style="width:4px; height:22px; background-color:${light};`);
+    expect(html).toContain('@media (prefers-color-scheme: dark)');
+    expect(html).toContain(`.sp-fa   { background-color:${dark} !important; }`);
+    expect(html).toContain(`[data-ogsb] .sp-fa   { background-color:${dark} !important; }`);
+    expect(html).not.toContain('dashed');
   });
 
   test('the address the reader typed is escaped in the HTML part', () => {

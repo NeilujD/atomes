@@ -1,8 +1,10 @@
 // The HTML part of the code mails (mail.ts). The mail also has a plain text
 // part with the same code. No image and no web font: the mail loads nothing,
-// so opening it tells no one, and the logo is drawn in HTML. Every value is
-// escaped: the address is the reader's input.
+// so opening it tells no one, and the logo is drawn in HTML: the mark of
+// Mark.astro, its faint spine mixed from theme.css by scripts/icons.ts
+// (mail-mark.ts). Every value is escaped: the address is the reader's input.
 import type { Language } from '../i18n/i18n';
+import { faintSpine } from './mail-mark';
 
 export interface CodeMailWords {
   title: string;
@@ -71,7 +73,7 @@ export function codeMailHtml({ language, code, site, words }: { language: Langua
     .t-gr    { color:#A3A7B0 !important; }
     .t-co    { color:#8A9BFF !important; }
     .sp-ink  { background-color:#F1F1EC !important; }
-    .sp-dash { border-color:#F1F1EC !important; }
+    .sp-fa   { background-color:${faintSpine.dark} !important; }
     .sp-co   { background-color:#8A9BFF !important; }
   }
   /* Dark mode: Outlook.com and Outlook apps that rewrite colours */
@@ -83,6 +85,7 @@ export function codeMailHtml({ language, code, site, words }: { language: Langua
   [data-ogsc] .t-gr    { color:#A3A7B0 !important; }
   [data-ogsc] .t-co    { color:#8A9BFF !important; }
   [data-ogsb] .sp-ink  { background-color:#F1F1EC !important; }
+  [data-ogsb] .sp-fa   { background-color:${faintSpine.dark} !important; }
   [data-ogsb] .sp-co   { background-color:#8A9BFF !important; }
 </style>
 </head>
@@ -106,7 +109,7 @@ export function codeMailHtml({ language, code, site, words }: { language: Langua
               <tr>
                 <td valign="bottom" style="padding-right:2px;"><div class="sp-ink" style="width:4px; height:22px; background-color:#17181C; border-radius:1px; font-size:0; line-height:0;">&nbsp;</div></td>
                 <td valign="bottom" style="padding-right:2px;"><div class="sp-ink" style="width:4px; height:22px; background-color:#17181C; border-radius:1px; font-size:0; line-height:0;">&nbsp;</div></td>
-                <td valign="bottom" style="padding-right:2px;"><div class="sp-dash" style="width:2px; height:20px; border:1px dashed #17181C; border-radius:1px; font-size:0; line-height:0;">&nbsp;</div></td>
+                <td valign="bottom" style="padding-right:2px;"><div class="sp-fa" style="width:4px; height:22px; background-color:${faintSpine.light}; border-radius:1px; font-size:0; line-height:0;">&nbsp;</div></td>
                 <td valign="bottom" style="padding-right:10px;"><div class="sp-co" style="width:4px; height:22px; background-color:#2E46D1; border-radius:1px; font-size:0; line-height:0;">&nbsp;</div></td>
                 <td valign="middle" class="t-ink" style="font-family:${font}; font-size:22px; line-height:22px; font-weight:700; letter-spacing:-0.6px; color:#17181C;">atomes</td>
               </tr>

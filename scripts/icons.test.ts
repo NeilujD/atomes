@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { iconPalettes, iconPngs, iconSvgs } from './icons';
+import { iconPalettes, iconPngs, iconSvgs, mailMark, mailMarkPath } from './icons';
 
 // The tokens the icons read, as theme.css writes them (worked examples by hand:
 // each channel is ink × share + ground × (1 − share), rounded).
@@ -42,5 +42,9 @@ describe('the icons under public/', () => {
 
   test('the script renders every PNG icon, so none is drawn by hand', () => {
     expect(filesIn('.png')).toEqual(iconPngs.map((png) => png.path).sort());
+  });
+
+  test('the mark of the Sign-in Code mail takes the faint spine from theme.css too (run `bun scripts/icons.ts`)', () => {
+    expect(readFileSync(new URL(mailMarkPath, import.meta.url), 'utf8')).toBe(mailMark(css));
   });
 });
