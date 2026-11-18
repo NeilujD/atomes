@@ -71,12 +71,42 @@ describe('Home screen', () => {
     expect(titlesIn(regions[1])).toEqual(['Fondation', 'La Horde du Contrevent']);
   });
 
-  test('every section empty: a card with Check a book, the main action, no empty section', async () => {
-    await homeScreen([dune], [[dune, 'read']]);
+  test('an empty Library: a card with Check a book, the main action, no section and no card of the year', async () => {
+    await homeScreen([]);
 
     const link = await screen.findByRole('link', { name: 'Check a book' });
     expect(link.getAttribute('href')).toBe('/check');
     expect(screen.queryAllByRole('region')).toEqual([]);
     expect(screen.queryAllByRole('heading')).toEqual([]);
+    expect(screen.queryByRole('link', { name: /Statistics/ })).toBeNull();
+  });
+});
+
+describe('The card of the year', () => {
+  const year = new Date().getFullYear();
+
+  test('under Reading now, "read" and "added" of the current year, a link to Statistics', async () => {
+    const { space } = memorySpace();
+    await saveCopy(space, { isbn: dune.isbn, works: [dune.work.id], createdAt: '2026-11-01T00:00:00.000Z', acquiredAt: `${year}-02-01T00:00:00.000Z` });
+    await saveCopy(space, { isbn: horde.isbn, works: [horde.work.id], createdAt: '2026-11-01T00:00:00.000Z', acquiredAt: `${year}-03-01T00:00:00.000Z` });
+    await saveReadingStatus(space, { work: dune.work.id, isbn: dune.isbn, status: 'read', updatedAt: '2026-11-09T00:00:00.000Z', finishedAt: `${year}-04-01T00:00:00.000Z` });
+    await saveReadingStatus(space, { work: horde.work.id, isbn: horde.isbn, status: 'reading', updatedAt: '2026-11-09T00:00:00.000Z' });
+    render(<Home sources={{ open: () => Promise.resolve(space), editions: () => Promise.resolve(new Map()) }} />);
+
+    const card = await screen.findByRole('link', { name: new RegExp(`Statistics`) });
+    expect(card.getAttribute('href')).toBe('/statistics');
+    expect(card.textContent).toContain(String(year));
+    expect(within(card).getByText('Read').nextElementSibling?.textContent).toBe('1');
+    expect(within(card).getByText('Added').nextElementSibling?.textContent).toBe('2');
+    const reading = screen.getByRole('region', { name: 'Reading now' });
+    expect(reading.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test('every Work read: the card of the year alone, no empty card', async () => {
+    await homeScreen([dune], [[dune, 'read']]);
+
+    await screen.findByRole('link', { name: /Statistics/ });
+    expect(screen.queryByText('Nothing here yet.')).toBeNull();
+    expect(screen.queryAllByRole('region')).toEqual([]);
   });
 });

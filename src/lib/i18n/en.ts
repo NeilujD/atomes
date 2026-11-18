@@ -146,6 +146,7 @@ export const en = {
   'home.owned-unread': 'Owned, not read yet',
   'home.reading': 'Reading now',
   'home.empty': 'Nothing here yet.',
+  'home.year': (year: number) => `Statistics ${year}`,
 
   // Settings
   'settings.title': 'Settings',

@@ -2,10 +2,11 @@ import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
 import { libraryBooks } from './browse';
 import type { Copy } from './copy';
-import { ownedUnread, readingNow } from './home';
+import { ownedUnread, readingNow, yearCard } from './home';
 import type { Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
+import { statistics } from './stats';
 
 const edition = (isbn: string, title: string): Edition => ({
   isbn,
@@ -93,5 +94,42 @@ describe('Reading now', () => {
     const records = library({ readingStatuses: [status(dune, 'reading', '2026-11-06T00:00:00.000Z'), startedEarly] });
 
     expect(home(records).readingNow).toEqual(['Dune', 'Fondation']);
+  });
+});
+
+describe('The card of the year', () => {
+  // 18 November 2026 on the reader's device.
+  const today = new Date(2026, 10, 18, 9, 30);
+  const read = (each: Edition, finishedAt?: string): Saved<ReadingStatus> => {
+    const saved = status(each, 'read');
+    return finishedAt ? { ...saved, value: { ...saved.value, finishedAt } } : saved;
+  };
+  const got = (each: Edition, acquiredAt?: string): Saved<Copy> => {
+    const saved = copy(each, '2026-11-01T00:00:00.000Z');
+    return acquiredAt ? { ...saved, value: { ...saved.value, acquiredAt } } : saved;
+  };
+
+  test('"read" and "added" of the current year: the numbers of the Statistics screen for that year, with no filter', () => {
+    const records = library({
+      // Read in 2026 twice, in 2025, and with no day; got in 2026, in 2025, and with no day.
+      readingStatuses: [read(dune, '2026-03-02T00:00:00.000Z'), read(horde, '2026-11-18T00:00:00.000Z'), read(fondation, '2025-12-31T00:00:00.000Z'), read(asterix)],
+      copies: [got(dune, '2026-01-05T00:00:00.000Z'), got(horde, '2025-06-01T00:00:00.000Z'), got(asterix)],
+    });
+
+    const card = yearCard(records, editions, today, 'en');
+
+    expect(card).toEqual({ year: 2026, read: 2, added: 1 });
+    const screen = statistics({ library: records, editions, labels: [], query: { period: 2026, label: null, ownedOnly: false }, language: 'en', today });
+    expect({ read: screen.read, added: screen.added }).toEqual({ read: 2, added: 1 });
+  });
+
+  test('a Library with no read and no Copy has no card', () => {
+    expect(yearCard(library({}), editions, today, 'en')).toBeNull();
+    expect(yearCard(library({ readingStatuses: [status(dune, 'reading')] }), editions, today, 'en')).toBeNull();
+  });
+
+  test('a read or a Copy with no day in the year still shows the card, at zero', () => {
+    expect(yearCard(library({ readingStatuses: [read(dune)] }), editions, today, 'en')).toEqual({ year: 2026, read: 0, added: 0 });
+    expect(yearCard(library({ copies: [got(dune)] }), editions, today, 'en')).toEqual({ year: 2026, read: 0, added: 0 });
   });
 });

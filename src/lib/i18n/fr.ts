@@ -143,6 +143,7 @@ export const fr: typeof en = {
   'home.owned-unread': 'Possédés non lus',
   'home.reading': 'En cours de lecture',
   'home.empty': 'Rien ici pour l’instant.',
+  'home.year': (year: number) => `Statistiques ${year}`,
 
   // Settings
   'settings.title': 'Réglages',

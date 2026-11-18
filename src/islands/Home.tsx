@@ -1,15 +1,17 @@
 // The Home screen, a Preact island (ADR 0014): the books the reader owns and
-// has not read, then the books being read. A section with nothing to show is
-// hidden; with every section empty, a card sends the reader to Check a book,
-// the main action of the screen (filled cobalt, Q7).
+// has not read, then the books being read, then a card with the numbers of
+// the year that opens Statistics. A section with nothing to show is hidden;
+// with nothing to show at all, a card sends the reader to Check a book, the
+// main action of the screen (filled cobalt, Q7).
 // The rules are in src/lib/library/home.ts; this file only renders them.
 import { useMemo } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
 import { lookupEditions } from '../lib/catalog/client';
 import { pageLanguage, t } from '../lib/i18n/i18n';
 import { libraryBooks, volumeLine, type LibraryBook } from '../lib/library/browse';
-import { ownedUnread, readingNow } from '../lib/library/home';
+import { ownedUnread, readingNow, yearCard, type YearCard } from '../lib/library/home';
 import { bookHref } from '../lib/library/model';
+import { pageFormat } from './charts/ChartFrame';
 import { Cover } from './Cover';
 import { useLibraryListing, type ListingSources } from './library-listing';
 
@@ -28,14 +30,17 @@ export default function HomeIsland() {
 export function Home({ sources }: { sources: Sources }) {
   const { read, message, editions } = useLibraryListing(sources);
 
-  const sections = useMemo(() => {
+  const home = useMemo(() => {
     if (!read) return undefined;
     const { library } = read;
     const books = libraryBooks(library, editions, []);
-    return [
-      { id: 'home-owned-unread', title: t('home.owned-unread'), books: ownedUnread(books, pageLanguage()) },
-      { id: 'home-reading', title: t('home.reading'), books: readingNow(books, library, pageLanguage()) },
-    ].filter((section) => section.books.length > 0);
+    return {
+      sections: [
+        { id: 'home-owned-unread', title: t('home.owned-unread'), books: ownedUnread(books, pageLanguage()) },
+        { id: 'home-reading', title: t('home.reading'), books: readingNow(books, library, pageLanguage()) },
+      ].filter((section) => section.books.length > 0),
+      year: yearCard(library, editions, new Date(), pageLanguage()),
+    };
   }, [read, editions]);
 
   if (message) {
@@ -47,8 +52,9 @@ export function Home({ sources }: { sources: Sources }) {
       </div>
     );
   }
-  if (!sections) return <HomeSkeleton />;
-  if (sections.length === 0) {
+  if (!home) return <HomeSkeleton />;
+  const { sections, year } = home;
+  if (sections.length === 0 && !year) {
     return (
       <div class="home">
         <div class="card home-empty">
@@ -74,7 +80,34 @@ export function Home({ sources }: { sources: Sources }) {
           </ul>
         </section>
       ))}
+      {year && <Year card={year} />}
     </div>
+  );
+}
+
+// The phone tab bar has no place for Statistics: this card leads there. A
+// plain link, so a tap works before the scripts run.
+function Year({ card }: { card: YearCard }) {
+  const format = pageFormat();
+  return (
+    <a class="card home-year" href="/statistics">
+      <span class="home-year-title">
+        <span class="small-heading">{t('home.year', card.year)}</span>
+        <svg class="home-year-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      </span>
+      <dl class="home-year-numbers">
+        <div>
+          <dt>{t('stats.read')}</dt>
+          <dd>{format(card.read)}</dd>
+        </div>
+        <div>
+          <dt>{t('stats.added')}</dt>
+          <dd>{format(card.added)}</dd>
+        </div>
+      </dl>
+    </a>
   );
 }
 
