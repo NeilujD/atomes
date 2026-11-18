@@ -35,17 +35,35 @@ test('A new reader opens an Invite, signs in with a Sign-in Code from the dev ou
   await expect(page.getByRole('heading', { name: 'Sign in to Atomes' })).toHaveCount(0);
 });
 
-test('A wrong code says so, and the AT Protocol sign-in is the second action', async ({ page, context, browserName }) => {
+test('A wrong code says so, the mark shows the request, and the AT Protocol sign-in is the second action', async ({
+  page,
+  context,
+  browserName,
+}) => {
   await page.goto('/sign-in');
+  // The mark tells the state of its card (Mark.astro, ui-direction: Flow).
+  const card = page.getByRole('region', { name: 'Sign in to Atomes' });
+  await expect(card).toHaveAttribute('data-state', 'ready');
 
+  // The code request waits until the test lets it go: the mark works meanwhile.
+  let answer!: () => void;
+  const answered = new Promise<void>((resolve) => (answer = resolve));
+  await page.route('**/api/sign-in/code', async (route) => {
+    await answered;
+    await route.continue();
+  });
   await page.getByLabel('Your email address').fill('nobody@example.org');
   await page.getByRole('button', { name: 'Send me a code' }).click();
+  await expect(card).toHaveAttribute('data-state', 'working');
+  answer();
   // An address with no Account gets the same answer, and no mail.
   await expect(page.getByText('If nobody@example.org may sign in here, a Sign-in Code is on its way.')).toBeVisible();
+  await expect(card).toHaveAttribute('data-state', 'done');
   expect((await page.request.get('/dev/outbox?to=nobody%40example.org')).status()).toBe(404);
 
   await page.getByLabel('Sign-in Code').fill('123456');
   await expect(page.getByRole('alert')).toHaveText('This code is wrong or has expired. Check it, or ask for a new one.');
+  await expect(card).toHaveAttribute('data-state', 'failed');
 
   // Only Chromium lets Playwright grant the clipboard permission.
   if (browserName === 'chromium') {
