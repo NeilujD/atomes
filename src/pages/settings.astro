@@ -211,7 +211,8 @@ const pickers: { name: string; label: string; checked: string; options: { value:
             <p class="row-label">{t('settings.delete')}</p>
             <p class="row-hint">{t('settings.delete-hint')}</p>
           </div>
-          <button class="button button-danger" type="button" data-delete-account>{t('settings.delete')}</button>
+          <!-- Disabled until its script is ready (ui-direction: Before the scripts run). -->
+          <button class="button button-danger" type="button" data-delete-account disabled>{t('settings.delete')}</button>
         </div>
         <p class="row-error" data-delete-error role="alert" hidden></p>
       </div>
@@ -314,6 +315,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
       deleteButton.removeAttribute('aria-busy');
     });
   });
+  deleteButton.disabled = false;
 
   // An action row opens its form, once.
   function opener(button: HTMLButtonElement, target: HTMLElement, focus: HTMLElement) {

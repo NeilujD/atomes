@@ -452,6 +452,26 @@ button.chip {
   cursor: pointer;
 }
 
+/*
+ * Touch: a chip that takes a tap keeps its look, and its tap area is a row
+ * high (--row, 44 px), above and below it: an empty ::after on a button chip,
+ * the unseen radio itself on a label chip (so the tap lands on the radio).
+ * Only these: a chip that holds its own button (a Label with Remove) must
+ * leave it the tap.
+ */
+@media (pointer: coarse) {
+  button.chip {
+    position: relative;
+  }
+
+  button.chip::after,
+  label.chip > input {
+    content: '';
+    position: absolute;
+    inset: calc((var(--chip-height) - var(--row)) / 2) 0;
+  }
+}
+
 /* A chip can hold a radio (a choice in Settings): checked, it fills as a pressed chip. */
 .chip[aria-pressed='true'],
 .chip:has(> input:checked) {

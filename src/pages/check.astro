@@ -1065,13 +1065,13 @@ const answers = [
   }
 
   /* Fields in the one look: as tall as the button beside them, the line and
-     corners of a secondary button, a soft fill. FindInBnf draws fields too. */
+     corners of a secondary button, on the --surface of every field (theme.css).
+     FindInBnf draws fields too. */
   .quick-add :global(.field) {
     min-height: var(--button-height);
     padding: 0 var(--space-14);
     border: var(--hairline) solid var(--line-button);
     border-radius: var(--radius-button);
-    background: var(--fill-card);
     font-size: var(--type-body);
   }
 
