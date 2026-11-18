@@ -14,7 +14,7 @@ const islandsLoaded = (page: Page) => expect(page.locator('astro-island[ssr]')).
 
 // The width and the height of a PNG: its IHDR chunk, after the 8-byte signature.
 async function pngSize(download: Download): Promise<{ width: number; height: number }> {
-  const bytes = await readFile((await download.path())!);
+  const bytes = await readFile(await download.path());
   expect(bytes.subarray(1, 4).toString('latin1')).toBe('PNG');
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
 }
