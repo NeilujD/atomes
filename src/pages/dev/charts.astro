@@ -1,0 +1,28 @@
+---
+// Development only: the chart parts of Statistics (src/islands/charts/) with
+// sample data, for the stress test of the view type "Charts" (ui-direction).
+// 404 in a built server.
+import AppShell from '../../layouts/AppShell.astro';
+import ChartsSample from '../../islands/charts/ChartsSample';
+import '../../styles/charts.css';
+
+if (!import.meta.env.DEV) return new Response(null, { status: 404 });
+---
+
+<AppShell title="Chart parts (development)">
+  <ChartsSample client:only="preact" />
+</AppShell>
+
+<style is:global>
+  .charts-sample {
+    max-width: var(--page-width);
+    display: grid;
+    gap: var(--space-24);
+  }
+
+  .charts-sample-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-8);
+  }
+</style>

@@ -1,0 +1,291 @@
+/*
+ * The chart parts of Statistics (src/islands/charts/, ADR 0019; ui-direction
+ * view type "Charts"). HTML and CSS, no chart library (spike 0005). Ink for
+ * the first series, the medium shade for the second, nothing else; lines in
+ * --line-card. Every value a token (tokens.test.ts).
+ */
+.chart {
+  /* Sizes the charts name once. */
+  --chart-height: 132px;
+  --bar-width: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  min-height: var(--row);
+}
+
+.chart-head .button-quiet {
+  gap: var(--space-6);
+  padding: 0 var(--space-8);
+  font-size: var(--type-small);
+}
+
+.chart-head .button-quiet[aria-pressed='true'] {
+  background: var(--fill-chip);
+  color: var(--ink);
+}
+
+.chart-icon {
+  width: var(--icon-size-inline);
+  height: var(--icon-size-inline);
+  stroke-width: var(--icon-stroke);
+}
+
+.chart-controls {
+  margin-bottom: var(--space-14);
+}
+
+.chart-note {
+  margin: var(--space-12) 0 0;
+  color: var(--text-quiet);
+  font-size: var(--type-chip);
+}
+
+/* The readout of the picked group, and the legend. */
+.chart-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  margin-bottom: var(--space-12);
+}
+
+.chart-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-4) var(--space-12);
+  min-height: var(--space-24);
+  margin: 0;
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-readout strong {
+  font-weight: 600;
+}
+
+.chart-readout span {
+  color: var(--text-quiet);
+}
+
+.chart-legend {
+  display: flex;
+  gap: var(--space-14);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-quiet);
+  font-size: var(--type-chip);
+}
+
+.chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.chart-swatch {
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--radius-spine);
+  background: var(--ink);
+}
+
+.chart-legend li + li .chart-swatch {
+  background: var(--shade-medium);
+}
+
+/* Columns: the ticks, the plot of the groups, the labels under it. */
+.columns {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-8);
+}
+
+.columns[data-scale='year'] {
+  --bar-width: 24px;
+}
+
+.columns-ticks {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: var(--chart-height);
+  color: var(--text-quiet);
+  font-size: var(--type-badge);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: right;
+}
+
+.columns-ticks span:not(:last-child) {
+  transform: translateY(-50%);
+}
+
+.columns-ticks span:last-child {
+  transform: translateY(50%);
+}
+
+/* A line at the top and at half, the baseline at 0. */
+.columns-plot {
+  display: flex;
+  height: var(--chart-height);
+  border-bottom: var(--hairline) solid var(--line-button);
+  background:
+    linear-gradient(var(--line-card), var(--line-card)) 0 0 / 100% var(--hairline) no-repeat,
+    linear-gradient(var(--line-card), var(--line-card)) 0 50% / 100% var(--hairline) no-repeat;
+}
+
+/* A group is the whole height of the plot, so a tap anywhere on it picks it. */
+.columns-group {
+  flex: 1;
+  min-width: var(--target-min);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--stroke);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-spine) var(--radius-spine) 0 0;
+  background: none;
+  cursor: pointer;
+}
+
+.columns-group[aria-pressed='true'] {
+  background: var(--fill-chip);
+}
+
+.columns-bar {
+  width: min(var(--bar-width), 38%);
+  border-radius: var(--radius-spine) var(--radius-spine) 0 0;
+  background: var(--ink);
+}
+
+.columns-bar + .columns-bar {
+  background: var(--shade-medium);
+}
+
+.columns-axis {
+  grid-column: 2;
+  display: flex;
+  margin-top: var(--space-6);
+  color: var(--text-quiet);
+  font-size: var(--type-badge);
+  font-variant-numeric: tabular-nums;
+}
+
+.columns-axis span {
+  flex: 1;
+  min-width: var(--target-min);
+  text-align: center;
+}
+
+.columns-axis [data-picked] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Ranked bars: a name, a bar and a figure per row, the bars on one left edge. */
+.ranked {
+  display: grid;
+  grid-template-columns: minmax(0, 42%) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-10) var(--space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ranked li {
+  display: contents;
+}
+
+.ranked-name {
+  overflow: hidden;
+  font-size: var(--type-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranked-track {
+  height: var(--track);
+}
+
+.ranked-fill {
+  display: block;
+  height: 100%;
+  min-width: var(--stroke);
+  border-radius: 0 var(--radius-spine) var(--radius-spine) 0;
+  background: var(--ink);
+}
+
+.ranked-value {
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* The same numbers in a table. */
+.chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-table th,
+.chart-table td {
+  padding: var(--space-6) var(--space-8);
+  border-bottom: var(--hairline) solid var(--line-card);
+  text-align: right;
+}
+
+.chart-table th:first-child {
+  text-align: left;
+}
+
+.chart-table thead th {
+  color: var(--text-quiet);
+  font-weight: 500;
+}
+
+.chart-table tbody th {
+  font-weight: 500;
+}
+
+.chart-table tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* A tile: its number over its label. */
+.chart-tile {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-12);
+}
+
+.chart-tile dt {
+  color: var(--text-quiet);
+  font-size: var(--type-chip);
+  line-height: 1.3;
+}
+
+.chart-tile dd {
+  margin: 0;
+  font-size: var(--type-title);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+}

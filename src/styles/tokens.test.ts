@@ -43,6 +43,7 @@ const checked: Record<string, string[]> = {
   './series.css': ['../islands/Series.tsx'],
   './glow.css': ['./shelf-check-result.css'],
   './selection.css': [],
+  './charts.css': [],
   '../pages/sign-in.astro': [],
   '../pages/privacy.astro': [],
   '../pages/index.astro': [],

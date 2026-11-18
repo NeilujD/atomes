@@ -575,6 +575,13 @@ export const fr: typeof en = {
   'select.unchanged': 'Rien à changer.',
   'select.undone': 'Annulé.',
 
+  'chart.table': 'Tableau',
+  'chart.legend': 'Légende',
+  'chart.month': 'Mois',
+  'chart.year': 'Année',
+  'chart.figure': (label: string, figure: string) => `${label} ${figure}`,
+  'chart.group': (name: string, figures: string[]) => `${name} : ${figures.join(', ')}`,
+
   'privacy.title': 'Politique de confidentialité',
   'privacy.intro':
     'Cette page dit ce que cette instance Atomes garde sur vous, qui peut le lire, et comment l’emporter ou l’effacer.',
