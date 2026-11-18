@@ -12,10 +12,12 @@ import { requestLanguage, translator } from '../lib/i18n/i18n';
 
 const t = translator(requestLanguage(Astro.request));
 const isbn = Astro.url.searchParams.get('isbn') ?? '';
+// From a Book page: mark the Volume of that Book (seriesHref).
+const markVolume = Astro.url.searchParams.get('from') === 'book';
 ---
 
 <AppShell title={t('series.title')} current="library" detail>
-  <Series client:only="preact" isbn={isbn}>
+  <Series client:only="preact" isbn={isbn} markVolume={markVolume}>
     <SeriesSkeleton slot="fallback" />
   </Series>
 </AppShell>

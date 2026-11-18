@@ -305,7 +305,7 @@ const choices = [
     const seriesLine = article.querySelector<HTMLElement>('[data-series]')!;
     const seriesName = page.series && page.series !== page.title ? page.series : '';
     const known = editions.get(page.isbn);
-    const seriesPage = known?.series ? seriesHref(page.isbn) : undefined;
+    const seriesPage = known?.series ? seriesHref(page.isbn, 'book') : undefined;
     const parts = [
       seriesPage ? Object.assign(document.createElement('a'), { href: seriesPage, textContent: page.series ?? '' }) : seriesName,
       volume,
@@ -529,7 +529,7 @@ const choices = [
       const state = await saveReadingStatus(space, change);
       return follow ? worstState([state, await saveFollow(space, follow)]) : state;
     }).then(() => {
-      if (suggest) toast(t('series.drop-suggest', suggest.title), { link: { href: seriesHref(isbn), label: t('series.open') } });
+      if (suggest) toast(t('series.drop-suggest', suggest.title), { link: { href: seriesHref(isbn, 'book'), label: t('series.open') } });
     });
   });
 

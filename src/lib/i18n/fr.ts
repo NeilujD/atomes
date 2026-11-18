@@ -496,6 +496,8 @@ export const fr: typeof en = {
   'library.title': 'Bibliothèque',
   'library.empty': 'Votre bibliothèque est vide. Ajoutez un livre avec l’ajout rapide : scannez ou tapez son ISBN.',
   'library.search': 'Chercher dans votre bibliothèque',
+  'library.search-open': 'Chercher',
+  'library.search-close': 'Fermer la recherche',
   'library.search-placeholder': 'Titre, auteur, série, titre du tome',
   'library.search-in': 'Chercher dans',
   'library.search-in.all': 'Tous les champs',

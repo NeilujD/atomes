@@ -129,10 +129,11 @@ const t = translator(requestLanguage(Astro.request));
     flex: none;
   }
 
-  /* Phone: the mode as one round icon button (theme.css) with the icon of the
-     mode on, as high as the search field. The native select lies over it,
-     unseen, so a tap opens the system menu. */
-  .library-view {
+  /* Phone: the search toggle and the mode, round icon buttons (theme.css) as
+     high as "Sort and filter". The mode shows the icon of the mode on; its
+     native select lies over it, unseen, so a tap opens the system menu. */
+  .library-view,
+  .library-search-toggle {
     position: relative;
     width: var(--row);
     height: var(--row);
