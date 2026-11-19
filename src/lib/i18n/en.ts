@@ -691,8 +691,9 @@ export const en = {
   'privacy.title': 'Privacy notice',
   'privacy.intro': 'This page tells what this Atomes instance keeps about you, who can read it, and how to take it with you or delete it.',
   'privacy.operator-heading': 'Who is responsible',
-  'privacy.operator':
-    'This instance is run by Julien Collard. The operator is the data controller for what the instance keeps. Contact: julien.collard14@gmail.com.',
+  // The operator and their contact are settings of the instance (LEGAL_PUBLISHER, LEGAL_CONTACT).
+  'privacy.operator': (operator: string, contact: string) =>
+    `This instance is run by ${operator}. The operator is the data controller for what the instance keeps. Contact: ${contact}.`,
   'privacy.stores-heading': 'What the instance keeps',
   'privacy.stores':
     'Your Account: an email address, the AT Protocol account you linked, or both. Your Library: Copies, Loans, Reading Statuses, Labels, Followed Series and To Buy. Your sharing choices. Your sessions, so you stay signed in. A Series Correction you make keeps your Account as its author. An Invite you make keeps your Account as its maker, and the Account a person made with it.',
@@ -712,8 +713,8 @@ export const en = {
     'The instance keeps this data to give you the service you asked for: your Library on all your devices. It never sells it and never uses it for advertising.',
   'privacy.rights-heading': 'Take it with you, or delete it',
   'privacy.rights':
-    'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account. The encrypted backups still hold it for up to 30 days. For any other request, write to julien.collard14@gmail.com.',
-  'privacy.updated': 'Last change: 17 November 2026.',
+    'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account. The encrypted backups still hold it for up to 30 days. For any other request, write to the contact above.',
+  'privacy.updated': 'Last change: 19 November 2026.',
   // Legal notice (src/pages/legal.astro, CORE-160). DRAFT: the owner approves
   // the text and gives the host's facts before the Landing page goes public (CORE-162).
   'legal.title': 'Legal notice',
@@ -723,11 +724,11 @@ export const en = {
   'legal.publisher': (publisher: string, contact: string) =>
     `${publisher} publishes this Atomes instance and is its director of publication. Contact: ${contact}.`,
   'legal.host-heading': 'Who hosts it',
-  'legal.not-set': (settings: string) => `Not given yet by the operator of this instance (${settings}).`,
   'legal.software-heading': 'The software',
   'legal.software': 'Atomes is open-source software under the GNU AGPL-3.0 license. Its source code is public: github.com/NeilujD/atomes.',
   'legal.content-heading': 'Book covers and book facts',
   'legal.content': 'Book covers belong to their publishers and only illustrate the books of your Library. Book facts come from BnF, SUDOC (ABES), Inventaire, Open Library and Wikidata, under their own licenses. To ask for a cover or a text to be removed, write to the contact above.',
+  'notice.not-set': (settings: string) => `Not given yet by the operator of this instance (${settings}).`,
   'legal.updated': 'Last change: 19 November 2026.',
 
   // Landing page (src/pages/welcome.astro, src/layouts/Landing.astro; M12, CORE-159).

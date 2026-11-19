@@ -7,11 +7,18 @@
 import Notice from '../components/Notice.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
+import { notGiven } from '../lib/notice';
+import { legalFacts } from '../lib/server/settings';
 
 const t = translator(requestLanguage(Astro.request));
+// The operator is the publisher of the Legal notice: settings of this instance (LEGAL_*).
+const { publisher: operator, contact } = legalFacts(process.env);
 
 const sections = [
-  { heading: t('privacy.operator-heading'), texts: [t('privacy.operator')] },
+  {
+    heading: t('privacy.operator-heading'),
+    texts: [operator && contact ? t('privacy.operator', operator, contact) : notGiven(t, !operator && 'LEGAL_PUBLISHER', !contact && 'LEGAL_CONTACT')],
+  },
   { heading: t('privacy.stores-heading'), texts: [t('privacy.stores'), t('privacy.not-kept')] },
   { heading: t('privacy.readers-heading'), texts: [t('privacy.readers')] },
   { heading: t('privacy.processors-heading'), texts: [t('privacy.processors')] },

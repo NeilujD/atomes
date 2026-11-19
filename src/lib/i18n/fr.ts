@@ -677,8 +677,8 @@ export const fr: typeof en = {
   'privacy.intro':
     'Cette page dit ce que cette instance Atomes garde sur vous, qui peut le lire, et comment l’emporter ou l’effacer.',
   'privacy.operator-heading': 'Qui est responsable',
-  'privacy.operator':
-    'Cette instance est gérée par Julien Collard. L’opérateur est responsable du traitement des données que l’instance garde. Contact : julien.collard14@gmail.com.',
+  'privacy.operator': (operator, contact) =>
+    `Cette instance est gérée par ${operator}. L’opérateur est responsable du traitement des données que l’instance garde. Contact : ${contact}.`,
   'privacy.stores-heading': 'Ce que l’instance garde',
   'privacy.stores':
     'Votre compte : une adresse e-mail, le compte AT Protocol que vous avez lié, ou les deux. Votre bibliothèque : exemplaires, prêts, statuts de lecture, étiquettes, séries suivies et liste À acheter. Vos choix de partage. Vos sessions, pour rester connecté. Une correction de série que vous faites garde votre compte comme auteur. Une Invitation que vous créez garde votre compte, et le compte qu’une personne a créé avec elle.',
@@ -698,8 +698,8 @@ export const fr: typeof en = {
     'L’instance garde ces données pour vous rendre le service que vous avez demandé : votre bibliothèque sur tous vos appareils. Elle ne les vend jamais et ne s’en sert jamais pour de la publicité.',
   'privacy.rights-heading': 'L’emporter, ou l’effacer',
   'privacy.rights':
-    'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés. Les sauvegardes chiffrées la gardent encore 30 jours au plus. Pour toute autre demande, écrivez à julien.collard14@gmail.com.',
-  'privacy.updated': 'Dernière modification : 17 novembre 2026.',
+    'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés. Les sauvegardes chiffrées la gardent encore 30 jours au plus. Pour toute autre demande, écrivez au contact ci-dessus.',
+  'privacy.updated': 'Dernière modification : 19 novembre 2026.',
   // Legal notice (src/pages/legal.astro, CORE-160). DRAFT: the owner approves
   // the text and gives the host's facts before the Landing page goes public (CORE-162).
   'legal.title': 'Mentions légales',
@@ -708,11 +708,11 @@ export const fr: typeof en = {
   'legal.publisher': (publisher, contact) =>
     `${publisher} édite cette instance d’Atomes et en assure la direction de la publication. Contact : ${contact}.`,
   'legal.host-heading': 'Qui l’héberge',
-  'legal.not-set': (settings) => `Pas encore indiqué par la personne qui gère cette instance (${settings}).`,
   'legal.software-heading': 'Le logiciel',
   'legal.software': 'Atomes est un logiciel libre sous licence GNU AGPL-3.0. Son code source est public : github.com/NeilujD/atomes.',
   'legal.content-heading': 'Couvertures et fiches des livres',
   'legal.content': 'Les couvertures appartiennent à leurs éditeurs et illustrent seulement les livres de votre bibliothèque. Les fiches des livres viennent de la BnF, du SUDOC (ABES), d’Inventaire, d’Open Library et de Wikidata, sous leurs propres licences. Pour demander le retrait d’une couverture ou d’un texte, écrivez au contact ci-dessus.',
+  'notice.not-set': (settings) => `Pas encore indiqué par la personne qui gère cette instance (${settings}).`,
   'legal.updated': 'Dernière modification : 19 novembre 2026.',
 
   // Page d'accueil publique (src/pages/welcome.astro, src/layouts/Landing.astro ; M12, CORE-159).
