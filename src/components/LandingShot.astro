@@ -22,25 +22,36 @@ const loading = eager ? 'eager' : 'lazy';
 ---
 
 <figure class:list={['shot', device]}>
-  {
-    device === 'desktop' && (
-      <div class="window-bar" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
-    )
-  }
-  <img class="shot-light" src={src('light')} alt={alt} width={size.width} height={size.height} loading={loading} decoding="async" />
-  <img class="shot-dark" src={src('dark')} alt={alt} width={size.width} height={size.height} loading={loading} decoding="async" />
+  <div class="frame">
+    {
+      device === 'desktop' && (
+        <div class="window-bar" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      )
+    }
+    <img class="shot-light" src={src('light')} alt={alt} width={size.width} height={size.height} loading={loading} decoding="async" />
+    <img class="shot-dark" src={src('dark')} alt={alt} width={size.width} height={size.height} loading={loading} decoding="async" />
+  </div>
 </figure>
 
 <style>
-  /* Sizes of the frames, named once. */
+  /*
+   * Sizes of the frames, named once. A phone frame keeps the same shape at
+   * every size: its corner and its edge are shares of its width (cqi: the
+   * figure is the size container of its frame), as on a 240 px phone.
+   */
   .shot {
-    --shot-phone-radius: 40px;
+    --shot-phone-radius: 16cqi;
+    --shot-phone-edge: 3.4cqi;
     --shot-dot: 10px;
     margin: 0;
+    container-type: inline-size;
+  }
+
+  .frame {
     overflow: hidden;
     border: var(--hairline) solid var(--line-card);
     background: var(--surface);
@@ -53,16 +64,16 @@ const loading = eager ? 'eager' : 'lazy';
     height: auto;
   }
 
-  .phone {
-    padding: var(--space-8);
+  .phone .frame {
+    padding: var(--shot-phone-edge);
     border-radius: var(--shot-phone-radius);
   }
 
   .phone img {
-    border-radius: calc(var(--shot-phone-radius) - var(--space-8));
+    border-radius: calc(var(--shot-phone-radius) - var(--shot-phone-edge));
   }
 
-  .desktop {
+  .desktop .frame {
     border-radius: var(--radius-card);
   }
 
