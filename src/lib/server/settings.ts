@@ -31,6 +31,10 @@ export interface Settings {
   // owner signs in with a Sign-in Code and no Invite. A preview gets the
   // staging variables: staging and production ignore it.
   previewAccountEmail?: string;
+  // LANDING_PAGE (M12): `on` (default) shows the Landing page at /welcome to a
+  // visitor who opens Home with no session; `off` answers 404 there, and Home
+  // leads to sign-in.
+  landingPage: boolean;
 }
 
 // No parameter property (`readonly problems` in the constructor): Node's type
@@ -111,6 +115,9 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
     problems.push('PREVIEW_ACCOUNT_EMAIL must be one email address, for example owner@example.org.');
   }
 
+  const landing = env.LANDING_PAGE?.trim() || 'on';
+  if (landing !== 'on' && landing !== 'off') problems.push(`LANDING_PAGE must be on or off. Found: ${landing}`);
+
   const port = Number(env.PORT ?? 4321);
   if (!Number.isInteger(port) || port <= 0) problems.push(`PORT must be a port number. Found: ${String(env.PORT)}`);
 
@@ -125,7 +132,14 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
     smtpUrl,
     mailFrom,
     previewAccountEmail,
+    landingPage: landingPage(env),
   };
+}
+
+// Whether this instance has the Landing page. Read by the pages from the
+// environment, as appEnvironment: readSettings has refused a wrong value at start.
+export function landingPage(env: Record<string, string | undefined>): boolean {
+  return env.LANDING_PAGE?.trim() !== 'off';
 }
 
 // A Coolify pull request preview gets the staging variables, so its

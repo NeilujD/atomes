@@ -9,6 +9,10 @@ import type { IconName } from '../components/icons';
 import LandingShot from '../components/LandingShot.astro';
 import Mark from '../components/Mark.astro';
 import Landing from '../layouts/Landing.astro';
+import { landingPage } from '../lib/server/settings';
+
+// LANDING_PAGE=off: an instance with no Landing page has no such page.
+if (!landingPage(process.env)) return new Response(null, { status: 404 });
 
 const sourceUrl = 'https://github.com/NeilujD/atomes';
 

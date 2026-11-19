@@ -3,6 +3,8 @@
 // browser (the gate, the sign-in screen) and the server (the OAuth callback).
 
 export const signInPath = '/sign-in';
+// The Landing page (M12): what a visitor with no session sees on Home, when the instance has it.
+export const landingPath = '/welcome';
 // Screens a visitor with no session may read (CORE-55).
 export const openPaths: readonly string[] = [signInPath, '/privacy'];
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { appEnvironment, readSettings, SettingsError } from './settings';
+import { appEnvironment, landingPage, readSettings, SettingsError } from './settings';
 
 const sessionKey = Buffer.alloc(32, 7).toString('base64');
 const privateJwk = JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'x', y: 'y', d: 'private-part-of-the-key', kid: 'key-1' });
@@ -188,5 +188,22 @@ describe('appEnvironment', () => {
     expect(problemsOf({ ...local, APP_ENV: 'prod' })).toEqual([expect.stringMatching(/^APP_ENV must be production or staging/)]);
     expect(problemsOf({ ...local, APP_ENV: 'production' })).toEqual([]);
     expect(problemsOf(local)).toEqual([]);
+  });
+});
+
+// The Landing page at /welcome (M12, CORE-158): on unless the instance turns it off.
+describe('LANDING_PAGE', () => {
+  test.each([
+    ['missing', {}, true],
+    ['on', { LANDING_PAGE: 'on' }, true],
+    ['off', { LANDING_PAGE: 'off' }, false],
+    ['off, with spaces', { LANDING_PAGE: ' off ' }, false],
+  ])('%s', (_, env, on) => {
+    expect(readSettings({ ...local, ...env }).landingPage).toBe(on);
+    expect(landingPage(env)).toBe(on);
+  });
+
+  test('a start refuses a value that is not on or off', () => {
+    expect(problemsOf({ ...local, LANDING_PAGE: 'no' })).toEqual(['LANDING_PAGE must be on or off. Found: no']);
   });
 });

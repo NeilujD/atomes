@@ -124,7 +124,9 @@ export function checkedAccount(): Promise<Account | undefined> {
 // screen, which sends them back here after the sign-in. A screen that stays
 // shows if gateBootScript hid it.
 export async function gateScreen(): Promise<void> {
-  const href = await gate({ init: checkedAccount }, location.pathname + location.search + location.hash);
+  // AppShell marks the page when the instance has the Landing page (LANDING_PAGE).
+  const landing = document.documentElement.dataset.landing === 'on';
+  const href = await gate({ init: checkedAccount }, location.pathname + location.search + location.hash, { landing });
   if (href) location.replace(href);
   else delete document.documentElement.dataset.gate;
 }

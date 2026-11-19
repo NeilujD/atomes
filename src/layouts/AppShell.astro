@@ -15,6 +15,7 @@ import { bootScript } from '../lib/appearance';
 import { gateBootScript } from '../lib/auth/gate-boot';
 import { pageTransitionScript } from '../lib/page-transition';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
+import { landingPage } from '../lib/server/settings';
 
 type Section = 'home' | 'library' | 'new' | 'to-buy' | 'statistics' | 'check' | 'settings';
 
@@ -63,10 +64,12 @@ const tabItems: { key: Section; href: string; label: string; icon: IconName }[] 
 const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
 // The tab bar keeps five entries (ui-direction): Statistics is reached from
 // You, so You shows as the place the reader is in.
+// The gate sends a visitor with no session from Home to the Landing page, when the instance has it (M12).
+const landing = landingPage(process.env) ? 'on' : undefined;
 const tabCurrent = (key: Section) => ariaCurrent(key) ?? (key === 'settings' && current === 'statistics' ? 'true' : undefined);
 ---
 
-<html lang={language}>
+<html lang={language} data-landing={landing}>
   <head>
     <PageHead title={`${title} · Atomes`} boot={boot}>
       <link rel="manifest" href="/manifest.webmanifest" />

@@ -4,7 +4,7 @@
 import { t } from '../i18n/i18n';
 import { isNetworkFailure } from '../network';
 import type { LocalCopy } from '../space/local-copy';
-import { signInHref } from './return-to';
+import { landingPath, signInHref } from './return-to';
 
 // The Account signed in (ADR 0016), as /api/session answers. `id` keys the
 // local copy; on a device that has not reached the server since Accounts, it
@@ -45,13 +45,18 @@ export async function loadSession(client: Pick<AuthClient, 'init'>): Promise<Aut
 // (ADR 0002), or a server error the screen tells itself. It runs in the
 // browser, not the server: the service worker keeps app screens, and a server
 // redirect would put the sign-in screen in their place.
-export async function gate(client: Pick<AuthClient, 'init'>, asked: string): Promise<string | undefined> {
+// `landing`: the instance has the Landing page (M12). Home with no session
+// then leads there; with no network, to the sign-in screen, which says so.
+// Home stays hidden until this answers (gateBootScript), so a visitor never
+// sees it, and a reader who has just signed in stays on it.
+export async function gate(client: Pick<AuthClient, 'init'>, asked: string, { landing = false } = {}): Promise<string | undefined> {
   try {
     if (await client.init()) return undefined;
   } catch (error) {
     if (!isNetworkFailure(error)) return undefined;
+    return signInHref(asked);
   }
-  return signInHref(asked);
+  return landing && new URL(asked, 'http://atomes.invalid').pathname === '/' ? landingPath : signInHref(asked);
 }
 
 // Resolves only when the sign-in does not leave the page.
