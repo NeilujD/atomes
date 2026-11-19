@@ -2,12 +2,13 @@
 // Starts its own dev server on the real book sources, with an empty data
 // folder (`data-landing/`), signs in a demo reader, fills a demo Library of
 // manga, comic books and novels, then saves each screen at phone and desktop
-// size, light and dark, in `public/landing/`. The covers are the real ones the
+// size, light and dark, in English and French, in `public/landing/<language>/`
+// (the page shows those of its language). The covers are the real ones the
 // Catalog finds (owner's choice, 2026-11-19); a book with no cover is left out.
 // The browser may ask only the dev server; any other host fails the run. The
 // server asks the book sources, as on any instance.
-// Last, the share preview of the Landing page (1200 × 630, CORE-161): the top
-// of /welcome, with the pictures just made.
+// Last, the share preview of the Landing page (1200 × 630, CORE-161), one per
+// language: the top of /welcome, with the pictures just made.
 // `--probe`: only look up the books and say which have a cover.
 // `--preview`: only make the share preview, from the pictures already there.
 import { spawn } from 'node:child_process';
@@ -15,6 +16,9 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { en } from '../src/lib/i18n/en.ts';
+import { fr } from '../src/lib/i18n/fr.ts';
+import type { Language } from '../src/lib/i18n/i18n.ts';
 
 const port = Number(process.env.LANDING_PORT ?? 4330);
 const origin = `http://127.0.0.1:${port}`;
@@ -65,6 +69,12 @@ const sizes = {
   desktop: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
 } as const;
 const themes = ['light', 'dark'] as const;
+// Each language the app speaks: its UI words, a browser locale, and the names
+// the demo reader gives the Labels in it.
+const languages: Record<Language, { words: typeof en; locale: string; labels: { favourites: string; novels: string } }> = {
+  en: { words: en, locale: 'en-US', labels: { favourites: 'Favourites', novels: 'Novels' } },
+  fr: { words: fr, locale: 'fr-FR', labels: { favourites: 'Coups de cœur', novels: 'Romans' } },
+};
 
 const blocked: string[] = [];
 
@@ -75,31 +85,37 @@ async function main() {
     await waitForServer();
     const browser = await chromium.launch();
     try {
-      if (previewOnly) return await sharePreview(browser);
+      if (previewOnly) {
+        for (const language of Object.keys(languages) as Language[]) await sharePreview(browser, language);
+        return;
+      }
       const seeded = await seed(browser);
       if (!seeded) return;
-      mkdirSync(outDir, { recursive: true });
       const converter = await browser.newPage();
-      for (const [size, device] of Object.entries(sizes)) {
-        for (const theme of themes) {
-          const context = await browser.newContext({ ...device, colorScheme: theme, locale: 'en-US', baseURL: origin, storageState: seeded });
-          await prepare(context);
-          const page = await context.newPage();
-          page.setDefaultTimeout(30_000);
-          for (const [name, open] of Object.entries(screens)) {
-            console.log(`open ${name} ${size} ${theme}`);
-            await open(page);
-            await settle(page);
-            const png = await page.screenshot({ animations: 'disabled' });
-            const file = join(outDir, `${name}-${size}-${theme}.webp`);
-            writeFileSync(file, await toWebp(converter, png));
-            console.log(`saved ${file}`);
+      for (const language of Object.keys(languages) as Language[]) {
+        mkdirSync(join(outDir, language), { recursive: true });
+        for (const [size, device] of Object.entries(sizes)) {
+          for (const theme of themes) {
+            const context = await browser.newContext({ ...device, colorScheme: theme, locale: languages[language].locale, baseURL: origin, storageState: seeded });
+            await prepare(context, language);
+            const page = await context.newPage();
+            page.setDefaultTimeout(30_000);
+            await nameLabels(page, language);
+            for (const [name, open] of Object.entries(screens)) {
+              console.log(`open ${name} ${language} ${size} ${theme}`);
+              await open(page, language);
+              await settle(page);
+              const png = await page.screenshot({ animations: 'disabled' });
+              const file = join(outDir, language, `${name}-${size}-${theme}.webp`);
+              writeFileSync(file, await toWebp(converter, png));
+              console.log(`saved ${file}`);
+            }
+            await context.unrouteAll({ behavior: 'ignoreErrors' });
+            await context.close();
           }
-          await context.unrouteAll({ behavior: 'ignoreErrors' });
-          await context.close();
         }
+        await sharePreview(browser, language);
       }
-      await sharePreview(browser);
     } finally {
       await browser.close();
     }
@@ -140,7 +156,10 @@ async function waitForServer() {
 
 // --- Every page of every context --------------------------------------------
 
-async function prepare(context: BrowserContext) {
+// `language`: the Settings choice the server reads (else the browser's: English here).
+async function prepare(context: BrowserContext, language?: Language) {
+  // `languageCookie` of i18n.ts, which Node cannot load here (its imports have no extension).
+  if (language) await context.addCookies([{ name: 'atomes-language', value: language, url: origin, sameSite: 'Lax' }]);
   await context.route(
     (url) => url.origin !== origin,
     (route) => {
@@ -351,20 +370,46 @@ async function backdate({ books, novels, today }: { books: Record<string, Book>;
     const book = books[copy.isbn];
     return names.some((name) => `${book?.series ?? ''} ${book?.title ?? ''}`.toLowerCase().includes(name));
   };
+  // Named in each language before its pictures (nameLabels).
   await put('app.atomes.label', tid(), { name: 'Favourites', works: works(named('one piece', 'kaamelott', 'astérix', 'dune')), createdAt: now });
   await put('app.atomes.label', tid(), { name: 'Novels', works: works((copy) => novels.includes(copy.isbn)), createdAt: now });
   const lent = series.get([...series.keys()].find((key) => key.includes('Naruto')) ?? '')?.[0];
   if (lent) await put('app.atomes.loan', tid(), { copy: lent.rkey, borrower: 'Sam', lentAt: day(12), createdAt: now });
 }
 
+// The demo reader writes their Labels in the language of the pictures.
+async function nameLabels(page: Page, language: Language) {
+  await goto(page, '/library');
+  await islandsLoaded(page);
+  const names = languages[language].labels;
+  const renames = Object.fromEntries(Object.values(languages).flatMap(({ labels }) => [
+    [labels.favourites, names.favourites],
+    [labels.novels, names.novels],
+  ]));
+  await page.evaluate(async (renames) => {
+    type Saved = { rkey: string; value: { name: string } & Record<string, unknown> };
+    const { records } = (await (await fetch('/api/library/app.atomes.label')).json()) as { records: Saved[] };
+    for (const { rkey, value } of records) {
+      const name = renames[value.name];
+      if (!name || name === value.name) continue;
+      const response = await fetch(`/api/library/app.atomes.label/${encodeURIComponent(rkey)}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...value, name, $type: 'app.atomes.label' }),
+      });
+      if (!response.ok) throw new Error(`PUT label ${rkey}: ${response.status}`);
+    }
+  }, renames);
+}
+
 // --- The screens ------------------------------------------------------------
 
-const screens: Record<string, (page: Page) => Promise<void>> = {
+const screens: Record<string, (page: Page, language: Language) => Promise<void>> = {
   home: (page) => goto(page, '/'),
   library: (page) => goto(page, '/library'),
   series: (page) => goto(page, `/series?isbn=${seriesPage}`),
-  'check-owned': (page) => check(page, checkOwned),
-  'check-not-owned': (page) => check(page, notOwned),
+  'check-owned': (page, language) => check(page, checkOwned, language),
+  'check-not-owned': (page, language) => check(page, notOwned, language),
   'to-buy': (page) => goto(page, '/to-buy'),
   statistics: (page) => goto(page, '/statistics'),
 };
@@ -373,11 +418,12 @@ async function goto(page: Page, path: string) {
   await page.goto(`${origin}${path}`);
 }
 
-async function check(page: Page, code: string) {
+async function check(page: Page, code: string, language: Language) {
+  const { words } = languages[language];
   await goto(page, '/check');
-  await page.getByLabel('ISBN', { exact: true }).fill(code);
-  await page.getByRole('button', { name: 'Look up' }).click();
-  await page.getByRole('dialog', { name: 'Shelf Check' }).waitFor();
+  await page.getByLabel(words['add.isbn'], { exact: true }).fill(code);
+  await page.getByRole('button', { name: words['add.look-up'] }).click();
+  await page.getByRole('dialog', { name: words['check.result'] }).waitFor();
 }
 
 const islandsLoaded = (page: Page) => page.waitForFunction(() => document.querySelectorAll('astro-island[ssr]').length === 0);
@@ -399,14 +445,14 @@ async function settle(page: Page) {
 // The picture a chat or a social network shows for a link to the Landing
 // page: its top as a visitor sees it (light, no saved Account). JPEG: every
 // link preview reads it.
-async function sharePreview(browser: Browser) {
-  const context = await browser.newContext({ viewport: { width: 1200, height: 630 }, colorScheme: 'light', locale: 'en-US', baseURL: origin });
-  await prepare(context);
+async function sharePreview(browser: Browser, language: Language) {
+  const context = await browser.newContext({ viewport: { width: 1200, height: 630 }, colorScheme: 'light', locale: languages[language].locale, baseURL: origin });
+  await prepare(context, language);
   const page = await context.newPage();
   await page.goto(`${origin}/welcome`);
   await settle(page);
   await page.evaluate(() => document.fonts.ready);
-  const file = join(outDir, 'preview.jpg');
+  const file = join(outDir, language, 'preview.jpg');
   await page.screenshot({ path: file, type: 'jpeg', quality: 85, animations: 'disabled' });
   console.log(`saved ${file}`);
   await context.unrouteAll({ behavior: 'ignoreErrors' });

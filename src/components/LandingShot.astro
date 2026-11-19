@@ -2,7 +2,9 @@
 // One app screenshot of the Landing page, in a phone or a browser window. The
 // light and the dark picture are both in the page; CSS shows the one of the
 // theme, so the forced Appearance works too. The pictures come from
-// `bun run landing-shots` (public/landing/).
+// `bun run landing-shots` (public/landing/<language>/), in the page language.
+import { requestLanguage } from '../lib/i18n/i18n';
+
 interface Props {
   view: 'home' | 'library' | 'series' | 'check-owned' | 'check-not-owned' | 'to-buy' | 'statistics';
   device: 'phone' | 'desktop';
@@ -14,7 +16,8 @@ interface Props {
 const { view, device, alt, eager = false } = Astro.props;
 // The sizes `landing-shots` saves (CSS pixels × device pixel ratio).
 const size = device === 'phone' ? { width: 780, height: 1688 } : { width: 1440, height: 900 };
-const src = (theme: string) => `/landing/${view}-${device}-${theme}.webp`;
+const language = requestLanguage(Astro.request);
+const src = (theme: string) => `/landing/${language}/${view}-${device}-${theme}.webp`;
 const loading = eager ? 'eager' : 'lazy';
 ---
 

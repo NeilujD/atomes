@@ -161,7 +161,8 @@ The public page at `/welcome` (`src/pages/welcome.astro`, frame `src/layouts/Lan
 * **Same parts.** Tokens of `theme.css`, the shared glow (`glow.css`), Schibsted Grotesk, Lucide icons through `src/components/icons.ts`, the Mark, `.button-main`, `.button`, `.card`, `.chip`. Larger type and room come from sizes the page names once (`--landing-*`); `tokens.test.ts` checks the page, its frame and `LandingShot.astro`.
 * **Colour answers a question here too.** Cobalt glows behind the hero and the last call to action; green and orange only in the Shelf Check part, where ownership is answered. One filled cobalt action per area (the navbar Sign in, the hero, the end).
 * **Light and dark.** Every app picture exists in both themes (`bun run landing-shots`); CSS shows the one of the theme, also when the Appearance is forced. The navbar toggle saves the same Appearance setting as Settings.
-* **Phone.** The navbar links fold under a menu button (Escape closes it); feature cards go two a row; no sideways scroll at 360 px.
+* **English and French.** Text from `t()` (`landing.*`); the app pictures and the share preview exist in both languages (`public/landing/<language>/`). The language switch (in the navbar list and the footer) names the other language in itself and sets the same choice as Settings, so sign-in and the app follow. It and the light or dark toggle stay disabled until their script is ready.
+* **Phone.** The navbar links, the language switch and the light or dark toggle fold under a menu button (Escape closes it), so the bar keeps room for its call to action; with a saved Account the bar takes the short label ("Ma bibliothèque"). Feature cards go two a row; no sideways scroll at 360 px, in both languages.
 * **No brand logos.** Lucide 1 has none: a link to the code uses `code-xml` and the words "Source code".
 * **Room to grow.** The navbar list has Docs and Blog entries, hidden until their page exists.
 

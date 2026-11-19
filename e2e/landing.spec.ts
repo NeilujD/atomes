@@ -84,3 +84,28 @@ test('The sign-in screen links to the Legal notice, in English and in French', a
   await expect(page.getByRole('heading', { name: 'Mentions légales', level: 1 })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Qui l’héberge' })).toBeVisible();
 });
+
+test('A visitor reads the Landing page in French, and sign-in then speaks French too', async ({ page }) => {
+  await page.goto('/welcome');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+  // The footer switch: the navbar one folds under the menu on a phone.
+  await page.getByRole('contentinfo').getByRole('button', { name: 'Français' }).click();
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+  await expect(page.getByRole('heading', { level: 1, name: 'Connaissez vos étagères, même en boutique.' })).toBeVisible();
+  await page.getByRole('banner').getByRole('link', { name: 'Se connecter' }).click();
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(page.getByRole('heading', { name: 'Se connecter à Atomes' })).toBeVisible();
+});
+
+test('In French, with a saved Account, the Landing page is no wider than a phone screen', async ({ page, baseURL }) => {
+  await page.context().addCookies([{ name: 'atomes-language', value: 'fr', url: baseURL! }]);
+  // The longest navbar label: the way back to the Library.
+  await page.addInitScript(() => localStorage.setItem('atomes-account', '{}'));
+  await page.goto('/welcome');
+  await expect(page.getByRole('banner').getByRole('link', { name: 'Ma bibliothèque' })).toBeVisible();
+
+  const width = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, screen: document.documentElement.clientWidth }));
+  expect(width.page).toBe(width.screen);
+});

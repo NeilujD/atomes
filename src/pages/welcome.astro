@@ -1,88 +1,72 @@
 ---
-// The Landing page (M12, CORE-157): what Atomes does, why it is built on the
-// AT Protocol, who it is built on, and the way in. Public: no session needed.
-// Draft English text for the owner's review; CORE-159 moves it to t() with
-// French. Spec: "Spec: M12 · Landing page" (Linear).
+// The Landing page (M12): what Atomes does, why it is built on the AT
+// Protocol, who it is built on, and the way in. Public: no session needed.
+// English or French, chosen as the app chooses (ADR 0015; `landing.*` keys).
+// Spec: "Spec: M12 · Landing page" (Linear).
 import '../styles/glow.css';
 import Icon from '../components/Icon.astro';
 import type { IconName } from '../components/icons';
 import LandingShot from '../components/LandingShot.astro';
 import Mark from '../components/Mark.astro';
 import Landing from '../layouts/Landing.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
 import { landingPage } from '../lib/server/settings';
 
 // LANDING_PAGE=off: an instance with no Landing page has no such page.
 if (!landingPage(process.env)) return new Response(null, { status: 404 });
 
+const t = translator(requestLanguage(Astro.request));
 const sourceUrl = 'https://github.com/NeilujD/atomes';
 
 const features: { icon: IconName; title: string; text: string }[] = [
-  { icon: 'library', title: 'Your Library', text: 'Every book and manga you own or read, in a grid, a list or a cover flow. Search, sort and filter by author, Series, status or Label.' },
-  { icon: 'layers', title: 'Series and Edition Lines', text: 'Each Series shows every Volume: owned, read or missing. Each printing of a Series keeps its own line.' },
-  { icon: 'scan-barcode', title: 'Quick Add', text: 'Scan the barcode or type the ISBN. Add the earlier Volumes of a Series in one go.' },
-  { icon: 'check', title: 'Shelf Check', text: 'In the shop, scan a book: orange, it is on your shelf; green, it is not. It works with no signal.' },
-  { icon: 'shopping-bag', title: 'To Buy', text: 'The Missing Volumes of the Series you follow, and the books you note by hand, in one list.' },
-  { icon: 'book-open', title: 'Reading Status', text: 'Not yet, Reading, Read or Abandoned, with the day you started and finished.' },
-  { icon: 'chart-column', title: 'Statistics', text: 'Books read and added by month, your most read Series and authors, and a picture to share.' },
-  { icon: 'handshake', title: 'Loans', text: 'Note who has your book, and since when.' },
-  { icon: 'tag', title: 'Labels', text: 'Sort your books your own way: on one book or on a whole Series.' },
-  { icon: 'lock', title: 'Private by default', text: 'Only you see your Library. Share by category, with exceptions per book, when you want.' },
-  { icon: 'wifi-off', title: 'Works offline', text: 'Add Atomes to your home screen. Your Library and Shelf Check open with no network.' },
-  { icon: 'database', title: 'An open Catalog', text: 'Book facts come from open libraries. Readers correct a Series when the sources are wrong.' },
-  { icon: 'download', title: 'Your data, always', text: 'Export your whole Library as open records. Delete your Account in one step.' },
-  { icon: 'languages', title: 'Your language, your light', text: 'English and French. Light, dark and high contrast.' },
+  { icon: 'library', title: t('landing.feature-library'), text: t('landing.feature-library-text') },
+  { icon: 'layers', title: t('landing.feature-series'), text: t('landing.feature-series-text') },
+  { icon: 'scan-barcode', title: t('landing.feature-quick-add'), text: t('landing.feature-quick-add-text') },
+  { icon: 'check', title: t('landing.feature-check'), text: t('landing.feature-check-text') },
+  { icon: 'shopping-bag', title: t('landing.feature-to-buy'), text: t('landing.feature-to-buy-text') },
+  { icon: 'book-open', title: t('landing.feature-status'), text: t('landing.feature-status-text') },
+  { icon: 'chart-column', title: t('landing.feature-statistics'), text: t('landing.feature-statistics-text') },
+  { icon: 'handshake', title: t('landing.feature-loans'), text: t('landing.feature-loans-text') },
+  { icon: 'tag', title: t('landing.feature-labels'), text: t('landing.feature-labels-text') },
+  { icon: 'lock', title: t('landing.feature-private'), text: t('landing.feature-private-text') },
+  { icon: 'wifi-off', title: t('landing.feature-offline'), text: t('landing.feature-offline-text') },
+  { icon: 'database', title: t('landing.feature-catalog'), text: t('landing.feature-catalog-text') },
+  { icon: 'download', title: t('landing.feature-data'), text: t('landing.feature-data-text') },
+  { icon: 'languages', title: t('landing.feature-language'), text: t('landing.feature-language-text') },
 ];
 
 const principles: { icon: IconName; title: string; text: string }[] = [
-  {
-    icon: 'user',
-    title: 'An account of your choice',
-    text: 'Start with an email address: no password, a code each time. Link a Bluesky or other AT Protocol account only if you want to share.',
-  },
-  {
-    icon: 'lock',
-    title: 'Private by default',
-    text: 'Nothing you add is public. You choose what to share, by category, and you can keep any single book apart.',
-  },
-  {
-    icon: 'server',
-    title: 'What you share stays yours',
-    text: 'Shared records go to your own Personal Data Server, in open lexicons under the MIT license. Any app can read them; you can leave with them.',
-  },
-  {
-    icon: 'heart',
-    title: 'No feed, no ads, no tracking',
-    text: 'No timeline, no recommendation engine, no analytics. Atomes does one job: your shelves.',
-  },
+  { icon: 'user', title: t('landing.principle-account'), text: t('landing.principle-account-text') },
+  { icon: 'lock', title: t('landing.principle-private'), text: t('landing.principle-private-text') },
+  { icon: 'server', title: t('landing.principle-yours'), text: t('landing.principle-yours-text') },
+  { icon: 'heart', title: t('landing.principle-quiet'), text: t('landing.principle-quiet-text') },
 ];
 
+// Proper names stay as their authors write them.
 const credits: { name: string; role: string; by: string; href: string }[] = [
-  { name: 'Astro', role: 'Web framework', by: 'The Astro team and contributors', href: 'https://astro.build' },
-  { name: 'Preact', role: 'Interactive screens', by: 'Jason Miller and contributors', href: 'https://preactjs.com' },
-  { name: 'AT Protocol', role: 'Accounts, records, lexicons', by: 'Bluesky Social and contributors', href: 'https://atproto.com' },
-  { name: 'Lucide', role: 'Icons', by: 'The Lucide community, from Feather by Cole Bemis', href: 'https://lucide.dev' },
-  { name: 'Schibsted Grotesk', role: 'Typeface', by: 'The Schibsted Grotesk Project Authors, packaged by Fontsource', href: 'https://github.com/schibsted/schibsted-grotesk' },
-  { name: 'zxing-wasm and barcode-detector', role: 'Barcode reading', by: 'Ze-Zheng Wu (Sec-ant), on ZXing C++', href: 'https://github.com/Sec-ant/zxing-wasm' },
-  { name: 'Node.js and SQLite', role: 'Server and storage', by: 'The OpenJS Foundation; D. Richard Hipp and the SQLite team', href: 'https://nodejs.org' },
-  { name: 'Nodemailer', role: 'Sign-in Code mails', by: 'Andris Reinman', href: 'https://nodemailer.com' },
-  { name: 'Playwright and Vitest', role: 'Tests', by: 'Microsoft; the Vitest team', href: 'https://playwright.dev' },
-  { name: 'Coolify', role: 'Self-hosting', by: 'Andras Bacsai and contributors', href: 'https://coolify.io' },
-  { name: 'Linear', role: 'The idea of the app frame', by: 'From "How we redesigned the Linear UI"', href: 'https://linear.app/now/how-we-redesigned-the-linear-ui' },
+  { name: 'Astro', role: t('landing.credit-astro'), by: t('landing.credit-astro-by'), href: 'https://astro.build' },
+  { name: 'Preact', role: t('landing.credit-preact'), by: t('landing.credit-preact-by'), href: 'https://preactjs.com' },
+  { name: 'AT Protocol', role: t('landing.credit-atproto'), by: t('landing.credit-atproto-by'), href: 'https://atproto.com' },
+  { name: 'Lucide', role: t('landing.credit-lucide'), by: t('landing.credit-lucide-by'), href: 'https://lucide.dev' },
+  { name: 'Schibsted Grotesk', role: t('landing.credit-font'), by: t('landing.credit-font-by'), href: 'https://github.com/schibsted/schibsted-grotesk' },
+  { name: t('landing.credit-barcode-name'), role: t('landing.credit-barcode'), by: t('landing.credit-barcode-by'), href: 'https://github.com/Sec-ant/zxing-wasm' },
+  { name: t('landing.credit-server-name'), role: t('landing.credit-server'), by: t('landing.credit-server-by'), href: 'https://nodejs.org' },
+  { name: 'Nodemailer', role: t('landing.credit-mail'), by: 'Andris Reinman', href: 'https://nodemailer.com' },
+  { name: t('landing.credit-tests-name'), role: t('landing.credit-tests'), by: t('landing.credit-tests-by'), href: 'https://playwright.dev' },
+  { name: 'Coolify', role: t('landing.credit-coolify'), by: t('landing.credit-coolify-by'), href: 'https://coolify.io' },
+  { name: 'Linear', role: t('landing.credit-linear'), by: t('landing.credit-linear-by'), href: 'https://linear.app/now/how-we-redesigned-the-linear-ui' },
 ];
 
 const sources: { name: string; by: string; href: string }[] = [
   { name: 'BnF', by: 'Bibliothèque nationale de France, Licence Ouverte', href: 'https://catalogue.bnf.fr' },
   { name: 'SUDOC', by: 'ABES, Licence Ouverte', href: 'https://www.sudoc.abes.fr' },
-  { name: 'Inventaire', by: 'The Inventaire community', href: 'https://inventaire.io' },
+  { name: 'Inventaire', by: t('landing.source-inventaire'), href: 'https://inventaire.io' },
   { name: 'Open Library', by: 'Internet Archive', href: 'https://openlibrary.org' },
-  { name: 'Wikidata', by: 'Wikimedia community', href: 'https://www.wikidata.org' },
+  { name: 'Wikidata', by: t('landing.source-wikidata'), href: 'https://www.wikidata.org' },
 ];
 ---
 
-<Landing
-  title="Atomes · Your books and manga, on your own terms"
-  description="Atomes keeps your Library of books and manga: every Volume you own, read or miss. Scan a book in the shop to know if it is on your shelf. Private by default, open source, built on the AT Protocol."
->
+<Landing title={t('landing.title')} description={t('landing.description')}>
   <section class="hero" aria-labelledby="hero-title">
     <div class="glow hero-glow" aria-hidden="true">
       <div class="glow-blob glow-b1 hero-b1"></div>
@@ -91,24 +75,25 @@ const sources: { name: string; by: string; href: string }[] = [
     </div>
     <div class="column hero-inner">
       <div class="hero-text">
-        <p class="eyebrow"><span class="chip">Books and manga</span><span class="chip">Private by default</span><span class="chip">Open source</span></p>
-        <h1 id="hero-title">Know your shelves, even in the shop.</h1>
-        <p class="lead">
-          Atomes keeps your Library of books and manga: every Volume you own, read or still miss. Scan a book in the shop and see at once if it is on your
-          shelf. Your Library stays yours, on the AT Protocol.
+        <p class="eyebrow">
+          <span class="chip">{t('landing.chip-books')}</span><span class="chip">{t('landing.chip-private')}</span><span class="chip"
+            >{t('landing.chip-open')}</span
+          >
         </p>
+        <h1 id="hero-title">{t('landing.hero-title')}</h1>
+        <p class="lead">{t('landing.hero-lead')}</p>
         <div class="actions">
-          <a class="button button-main button-big" href="/sign-in" data-cta>Sign in</a>
-          <a class="button button-big" href="#open-source">Run your own<Icon name="arrow-right" /></a>
+          <a class="button button-main button-big" href="/sign-in" data-cta>{t('landing.sign-in')}</a>
+          <a class="button button-big" href="#open-source">{t('landing.run-your-own')}<Icon name="arrow-right" /></a>
         </div>
-        <p class="fine">Invite-only for now · Free · No ads, no tracking</p>
+        <p class="fine">{t('landing.fine')}</p>
       </div>
       <div class="hero-shots">
         <div class="hero-desktop">
-          <LandingShot view="library" device="desktop" alt="The Library on a desktop: a grid of covers, with filters and Labels." eager />
+          <LandingShot view="library" device="desktop" alt={t('landing.alt-library')} eager />
         </div>
         <div class="hero-phone">
-          <LandingShot view="check-owned" device="phone" alt="Shelf Check on a phone: One Piece Volume 56 is in your Library, in orange." eager />
+          <LandingShot view="check-owned" device="phone" alt={t('landing.alt-check-owned-phone')} eager />
         </div>
       </div>
     </div>
@@ -121,44 +106,44 @@ const sources: { name: string; by: string; href: string }[] = [
     </div>
     <div class="column shelf-inner">
       <div class="shelf-text">
-        <p class="kicker">Shelf Check</p>
-        <h2 id="shelf-title">In the shop: do I have this one?</h2>
+        <p class="kicker">{t('landing.shelf-kicker')}</p>
+        <h2 id="shelf-title">{t('landing.shelf-title')}</h2>
         <ol class="steps">
-          <li><span class="step-number">1</span><span><strong>Scan the barcode</strong> with your phone, or type the ISBN.</span></li>
+          <li><span class="step-number">1</span><span><strong>{t('landing.step-scan')}</strong> {t('landing.step-scan-text')}</span></li>
           <li>
             <span class="step-number">2</span>
             <span>
-              <strong>Read the answer in one look.</strong>{' '}
-              <span class="owned">Orange</span>: it is on your shelf. <span class="not-owned">Green</span>: it is not, and it shows where it fits in your
-              Series.
+              <strong>{t('landing.step-answer')}</strong>{' '}
+              <span class="owned">{t('landing.step-orange')}</span>{t('landing.step-orange-text')}{' '}
+              <span class="not-owned">{t('landing.step-green')}</span>{t('landing.step-green-text')}
             </span>
           </li>
-          <li><span class="step-number">3</span><span><strong>Add it in one tap</strong>, read or not. No signal in the shop? It still works.</span></li>
+          <li><span class="step-number">3</span><span><strong>{t('landing.step-add')}</strong>{t('landing.step-add-text')}</span></li>
         </ol>
       </div>
       <div class="shelf-shots">
-        <LandingShot view="check-not-owned" device="phone" alt="Shelf Check: One Piece Volume 112 is not in your Library, in green, with your Series below." />
-        <LandingShot view="check-owned" device="phone" alt="Shelf Check: One Piece Volume 56 is in your Library, in orange." />
+        <LandingShot view="check-not-owned" device="phone" alt={t('landing.alt-check-not-owned')} />
+        <LandingShot view="check-owned" device="phone" alt={t('landing.alt-check-owned')} />
       </div>
     </div>
   </section>
 
   <section class="section" id="features" aria-labelledby="features-title">
     <div class="column">
-      <p class="kicker">Features</p>
-      <h2 id="features-title">Everything your shelves need. Nothing they do not.</h2>
+      <p class="kicker">{t('landing.features-kicker')}</p>
+      <h2 id="features-title">{t('landing.features-title')}</h2>
       <div class="gallery">
         <figure>
-          <LandingShot view="series" device="phone" alt="A Series page: Kaamelott, 7 Volumes owned, 2 missing." />
-          <figcaption>Series</figcaption>
+          <LandingShot view="series" device="phone" alt={t('landing.alt-series')} />
+          <figcaption>{t('landing.caption-series')}</figcaption>
         </figure>
         <figure>
-          <LandingShot view="statistics" device="phone" alt="Statistics: books read and added by month in 2026." />
-          <figcaption>Statistics</figcaption>
+          <LandingShot view="statistics" device="phone" alt={t('landing.alt-statistics')} />
+          <figcaption>{t('landing.caption-statistics')}</figcaption>
         </figure>
         <figure>
-          <LandingShot view="to-buy" device="phone" alt="To Buy: the Missing Volumes of the Series you follow." />
-          <figcaption>To Buy</figcaption>
+          <LandingShot view="to-buy" device="phone" alt={t('landing.alt-to-buy')} />
+          <figcaption>{t('landing.caption-to-buy')}</figcaption>
         </figure>
       </div>
       <ul class="features">
@@ -179,18 +164,17 @@ const sources: { name: string; by: string; href: string }[] = [
 
   <section class="section" id="philosophy" aria-labelledby="philosophy-title">
     <div class="column">
-      <p class="kicker">Philosophy</p>
-      <h2 id="philosophy-title">Your Library belongs to you.</h2>
+      <p class="kicker">{t('landing.philosophy-kicker')}</p>
+      <h2 id="philosophy-title">{t('landing.philosophy-title')}</h2>
       <p class="lead">
-        Atomes is built on the <a href="https://atproto.com">AT Protocol</a>, the open network behind Bluesky. On it, your account and what you share are
-        not locked in one app: they live on your own Personal Data Server, and any app can read the open records you choose to publish.
+        {t('landing.philosophy-lead-before')}<a href="https://atproto.com">AT Protocol</a>{t('landing.philosophy-lead-after')}
       </p>
       <div class="diagram" aria-hidden="true">
-        <span class="node">You</span>
+        <span class="node">{t('landing.diagram-you')}</span>
         <span class="link"></span>
-        <span class="node node-strong"><Icon name="server" />Your Personal Data Server</span>
+        <span class="node node-strong"><Icon name="server" />{t('landing.diagram-pds')}</span>
         <span class="link"></span>
-        <span class="node-group"><span class="node"><Mark size={14} />Atomes</span><span class="node">Other apps</span></span>
+        <span class="node-group"><span class="node"><Mark size={14} />Atomes</span><span class="node">{t('landing.diagram-apps')}</span></span>
       </div>
       <ul class="principles">
         {
@@ -206,12 +190,8 @@ const sources: { name: string; by: string; href: string }[] = [
         }
       </ul>
       <aside class="card honest" aria-labelledby="honest-title">
-        <h3 id="honest-title">An honest note</h3>
-        <p>
-          Today, your private records live on the Atomes instance you use, not on your Personal Data Server: the AT Protocol has no private records yet.
-          The person who runs the instance could read them. If that matters to you, run your own instance. The Catalog only ever learns which ISBNs are
-          looked up, never who owns them.
-        </p>
+        <h3 id="honest-title">{t('landing.honest-title')}</h3>
+        <p>{t('landing.honest')}</p>
       </aside>
     </div>
   </section>
@@ -219,22 +199,26 @@ const sources: { name: string; by: string; href: string }[] = [
   <section class="section" id="open-source" aria-labelledby="open-source-title">
     <div class="column open">
       <div>
-        <p class="kicker">Open source</p>
-        <h2 id="open-source-title">Read the code. Run your own.</h2>
+        <p class="kicker">{t('landing.open-kicker')}</p>
+        <h2 id="open-source-title">{t('landing.open-title')}</h2>
         <ul class="facts">
-          <li><Icon name="scale" /><span><strong>AGPL-3.0</strong> for the app and the Catalog: improvements stay open.</span></li>
-          <li><Icon name="code-xml" /><span><strong>MIT</strong> for the <code>app.atomes.*</code> lexicons: any app can use them.</span></li>
-          <li><Icon name="server" /><span><strong>One Docker image</strong>, Node.js and SQLite. A small server is enough.</span></li>
-          <li><Icon name="download" /><span><strong>Off-host backups</strong> to any S3-compatible storage.</span></li>
+          <li><Icon name="scale" /><span><strong>AGPL-3.0</strong> {t('landing.fact-agpl')}</span></li>
+          <li>
+            <Icon name="code-xml" /><span
+              ><strong>MIT</strong> {t('landing.fact-mit-before')} <code>app.atomes.*</code>{t('landing.fact-mit-after')}</span
+            >
+          </li>
+          <li><Icon name="server" /><span><strong>{t('landing.fact-docker')}</strong>{t('landing.fact-docker-text')}</span></li>
+          <li><Icon name="download" /><span><strong>{t('landing.fact-backups')}</strong> {t('landing.fact-backups-text')}</span></li>
         </ul>
         <div class="actions">
-          <a class="button" href={sourceUrl}><Icon name="code-xml" />Source code</a>
-          <a class="button" href={`${sourceUrl}#run-with-docker`}>Self-host guide<Icon name="arrow-right" /></a>
+          <a class="button" href={sourceUrl}><Icon name="code-xml" />{t('landing.source-code')}</a>
+          <a class="button" href={`${sourceUrl}#run-with-docker`}>{t('landing.self-host')}<Icon name="arrow-right" /></a>
         </div>
       </div>
       <pre
         class="code"
-        aria-label="Example: run Atomes with Docker"><code>docker build -t atomes .
+        aria-label={t('landing.docker-example')}><code>docker build -t atomes .
 docker run -d -p 4321:4321 -v atomes-data:/data \
   -e PUBLIC_APP_ORIGIN=https://books.example.org \
   -e SESSION_ENCRYPTION_KEY=… \
@@ -245,9 +229,9 @@ docker run -d -p 4321:4321 -v atomes-data:/data \
 
   <section class="section" id="credits" aria-labelledby="credits-title">
     <div class="column">
-      <p class="kicker">Built on</p>
-      <h2 id="credits-title">Built on the work of others. Thank you.</h2>
-      <p class="lead">Atomes stands on open-source projects and open book data. Their authors made this possible.</p>
+      <p class="kicker">{t('landing.credits-kicker')}</p>
+      <h2 id="credits-title">{t('landing.credits-title')}</h2>
+      <p class="lead">{t('landing.credits-lead')}</p>
       <ul class="credits">
         {
           credits.map((credit) => (
@@ -261,7 +245,7 @@ docker run -d -p 4321:4321 -v atomes-data:/data \
           ))
         }
       </ul>
-      <h3 class="small-heading sources-title">Book data</h3>
+      <h3 class="small-heading sources-title">{t('landing.sources-title')}</h3>
       <ul class="sources">
         {
           sources.map((source) => (
@@ -284,11 +268,11 @@ docker run -d -p 4321:4321 -v atomes-data:/data \
     </div>
     <div class="column final-inner">
       <Mark size={56} />
-      <h2 id="final-title">Start your Library.</h2>
-      <p class="lead">Invite-only for now: ask a friend who reads with Atomes for an Invite, or run your own instance.</p>
+      <h2 id="final-title">{t('landing.final-title')}</h2>
+      <p class="lead">{t('landing.final-lead')}</p>
       <div class="actions">
-        <a class="button button-main button-big" href="/sign-in" data-cta>Sign in</a>
-        <a class="button button-big" href={sourceUrl}><Icon name="code-xml" />Source code</a>
+        <a class="button button-main button-big" href="/sign-in" data-cta>{t('landing.sign-in')}</a>
+        <a class="button button-big" href={sourceUrl}><Icon name="code-xml" />{t('landing.source-code')}</a>
       </div>
     </div>
   </section>

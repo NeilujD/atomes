@@ -36,8 +36,23 @@ test('the share preview names the page and its picture with addresses on the ins
   expect(meta('og:title')).toBe('Atomes · Your books and manga, on your own terms');
   expect(meta('og:description')).toMatch(/^Atomes keeps your Library/);
   expect(meta('og:url')).toBe('https://books.example.org/welcome');
-  expect(meta('og:image')).toBe('https://books.example.org/landing/preview.jpg');
+  expect(meta('og:image')).toBe('https://books.example.org/landing/en/preview.jpg');
   expect(meta('twitter:card')).toBe('summary_large_image');
-  expect(meta('twitter:image')).toBe('https://books.example.org/landing/preview.jpg');
+  expect(meta('twitter:image')).toBe('https://books.example.org/landing/en/preview.jpg');
   expect(html).toContain('<link rel="canonical" href="https://books.example.org/welcome">');
+});
+
+// CORE-159: the language the app chooses (the Settings cookie, else the browser's), with its own preview picture.
+test('a visitor who chose French reads the page in French, with the French preview picture', async () => {
+  vi.stubEnv('PUBLIC_APP_ORIGIN', 'https://books.example.org');
+  const container = await AstroContainer.create();
+  const request = new Request('http://127.0.0.1:4321/welcome', { headers: { cookie: 'atomes-language=fr', 'accept-language': 'en-US' } });
+
+  const html = await (await container.renderToResponse(Welcome, { request })).text();
+
+  expect(html).toContain('<html lang="fr"');
+  expect(html).toContain('content="https://books.example.org/landing/fr/preview.jpg"');
+  expect(html).toContain('src="/landing/fr/library-desktop-light.webp"');
+  // The switch offers the other language.
+  expect(html).toMatch(/<button [^>]*lang="en" data-language="en"/);
 });
