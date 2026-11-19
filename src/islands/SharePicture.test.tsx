@@ -19,14 +19,18 @@ const numbers = {
 } as unknown as Statistics;
 
 let made: PictureChoice[];
-const make = (_canvas: HTMLCanvasElement, choice: PictureChoice) => {
+// While set, a picture waits for it before it is made.
+let gate: Promise<void> | null;
+const make = async (_canvas: HTMLCanvasElement, choice: PictureChoice) => {
+  if (gate) await gate;
   made.push(choice);
-  return Promise.resolve(new Blob(['png'], { type: 'image/png' }));
+  return new Blob(['png'], { type: 'image/png' });
 };
 
 let share: HTMLButtonElement;
 beforeEach(() => {
   made = [];
+  gate = null;
   document.documentElement.lang = 'en';
   // The main action of statistics.astro, disabled until the island has drawn.
   document.body.insertAdjacentHTML('beforeend', '<button type="button" disabled data-statistics-share>Share</button>');
@@ -105,6 +109,32 @@ describe('the share dialog', () => {
 
     await waitFor(() => expect(made.at(-1)).toMatchObject({ format: 'story', names: false }));
     expect(screen.getByRole('img').getAttribute('aria-label')).toBe('Picture: 47 read in 2026, 61 added, 9 Series followed.');
+  });
+
+  test('while the picture of a new choice is made, the old one stays: same canvas size, same buttons, not ready', async () => {
+    const shared: unknown[] = [];
+    canShareFiles(shared);
+    await openShare();
+    await screen.findByRole('button', { name: 'Share the picture' });
+    const canvas = screen.getByRole<HTMLCanvasElement>('img');
+    // The next picture waits until the test lets it go.
+    let done = () => {};
+    gate = new Promise<void>((resolve) => (done = resolve));
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Square' }));
+
+    // No jump: the buttons keep their place and look, the canvas keeps its picture; a tap does nothing yet.
+    fireEvent.click(screen.getByRole('button', { name: 'Share the picture' }));
+    expect(shared).toEqual([]);
+    const download = screen.getByRole('link', { name: 'Download' });
+    expect([download.hasAttribute('href'), download.getAttribute('aria-disabled')]).toEqual([false, null]);
+    expect([canvas.getAttribute('width'), canvas.getAttribute('height')]).toEqual(['1080', '1920']);
+    expect(canvas.hasAttribute('data-ready')).toBe(false);
+
+    done();
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Download' }).getAttribute('download')).toBe('atomes-2026-square.png'));
+    fireEvent.click(screen.getByRole('button', { name: 'Share the picture' }));
+    expect(shared).toHaveLength(1);
   });
 
   test('Close closes it, and the focus returns to Share', async () => {

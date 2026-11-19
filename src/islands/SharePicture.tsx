@@ -40,6 +40,10 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
   const [format, setFormat] = useState<PictureFormat>('story');
   const [names, setNames] = useState(true);
   const [picture, setPicture] = useState<Picture | null>(null);
+  // The picture of a new choice is being made: the last one stays on screen
+  // meanwhile, and the buttons keep their place and look, so nothing jumps;
+  // they do nothing until the new PNG is ready.
+  const [making, setMaking] = useState(false);
   const [failed, setFailed] = useState<'share' | 'draw' | null>(null);
   const choice: PictureChoice = { numbers, period, filters, format, language: pageLanguage(), names };
 
@@ -86,15 +90,21 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
   useEffect(() => {
     if (!open || !canvas.current) return;
     let current = true;
-    setPicture(null);
+    setMaking(true);
     setFailed(null);
     make(canvas.current, choice).then(
       (blob) => {
         if (!current) return;
         const file = new File([blob], pictureFileName(period, format), { type: 'image/png' });
         setPicture({ file, url: URL.createObjectURL(file), shareable: navigator.canShare?.({ files: [file] }) ?? false });
+        setMaking(false);
       },
-      () => current && setFailed('draw'),
+      () => {
+        if (!current) return;
+        setPicture(null);
+        setMaking(false);
+        setFailed('draw');
+      },
     );
     return () => {
       current = false;
@@ -105,15 +115,16 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
 
   // In the tap, with the PNG made before it: no await comes first.
   const send = () => {
-    if (!picture) return;
+    if (!ready) return;
     setFailed(null);
-    navigator.share({ files: [picture.file] }).catch((error: unknown) => {
+    navigator.share({ files: [ready.file] }).catch((error: unknown) => {
       // The reader closed the share sheet.
       if (error instanceof DOMException && error.name === 'AbortError') return;
       setFailed('share');
     });
   };
 
+  const ready = picture && !making ? picture : null;
   const shareable = picture?.shareable ?? false;
   return (
     <dialog ref={dialog} class="share" aria-labelledby="share-title">
@@ -130,8 +141,10 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
       </div>
 
       <div class="share-stage">
-        {/* Its size before the paint, so the preview keeps its place. */}
-        <canvas ref={canvas} class="share-canvas" {...pictureSize(format)} role="img" aria-label={pictureAlt(choice)} data-ready={picture ? '' : undefined} />
+        {/* A size before the first paint, so the preview has its place. Set once:
+            a new size here would blank the canvas before the next picture is
+            drawn; paintPicture sets the size of each picture as it draws it. */}
+        <canvas ref={canvas} class="share-canvas" {...pictureSize('story')} role="img" aria-label={pictureAlt(choice)} data-ready={ready ? '' : undefined} />
       </div>
 
       <div class="share-choices">
@@ -171,10 +184,12 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
         {/* Download always: the main action where the browser cannot share a file. */}
         <a
           class={shareable ? 'button' : 'button button-main'}
-          href={picture?.url}
-          download={picture?.file.name}
+          // While the next picture is made, no href: a tap saves no old picture.
+          href={ready?.url}
+          download={ready?.file.name}
+          // Dimmed only before the first picture: a dim at each choice would blink.
           aria-disabled={picture ? undefined : 'true'}
-          role={picture ? undefined : 'link'}
+          role={ready ? undefined : 'link'}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 15V3" />
