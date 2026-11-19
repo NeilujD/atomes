@@ -705,14 +705,14 @@ export const fr: typeof en = {
   'legal.title': 'Mentions légales',
   'legal.intro': 'La loi (loi n° 2004-575 du 21 juin 2004, article 1-1) demande à chaque site public de dire qui l’édite et qui l’héberge.',
   'legal.publisher-heading': 'Qui édite ce site',
-  'legal.publisher': 'Julien Collard, particulier, édite cette instance d’Atomes et en est le directeur de la publication. Contact : julien.collard14@gmail.com.',
+  'legal.publisher': 'Julien Collard, particulier, édite cette instance d’Atomes et en est le directeur de la publication. Contact : julien.collard14@gmail.com.',
   'legal.host-heading': 'Qui l’héberge',
-  'legal.host': '[Hébergeur : raison sociale, adresse postale et téléphone. À compléter avant publication.]',
+  'legal.host': '[Hébergeur : raison sociale, adresse postale et téléphone. À compléter avant publication.]',
   'legal.software-heading': 'Le logiciel',
-  'legal.software': 'Atomes est un logiciel libre sous licence GNU AGPL-3.0. Son code source est public : github.com/NeilujD/atomes.',
+  'legal.software': 'Atomes est un logiciel libre sous licence GNU AGPL-3.0. Son code source est public : github.com/NeilujD/atomes.',
   'legal.content-heading': 'Couvertures et fiches des livres',
   'legal.content': 'Les couvertures appartiennent à leurs éditeurs et illustrent seulement les livres de votre bibliothèque. Les fiches des livres viennent de la BnF, du SUDOC (ABES), d’Inventaire, d’Open Library et de Wikidata, sous leurs propres licences. Pour demander le retrait d’une couverture ou d’un texte, écrivez à julien.collard14@gmail.com.',
-  'legal.updated': 'Dernière modification : 19 novembre 2026.',
+  'legal.updated': 'Dernière modification : 19 novembre 2026.',
 
   // Page d'accueil publique (src/pages/welcome.astro, src/layouts/Landing.astro ; M12, CORE-159).
   'landing.title': 'Atomes · Vos livres et mangas, à votre façon',
@@ -797,7 +797,7 @@ export const fr: typeof en = {
   'landing.philosophy-title': 'Votre bibliothèque vous appartient.',
   'landing.philosophy-lead-before': 'Atomes repose sur l’',
   'landing.philosophy-lead-after':
-    ', le réseau ouvert derrière Bluesky. Votre compte et ce que vous partagez n’y sont pas enfermés dans une app : ils vivent sur votre propre serveur de données personnelles (PDS), et toute app peut lire les enregistrements ouverts que vous choisissez de publier.',
+    ', le réseau ouvert derrière Bluesky. Votre compte et ce que vous partagez n’y sont pas enfermés dans une app : ils vivent sur votre propre serveur de données personnelles (PDS), et toute app peut lire les enregistrements ouverts que vous choisissez de partager.',
   'landing.diagram-you': 'Vous',
   'landing.diagram-pds': 'Votre serveur de données (PDS)',
   'landing.diagram-apps': 'D’autres apps',

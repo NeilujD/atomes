@@ -198,6 +198,18 @@ describe('gate', () => {
       expect(await gate(client(), '/', { landing: true })).toBeUndefined();
     });
 
+    test('a session ended on the server, on Home: the Landing page, and the device forgets the account', async () => {
+      const { server, storage, client } = setup();
+      server.signedIn = true;
+      await loadSession(client());
+
+      server.signedIn = false;
+
+      expect(await gate(client(), '/', { landing: true })).toBe('/welcome');
+      // So the Landing page offers "Sign in", not "Open my Library" (no loop back to Home).
+      expect(storage.items.size).toBe(0);
+    });
+
     test('network error on Home with no saved account: the sign-in screen, which says it needs the network', async () => {
       const { server, client } = setup();
       server.online = false;

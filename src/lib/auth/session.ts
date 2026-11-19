@@ -4,7 +4,7 @@
 import { t } from '../i18n/i18n';
 import { isNetworkFailure } from '../network';
 import type { LocalCopy } from '../space/local-copy';
-import { landingPath, signInHref } from './return-to';
+import { isHome, landingPath, signInHref } from './return-to';
 
 // The Account signed in (ADR 0016), as /api/session answers. `id` keys the
 // local copy; on a device that has not reached the server since Accounts, it
@@ -56,7 +56,7 @@ export async function gate(client: Pick<AuthClient, 'init'>, asked: string, { la
     if (!isNetworkFailure(error)) return undefined;
     return signInHref(asked);
   }
-  return landing && new URL(asked, 'http://atomes.invalid').pathname === '/' ? landingPath : signInHref(asked);
+  return landing && isHome(asked) ? landingPath : signInHref(asked);
 }
 
 // Resolves only when the sign-in does not leave the page.

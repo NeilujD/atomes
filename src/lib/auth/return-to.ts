@@ -6,9 +6,14 @@ export const signInPath = '/sign-in';
 // The Landing page (M12): what a visitor with no session sees on Home, when the instance has it.
 export const landingPath = '/welcome';
 // Screens a visitor with no session may read (CORE-55).
-export const openPaths: readonly string[] = [signInPath, '/privacy', '/legal'];
+export const openPaths: readonly string[] = [signInPath, '/privacy', '/legal', landingPath];
 
 const base = 'http://atomes.invalid';
+
+// Home, with any query or hash ("/?from=home-screen").
+export function isHome(path: string): boolean {
+  return new URL(path, base).pathname === '/';
+}
 
 // Path, query and hash of a screen of this app; Home for anything else, so the
 // sign-in never sends the reader to another site.

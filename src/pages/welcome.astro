@@ -11,12 +11,12 @@ import Mark from '../components/Mark.astro';
 import Landing from '../layouts/Landing.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 import { landingPage } from '../lib/server/settings';
+import { sourceCodeUrl } from '../lib/source-code';
 
 // LANDING_PAGE=off: an instance with no Landing page has no such page.
 if (!landingPage(process.env)) return new Response(null, { status: 404 });
 
 const t = translator(requestLanguage(Astro.request));
-const sourceUrl = 'https://github.com/NeilujD/atomes';
 
 const features: { icon: IconName; title: string; text: string }[] = [
   { icon: 'library', title: t('landing.feature-library'), text: t('landing.feature-library-text') },
@@ -212,8 +212,8 @@ const sources: { name: string; by: string; href: string }[] = [
           <li><Icon name="download" /><span><strong>{t('landing.fact-backups')}</strong> {t('landing.fact-backups-text')}</span></li>
         </ul>
         <div class="actions">
-          <a class="button" href={sourceUrl}><Icon name="code-xml" />{t('landing.source-code')}</a>
-          <a class="button" href={`${sourceUrl}#run-with-docker`}>{t('landing.self-host')}<Icon name="arrow-right" /></a>
+          <a class="button" href={sourceCodeUrl}><Icon name="code-xml" />{t('landing.source-code')}</a>
+          <a class="button" href={`${sourceCodeUrl}#run-with-docker`}>{t('landing.self-host')}<Icon name="arrow-right" /></a>
         </div>
       </div>
       <pre
@@ -272,7 +272,7 @@ docker run -d -p 4321:4321 -v atomes-data:/data \
       <p class="lead">{t('landing.final-lead')}</p>
       <div class="actions">
         <a class="button button-main button-big" href="/sign-in" data-cta>{t('landing.sign-in')}</a>
-        <a class="button button-big" href={sourceUrl}><Icon name="code-xml" />{t('landing.source-code')}</a>
+        <a class="button button-big" href={sourceCodeUrl}><Icon name="code-xml" />{t('landing.source-code')}</a>
       </div>
     </div>
   </section>

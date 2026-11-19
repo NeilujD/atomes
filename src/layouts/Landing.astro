@@ -12,6 +12,7 @@ import PageHead from '../components/PageHead.astro';
 import { bootScript } from '../lib/appearance';
 import { requestLanguage, translator, type Language } from '../lib/i18n/i18n';
 import { publicOrigin } from '../lib/server/settings';
+import { sourceCodeUrl } from '../lib/source-code';
 
 interface Props {
   title: string;
@@ -41,7 +42,6 @@ const links: { href: string; label: string; shown: boolean }[] = [
   { href: '/blog', label: t('landing.nav-blog'), shown: false },
 ];
 
-const sourceUrl = 'https://github.com/NeilujD/atomes';
 ---
 
 <html lang={language}>
@@ -103,7 +103,7 @@ const sourceUrl = 'https://github.com/NeilujD/atomes';
             <span class="theme-sun"><Icon name="sun" /></span>
           </button>
           <a class="button button-main nav-cta" href="/sign-in" data-cta="short">{t('landing.sign-in')}</a>
-          <button class="icon-button menu" type="button" aria-label={t('landing.menu')} aria-expanded="false" aria-controls="landing-menu" data-menu>
+          <button class="icon-button menu" type="button" aria-label={t('landing.menu')} aria-expanded="false" aria-controls="landing-menu" data-menu disabled>
             <Icon name="menu" />
           </button>
         </div>
@@ -123,8 +123,8 @@ const sourceUrl = 'https://github.com/NeilujD/atomes';
         <ul class="footer-links">
           <li><a href="/privacy">{t('signin.privacy')}</a></li>
           <li><a href="/legal">{t('legal.title')}</a></li>
-          <li><a href={sourceUrl}>{t('landing.source-code')}</a></li>
-          <li><a href={`${sourceUrl}/blob/main/LICENSE`}>{t('landing.license')}</a></li>
+          <li><a href={sourceCodeUrl}>{t('landing.source-code')}</a></li>
+          <li><a href={`${sourceCodeUrl}/blob/main/LICENSE`}>{t('landing.license')}</a></li>
           <li>
             <button class="link-button" type="button" lang={other} data-language={other} disabled>
               <Icon name="languages" />{otherName}
@@ -186,6 +186,7 @@ const sourceUrl = 'https://github.com/NeilujD/atomes';
     menu.setAttribute('aria-expanded', String(open));
   };
   menu.addEventListener('click', () => setOpen(nav.dataset.open !== 'true'));
+  menu.disabled = false;
   nav.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || nav.dataset.open !== 'true') return;
     setOpen(false);

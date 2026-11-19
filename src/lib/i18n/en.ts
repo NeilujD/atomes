@@ -812,7 +812,7 @@ export const en = {
   'landing.philosophy-title': 'Your Library belongs to you.',
   'landing.philosophy-lead-before': 'Atomes is built on the ',
   'landing.philosophy-lead-after':
-    ', the open network behind Bluesky. On it, your account and what you share are not locked in one app: they live on your own Personal Data Server, and any app can read the open records you choose to publish.',
+    ', the open network behind Bluesky. On it, your account and what you share are not locked in one app: they live on your own Personal Data Server, and any app can read the open records you choose to share.',
   'landing.diagram-you': 'You',
   'landing.diagram-pds': 'Your Personal Data Server',
   'landing.diagram-apps': 'Other apps',

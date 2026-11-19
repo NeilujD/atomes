@@ -1,3 +1,5 @@
+import { keepCookiesWithoutSecure } from './cookies';
+import { invite } from './invites';
 import { expect, test } from './test';
 
 // The Landing page (M12, CORE-158). The E2E server runs with LANDING_PAGE on
@@ -20,13 +22,31 @@ test('A visitor who opens Home lands on the Landing page, and never sees Home fi
   await expect(page.getByRole('heading', { level: 1, name: 'Know your shelves, even in the shop.' })).toBeVisible();
 });
 
-test('On the Landing page, Sign in opens the sign-in screen', async ({ page }) => {
-  await page.goto('/welcome');
+test('From the Landing page, a visitor signs in with a Sign-in Code and lands on Home', async ({ page, browserName, baseURL }) => {
+  if (browserName === 'webkit') await keepCookiesWithoutSecure(page, baseURL!);
+  // One reader per browser: both run at the same time on one server.
+  const address = `e2e-${browserName}-landing@example.org`;
+  // The Invite a friend sent, opened earlier on this device: a new Account needs one.
+  await page.goto(`/sign-in#invite=${await invite(page.request)}`);
+  await expect(page.getByRole('alert')).toHaveText('Invite kept. Sign in to create your account.');
 
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/welcome$/);
   await page.getByRole('banner').getByRole('link', { name: 'Sign in' }).click();
-
   await expect(page).toHaveURL(/\/sign-in$/);
   await expect(page.getByRole('heading', { name: 'Sign in to Atomes' })).toBeVisible();
+  // The sign-in form sends nothing before its script has run (it is not disabled until then).
+  await page.waitForLoadState('networkidle');
+
+  await page.getByLabel('Your email address').fill(address);
+  await page.getByRole('button', { name: 'Send me a code' }).click();
+  await expect(page.getByText(`If ${address} may sign in here, a Sign-in Code is on its way.`)).toBeVisible();
+  const mail = await page.request.get(`/dev/outbox?to=${encodeURIComponent(address)}`);
+  const code = /\b(\d{6})\b/.exec(await mail.text())![1];
+  await page.getByLabel('Sign-in Code').fill(code);
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText('Nothing here yet.')).toBeVisible();
 });
 
 test('A reader who has just signed in opens Home, and the Landing page then leads back to it', async ({ page, signIn }) => {
