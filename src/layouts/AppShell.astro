@@ -326,6 +326,27 @@ const icons = appIcons(appEnvironment(process.env));
     display: none;
   }
 
+  /* Phone: the panel is at least as high as the window, so a short page covers
+     the screen in a page transition. The height comes from the window (100 %),
+     never from viewport units: on an Android phone 100dvh can be taller than
+     the window, and a page with almost nothing on it then scrolls. */
+  @media (max-width: 959.98px) {
+    :global(html),
+    :global(body) {
+      height: 100%;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+
+    .panel {
+      flex: 1 0 auto;
+    }
+  }
+
   .view-header {
     display: flex;
     align-items: center;

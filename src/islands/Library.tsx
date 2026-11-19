@@ -186,11 +186,20 @@ export function Library({ sources }: { sources: Sources }) {
   const groupingSwitch = <Segmented name="library-grouping" label={t('library.grouping')} choices={groupings} chosen={grouping} text={(each) => t(`library.grouping.${each}`)} onChange={group} />;
   const pick = (work: string) => setSelected(selected.includes(work) ? selected.filter((each) => each !== work) : [...selected, work]);
   const picked = selected.map((work): PickedBook => ({ work, isbn: bookIsbns(work, read.library)[0] ?? '', edition: workEdition(work, read.library, editions) }));
-  const selectButton = !selecting && (
-    <button class="button button-quiet" type="button" onClick={() => setSelecting(true)}>
-      {t('select.start')}
-    </button>
-  );
+  // Phone: an icon, as the search and the mode, so the row fits a 360 px screen in French.
+  const selectButton =
+    !selecting &&
+    (wide ? (
+      <button class="button button-quiet" type="button" onClick={() => setSelecting(true)}>
+        {t('select.start')}
+      </button>
+    ) : (
+      <button class="icon-button library-select-start" type="button" aria-label={t('select.start')} onClick={() => setSelecting(true)}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          {selectIcon}
+        </svg>
+      </button>
+    ));
 
   const searchInput = (
     <div class="library-search">
@@ -499,6 +508,13 @@ const searchIcon = (
   </>
 );
 const closeIcon = <path d="M18 6 6 18M6 6l12 12" />;
+// Lucide's square-check-big (https://lucide.dev, ISC): the phone's Select.
+const selectIcon = (
+  <>
+    <path d="M21 10.656V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.344" />
+    <path d="m9 11 3 3L22 4" />
+  </>
+);
 
 // Lucide's layout-grid, list and gallery-horizontal (https://lucide.dev, ISC),
 // drawn here: an island cannot use the Astro icons of src/components/icons.ts.
