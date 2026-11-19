@@ -703,8 +703,10 @@ export const en = {
   'privacy.readers':
     'You, and the operator of this instance, who can read every Library it keeps. Nobody else, except what you share. To keep your Library from any operator, run your own instance.',
   'privacy.processors-heading': 'Who helps',
-  'privacy.processors':
-    'Scaleway (Transactional Email, Paris, France) sends your Sign-in Codes: it receives your email address and the code, for this only. Every hour, an encrypted copy of the Library is sent to Cloudflare R2 (Cloudflare, Inc.), in the EU jurisdiction, and kept for 30 days.',
+  // The processors are settings of the instance (PRIVACY_*, settings.ts); backups only where it has them.
+  'privacy.processor-mail': (processor: string) => `${processor} sends your Sign-in Codes: it receives your email address and the code, for this only.`,
+  'privacy.processor-backups': (processor: string) => `Every hour, an encrypted copy of the Library is sent to ${processor}, and kept for 30 days.`,
+  'privacy.no-backups': 'No copy of the Library leaves the server of this instance.',
   'privacy.shared-heading': 'What you share',
   'privacy.shared':
     'Shared records (Reading Statuses, Followed Series, Labels) go to your AT Protocol account, where anyone can read them. Nothing is Shared until you turn it on. Copies, Loans and To Buy are never Shared.',
@@ -713,7 +715,9 @@ export const en = {
     'The instance keeps this data to give you the service you asked for: your Library on all your devices. It never sells it and never uses it for advertising.',
   'privacy.rights-heading': 'Take it with you, or delete it',
   'privacy.rights':
-    'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account. The encrypted backups still hold it for up to 30 days. For any other request, write to the contact above.',
+    'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account.',
+  'privacy.rights-backups': 'The encrypted backups still hold it for up to 30 days.',
+  'privacy.requests': 'For any other request, write to the contact above.',
   'privacy.updated': 'Last change: 19 November 2026.',
   // Legal notice (src/pages/legal.astro, CORE-160). DRAFT: the owner approves
   // the text and gives the host's facts before the Landing page goes public (CORE-162).

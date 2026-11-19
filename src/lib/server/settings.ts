@@ -159,6 +159,24 @@ export function legalFacts(env: Record<string, string | undefined>): LegalFacts 
   };
 }
 
+// The processors the Privacy notice names, which change with each instance:
+// PRIVACY_MAIL_PROCESSOR (who sends the Sign-in Codes) and, on an instance
+// with backups (BACKUP_S3_ENDPOINT, docs/backups.md), PRIVACY_BACKUP_PROCESSOR
+// (where they go). Free text, shown as given in every language.
+export interface PrivacyFacts {
+  mailProcessor?: string;
+  backups: boolean;
+  backupProcessor?: string;
+}
+
+export function privacyFacts(env: Record<string, string | undefined>): PrivacyFacts {
+  return {
+    mailProcessor: env.PRIVACY_MAIL_PROCESSOR?.trim() || undefined,
+    backups: Boolean(env.BACKUP_S3_ENDPOINT?.trim()),
+    backupProcessor: env.PRIVACY_BACKUP_PROCESSOR?.trim() || undefined,
+  };
+}
+
 // The https origin readers open, as given: the preview URL on a Coolify pull
 // request preview, else PUBLIC_APP_ORIGIN. Undefined in local development.
 function givenOrigin(env: Record<string, string | undefined>): string | undefined {

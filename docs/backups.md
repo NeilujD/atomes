@@ -24,6 +24,8 @@ All five settings are **Runtime only** variables of the **production** app in Co
 | `BACKUP_S3_SECRET_ACCESS_KEY` | **Secret Access Key** of the R2 API token |
 | `BACKUP_ENCRYPTION_KEY` | 32 random bytes in base64: `openssl rand -base64 32` |
 
+Add `PRIVACY_BACKUP_PROCESSOR` too, for example `Cloudflare R2 (Cloudflare, Inc., EU)`: the Privacy notice names it as the place of the backups, as soon as `BACKUP_S3_ENDPOINT` is set (README settings table).
+
 **Keep `BACKUP_ENCRYPTION_KEY` in your password manager too.** If the host is lost, Coolify and its settings are lost with it. Without this key, no backup can be decrypted.
 
 ## Set it up

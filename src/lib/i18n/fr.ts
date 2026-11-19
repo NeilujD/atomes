@@ -688,8 +688,9 @@ export const fr: typeof en = {
   'privacy.readers':
     'Vous, et l’opérateur de cette instance, qui peut lire toutes les bibliothèques qu’elle garde. Personne d’autre, sauf ce que vous partagez. Pour garder votre bibliothèque hors de portée de tout opérateur, hébergez votre propre instance.',
   'privacy.processors-heading': 'Qui aide',
-  'privacy.processors':
-    'Scaleway (service Transactional Email, Paris, France) envoie vos codes de connexion : il reçoit votre adresse e-mail et le code, pour cela seulement. Chaque heure, une copie chiffrée de la bibliothèque part vers Cloudflare R2 (Cloudflare, Inc.), dans la juridiction UE, et y reste 30 jours.',
+  'privacy.processor-mail': (processor) => `${processor} envoie vos codes de connexion : il reçoit votre adresse e-mail et le code, pour cela seulement.`,
+  'privacy.processor-backups': (processor) => `Chaque heure, une copie chiffrée de la bibliothèque part vers ${processor}, et y reste 30 jours.`,
+  'privacy.no-backups': 'Aucune copie de la bibliothèque ne quitte le serveur de cette instance.',
   'privacy.shared-heading': 'Ce que vous partagez',
   'privacy.shared':
     'Les enregistrements partagés (statuts de lecture, séries suivies, étiquettes) vont sur votre compte AT Protocol, où tout le monde peut les lire. Rien n’est partagé tant que vous ne l’activez pas. Les exemplaires, les prêts et la liste À acheter ne sont jamais partagés.',
@@ -698,7 +699,9 @@ export const fr: typeof en = {
     'L’instance garde ces données pour vous rendre le service que vous avez demandé : votre bibliothèque sur tous vos appareils. Elle ne les vend jamais et ne s’en sert jamais pour de la publicité.',
   'privacy.rights-heading': 'L’emporter, ou l’effacer',
   'privacy.rights':
-    'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés. Les sauvegardes chiffrées la gardent encore 30 jours au plus. Pour toute autre demande, écrivez au contact ci-dessus.',
+    'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés.',
+  'privacy.rights-backups': 'Les sauvegardes chiffrées la gardent encore 30 jours au plus.',
+  'privacy.requests': 'Pour toute autre demande, écrivez au contact ci-dessus.',
   'privacy.updated': 'Dernière modification : 19 novembre 2026.',
   // Legal notice (src/pages/legal.astro, CORE-160). DRAFT: the owner approves
   // the text and gives the host's facts before the Landing page goes public (CORE-162).
