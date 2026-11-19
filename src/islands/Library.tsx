@@ -65,6 +65,17 @@ export function Library({ sources }: { sources: Sources }) {
   // Bulk select: on or off, and the Works picked, in the order of the taps.
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  // Phone: the search field opens from an icon, so the row keeps room for its
+  // buttons. Open at the start when the history entry has a search.
+  const [searchOpen, setSearchOpen] = useState(saved.query.text !== '');
+  const searchField = useRef<HTMLInputElement>(null);
+  // A tap opened the field: focus it in the same task as the tap, so the phone keyboard opens.
+  const openedByTap = useRef(false);
+  useLayoutEffect(() => {
+    if (!searchOpen || !openedByTap.current) return;
+    openedByTap.current = false;
+    searchField.current?.focus();
+  }, [searchOpen]);
 
   useEffect(() => remember({ query: asked, flow: moved }), [asked, moved]);
 
@@ -146,6 +157,12 @@ export function Library({ sources }: { sources: Sources }) {
     ));
   const change = (part: Partial<LibraryQuery>) => setQuery({ ...query, ...part });
   const clear = () => setQuery(clearAll(query));
+  // Phone: closing the field also clears its text, so no search stays on out of sight.
+  const toggleSearch = () => {
+    if (searchOpen) change({ text: '' });
+    openedByTap.current = !searchOpen;
+    setSearchOpen(!searchOpen);
+  };
   // Series mode counts its cards, out of the Series of the whole Library (CORE-116).
   const cards = grouping === 'series' && seriesCards(found.books, series, query.sort, pageLanguage());
   const shown = cards ? cards.length : found.books.length;
@@ -169,10 +186,38 @@ export function Library({ sources }: { sources: Sources }) {
   const groupingSwitch = <Segmented name="library-grouping" label={t('library.grouping')} choices={groupings} chosen={grouping} text={(each) => t(`library.grouping.${each}`)} onChange={group} />;
   const pick = (work: string) => setSelected(selected.includes(work) ? selected.filter((each) => each !== work) : [...selected, work]);
   const picked = selected.map((work): PickedBook => ({ work, isbn: bookIsbns(work, read.library)[0] ?? '', edition: workEdition(work, read.library, editions) }));
-  const selectButton = !selecting && (
-    <button class="button button-quiet" type="button" onClick={() => setSelecting(true)}>
-      {t('select.start')}
-    </button>
+  // Phone: an icon, as the search and the mode, so the row fits a 360 px screen in French.
+  const selectButton =
+    !selecting &&
+    (wide ? (
+      <button class="button button-quiet" type="button" onClick={() => setSelecting(true)}>
+        {t('select.start')}
+      </button>
+    ) : (
+      <button class="icon-button library-select-start" type="button" aria-label={t('select.start')} onClick={() => setSelecting(true)}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          {selectIcon}
+        </svg>
+      </button>
+    ));
+
+  const searchInput = (
+    <div class="library-search">
+      <label class="visually-hidden" for="library-search">
+        {t('library.search')}
+      </label>
+      <input
+        ref={searchField}
+        class="field"
+        id="library-search"
+        type="search"
+        autoComplete="off"
+        placeholder={t('library.search-placeholder')}
+        value={query.text}
+        onInput={(event) => change({ text: event.currentTarget.value })}
+        onKeyDown={(event) => !wide && event.key === 'Escape' && toggleSearch()}
+      />
+    </div>
   );
 
   return (
@@ -186,22 +231,9 @@ export function Library({ sources }: { sources: Sources }) {
         </div>
         {!wide && groupingSwitch}
         <div class="library-search-row">
-          <div class="library-search">
-            <label class="visually-hidden" for="library-search">
-              {t('library.search')}
-            </label>
-            <input
-              class="field"
-              id="library-search"
-              type="search"
-              autoComplete="off"
-              placeholder={t('library.search-placeholder')}
-              value={query.text}
-              onInput={(event) => change({ text: event.currentTarget.value })}
-            />
-          </div>
           {wide ? (
             <>
+              {searchInput}
               {groupingSwitch}
               {count}
               {clearButton}
@@ -210,12 +242,18 @@ export function Library({ sources }: { sources: Sources }) {
             </>
           ) : (
             <>
+              <button class="icon-button library-search-toggle" type="button" aria-label={t(searchOpen ? 'library.search-close' : 'library.search-open')} onClick={toggleSearch}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  {searchOpen ? closeIcon : searchIcon}
+                </svg>
+              </button>
               <Sheet query={query} found={found} change={change} show={cards ? t('library.show-series', shown) : t('library.show', shown)} />
               {modeSwitch}
               {selectButton}
             </>
           )}
         </div>
+        {!wide && searchOpen && searchInput}
         {wide ? (
           <Controls query={query} found={found} change={change} />
         ) : (
@@ -360,8 +398,12 @@ function Sheet({ query, found, change, show }: ControlsProps & { show: string })
   const on = [query.searchIn !== 'all', query.author, query.series, query.status, query.label, query.owned !== null].filter(Boolean).length;
   return (
     <>
-      <button class="button library-filters" type="button" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
-        <span>{t('library.filters')}</span>
+      {/* An icon, as the other buttons of the row; the badge counts the filters on. */}
+      <button class="icon-button library-filters" type="button" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          {filtersIcon}
+        </svg>
+        <span class="visually-hidden">{t('library.filters')}</span>
         {on > 0 && (
           <span class="library-badge">
             <span aria-hidden="true">{on}</span>
@@ -461,6 +503,24 @@ function ModeMenu({ mode, onChange }: { mode: Mode; onChange: (mode: Mode) => vo
     </span>
   );
 }
+
+// Lucide's search and x (https://lucide.dev, ISC): the phone's search toggle.
+const searchIcon = (
+  <>
+    <path d="m21 21-4.34-4.34" />
+    <circle cx="11" cy="11" r="8" />
+  </>
+);
+const closeIcon = <path d="M18 6 6 18M6 6l12 12" />;
+// Lucide's sliders-horizontal (https://lucide.dev, ISC): the phone's Sort and filter.
+const filtersIcon = <path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" />;
+// Lucide's square-check-big (https://lucide.dev, ISC): the phone's Select.
+const selectIcon = (
+  <>
+    <path d="M21 10.656V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.344" />
+    <path d="m9 11 3 3L22 4" />
+  </>
+);
 
 // Lucide's layout-grid, list and gallery-horizontal (https://lucide.dev, ISC),
 // drawn here: an island cannot use the Astro icons of src/components/icons.ts.

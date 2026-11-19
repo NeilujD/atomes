@@ -18,6 +18,7 @@ test('Quick Add a known ISBN, then find the book in the Library', async ({ page,
   await expect(page).toHaveURL(/\/book/);
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Library' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByLabel('Search your Library').fill('One Piece');
   await expect(page.getByRole('link', { name: /^One Piece Volume 56/ })).toBeVisible();
 });

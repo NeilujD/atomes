@@ -2,8 +2,9 @@
 // (ui-direction: Environment badge, the mark). Run `bun scripts/icons.ts`
 // after a change to the mark or to --ground, --ink, --accent or
 // --alpha-shade-faint in src/styles/theme.css: it writes the SVG icons, then
-// renders each PNG from its SVG with resvg. scripts/icons.test.ts fails while
-// the files in public/ differ from what it would write.
+// renders each PNG from its SVG with resvg, and writes the colours of the mark
+// in the Sign-in Code mail (src/lib/server/mail-mark.ts). scripts/icons.test.ts
+// fails while these files differ from what it would write.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 export interface Palette {
@@ -107,6 +108,21 @@ export function iconSvgs(css: string): IconFile[] {
   ];
 }
 
+// The Sign-in Code mail draws the mark in HTML and cannot read a CSS variable
+// either: the script writes the faint spine of the light and dark grounds
+// into a module the mail imports (src/lib/server/mail-mark.ts).
+export const mailMarkPath = '../src/lib/server/mail-mark.ts';
+
+export function mailMark(css: string): string {
+  const { light, dark } = iconPalettes(css);
+  return [
+    '// Written by `bun scripts/icons.ts` from src/styles/theme.css: do not edit.',
+    '// The faint spine of the mark (--shade-faint on the ground) for the mail.',
+    `export const faintSpine = { light: '${light.faint}', dark: '${dark.faint}' };`,
+    '',
+  ].join('\n');
+}
+
 // Each PNG and the SVG it renders from. The Apple touch icon is square: iOS
 // rounds it itself and paints transparent corners black.
 export const iconPngs: { path: string; from: string; size: number }[] = [
@@ -128,14 +144,16 @@ export const iconPngs: { path: string; from: string; size: number }[] = [
 async function writeIcons(): Promise<void> {
   const { Resvg } = await import('@resvg/resvg-js');
   const publicDir = new URL('../public/', import.meta.url);
-  const svgs = iconSvgs(readFileSync(new URL('../src/styles/theme.css', import.meta.url), 'utf8'));
+  const css = readFileSync(new URL('../src/styles/theme.css', import.meta.url), 'utf8');
+  const svgs = iconSvgs(css);
   for (const { path, svg } of svgs) writeFileSync(new URL(path, publicDir), svg);
   for (const { path, from, size } of iconPngs) {
     const svg = readFileSync(new URL(from, publicDir), 'utf8');
     const png = new Resvg(svg, { fitTo: { mode: 'width', value: size }, font: { loadSystemFonts: false } }).render();
     writeFileSync(new URL(path, publicDir), png.asPng());
   }
-  console.log(`Wrote ${svgs.length} SVG and ${iconPngs.length} PNG icons in public/.`);
+  writeFileSync(new URL(mailMarkPath, import.meta.url), mailMark(css));
+  console.log(`Wrote ${svgs.length} SVG and ${iconPngs.length} PNG icons in public/, and the mail mark.`);
 }
 
 if (process.argv[1]?.endsWith('icons.ts')) await writeIcons();

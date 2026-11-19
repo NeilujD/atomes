@@ -330,6 +330,27 @@ const icons = appIcons(appEnvironment(process.env));
     display: none;
   }
 
+  /* Phone: the panel is at least as high as the window, so a short page covers
+     the screen in a page transition. The height comes from the window (100 %),
+     never from viewport units: on an Android phone 100dvh can be taller than
+     the window, and a page with almost nothing on it then scrolls. */
+  @media (max-width: 959.98px) {
+    :global(html),
+    :global(body) {
+      height: 100%;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+
+    .panel {
+      flex: 1 0 auto;
+    }
+  }
+
   .view-header {
     display: flex;
     align-items: center;
@@ -357,9 +378,25 @@ const icons = appIcons(appEnvironment(process.env));
     letter-spacing: -0.03em;
   }
 
+  /* Phone: the back arrow sticks at the top while the page scrolls, a round
+     button on the ground so it reads over a cover. Taps around it pass through
+     to the page, since the rest of the header is empty. */
   @media (max-width: 959.98px) {
     .view-header.detail {
+      position: sticky;
+      top: 0;
+      z-index: 3;
       padding-bottom: 8px;
+      pointer-events: none;
+    }
+
+    .view-header.detail .back {
+      margin-left: 0;
+      border: var(--hairline) solid var(--line-control);
+      border-radius: var(--radius-pill);
+      background: var(--surface);
+      color: var(--ink);
+      pointer-events: auto;
     }
 
     .view-header.detail .view-title {

@@ -129,10 +129,13 @@ const t = translator(requestLanguage(Astro.request));
     flex: none;
   }
 
-  /* Phone: the mode as one round icon button (theme.css) with the icon of the
-     mode on, as high as the search field. The native select lies over it,
-     unseen, so a tap opens the system menu. */
-  .library-view {
+  /* Phone: the search toggle and the mode, round icon buttons (theme.css) as
+     high as "Sort and filter". The mode shows the icon of the mode on; its
+     native select lies over it, unseen, so a tap opens the system menu. */
+  .library-view,
+  .library-search-toggle,
+  .library-filters,
+  .library-select-start {
     position: relative;
     width: var(--row);
     height: var(--row);
@@ -173,10 +176,11 @@ const t = translator(requestLanguage(Astro.request));
     min-height: var(--row);
   }
 
-  /* "Sort and filter": the secondary button, as high as the search field, so the row stays even. */
-  .library-filters {
-    flex: none;
-    min-height: var(--row);
+  /* "Sort and filter": a round icon button; the count of filters on sits on its top right corner. */
+  .library-filters .library-badge {
+    position: absolute;
+    top: calc(var(--space-4) * -1);
+    right: calc(var(--space-4) * -1);
   }
 
   .library-badge {

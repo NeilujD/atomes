@@ -18,8 +18,9 @@ const t = translator(requestLanguage(Astro.request));
 ---
 
 <AppShell title={t('signin.title')} flow>
-  <section class="flow-card" aria-labelledby="sign-in-title">
-    <Mark size={48} />
+  <!-- data-state drives the mark (Mark.astro): ready, working, done, failed. -->
+  <section class="flow-card" data-state="ready" aria-labelledby="sign-in-title">
+    <Mark size={48} animated />
     <h1 class="title" id="sign-in-title">{t('signin.heading')}</h1>
     <form class="step" data-email-form>
       <p class="hint">{t('signin.email-hint')}</p>
@@ -107,6 +108,7 @@ const t = translator(requestLanguage(Astro.request));
   const form = document.querySelector<HTMLFormElement>('[data-sign-in]')!;
   const handleInput = form.querySelector<HTMLInputElement>('input[name="handle"]')!;
   const error = document.querySelector<HTMLElement>('[data-error]')!;
+  const card = document.querySelector<HTMLElement>('.flow-card')!;
   const send = (input: string, init?: RequestInit) => fetch(input, init);
 
   // `?auth=` and `#invite=` are read once, then dropped from the address, so a
@@ -128,12 +130,20 @@ const t = translator(requestLanguage(Astro.request));
     error.hidden = !message;
   }
 
-  // Disables the controls of a form while its request runs.
+  // Ends a request: with no message the book lands in the slot; with one the
+  // mark stops, the slot empty, and the message shows (ui-direction: Flow).
+  function settle(message: string | undefined) {
+    card.dataset.state = message ? 'failed' : 'done';
+    say(message);
+  }
+
+  // Disables the controls of a form while its request runs; the mark works.
   async function busy<T>(target: HTMLFormElement, run: () => Promise<T>): Promise<T> {
     const controls = [...target.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button')];
     const submit = target.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     for (const control of controls) control.disabled = true;
     submit.setAttribute('aria-busy', 'true');
+    card.dataset.state = 'working';
     try {
       return await run();
     } finally {
@@ -171,16 +181,17 @@ const t = translator(requestLanguage(Astro.request));
     event.preventDefault();
     say(undefined);
     void busy(emailForm, () => askSignInCode(send, emailInput.value)).then((answer) => {
+      settle('message' in answer ? answer.message : undefined);
       if ('email' in answer) showCodeStep(answer.email);
-      else say(answer.message);
     });
   });
 
   codeForm.addEventListener('submit', (event) => {
     event.preventDefault();
     void busy(codeForm, () => signInWithCode(send, email, codeInput.value)).then((message) => {
+      // The page leaves at once: the landing may not show.
+      settle(message);
       if (message === undefined) location.replace(next);
-      else say(message);
     });
   });
 
@@ -209,6 +220,7 @@ const t = translator(requestLanguage(Astro.request));
 
   codeForm.querySelector('[data-other-address]')!.addEventListener('click', () => {
     say(undefined);
+    card.dataset.state = 'ready';
     showCodeStep(undefined);
   });
 
@@ -219,8 +231,9 @@ const t = translator(requestLanguage(Astro.request));
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
+    // On success the page leaves for the PDS and the mark works until it does.
     void busy(form, () => signIn(createAuthClient(), handleInput.value, next)).then((state) =>
-      say(state.status === 'signed-out' ? state.message : undefined),
+      settle(state.status === 'signed-out' ? state.message : undefined),
     );
   });
 </script>
