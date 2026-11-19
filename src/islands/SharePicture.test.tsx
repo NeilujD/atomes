@@ -28,9 +28,15 @@ const make = async (_canvas: HTMLCanvasElement, choice: PictureChoice) => {
 };
 
 let share: HTMLButtonElement;
+// The PNGs that Download saved: the link it clicked.
+let saved: { href: string | null; download: string; inDocument: boolean }[];
 beforeEach(() => {
   made = [];
   gate = null;
+  saved = [];
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    saved.push({ href: this.getAttribute('href'), download: this.download, inDocument: this.isConnected });
+  });
   document.documentElement.lang = 'en';
   // The main action of statistics.astro, disabled until the island has drawn.
   document.body.insertAdjacentHTML('beforeend', '<button type="button" disabled data-statistics-share>Share</button>');
@@ -43,6 +49,7 @@ afterEach(() => {
   cleanup();
   document.body.innerHTML = '';
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   Reflect.deleteProperty(navigator, 'canShare');
   Reflect.deleteProperty(navigator, 'share');
 });
@@ -79,9 +86,11 @@ describe('the share dialog', () => {
   test('a browser that cannot share a file shows Download only', async () => {
     await openShare();
 
-    const download = await screen.findByRole('link', { name: 'Download' });
-    expect(download.getAttribute('href')).toBe('blob:picture');
-    expect(download.getAttribute('download')).toBe('atomes-2026-story.png');
+    await waitFor(() => expect(made).toHaveLength(1));
+    await waitFor(() => expect(screen.getByRole('img').hasAttribute('data-ready')).toBe(true));
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+
+    expect(saved).toEqual([{ href: 'blob:picture', download: 'atomes-2026-story.png', inDocument: true }]);
     expect(screen.queryByRole('button', { name: 'Share the picture' })).toBeNull();
   });
 
@@ -95,14 +104,14 @@ describe('the share dialog', () => {
     expect(shared).toHaveLength(1);
     const [file] = (shared[0] as { files: File[] }).files;
     expect([file.name, file.type]).toEqual(['atomes-2026-story.png', 'image/png']);
-    expect(screen.getByRole('link', { name: 'Download' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
   });
 
   test('Square, then Series names off: the picture is made again for each', async () => {
     await openShare();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Square' }));
-    await waitFor(() => expect(screen.getByRole('link', { name: 'Download' }).getAttribute('download')).toBe('atomes-2026-square.png'));
+    await waitFor(() => expect(made.at(-1)).toMatchObject({ format: 'square' }));
     expect(screen.getByRole('img').getAttribute('aria-label')).toBe('Picture: 47 read in 2026, 61 added, 9 Series followed.');
     fireEvent.click(screen.getByRole('radio', { name: 'Story' }));
     fireEvent.click(screen.getByRole('switch', { name: 'Series names' }));
@@ -111,36 +120,35 @@ describe('the share dialog', () => {
     expect(screen.getByRole('img').getAttribute('aria-label')).toBe('Picture: 47 read in 2026, 61 added, 9 Series followed.');
   });
 
-  test('while the picture of a new choice is made, the old one stays: same canvas size, same buttons, not ready', async () => {
+  test('while the picture of a new choice is made, the old one stays, and nothing in the buttons changes', async () => {
     const shared: unknown[] = [];
     canShareFiles(shared);
     await openShare();
-    await screen.findByRole('button', { name: 'Share the picture' });
     const canvas = screen.getByRole<HTMLCanvasElement>('img');
+    await waitFor(() => expect(canvas.hasAttribute('data-ready')).toBe(true));
+    // A change in the buttons when a PNG is ready made Chrome on Android show them empty for two frames.
+    const actions = document.querySelector('.share-actions')!;
+    const before = actions.outerHTML;
     // The next picture waits until the test lets it go.
     let done = () => {};
     gate = new Promise<void>((resolve) => (done = resolve));
 
     fireEvent.click(screen.getByRole('radio', { name: 'Square' }));
 
-    // No jump: the buttons keep their place and look, the canvas keeps its picture; a tap does nothing yet.
+    // The canvas keeps its picture and its size; a tap shares and saves nothing yet.
+    expect([canvas.getAttribute('width'), canvas.getAttribute('height'), canvas.hasAttribute('data-ready')]).toEqual(['1080', '1920', false]);
     fireEvent.click(screen.getByRole('button', { name: 'Share the picture' }));
-    expect(shared).toEqual([]);
-    const download = screen.getByRole('link', { name: 'Download' });
-    // The link keeps every attribute (a link that loses its href blinks in Safari), and a tap saves nothing.
-    expect([download.getAttribute('href'), download.getAttribute('download'), download.getAttribute('aria-disabled')]).toEqual([
-      'blob:picture',
-      'atomes-2026-story.png',
-      null,
-    ]);
-    expect(fireEvent.click(download)).toBe(false);
-    expect([canvas.getAttribute('width'), canvas.getAttribute('height')]).toEqual(['1080', '1920']);
-    expect(canvas.hasAttribute('data-ready')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    expect([shared, saved]).toEqual([[], []]);
+    expect(actions.outerHTML).toBe(before);
 
     done();
-    await waitFor(() => expect(screen.getByRole('link', { name: 'Download' }).getAttribute('download')).toBe('atomes-2026-square.png'));
+    await waitFor(() => expect(canvas.hasAttribute('data-ready')).toBe(true));
+    expect(actions.outerHTML).toBe(before);
     fireEvent.click(screen.getByRole('button', { name: 'Share the picture' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
     expect(shared).toHaveLength(1);
+    expect(saved).toEqual([expect.objectContaining({ download: 'atomes-2026-square.png' })]);
   });
 
   test('Close closes it, and the focus returns to Share', async () => {

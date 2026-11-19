@@ -22,9 +22,11 @@ const live: MakePicture = async (canvas, choice) => {
 interface Picture {
   file: File;
   url: string;
-  // The browser can send this file with its share sheet (navigator.canShare).
-  shareable: boolean;
 }
+
+// The browser can send a PNG with its share sheet. Asked once, with an empty
+// PNG, so "Share the picture" is there from the first frame of the dialog.
+const canSharePng = () => navigator.canShare?.({ files: [new File([], 'atomes.png', { type: 'image/png' })] }) ?? false;
 
 interface SharePictureProps {
   numbers: Statistics;
@@ -41,9 +43,9 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
   const [names, setNames] = useState(true);
   const [picture, setPicture] = useState<Picture | null>(null);
   // The picture of a new choice is being made: the last one stays on screen
-  // meanwhile, and the buttons keep their place, look and attributes, so
-  // nothing jumps or blinks; they do nothing until the new PNG is ready.
+  // meanwhile, and the buttons do nothing until the new PNG is ready.
   const [making, setMaking] = useState(false);
+  const [shareable] = useState(canSharePng);
   const [failed, setFailed] = useState<'share' | 'draw' | null>(null);
   const choice: PictureChoice = { numbers, period, filters, format, language: pageLanguage(), names };
 
@@ -96,7 +98,7 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
       (blob) => {
         if (!current) return;
         const file = new File([blob], pictureFileName(period, format), { type: 'image/png' });
-        setPicture({ file, url: URL.createObjectURL(file), shareable: navigator.canShare?.({ files: [file] }) ?? false });
+        setPicture({ file, url: URL.createObjectURL(file) });
         setMaking(false);
       },
       () => {
@@ -125,7 +127,19 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
   };
 
   const ready = picture && !making ? picture : null;
-  const shareable = picture?.shareable ?? false;
+
+  // A hidden link, out of the dialog, saves the PNG: Firefox clicks only a
+  // link in the document.
+  const save = () => {
+    if (!ready) return;
+    const link = document.createElement('a');
+    link.href = ready.url;
+    link.download = ready.file.name;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+  };
   return (
     <dialog ref={dialog} class="share" aria-labelledby="share-title">
       <div class="share-head">
@@ -181,26 +195,19 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
             {t('share.send')}
           </button>
         )}
-        {/* Download always: the main action where the browser cannot share a file. */}
-        <a
-          class={shareable ? 'button' : 'button button-main'}
-          // While the next picture is made, the link keeps the last one, so
-          // nothing on it changes (a link that loses its href blinks in
-          // Safari), and a tap saves nothing.
-          href={picture?.url}
-          download={picture?.file.name}
-          onClick={(event) => ready || event.preventDefault()}
-          // Dimmed only before the first picture: a dim at each choice would blink.
-          aria-disabled={picture ? undefined : 'true'}
-          role={picture ? undefined : 'link'}
-        >
+        {/* Download always: the main action where the browser cannot share a file.
+            Nothing in these buttons changes once the dialog is open: a change
+            here when a new PNG is ready made Chrome on Android show this part
+            of the screen empty for two frames, while the GPU was busy with the
+            canvas (a phone recording, frames 92, 130, 181). */}
+        <button class={shareable ? 'button' : 'button button-main'} type="button" onClick={save}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 15V3" />
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <path d="m7 10 5 5 5-5" />
           </svg>
           {t('share.download')}
-        </a>
+        </button>
       </div>
     </dialog>
   );

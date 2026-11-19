@@ -44,17 +44,20 @@ test('Download gives the Story and the Square PNG; the dialog closes with Escape
   await expect(dialog.getByRole('img', { name: `Picture: 0 read in ${year}, 1 added, 0 Series followed.` })).toBeVisible();
   await expect(dialog.getByRole('radio', { name: 'Story' })).toBeChecked();
 
-  const download = dialog.getByRole('link', { name: 'Download' });
-  await expect(download).toHaveAttribute('download', `atomes-${year}-story.png`);
+  // Download saves the PNG once the picture is drawn (data-ready); the canvas takes the size of each picture.
+  const download = dialog.getByRole('button', { name: 'Download' });
+  await expect(dialog.locator('canvas[data-ready][height="1920"]')).toBeAttached();
   let saved = page.waitForEvent('download');
   await download.click();
+  expect((await saved).suggestedFilename()).toBe(`atomes-${year}-story.png`);
   expect(await pngSize(await saved)).toEqual({ width: 1080, height: 1920 });
 
   await dialog.getByText('Square').click();
-  await expect(download).toHaveAttribute('download', `atomes-${year}-square.png`);
   await expect(dialog.getByRole('switch', { name: 'Series names' })).toBeDisabled();
+  await expect(dialog.locator('canvas[data-ready][height="1080"]')).toBeAttached();
   saved = page.waitForEvent('download');
   await download.click();
+  expect((await saved).suggestedFilename()).toBe(`atomes-${year}-square.png`);
   expect(await pngSize(await saved)).toEqual({ width: 1080, height: 1080 });
 
   // Escape, Close and browser Back each close it, and the focus returns to Share.
@@ -88,7 +91,7 @@ test('a browser that cannot share a file shows Download only; one that can sends
   const share = page.getByRole('button', { name: 'Share', exact: true });
   await share.click();
   const dialog = page.getByRole('dialog', { name: 'Share' });
-  await expect(dialog.getByRole('link', { name: 'Download' })).toHaveAttribute('href', /^blob:/);
+  await expect(dialog.getByRole('button', { name: 'Download' })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Share the picture' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
