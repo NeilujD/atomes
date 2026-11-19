@@ -38,7 +38,8 @@ const t = translator(requestLanguage(Astro.request));
           enterkeyhint="send"
           placeholder="alice@example.org"
         />
-        <button class="button button-main" type="submit">{t('signin.send-code')}</button>
+        <!-- Disabled until the page script is ready (ui-direction, "Before the scripts run"). -->
+        <button class="button button-main" type="submit" data-until-ready disabled>{t('signin.send-code')}</button>
       </div>
     </form>
     <form class="step" data-code-form hidden>
@@ -65,7 +66,7 @@ const t = translator(requestLanguage(Astro.request));
       </div>
       <button class="button button-quiet" type="button" data-other-address>{t('signin.other-address')}</button>
     </form>
-    <button class="button other" type="button" data-atproto aria-expanded="false" aria-controls="atproto">{t('signin.atproto')}</button>
+    <button class="button other" type="button" data-atproto aria-expanded="false" aria-controls="atproto" data-until-ready disabled>{t('signin.atproto')}</button>
     <div class="step" id="atproto" hidden>
       <p class="hint">{t('signin.hint')}</p>
       <!-- The reason for the permission the PDS asks for (CORE-38). -->
@@ -84,7 +85,7 @@ const t = translator(requestLanguage(Astro.request));
           enterkeyhint="go"
           placeholder="alice.bsky.social"
         />
-        <button class="button" type="submit">{t('signin.submit')}</button>
+        <button class="button" type="submit" data-until-ready disabled>{t('signin.submit')}</button>
       </form>
     </div>
     <p class="error" data-error role="alert" hidden></p>
@@ -239,6 +240,9 @@ const t = translator(requestLanguage(Astro.request));
       settle(state.status === 'signed-out' ? state.message : undefined),
     );
   });
+
+  // Every handler is attached: a tap now goes through this script, never the browser's own form sending.
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-until-ready]')) button.disabled = false;
 </script>
 
 <style>

@@ -35,8 +35,6 @@ test('From the Landing page, a visitor signs in with a Sign-in Code and lands on
   await page.getByRole('banner').getByRole('link', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
   await expect(page.getByRole('heading', { name: 'Sign in to Atomes' })).toBeVisible();
-  // The sign-in form sends nothing before its script has run (it is not disabled until then).
-  await page.waitForLoadState('networkidle');
 
   await page.getByLabel('Your email address').fill(address);
   await page.getByRole('button', { name: 'Send me a code' }).click();
