@@ -831,7 +831,7 @@ export const en = {
   'landing.principle-yours-text': 'Shared records go to your own Personal Data Server, in open lexicons under the MIT license. Any app can read them; you can leave with them.',
   'landing.principle-quiet': 'No feed, no ads, no tracking',
   'landing.principle-quiet-text': 'No timeline, no recommendation engine, no analytics. Atomes does one job: your shelves.',
-  'landing.honest-title': 'An honest note',
+  'landing.honest-title': 'To be honest',
   'landing.honest':
     'Today, your private records live on the Atomes instance you use, not on your Personal Data Server: the AT Protocol has no private records yet. The person who runs the instance could read them. If that matters to you, run your own instance. The Catalog only ever learns which ISBNs are looked up, never who owns them.',
   'landing.open-kicker': 'Open source',

@@ -189,9 +189,11 @@ const sources: { name: string; by: string; href: string }[] = [
           ))
         }
       </ul>
-      <aside class="card honest" aria-labelledby="honest-title">
+      <aside class="honest" aria-labelledby="honest-title">
         <h3 id="honest-title">{t('landing.honest-title')}</h3>
-        <p>{t('landing.honest')}</p>
+        <blockquote>
+          <p>{t('landing.honest')}</p>
+        </blockquote>
       </aside>
     </div>
   </section>
@@ -293,6 +295,7 @@ docker run -d -p 4321:4321 -v atomes-data:/data \
     --landing-text: 560px;
     --landing-feature: 150px;
     --landing-credit: 220px;
+    --landing-quote-bar: 4px;
     position: relative;
     isolation: isolate;
   }
@@ -700,15 +703,21 @@ docker run -d -p 4321:4321 -v atomes-data:/data \
     background: var(--line-button);
   }
 
+  /* "To be honest": a quote, set off by a cobalt bar, not a card. */
   .honest {
     max-width: var(--landing-text);
-    margin-top: var(--space-16);
-    padding: var(--space-20);
+    margin-top: var(--space-28);
+    padding-inline-start: var(--space-20);
+    border-inline-start: var(--landing-quote-bar) solid var(--accent);
+  }
+
+  .honest blockquote {
+    margin: var(--space-8) 0 0;
   }
 
   .honest p {
-    margin-top: var(--space-8);
     color: var(--text-quiet);
+    font-size: var(--landing-lead);
     text-wrap: pretty;
   }
 
