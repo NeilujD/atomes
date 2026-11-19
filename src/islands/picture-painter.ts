@@ -15,8 +15,11 @@ function applyText(context: CanvasRenderingContext2D, style: TextStyle) {
   if ('letterSpacing' in context) context.letterSpacing = `${style.tracking * style.size}px`;
 }
 
+// The canvas should be one the page does not show, read on the CPU
+// (willReadFrequently): its PNG then needs no read back from the GPU, which
+// stalled the screen of an Android phone (SharePicture.tsx).
 export async function paintPicture(canvas: HTMLCanvasElement, input: PictureChoice): Promise<void> {
-  const context = canvas.getContext('2d');
+  const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('No 2D canvas');
   // The font files of the letters on the picture: a guess at their widths is enough to list them.
   const letters = pictureSteps({ ...input, measure: (text, style) => text.length * style.size })

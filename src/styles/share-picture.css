@@ -91,9 +91,19 @@
   text-align: center;
 }
 
+/* Its own layer: a change elsewhere in the dialog (the switch, the picture)
+   never makes Chrome draw the buttons again. */
 .share-actions {
   display: grid;
   gap: var(--space-8);
+  will-change: transform;
+}
+
+/* The glow of the page behind, paused while the dialog is open: under the
+   dialog it is not seen (or under the scrim), and a moving masked glow keeps
+   the GPU of a phone busy on every frame. */
+body:has(.share[open]) .glow-blob {
+  animation-play-state: paused;
 }
 
 .share-actions svg {

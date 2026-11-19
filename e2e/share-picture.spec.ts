@@ -47,6 +47,15 @@ test('Download gives the Story and the Square PNG; the dialog closes with Escape
   // Download saves the PNG once the picture is drawn (data-ready); the canvas takes the size of each picture.
   const download = dialog.getByRole('button', { name: 'Download' });
   await expect(dialog.locator('canvas[data-ready][height="1920"]')).toBeAttached();
+  // The preview shows the picture (drawn on a canvas the page does not show, then copied),
+  // and the glow of the page behind waits while the dialog is open.
+  const preview = await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('.share-canvas')!;
+    const blob = document.querySelector('.glow-blob');
+    return { alpha: canvas.getContext('2d')!.getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data[3], glow: blob && getComputedStyle(blob).animationPlayState };
+  });
+  expect(preview.alpha).toBe(255);
+  expect(preview.glow).toBe('paused');
   let saved = page.waitForEvent('download');
   await download.click();
   expect((await saved).suggestedFilename()).toBe(`atomes-${year}-story.png`);
@@ -115,6 +124,8 @@ test('a browser that cannot share a file shows Download only; one that can sends
   });
   await page.reload();
   await share.click();
+  // "Share the picture" shows at once; it sends the PNG once the picture is drawn.
+  await expect(dialog.locator('canvas[data-ready]')).toBeAttached();
   const requests: string[] = [];
   page.on('request', (request) => requests.push(request.url()));
   await dialog.getByRole('button', { name: 'Share the picture' }).click();

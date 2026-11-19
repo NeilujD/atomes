@@ -14,9 +14,18 @@ import { paintPicture, pictureBlob } from './picture-painter';
 // Draws the picture on the canvas and gives its PNG.
 export type MakePicture = (canvas: HTMLCanvasElement, choice: PictureChoice) => Promise<Blob>;
 
+// The picture is drawn and its PNG made on a canvas the page does not show,
+// then copied once to the preview: on Chrome for Android, a PNG read back
+// from the preview canvas kept the GPU busy, and the buttons were not drawn
+// for two frames (a phone recording, frames 92, 130, 181).
 const live: MakePicture = async (canvas, choice) => {
-  await paintPicture(canvas, choice);
-  return pictureBlob(canvas);
+  const work = document.createElement('canvas');
+  await paintPicture(work, choice);
+  const blob = await pictureBlob(work);
+  canvas.width = work.width;
+  canvas.height = work.height;
+  canvas.getContext('2d')?.drawImage(work, 0, 0);
+  return blob;
 };
 
 interface Picture {
@@ -197,9 +206,8 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
         )}
         {/* Download always: the main action where the browser cannot share a file.
             Nothing in these buttons changes once the dialog is open: a change
-            here when a new PNG is ready made Chrome on Android show this part
-            of the screen empty for two frames, while the GPU was busy with the
-            canvas (a phone recording, frames 92, 130, 181). */}
+            here when a new PNG is ready would make Chrome draw them again
+            while the GPU is busy with the picture. */}
         <button class={shareable ? 'button' : 'button button-main'} type="button" onClick={save}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 15V3" />
