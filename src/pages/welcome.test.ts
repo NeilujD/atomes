@@ -24,3 +24,20 @@ test('LANDING_PAGE=off: /welcome answers 404', async () => {
 
   expect(response.status).toBe(404);
 });
+
+// The share preview (CORE-161): a chat or a social network reads these tags.
+test('the share preview names the page and its picture with addresses on the instance origin', async () => {
+  vi.stubEnv('PUBLIC_APP_ORIGIN', 'https://books.example.org');
+  const container = await AstroContainer.create();
+
+  const html = await (await container.renderToResponse(Welcome, { request: new Request('http://127.0.0.1:4321/welcome') })).text();
+
+  const meta = (key: string) => new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`).exec(html)?.[1];
+  expect(meta('og:title')).toBe('Atomes · Your books and manga, on your own terms');
+  expect(meta('og:description')).toMatch(/^Atomes keeps your Library/);
+  expect(meta('og:url')).toBe('https://books.example.org/welcome');
+  expect(meta('og:image')).toBe('https://books.example.org/landing/preview.jpg');
+  expect(meta('twitter:card')).toBe('summary_large_image');
+  expect(meta('twitter:image')).toBe('https://books.example.org/landing/preview.jpg');
+  expect(html).toContain('<link rel="canonical" href="https://books.example.org/welcome">');
+});

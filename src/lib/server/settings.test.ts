@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { appEnvironment, landingPage, readSettings, SettingsError } from './settings';
+import { appEnvironment, landingPage, publicOrigin, readSettings, SettingsError } from './settings';
 
 const sessionKey = Buffer.alloc(32, 7).toString('base64');
 const privateJwk = JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'x', y: 'y', d: 'private-part-of-the-key', kid: 'key-1' });
@@ -205,5 +205,16 @@ describe('LANDING_PAGE', () => {
 
   test('a start refuses a value that is not on or off', () => {
     expect(problemsOf({ ...local, LANDING_PAGE: 'no' })).toEqual(['LANDING_PAGE must be on or off. Found: no']);
+  });
+});
+
+// The origin of the absolute addresses of a page (share preview, CORE-161).
+describe('publicOrigin', () => {
+  test.each([
+    ['local development', {}, undefined],
+    ['an instance', { PUBLIC_APP_ORIGIN: 'https://atomes.example.org/' }, 'https://atomes.example.org'],
+    ['a pull request preview', { PUBLIC_APP_ORIGIN: 'https://staging.example', COOLIFY_BRANCH: 'pull/7/head', COOLIFY_URL: 'https://pr7.example' }, 'https://pr7.example'],
+  ])('%s', (_, env, origin) => {
+    expect(publicOrigin(env)).toBe(origin);
   });
 });

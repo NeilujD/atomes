@@ -10,6 +10,7 @@ import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import PageHead from '../components/PageHead.astro';
 import { bootScript } from '../lib/appearance';
+import { publicOrigin } from '../lib/server/settings';
 
 interface Props {
   title: string;
@@ -17,6 +18,13 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
+
+// The share preview (CORE-161): absolute addresses on the instance origin; the
+// request's own origin only in local development, where none is set.
+const origin = publicOrigin(process.env) ?? Astro.url.origin;
+const canonical = new URL(Astro.url.pathname, origin).href;
+// Made by `bun run landing-shots` (scripts/landing-shots.ts).
+const preview = { src: new URL('/landing/preview.jpg', origin).href, width: 1200, height: 630, alt: 'Atomes: the Library on a desktop and Shelf Check on a phone.' };
 
 // The pages of the navbar. Docs and Blog stay hidden until their page exists.
 const links: { href: string; label: string; shown: boolean }[] = [
@@ -34,6 +42,21 @@ const sourceUrl = 'https://github.com/NeilujD/atomes';
   <head>
     <PageHead title={title} boot={bootScript}>
       <meta name="description" content={description} />
+      <link rel="canonical" href={canonical} />
+      <meta property="og:type" content="website" />
+      <meta property="og:site_name" content="Atomes" />
+      <meta property="og:title" content={title} />
+      <meta property="og:description" content={description} />
+      <meta property="og:url" content={canonical} />
+      <meta property="og:image" content={preview.src} />
+      <meta property="og:image:width" content={String(preview.width)} />
+      <meta property="og:image:height" content={String(preview.height)} />
+      <meta property="og:image:alt" content={preview.alt} />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={title} />
+      <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={preview.src} />
+      <meta name="twitter:image:alt" content={preview.alt} />
     </PageHead>
   </head>
   <body class="landing">

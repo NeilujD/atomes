@@ -54,9 +54,8 @@ export class SettingsError extends Error {
 export function readSettings(env: Record<string, string | undefined>, { sendsMail = true } = {}): Settings {
   const problems: string[] = [];
 
-  const preview = previewUrl(env);
-  const originName = preview ? 'COOLIFY_URL' : 'PUBLIC_APP_ORIGIN';
-  const appOrigin = preview ?? (env.PUBLIC_APP_ORIGIN?.trim() || undefined);
+  const originName = previewUrl(env) ? 'COOLIFY_URL' : 'PUBLIC_APP_ORIGIN';
+  const appOrigin = givenOrigin(env);
   const httpsOrigin = appOrigin !== undefined && isHttpsOrigin(appOrigin);
   if (appOrigin !== undefined && !httpsOrigin) {
     problems.push(`${originName} must be an https origin, for example https://atomes.example.org. Found: ${appOrigin}`);
@@ -140,6 +139,20 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
 // environment, as appEnvironment: readSettings has refused a wrong value at start.
 export function landingPage(env: Record<string, string | undefined>): boolean {
   return env.LANDING_PAGE?.trim() !== 'off';
+}
+
+// The https origin readers open, as given: the preview URL on a Coolify pull
+// request preview, else PUBLIC_APP_ORIGIN. Undefined in local development.
+function givenOrigin(env: Record<string, string | undefined>): string | undefined {
+  return previewUrl(env) ?? (env.PUBLIC_APP_ORIGIN?.trim() || undefined);
+}
+
+// The origin of this instance for the absolute addresses of a page (the share
+// preview of the Landing page), read from the environment as appEnvironment:
+// readSettings has refused a wrong value at start. Undefined in local development.
+export function publicOrigin(env: Record<string, string | undefined>): string | undefined {
+  const origin = givenOrigin(env);
+  return origin && URL.canParse(origin) ? new URL(origin).origin : undefined;
 }
 
 // A Coolify pull request preview gets the staging variables, so its

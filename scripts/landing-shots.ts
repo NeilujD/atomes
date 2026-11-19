@@ -6,7 +6,10 @@
 // Catalog finds (owner's choice, 2026-11-19); a book with no cover is left out.
 // The browser may ask only the dev server; any other host fails the run. The
 // server asks the book sources, as on any instance.
+// Last, the share preview of the Landing page (1200 × 630, CORE-161): the top
+// of /welcome, with the pictures just made.
 // `--probe`: only look up the books and say which have a cover.
+// `--preview`: only make the share preview, from the pictures already there.
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -51,6 +54,7 @@ const checkOwned = '9782723478991'; // One Piece 56
 const checkNotOwned = ['9782344068922', '9782723488532']; // One Piece 112, else One Piece 2
 const seriesPage = '9782203085053'; // Kaamelott 9
 const probeOnly = process.argv.includes('--probe');
+const previewOnly = process.argv.includes('--preview');
 
 // What the Catalog answers say of each ISBN seen, for the Volume order and the Labels.
 type Book = { title: string; series: string | null; volume: number | null; work: string | null };
@@ -71,6 +75,7 @@ async function main() {
     await waitForServer();
     const browser = await chromium.launch();
     try {
+      if (previewOnly) return await sharePreview(browser);
       const seeded = await seed(browser);
       if (!seeded) return;
       mkdirSync(outDir, { recursive: true });
@@ -94,6 +99,7 @@ async function main() {
           await context.close();
         }
       }
+      await sharePreview(browser);
     } finally {
       await browser.close();
     }
@@ -388,6 +394,23 @@ async function settle(page: Page) {
     }),
   );
   await page.waitForTimeout(1500);
+}
+
+// The picture a chat or a social network shows for a link to the Landing
+// page: its top as a visitor sees it (light, no saved Account). JPEG: every
+// link preview reads it.
+async function sharePreview(browser: Browser) {
+  const context = await browser.newContext({ viewport: { width: 1200, height: 630 }, colorScheme: 'light', locale: 'en-US', baseURL: origin });
+  await prepare(context);
+  const page = await context.newPage();
+  await page.goto(`${origin}/welcome`);
+  await settle(page);
+  await page.evaluate(() => document.fonts.ready);
+  const file = join(outDir, 'preview.jpg');
+  await page.screenshot({ path: file, type: 'jpeg', quality: 85, animations: 'disabled' });
+  console.log(`saved ${file}`);
+  await context.unrouteAll({ behavior: 'ignoreErrors' });
+  await context.close();
 }
 
 // Chromium encodes WebP from a canvas: no image package needed.
