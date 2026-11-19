@@ -134,6 +134,7 @@ const t = translator(requestLanguage(Astro.request));
      native select lies over it, unseen, so a tap opens the system menu. */
   .library-view,
   .library-search-toggle,
+  .library-filters,
   .library-select-start {
     position: relative;
     width: var(--row);
@@ -175,10 +176,11 @@ const t = translator(requestLanguage(Astro.request));
     min-height: var(--row);
   }
 
-  /* "Sort and filter": the secondary button, as high as the search field, so the row stays even. */
-  .library-filters {
-    flex: none;
-    min-height: var(--row);
+  /* "Sort and filter": a round icon button; the count of filters on sits on its top right corner. */
+  .library-filters .library-badge {
+    position: absolute;
+    top: calc(var(--space-4) * -1);
+    right: calc(var(--space-4) * -1);
   }
 
   .library-badge {

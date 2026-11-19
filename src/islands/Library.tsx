@@ -398,8 +398,12 @@ function Sheet({ query, found, change, show }: ControlsProps & { show: string })
   const on = [query.searchIn !== 'all', query.author, query.series, query.status, query.label, query.owned !== null].filter(Boolean).length;
   return (
     <>
-      <button class="button library-filters" type="button" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
-        <span>{t('library.filters')}</span>
+      {/* An icon, as the other buttons of the row; the badge counts the filters on. */}
+      <button class="icon-button library-filters" type="button" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          {filtersIcon}
+        </svg>
+        <span class="visually-hidden">{t('library.filters')}</span>
         {on > 0 && (
           <span class="library-badge">
             <span aria-hidden="true">{on}</span>
@@ -508,6 +512,8 @@ const searchIcon = (
   </>
 );
 const closeIcon = <path d="M18 6 6 18M6 6l12 12" />;
+// Lucide's sliders-horizontal (https://lucide.dev, ISC): the phone's Sort and filter.
+const filtersIcon = <path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" />;
 // Lucide's square-check-big (https://lucide.dev, ISC): the phone's Select.
 const selectIcon = (
   <>
