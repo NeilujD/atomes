@@ -1,0 +1,90 @@
+---
+// The body of a notice screen: the Privacy notice and the Legal notice. A Flow
+// screen with no gate (openPaths), so it opens with no session. The close icon
+// steps back to the screen that opened it; Home else (src/lib/back.ts).
+import Icon from './Icon.astro';
+import { openerHref } from '../lib/back';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+interface Props {
+  title: string;
+  intro: string;
+  sections: { heading: string; texts: string[] }[];
+  updated: string;
+}
+
+const { title, intro, sections, updated } = Astro.props;
+const t = translator(requestLanguage(Astro.request));
+const close = openerHref(Astro.request.headers.get('referer'), Astro.request.headers.get('host'));
+---
+
+<article class="notice" aria-labelledby="notice-title">
+  <div class="top">
+    <h1 class="title" id="notice-title">{title}</h1>
+    <!-- The shared round icon button, as the close of Shelf Check. -->
+    <a class="icon-button" href={close} aria-label={t('common.close')} data-back><Icon name="x" /></a>
+  </div>
+  <p>{intro}</p>
+  {
+    sections.map(({ heading, texts }) => (
+      <section>
+        <h2>{heading}</h2>
+        {texts.map((text) => (
+          <p>{text}</p>
+        ))}
+      </section>
+    ))
+  }
+  <p class="updated">{updated}</p>
+</article>
+
+<style>
+  .notice {
+    width: min(100%, var(--notice-width));
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-12);
+    text-wrap: pretty;
+  }
+
+  .top {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-12);
+  }
+
+  /* Titles take --tracking-tight (Q11), from the h1 and h2 rule of theme.css. */
+  .title {
+    font-size: var(--type-title);
+  }
+
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    margin-top: var(--space-8);
+  }
+
+  h2 {
+    font-size: var(--type-heading);
+  }
+
+  .updated {
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+  }
+
+  /* Desktop: the notice is the shared card (.card) on the ground colour, with
+     more room inside. Not the class itself: on the phone there is no card. */
+  @media (min-width: 960px) {
+    .notice {
+      padding: var(--space-28);
+      border: var(--hairline) solid var(--line-card);
+      border-radius: var(--radius-card);
+      background: var(--fill-card);
+    }
+  }
+</style>

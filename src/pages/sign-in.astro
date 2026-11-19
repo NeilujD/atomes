@@ -88,7 +88,10 @@ const t = translator(requestLanguage(Astro.request));
       </form>
     </div>
     <p class="error" data-error role="alert" hidden></p>
-    <a class="privacy" href="/privacy">{t('signin.privacy')}</a>
+    <p class="notices">
+      <a href="/privacy">{t('signin.privacy')}</a>
+      <a href="/legal">{t('signin.legal')}</a>
+    </p>
   </section>
 </AppShell>
 
@@ -336,15 +339,22 @@ const t = translator(requestLanguage(Astro.request));
     text-wrap: balance;
   }
 
-  .privacy {
-    margin-top: var(--space-8);
+  .notices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-4) var(--space-16);
+    margin: var(--space-8) 0 0;
+  }
+
+  .notices a {
     color: var(--text-quiet);
     font-size: var(--type-small);
     text-decoration-color: var(--line-link);
     text-underline-offset: var(--space-4);
   }
 
-  .privacy:hover {
+  .notices a:hover {
     color: var(--ink);
   }
 

@@ -1,16 +1,14 @@
 ---
 // The privacy notice (ADR 0012, ADR 0016, CORE-55): what the instance keeps,
-// who can read it, and how to export and delete. A Flow screen with no gate, so
-// it opens with no session, linked from the sign-in screen and Settings. In
-// the language of the request (cookie, then the browser), French or English.
-// DRAFT: the owner approves the text (`privacy.*` in src/lib/i18n).
-import Icon from '../components/Icon.astro';
+// who can read it, and how to export and delete. Linked from the sign-in
+// screen, Settings and the Landing page. In the language of the request
+// (cookie, then the browser), French or English.
+// The owner approves the text (`privacy.*` in src/lib/i18n).
+import Notice from '../components/Notice.astro';
 import AppShell from '../layouts/AppShell.astro';
-import { openerHref } from '../lib/back';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
 const t = translator(requestLanguage(Astro.request));
-const close = openerHref(Astro.request.headers.get('referer'), Astro.request.headers.get('host'));
 
 const sections = [
   { heading: t('privacy.operator-heading'), texts: [t('privacy.operator')] },
@@ -24,75 +22,5 @@ const sections = [
 ---
 
 <AppShell title={t('privacy.title')} flow>
-  <article class="notice" aria-labelledby="privacy-title">
-    <div class="top">
-      <h1 class="title" id="privacy-title">{t('privacy.title')}</h1>
-      <!-- Steps back to the screen that opened it (Settings, sign-in); Home else (src/lib/back.ts).
-           The shared round icon button, as the close of Shelf Check. -->
-      <a class="icon-button" href={close} aria-label={t('common.close')} data-back><Icon name="x" /></a>
-    </div>
-    <p>{t('privacy.intro')}</p>
-    {
-      sections.map(({ heading, texts }) => (
-        <section>
-          <h2>{heading}</h2>
-          {texts.map((text) => (
-            <p>{text}</p>
-          ))}
-        </section>
-      ))
-    }
-    <p class="updated">{t('privacy.updated')}</p>
-  </article>
+  <Notice title={t('privacy.title')} intro={t('privacy.intro')} sections={sections} updated={t('privacy.updated')} />
 </AppShell>
-
-<style>
-  .notice {
-    width: min(100%, var(--notice-width));
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-12);
-    text-wrap: pretty;
-  }
-
-  .top {
-    align-self: stretch;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-12);
-  }
-
-  /* Titles take --tracking-tight (Q11), from the h1 and h2 rule of theme.css. */
-  .title {
-    font-size: var(--type-title);
-  }
-
-  section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-    margin-top: var(--space-8);
-  }
-
-  h2 {
-    font-size: var(--type-heading);
-  }
-
-  .updated {
-    color: var(--text-quiet);
-    font-size: var(--type-small);
-  }
-
-  /* Desktop: the notice is the shared card (.card) on the ground colour, with
-     more room inside. Not the class itself: on the phone there is no card. */
-  @media (min-width: 960px) {
-    .notice {
-      padding: var(--space-28);
-      border: var(--hairline) solid var(--line-card);
-      border-radius: var(--radius-card);
-      background: var(--fill-card);
-    }
-  }
-</style>

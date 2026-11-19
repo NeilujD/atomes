@@ -81,6 +81,7 @@ export const en = {
   'signin.sharing': 'Atomes also asks your PDS for permission to write the records you choose to share: Reading Statuses, Followed Series, Labels. Nothing is Shared until you turn it on in Settings.',
   'signin.handle': 'Your handle',
   'signin.submit': 'Sign in',
+  'signin.legal': 'Legal notice',
   'signin.privacy': 'Privacy notice',
   'auth.account-deleted': 'Your account is deleted.',
   'auth.account-deleted-shared-left':
@@ -713,4 +714,17 @@ export const en = {
   'privacy.rights':
     'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account. The encrypted backups still hold it for up to 30 days. For any other request, write to julien.collard14@gmail.com.',
   'privacy.updated': 'Last change: 17 November 2026.',
+  // Legal notice (src/pages/legal.astro, CORE-160). DRAFT: the owner approves
+  // the text and gives the host's facts before the Landing page goes public (CORE-162).
+  'legal.title': 'Legal notice',
+  'legal.intro': 'French law (loi n° 2004-575 of 21 June 2004, article 1-1) asks every public website to say who publishes it and who hosts it.',
+  'legal.publisher-heading': 'Who publishes this site',
+  'legal.publisher': 'Julien Collard, a private person, publishes this Atomes instance and is its director of publication. Contact: julien.collard14@gmail.com.',
+  'legal.host-heading': 'Who hosts it',
+  'legal.host': '[Host: company name, postal address and phone number. To fill in before publication.]',
+  'legal.software-heading': 'The software',
+  'legal.software': 'Atomes is open-source software under the GNU AGPL-3.0 license. Its source code is public: github.com/NeilujD/atomes.',
+  'legal.content-heading': 'Book covers and book facts',
+  'legal.content': 'Book covers belong to their publishers and only illustrate the books of your Library. Book facts come from BnF, SUDOC (ABES), Inventaire, Open Library and Wikidata, under their own licenses. To ask for a cover or a text to be removed, write to julien.collard14@gmail.com.',
+  'legal.updated': 'Last change: 19 November 2026.',
 };

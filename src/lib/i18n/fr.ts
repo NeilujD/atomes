@@ -81,6 +81,7 @@ export const fr: typeof en = {
     "Atomes demande aussi à votre PDS l'autorisation d'écrire ce que vous choisissez de partager : statuts de lecture, séries suivies, étiquettes. Rien n'est partagé tant que vous ne l'activez pas dans les Réglages.",
   'signin.handle': 'Votre identifiant',
   'signin.submit': 'Se connecter',
+  'signin.legal': 'Mentions légales',
   'signin.privacy': 'Politique de confidentialité',
   'auth.account-deleted': 'Votre compte est supprimé.',
   'auth.account-deleted-shared-left':
@@ -699,4 +700,17 @@ export const fr: typeof en = {
   'privacy.rights':
     'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés. Les sauvegardes chiffrées la gardent encore 30 jours au plus. Pour toute autre demande, écrivez à julien.collard14@gmail.com.',
   'privacy.updated': 'Dernière modification : 17 novembre 2026.',
+  // Legal notice (src/pages/legal.astro, CORE-160). DRAFT: the owner approves
+  // the text and gives the host's facts before the Landing page goes public (CORE-162).
+  'legal.title': 'Mentions légales',
+  'legal.intro': 'La loi (loi n° 2004-575 du 21 juin 2004, article 1-1) demande à chaque site public de dire qui l’édite et qui l’héberge.',
+  'legal.publisher-heading': 'Qui édite ce site',
+  'legal.publisher': 'Julien Collard, particulier, édite cette instance d’Atomes et en est le directeur de la publication. Contact : julien.collard14@gmail.com.',
+  'legal.host-heading': 'Qui l’héberge',
+  'legal.host': '[Hébergeur : raison sociale, adresse postale et téléphone. À compléter avant publication.]',
+  'legal.software-heading': 'Le logiciel',
+  'legal.software': 'Atomes est un logiciel libre sous licence GNU AGPL-3.0. Son code source est public : github.com/NeilujD/atomes.',
+  'legal.content-heading': 'Couvertures et fiches des livres',
+  'legal.content': 'Les couvertures appartiennent à leurs éditeurs et illustrent seulement les livres de votre bibliothèque. Les fiches des livres viennent de la BnF, du SUDOC (ABES), d’Inventaire, d’Open Library et de Wikidata, sous leurs propres licences. Pour demander le retrait d’une couverture ou d’un texte, écrivez à julien.collard14@gmail.com.',
+  'legal.updated': 'Dernière modification : 19 novembre 2026.',
 };

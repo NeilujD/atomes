@@ -1,0 +1,23 @@
+---
+// The Legal notice (M12, CORE-160): who publishes this instance and who hosts
+// it, as French law asks of every public site (loi n° 2004-575, article 1-1
+// since the 2024 SREN law; a private person may give the host only). Linked
+// from the sign-in screen and the Landing page. French or English.
+// DRAFT: the owner approves the text (`legal.*` in src/lib/i18n, CORE-162).
+import Notice from '../components/Notice.astro';
+import AppShell from '../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
+
+const sections = [
+  { heading: t('legal.publisher-heading'), texts: [t('legal.publisher')] },
+  { heading: t('legal.host-heading'), texts: [t('legal.host')] },
+  { heading: t('legal.software-heading'), texts: [t('legal.software')] },
+  { heading: t('legal.content-heading'), texts: [t('legal.content')] },
+];
+---
+
+<AppShell title={t('legal.title')} flow>
+  <Notice title={t('legal.title')} intro={t('legal.intro')} sections={sections} updated={t('legal.updated')} />
+</AppShell>

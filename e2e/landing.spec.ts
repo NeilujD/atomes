@@ -52,3 +52,35 @@ test('The Landing page is no wider than a phone screen', async ({ page }) => {
   const width = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, screen: document.documentElement.clientWidth }));
   expect(width.page).toBe(width.screen);
 });
+
+test('From the Landing page footer, a visitor reads the Legal notice and the Privacy notice, and comes back each time', async ({ page }) => {
+  await page.goto('/welcome');
+  const footer = page.getByRole('contentinfo');
+
+  await footer.getByRole('link', { name: 'Legal notice' }).click();
+  await expect(page).toHaveURL(/\/legal$/);
+  await expect(page.getByRole('heading', { name: 'Legal notice', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Who hosts it' })).toBeVisible();
+  // No gate sends the visitor away once the page scripts have run.
+  await page.waitForLoadState('networkidle');
+  await expect(page).toHaveURL(/\/legal$/);
+  await page.getByRole('link', { name: 'Close' }).click();
+  await expect(page).toHaveURL(/\/welcome$/);
+
+  await footer.getByRole('link', { name: 'Privacy notice' }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole('heading', { name: 'Privacy notice', level: 1 })).toBeVisible();
+  await page.getByRole('link', { name: 'Close' }).click();
+  await expect(page).toHaveURL(/\/welcome$/);
+});
+
+test('The sign-in screen links to the Legal notice, in English and in French', async ({ page, baseURL }) => {
+  await page.goto('/sign-in');
+  await page.getByRole('link', { name: 'Legal notice' }).click();
+  await expect(page.getByRole('heading', { name: 'Legal notice', level: 1 })).toBeVisible();
+
+  await page.context().addCookies([{ name: 'atomes-language', value: 'fr', url: baseURL! }]);
+  await page.goto('/legal');
+  await expect(page.getByRole('heading', { name: 'Mentions légales', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Qui l’héberge' })).toBeVisible();
+});
