@@ -1,5 +1,16 @@
 // The Lucide icons the app uses (https://lucide.dev). Add one here before using it.
 import ArrowLeft from '@lucide/astro/icons/arrow-left';
+import ArrowRight from '@lucide/astro/icons/arrow-right';
+import BookOpen from '@lucide/astro/icons/book-open';
+import CodeXml from '@lucide/astro/icons/code-xml';
+import Database from '@lucide/astro/icons/database';
+import Download from '@lucide/astro/icons/download';
+import Heart from '@lucide/astro/icons/heart';
+import Languages from '@lucide/astro/icons/languages';
+import Menu from '@lucide/astro/icons/menu';
+import Scale from '@lucide/astro/icons/scale';
+import Server from '@lucide/astro/icons/server';
+import Tag from '@lucide/astro/icons/tag';
 import Bell from '@lucide/astro/icons/bell';
 import BookPlus from '@lucide/astro/icons/book-plus';
 import ChartColumn from '@lucide/astro/icons/chart-column';
@@ -31,6 +42,17 @@ import WifiOff from '@lucide/astro/icons/wifi-off';
 import X from '@lucide/astro/icons/x';
 
 export const icons = {
+  'arrow-right': ArrowRight,
+  'book-open': BookOpen,
+  'code-xml': CodeXml,
+  database: Database,
+  download: Download,
+  heart: Heart,
+  languages: Languages,
+  menu: Menu,
+  scale: Scale,
+  server: Server,
+  tag: Tag,
   'arrow-left': ArrowLeft,
   bell: Bell,
   'book-plus': BookPlus,

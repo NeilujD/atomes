@@ -1,0 +1,102 @@
+---
+// One app screenshot of the Landing page, in a phone or a browser window. The
+// light and the dark picture are both in the page; CSS shows the one of the
+// theme, so the forced Appearance works too. The pictures come from
+// `bun run landing-shots` (public/landing/).
+interface Props {
+  view: 'home' | 'library' | 'series' | 'check-owned' | 'check-not-owned' | 'to-buy' | 'statistics';
+  device: 'phone' | 'desktop';
+  alt: string;
+  // The first picture of the page loads at once; the others when near the screen.
+  eager?: boolean;
+}
+
+const { view, device, alt, eager = false } = Astro.props;
+// The sizes `landing-shots` saves (CSS pixels × device pixel ratio).
+const size = device === 'phone' ? { width: 780, height: 1688 } : { width: 1440, height: 900 };
+const src = (theme: string) => `/landing/${view}-${device}-${theme}.webp`;
+const loading = eager ? 'eager' : 'lazy';
+---
+
+<figure class:list={['shot', device]}>
+  {
+    device === 'desktop' && (
+      <div class="window-bar" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+    )
+  }
+  <img class="shot-light" src={src('light')} alt={alt} width={size.width} height={size.height} loading={loading} decoding="async" />
+  <img class="shot-dark" src={src('dark')} alt={alt} width={size.width} height={size.height} loading={loading} decoding="async" />
+</figure>
+
+<style>
+  /* Sizes of the frames, named once. */
+  .shot {
+    --shot-phone-radius: 40px;
+    --shot-dot: 10px;
+    margin: 0;
+    overflow: hidden;
+    border: var(--hairline) solid var(--line-card);
+    background: var(--surface);
+    box-shadow: var(--shadow-cover-large);
+  }
+
+  .shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .phone {
+    padding: var(--space-8);
+    border-radius: var(--shot-phone-radius);
+  }
+
+  .phone img {
+    border-radius: calc(var(--shot-phone-radius) - var(--space-8));
+  }
+
+  .desktop {
+    border-radius: var(--radius-card);
+  }
+
+  .window-bar {
+    display: flex;
+    gap: var(--space-6);
+    padding: var(--space-10) var(--space-14);
+    border-bottom: var(--hairline) solid var(--line-card);
+  }
+
+  .window-bar span {
+    width: var(--shot-dot);
+    height: var(--shot-dot);
+    border-radius: var(--radius-pill);
+    background: var(--shade-faint);
+  }
+
+  /* The picture of the theme on screen. */
+  .shot-dark {
+    display: none !important;
+  }
+
+  :global(:root[data-appearance='dark']) .shot-dark {
+    display: block !important;
+  }
+
+  :global(:root[data-appearance='dark']) .shot-light {
+    display: none !important;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-appearance='light'])) .shot-dark {
+      display: block !important;
+    }
+
+    :global(:root:not([data-appearance='light'])) .shot-light {
+      display: none !important;
+    }
+  }
+</style>

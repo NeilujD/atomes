@@ -1,0 +1,358 @@
+---
+// The frame of the public pages (M12): the Landing page now, Docs and Blog
+// later. No sidebar, tab bar, gate or service worker: a visitor with no
+// Account reads it, and it never stands in for the app offline (spec M12,
+// "Layout"). Same head, font, tokens, Mark and icons as the app.
+// Draft English text (CORE-157); CORE-159 moves it to t().
+import '@fontsource-variable/schibsted-grotesk';
+import '../styles/theme.css';
+import Icon from '../components/Icon.astro';
+import Mark from '../components/Mark.astro';
+import PageHead from '../components/PageHead.astro';
+import { bootScript } from '../lib/appearance';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+
+// The pages of the navbar. Docs and Blog stay hidden until their page exists.
+const links: { href: string; label: string; shown: boolean }[] = [
+  { href: '/welcome#features', label: 'Features', shown: true },
+  { href: '/welcome#philosophy', label: 'Philosophy', shown: true },
+  { href: '/welcome#open-source', label: 'Open source', shown: true },
+  { href: '/docs', label: 'Docs', shown: false },
+  { href: '/blog', label: 'Blog', shown: false },
+];
+
+const sourceUrl = 'https://github.com/NeilujD/atomes';
+---
+
+<html lang="en">
+  <head>
+    <PageHead title={title} boot={bootScript}>
+      <meta name="description" content={description} />
+    </PageHead>
+  </head>
+  <body class="landing">
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="nav" data-nav>
+      <div class="nav-inner">
+        <a class="brand" href="/welcome">
+          <Mark size={22} />
+          <span>Atomes</span>
+        </a>
+        <nav class="nav-links" id="landing-menu" aria-label="Pages">
+          <ul>
+            {
+              links
+                .filter((link) => link.shown)
+                .map((link) => (
+                  <li>
+                    <a href={link.href}>{link.label}</a>
+                  </li>
+                ))
+            }
+          </ul>
+        </nav>
+        <div class="nav-actions">
+          <button class="icon-button theme" type="button" aria-label="Switch light or dark" title="Switch light or dark" data-theme-toggle>
+            <span class="theme-moon"><Icon name="moon" /></span>
+            <span class="theme-sun"><Icon name="sun" /></span>
+          </button>
+          <a class="button button-main nav-cta" href="/sign-in" data-cta>Sign in</a>
+          <button class="icon-button menu" type="button" aria-label="Menu" aria-expanded="false" aria-controls="landing-menu" data-menu>
+            <Icon name="menu" />
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <a class="brand" href="/welcome">
+          <Mark size={18} />
+          <span>Atomes</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/privacy">Privacy notice</a></li>
+          <li><a href={sourceUrl}>Source code</a></li>
+          <li><a href={`${sourceUrl}/blob/main/LICENSE`}>License: AGPL-3.0</a></li>
+        </ul>
+        <p class="footer-note">Books and manga, on your own terms. No ads, no tracking.</p>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<script>
+  import { applyAppearance, readAppearance, resolveTheme, saveAppearance } from '../lib/appearance';
+  import { accountKey } from '../lib/auth/gate-boot';
+
+  // A reader with a saved Account goes back to the app in one tap.
+  let known = false;
+  try {
+    known = localStorage.getItem(accountKey) !== null;
+  } catch {
+    // Storage refused: a visitor.
+  }
+  if (known) {
+    for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-cta]')) {
+      link.href = '/';
+      link.textContent = 'Open my Library';
+    }
+  }
+
+  // Light or dark: the same Appearance setting as Settings, kept on the device.
+  const prefersDark = matchMedia('(prefers-color-scheme: dark)');
+  document.querySelector('[data-theme-toggle]')!.addEventListener('click', () => {
+    const next = resolveTheme(readAppearance(), prefersDark.matches) === 'dark' ? 'light' : 'dark';
+    saveAppearance(next);
+    applyAppearance(document, next, prefersDark.matches);
+  });
+
+  // The phone menu: the button opens the links under the bar; Escape or a link closes them.
+  const nav = document.querySelector<HTMLElement>('[data-nav]')!;
+  const menu = document.querySelector<HTMLButtonElement>('[data-menu]')!;
+  const setOpen = (open: boolean) => {
+    nav.dataset.open = String(open);
+    menu.setAttribute('aria-expanded', String(open));
+  };
+  menu.addEventListener('click', () => setOpen(nav.dataset.open !== 'true'));
+  nav.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || nav.dataset.open !== 'true') return;
+    setOpen(false);
+    menu.focus();
+  });
+  for (const link of nav.querySelectorAll('.nav-links a')) link.addEventListener('click', () => setOpen(false));
+</script>
+
+<style>
+  /*
+   * Sizes of the public pages, named once (ui-direction, "The one look"):
+   * the widest column, the bar, the blur under it.
+   */
+  .landing {
+    --landing-width: 1160px;
+    --landing-gutter: 20px;
+    --landing-nav: 64px;
+    --landing-blur: 16px;
+    --landing-nav-fill: color-mix(in srgb, var(--ground) var(--alpha-text-heading), transparent);
+    overflow-x: clip;
+  }
+
+  @media (min-width: 720px) {
+    .landing {
+      --landing-gutter: 32px;
+    }
+  }
+
+  :global(html) {
+    scroll-behavior: smooth;
+    scroll-padding-top: var(--landing-nav);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(html) {
+      scroll-behavior: auto;
+    }
+  }
+
+  .skip {
+    position: absolute;
+    top: var(--space-8);
+    left: var(--space-8);
+    z-index: 3;
+    padding: var(--space-8) var(--space-12);
+    border-radius: var(--radius-control);
+    background: var(--accent-fill);
+    color: var(--on-accent);
+    transform: translateY(calc(-100% - var(--space-16)));
+  }
+
+  .skip:focus {
+    transform: none;
+  }
+
+  main:focus {
+    outline: none;
+  }
+
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    border-bottom: var(--hairline) solid var(--line-card);
+    background: var(--landing-nav-fill);
+    backdrop-filter: blur(var(--landing-blur));
+    -webkit-backdrop-filter: blur(var(--landing-blur));
+  }
+
+  .nav-inner {
+    width: min(100%, var(--landing-width));
+    min-height: var(--landing-nav);
+    margin: 0 auto;
+    padding: 0 var(--landing-gutter);
+    display: flex;
+    align-items: center;
+    gap: var(--space-16);
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-10);
+    color: var(--ink);
+    font-weight: 700;
+    font-size: var(--type-heading);
+    letter-spacing: var(--tracking-tight);
+    text-decoration: none;
+  }
+
+  .nav-links {
+    margin-inline-start: auto;
+  }
+
+  .nav-links ul {
+    display: flex;
+    gap: var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .nav-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--row);
+    padding: 0 var(--space-12);
+    border-radius: var(--radius-control);
+    color: var(--text-quiet);
+    text-decoration: none;
+  }
+
+  .nav-links a:hover {
+    background: var(--fill-chip);
+    color: var(--ink);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+  }
+
+  .nav-cta {
+    min-height: var(--icon-button);
+    white-space: nowrap;
+  }
+
+  /* One icon of the two: the theme the button switches to. */
+  .theme-sun {
+    display: none;
+  }
+
+  :global(:root[data-appearance='dark']) .theme-sun {
+    display: contents;
+  }
+
+  :global(:root[data-appearance='dark']) .theme-moon {
+    display: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-appearance='light'])) .theme-sun {
+      display: contents;
+    }
+
+    :global(:root:not([data-appearance='light'])) .theme-moon {
+      display: none;
+    }
+  }
+
+  .menu {
+    display: none;
+  }
+
+  /* Phone: the links fold under a menu button; the bar keeps the brand, the theme and Sign in. */
+  @media (max-width: 719px) {
+    .nav-links {
+      position: absolute;
+      inset: 100% 0 auto;
+      display: none;
+      padding: var(--space-8) var(--landing-gutter) var(--space-16);
+      border-bottom: var(--hairline) solid var(--line-card);
+      background: var(--ground);
+    }
+
+    .nav[data-open='true'] .nav-links {
+      display: block;
+    }
+
+    .nav-links ul {
+      flex-direction: column;
+    }
+
+    .nav-links a {
+      min-height: var(--target-min);
+      padding: var(--space-12);
+      width: 100%;
+    }
+
+    .nav-actions {
+      margin-inline-start: auto;
+    }
+
+    .menu {
+      display: inline-flex;
+    }
+  }
+
+  .footer {
+    margin-top: var(--space-28);
+    border-top: var(--hairline) solid var(--line-card);
+  }
+
+  .footer-inner {
+    width: min(100%, var(--landing-width));
+    margin: 0 auto;
+    padding: var(--space-28) var(--landing-gutter);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-16) var(--space-28);
+  }
+
+  .footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8) var(--space-20);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .footer-links a {
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+    text-decoration-color: var(--line-link);
+    text-underline-offset: var(--space-4);
+  }
+
+  .footer-links a:hover {
+    color: var(--ink);
+  }
+
+  .footer-note {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+  }
+</style>

@@ -55,6 +55,9 @@ const checked: Record<string, string[]> = {
   '../pages/settings.astro': [],
   '../pages/check.astro': [],
   '../components/Mark.astro': [],
+  '../pages/welcome.astro': ['../layouts/Landing.astro'],
+  '../layouts/Landing.astro': [],
+  '../components/LandingShot.astro': [],
 };
 
 for (const [path, setters] of Object.entries(checked)) {

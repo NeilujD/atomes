@@ -154,6 +154,17 @@ Before a screen is built, check that its view type works in the frame, in light,
 | Charts | Statistics ("Statistiques": island `src/islands/Statistics.tsx`, parts in `src/islands/charts/`) | HTML and CSS, no chart library (spike 0005). Colours: ink for "read", `--shade-medium` for "added", nothing else (Colour roles); lines `--line-card`; bar corners `--radius-spine`; `--stroke` between two bars; a bar is 10 px wide by month, 24 px by year. Ticks at 0, half and the top. A column group is a button with its numbers as its name and `aria-pressed`; a tap shows its numbers on a readout line. Each chart has a "Table" switch that shows the same numbers in a `<table>`. Colour is never the only cue: the readout and the table give every number (spike 0005, section B). Legible in high contrast. Share is the main action, filled cobalt, disabled until the island has drawn ("Before the scripts run"); its dialog is full screen on the phone and a 420 px card on desktop, as the Shelf Check result. |
 | Settings | Settings & privacy | Appearance and contrast controls. |
 
+## Landing page (M12)
+
+The public page at `/welcome` (`src/pages/welcome.astro`, frame `src/layouts/Landing.astro`; spec "Spec: M12 · Landing page"). It is not an app screen: no sidebar, tab bar, gate, environment badge or service worker. It keeps the one look:
+
+* **Same parts.** Tokens of `theme.css`, the shared glow (`glow.css`), Schibsted Grotesk, Lucide icons through `src/components/icons.ts`, the Mark, `.button-main`, `.button`, `.card`, `.chip`. Larger type and room come from sizes the page names once (`--landing-*`); `tokens.test.ts` checks the page, its frame and `LandingShot.astro`.
+* **Colour answers a question here too.** Cobalt glows behind the hero and the last call to action; green and orange only in the Shelf Check part, where ownership is answered. One filled cobalt action per area (the navbar Sign in, the hero, the end).
+* **Light and dark.** Every app picture exists in both themes (`bun run landing-shots`); CSS shows the one of the theme, also when the Appearance is forced. The navbar toggle saves the same Appearance setting as Settings.
+* **Phone.** The navbar links fold under a menu button (Escape closes it); feature cards go two a row; no sideways scroll at 360 px.
+* **No brand logos.** Lucide 1 has none: a link to the code uses `code-xml` and the words "Source code".
+* **Room to grow.** The navbar list has Docs and Blog entries, hidden until their page exists.
+
 ## Not now
 
 - Command menu (⌘K) and keyboard shortcuts on desktop: useful later for Library search and Quick Add by ISBN; not before the screens exist.
