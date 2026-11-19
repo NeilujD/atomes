@@ -61,11 +61,11 @@ const tabItems: { key: Section; href: string; label: string; icon: IconName }[] 
   { key: 'settings', href: '/settings', label: t('nav.you'), icon: 'user' },
 ];
 
+// The gate sends a visitor with no session from Home to the Landing page, when the instance has it (M12).
+const landing = landingPage(process.env) ? 'on' : undefined;
 const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
 // The tab bar keeps five entries (ui-direction): Statistics is reached from
 // You, so You shows as the place the reader is in.
-// The gate sends a visitor with no session from Home to the Landing page, when the instance has it (M12).
-const landing = landingPage(process.env) ? 'on' : undefined;
 const tabCurrent = (key: Section) => ariaCurrent(key) ?? (key === 'settings' && current === 'statistics' ? 'true' : undefined);
 ---
 
