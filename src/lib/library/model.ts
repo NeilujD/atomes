@@ -5,6 +5,7 @@ import type { LineName } from '../catalog/lines';
 import { coverUrl } from '../catalog/client';
 import { pageLanguage, translator, type Language } from '../i18n/i18n';
 import type { Copy } from './copy';
+import { dayOf, storedDay } from './day';
 import type { Follow } from './follow';
 import type { Loan } from './loan';
 import { statuses, type ReadingStatus, type Status } from './reading-status';
@@ -38,6 +39,8 @@ export interface BookPage {
   // A path on the Atomes server.
   cover: string | null;
   status: Status;
+  // Calendar days (day.ts); undefined on a record saved with none.
+  startedAt: string | undefined;
   finishedAt: string | undefined;
   copies: BookCopy[];
 }
@@ -47,6 +50,8 @@ export interface BookCopy {
   isbn: string;
   // Publisher, language and format, as far as the Catalog knows them.
   edition: string;
+  // The day the reader got it, if they said (ADR 0019).
+  acquiredAt: string | undefined;
   // Who has this Copy now; undefined when the reader has it.
   loan: { rkey: string; borrower: string; lentAt: string } | undefined;
   // Returned Loans, latest first.
@@ -91,6 +96,7 @@ export function bookPage(work: string, library: Library, editions: Editions, lan
     volumes: edition?.volumes ?? [],
     cover: edition ? coverUrl(edition) : null,
     status: readingStatus?.status ?? 'unread',
+    startedAt: readingStatus?.startedAt,
     finishedAt: readingStatus?.finishedAt,
     copies: copies.map(({ rkey, value }) => {
       const loans = loansOf(rkey, library);
@@ -99,6 +105,7 @@ export function bookPage(work: string, library: Library, editions: Editions, lan
         rkey,
         isbn: value.isbn,
         edition: editionLabel(editions.get(value.isbn), language),
+        acquiredAt: value.acquiredAt,
         loan: open && { rkey: open.rkey, borrower: open.value.borrower, lentAt: open.value.lentAt },
         pastLoans: loans.flatMap(({ value: { borrower, lentAt, returnedAt } }) => (returnedAt ? [{ borrower, lentAt, returnedAt }] : [])),
       };
@@ -168,13 +175,60 @@ export function ownsWork(work: string, library: Library): boolean {
 }
 
 // The Reading Status to save when the reader picks `chosen` for a Work, or
-// undefined when it is the current one: saving it again would drop its finish
-// date, and "unread" with no record is already true (ADR 0010). A new status
-// starts with no finish date.
-export function statusChange(work: string, isbn: string, chosen: Status, library: Library, now: Date): ReadingStatus | undefined {
+// undefined when it is the current one: saving it again would change nothing,
+// and "unread" with no record is already true (ADR 0010).
+// A dated change (one Work, today: Book page, Volume sheet, Shelf Check) sets
+// the days of ADR 0019. A change that is not dated (a bulk mark, Series
+// Onboarding) says "read before": it sets no day and keeps the days there are.
+export function statusChange(
+  work: string,
+  isbn: string,
+  chosen: Status,
+  library: Library,
+  now: Date,
+  { dated }: { dated: boolean },
+): ReadingStatus | undefined {
   const current = currentReadingStatus(work, library);
   if ((current?.status ?? 'unread') === chosen) return undefined;
-  return { work, isbn: current?.isbn ?? isbn, status: chosen, updatedAt: now.toISOString() };
+  const { startedAt, finishedAt } = dated ? datedDays(chosen, current?.startedAt, dayOf(now)) : { ...current };
+  return {
+    work,
+    isbn: current?.isbn ?? isbn,
+    status: chosen,
+    ...(startedAt && { startedAt }),
+    ...(finishedAt && { finishedAt }),
+    updatedAt: now.toISOString(),
+  };
+}
+
+function datedDays(chosen: Status, startedAt: string | undefined, today: string): Pick<ReadingStatus, 'startedAt' | 'finishedAt'> {
+  switch (chosen) {
+    case 'reading':
+      return { startedAt: startedAt ?? today };
+    case 'read':
+      return { startedAt, finishedAt: today };
+    case 'abandoned':
+      return { startedAt };
+    case 'unread':
+      return {};
+  }
+}
+
+// The Reading Status with one day corrected by the reader on the Book page.
+// `typed` is the value of a date field, `YYYY-MM-DD`; empty removes the day.
+// A finish day before the start day is refused.
+export function dayCorrection(
+  current: ReadingStatus,
+  field: 'startedAt' | 'finishedAt',
+  typed: string,
+  now: Date,
+): ReadingStatus | { problem: 'finished-before-started' } {
+  const next: ReadingStatus = { ...current, updatedAt: now.toISOString() };
+  const stored = storedDay(typed);
+  if (stored) next[field] = stored;
+  else delete next[field];
+  if (next.startedAt && next.finishedAt && next.finishedAt < next.startedAt) return { problem: 'finished-before-started' };
+  return next;
 }
 
 export function currentStatus(work: string, library: Library): Status {

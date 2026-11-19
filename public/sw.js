@@ -14,6 +14,7 @@ const SHELL = [
   '/book',
   '/library',
   '/settings',
+  '/statistics',
   '/sign-in',
   '/manifest.webmanifest',
   '/favicon.svg',

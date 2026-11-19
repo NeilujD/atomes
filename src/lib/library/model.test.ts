@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
 import type { Copy } from './copy';
 import type { Loan } from './loan';
-import { addedOn, bookIsbns, bookPage, isOwned, languageName, lend, lineLabel, ownsWork, returnLoans, statusChange, type Library } from './model';
+import { addedOn, bookIsbns, bookPage, dayCorrection, isOwned, languageName, lend, lineLabel, ownsWork, returnLoans, statusChange, type Library } from './model';
 import type { ReadingStatus, Status } from './reading-status';
 import type { Saved } from './records';
 
@@ -46,15 +46,32 @@ describe('Book page', () => {
       // From the Atomes server, never from the source: the source would learn who looks at this book.
       cover: '/api/catalog/editions/9782723478991/cover',
       status: 'unread',
+      startedAt: undefined,
       finishedAt: undefined,
       copies: [{ rkey: '3m2a', isbn: onePiece56.isbn, edition: 'Glénat · French · 18 x 12 cm', loan: undefined, pastLoans: [] }],
     });
   });
 
-  test('the Reading Status and its finish date come from the record keyed by the Work', () => {
-    const page = bookPage(work, library({ copies: [copy('3m2a')], readingStatuses: [status('read', '2026-11-20T00:00:00.000Z')] }), catalog);
+  test('the Reading Status and its days come from the record keyed by the Work', () => {
+    const page = bookPage(
+      work,
+      library({ copies: [copy('3m2a')], readingStatuses: [status('read', '2026-11-20T00:00:00.000Z', '2026-11-02T00:00:00.000Z')] }),
+      catalog,
+    );
 
-    expect([page?.status, page?.finishedAt]).toEqual(['read', '2026-11-20T00:00:00.000Z']);
+    expect([page?.status, page?.startedAt, page?.finishedAt]).toEqual(['read', '2026-11-02T00:00:00.000Z', '2026-11-20T00:00:00.000Z']);
+  });
+
+  test('a record saved before the start day existed still shows, with no start day', () => {
+    const page = bookPage(work, library({ readingStatuses: [status('reading')] }), catalog);
+
+    expect([page?.status, page?.startedAt]).toEqual(['reading', undefined]);
+  });
+
+  test('each Copy shows the day the reader got it, or none', () => {
+    const page = bookPage(work, library({ copies: [copy('3m2a', { acquiredAt: '2026-11-18T00:00:00.000Z' }), copy('3m2b')] }), catalog);
+
+    expect(page?.copies.map(({ acquiredAt }) => acquiredAt)).toEqual(['2026-11-18T00:00:00.000Z', undefined]);
   });
 
   test('a status this app does not know counts as no record: unread', () => {
@@ -321,38 +338,140 @@ function loan(rkey: string, copyKey: string, borrower: string, lentAt: string, r
 }
 
 describe('Reading Status change', () => {
-  const now = new Date('2026-11-07T08:00:00.000Z');
+  // Noon UTC: the same day in the time zone of any test machine.
+  const now = new Date('2026-11-07T12:00:00.000Z');
+  const today = '2026-11-07T00:00:00.000Z';
+  const dated = { dated: true };
+  const notDated = { dated: false };
 
-  test('a new status is saved for the Edition given, with no finish date', () => {
-    expect(statusChange(work, onePiece56.isbn, 'reading', library(), now)).toEqual({
+  test('a new status is saved for the Edition given', () => {
+    expect(statusChange(work, onePiece56.isbn, 'abandoned', library(), now, dated)).toEqual({
       work,
       isbn: onePiece56.isbn,
-      status: 'reading',
-      updatedAt: '2026-11-07T08:00:00.000Z',
+      status: 'abandoned',
+      updatedAt: '2026-11-07T12:00:00.000Z',
     });
   });
 
-  test('the current status is not saved again, so its finish date stays', () => {
+  test('the current status is not saved again, so its days stay', () => {
     const read = library({ readingStatuses: [status('read', '2026-11-20T00:00:00.000Z')] });
 
-    expect(statusChange(work, onePiece56.isbn, 'read', read, now)).toBeUndefined();
+    expect(statusChange(work, onePiece56.isbn, 'read', read, now, dated)).toBeUndefined();
   });
 
   test('"not yet" with no record is already true: nothing to save', () => {
-    expect(statusChange(work, onePiece56.isbn, 'unread', library(), now)).toBeUndefined();
+    expect(statusChange(work, onePiece56.isbn, 'unread', library(), now, dated)).toBeUndefined();
   });
 
   test('a change keeps the Edition already read', () => {
     const reading = library({ readingStatuses: [status('reading')] });
 
-    expect(statusChange(work, '9782344068922', 'abandoned', reading, now)?.isbn).toBe(onePiece56.isbn);
+    expect(statusChange(work, '9782344068922', 'abandoned', reading, now, dated)?.isbn).toBe(onePiece56.isbn);
+  });
+
+  describe('dated: one Work, today (ADR 0019)', () => {
+    test('reading, then read on another day: the record holds both days', () => {
+      const reading = statusChange(work, onePiece56.isbn, 'reading', library(), new Date('2026-11-02T12:00:00.000Z'), dated)!;
+      const read = statusChange(work, onePiece56.isbn, 'read', library({ readingStatuses: [{ rkey: work, value: reading }] }), now, dated);
+
+      expect([read?.status, read?.startedAt, read?.finishedAt]).toEqual(['read', '2026-11-02T00:00:00.000Z', today]);
+    });
+
+    test('reading keeps a start day that exists, and has no finish day', () => {
+      const read = library({ readingStatuses: [status('read', '2026-11-04T00:00:00.000Z', '2026-11-01T00:00:00.000Z')] });
+
+      const change = statusChange(work, onePiece56.isbn, 'reading', read, now, dated);
+
+      expect([change?.startedAt, change && 'finishedAt' in change]).toEqual(['2026-11-01T00:00:00.000Z', false]);
+    });
+
+    test('read with no start day: finished today, still no start day', () => {
+      const change = statusChange(work, onePiece56.isbn, 'read', library(), now, dated);
+
+      expect([change && 'startedAt' in change, change?.finishedAt]).toEqual([false, today]);
+    });
+
+    test('abandoned keeps the start day and has no finish day', () => {
+      const read = library({ readingStatuses: [status('read', '2026-11-04T00:00:00.000Z', '2026-11-01T00:00:00.000Z')] });
+
+      const change = statusChange(work, onePiece56.isbn, 'abandoned', read, now, dated);
+
+      expect([change?.startedAt, change && 'finishedAt' in change]).toEqual(['2026-11-01T00:00:00.000Z', false]);
+    });
+
+    test('back to "not yet" removes both days', () => {
+      const read = library({ readingStatuses: [status('read', '2026-11-04T00:00:00.000Z', '2026-11-01T00:00:00.000Z')] });
+
+      expect(statusChange(work, onePiece56.isbn, 'unread', read, now, dated)).toEqual({
+        work,
+        isbn: onePiece56.isbn,
+        status: 'unread',
+        updatedAt: '2026-11-07T12:00:00.000Z',
+      });
+    });
+  });
+
+  describe('not dated: a bulk mark or Series Onboarding, "read before"', () => {
+    test('sets no day', () => {
+      const change = statusChange(work, onePiece56.isbn, 'read', library(), now, notDated);
+
+      expect(change).toEqual({ work, isbn: onePiece56.isbn, status: 'read', updatedAt: '2026-11-07T12:00:00.000Z' });
+    });
+
+    test.each<Status>(['unread', 'reading', 'abandoned'])('to %s keeps both days that exist', (chosen) => {
+      const read = library({ readingStatuses: [status('read', '2026-11-04T00:00:00.000Z', '2026-11-01T00:00:00.000Z')] });
+
+      const change = statusChange(work, onePiece56.isbn, chosen, read, now, notDated);
+
+      expect([change?.status, change?.startedAt, change?.finishedAt]).toEqual([chosen, '2026-11-01T00:00:00.000Z', '2026-11-04T00:00:00.000Z']);
+    });
+
+    test('to read keeps the start day and sets no finish day', () => {
+      const reading = library({ readingStatuses: [status('reading', undefined, '2026-11-01T00:00:00.000Z')] });
+
+      const change = statusChange(work, onePiece56.isbn, 'read', reading, now, notDated);
+
+      expect([change?.startedAt, change && 'finishedAt' in change]).toEqual(['2026-11-01T00:00:00.000Z', false]);
+    });
   });
 });
 
-function status(value: Status, finishedAt?: string): Saved<ReadingStatus> {
+describe('The reader corrects a day on the Book page', () => {
+  const now = new Date('2026-11-07T12:00:00.000Z');
+  const read = { ...status('read', '2026-11-04T00:00:00.000Z', '2026-11-01T00:00:00.000Z').value };
+
+  test('a day typed is saved as that day at midnight UTC, the other day kept', () => {
+    expect(dayCorrection(read, 'startedAt', '2026-10-30', now)).toEqual({
+      ...read,
+      startedAt: '2026-10-30T00:00:00.000Z',
+      updatedAt: '2026-11-07T12:00:00.000Z',
+    });
+  });
+
+  test('an emptied field removes its day', () => {
+    expect(dayCorrection(read, 'finishedAt', '', now)).toStrictEqual({
+      work,
+      isbn: onePiece56.isbn,
+      status: 'read',
+      startedAt: '2026-11-01T00:00:00.000Z',
+      updatedAt: '2026-11-07T12:00:00.000Z',
+    });
+  });
+
+  test('finished on the day it started: saved', () => {
+    expect(dayCorrection(read, 'finishedAt', '2026-11-01', now)).toMatchObject({ finishedAt: '2026-11-01T00:00:00.000Z' });
+  });
+
+  test('finished before started is refused, from either field', () => {
+    expect(dayCorrection(read, 'finishedAt', '2026-10-31', now)).toEqual({ problem: 'finished-before-started' });
+    expect(dayCorrection(read, 'startedAt', '2026-11-05', now)).toEqual({ problem: 'finished-before-started' });
+  });
+});
+
+function status(value: Status, finishedAt?: string, startedAt?: string): Saved<ReadingStatus> {
   return {
     rkey: work,
-    value: { work, isbn: onePiece56.isbn, status: value, finishedAt, updatedAt: '2026-11-05T10:00:00.000Z' },
+    value: { work, isbn: onePiece56.isbn, status: value, ...(startedAt && { startedAt }), ...(finishedAt && { finishedAt }), updatedAt: '2026-11-05T10:00:00.000Z' },
   };
 }
 

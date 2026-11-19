@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
-import { addLabelBulk, moveCorrections, moveUndo, privacyChange, removeLabelBulk, statusBulk, writeAll } from './bulk';
+import { addLabelBulk, type Bulk, moveCorrections, moveUndo, privacyChange, removeLabelBulk, statusBulk, writeAll } from './bulk';
 import { labelCollection, type Label } from './label';
 import { memorySpace } from './memory-space.fake';
 import type { Library } from './model';
@@ -22,6 +22,23 @@ describe('Set a Reading Status on many Works', () => {
 
     expect(writes.map(({ rkey }) => rkey)).toEqual(['wd:Q1', 'wd:Q2', 'wd:Q4', 'wd:Q5']);
     expect(writes[1]).toEqual({ collection: readingStatusCollection, rkey: 'wd:Q2', value: { work: 'wd:Q2', isbn: '9782723434622', status: 'read', updatedAt: at } });
+  });
+
+  test('a bulk mark is not dated: it sets no day and keeps the days there are (ADR 0019)', () => {
+    const started: ReadingStatus = { ...reading, startedAt: '2026-11-01T00:00:00.000Z' };
+    const dated: Library = { ...empty, readingStatuses: [started, read].map((value) => ({ rkey: value.work, value })) };
+    const days = (bulk: Bulk) => bulk.writes.map(({ value }) => value as ReadingStatus).map(({ work, startedAt, finishedAt }) => [work, startedAt, finishedAt]);
+
+    expect(days(statusBulk(picked, 'read', dated, now))).toEqual([
+      ['wd:Q1', undefined, undefined],
+      ['wd:Q2', '2026-11-01T00:00:00.000Z', undefined],
+      ['wd:Q4', undefined, undefined],
+      ['wd:Q5', undefined, undefined],
+    ]);
+    expect(days(statusBulk(picked, 'unread', dated, now))).toEqual([
+      ['wd:Q2', '2026-11-01T00:00:00.000Z', undefined],
+      ['wd:Q3', undefined, '2026-11-02T00:00:00.000Z'],
+    ]);
   });
 
   test('Undo puts back the Reading Status each Work had, and deletes the ones it did not have', async () => {

@@ -131,6 +131,20 @@ const pickers: { name: string; label: string; checked: string; options: { value:
       </div>
     </section>
 
+    <!-- Statistics (ADR 0019): on the phone, the tab bar has no row for it; You does. -->
+    <section class="group" aria-labelledby="reading-title">
+      <h2 class="small-heading" id="reading-title">{t('settings.reading')}</h2>
+      <div class="card group-card">
+        <div class="row">
+          <div>
+            <p class="row-label">{t('nav.statistics')}</p>
+            <p class="row-hint">{t('settings.statistics-hint')}</p>
+          </div>
+          <a class="button" href="/statistics">{t('nav.statistics')}</a>
+        </div>
+      </div>
+    </section>
+
     <!-- Appearance, contrast and language, kept on this device (src/lib/appearance.ts, src/lib/i18n). -->
     <section class="group" aria-labelledby="display-title">
       <h2 class="small-heading" id="display-title">{t('settings.display')}</h2>

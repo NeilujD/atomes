@@ -219,7 +219,7 @@ export function onboardingSave(onboarding: Onboarding, library: Library, choices
   const copies = isbnsOf(({ owned, kept }) => owned && !kept).map(
     (isbn): Copy => ({ isbn, works: [edition(isbn).work.id], createdAt: now.toISOString() }),
   );
-  const readingStatuses = isbnsOf(({ read }) => read).flatMap((isbn) => statusChange(edition(isbn).work.id, isbn, 'read', library, now) ?? []);
+  const readingStatuses = isbnsOf(({ read }) => read).flatMap((isbn) => statusChange(edition(isbn).work.id, isbn, 'read', library, now, { dated: false }) ?? []);
 
   const status = choices.follow ? 'following' : 'dropped';
   // A follow saved under an older identifier of the Series keeps its record key (ADR 0010).

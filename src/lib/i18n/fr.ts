@@ -4,6 +4,9 @@
 // space (U+202F) before "?", "!" and ";", so the sign never starts a line.
 import type { en } from './en';
 
+// A count in a sentence, as the language writes it (Intl).
+const number = (value: number) => new Intl.NumberFormat('fr').format(value);
+
 export const fr: typeof en = {
   // Frame (AppShell, ConnectionStatus, toasts)
   'nav.main': 'Navigation principale',
@@ -14,6 +17,7 @@ export const fr: typeof en = {
   'nav.library': 'Bibliothèque',
   'nav.new': 'Nouveautés et à paraître',
   'nav.to-buy': 'À acheter',
+  'nav.statistics': 'Statistiques',
   'nav.check': 'Vérifier',
   'nav.settings': 'Réglages',
   'nav.you': 'Vous',
@@ -139,6 +143,7 @@ export const fr: typeof en = {
   'home.owned-unread': 'Possédés non lus',
   'home.reading': 'En cours de lecture',
   'home.empty': 'Rien ici pour l’instant.',
+  'home.year': (year: number) => `Statistiques ${year}`,
 
   // Settings
   'settings.title': 'Réglages',
@@ -183,6 +188,8 @@ export const fr: typeof en = {
   'settings.contrast': 'Contraste',
   'settings.language': 'Langue',
   'settings.on-this-device': 'Gardé sur cet appareil.',
+  'settings.reading': 'Votre lecture',
+  'settings.statistics-hint': 'Ce que vous avez lu et ajouté, par mois et par année.',
   'settings.your-data': 'Vos données',
   'settings.privacy': 'Politique de confidentialité',
   'settings.privacy-hint': 'Ce que cette instance garde, qui peut le lire, et vos droits.',
@@ -296,12 +303,16 @@ export const fr: typeof en = {
   'book.add-a-book': 'Ajouter un livre',
   'book.add-this-book': 'Ajouter ce livre',
   'book.reading-status': 'Statut de lecture',
+  'book.started-on': 'Commencé le',
   'book.finished-on': 'Fini le',
+  'book.finished-before-started': 'Le jour de fin ne peut pas être avant le jour de début.',
   'book.optional': 'Facultatif',
   'book.copies': 'Vos exemplaires',
   'book.no-copies': 'Vous n’avez aucun exemplaire de ce livre.',
   'book.add-copy': 'Ajouter un autre exemplaire',
   'book.add-first-copy': 'Ajouter un exemplaire',
+  'book.got-on': 'Obtenu le',
+  'book.got-on-copy': (isbn) => `Obtenu le, exemplaire d’ISBN ${isbn}`,
   'book.remove': 'Retirer',
   'book.remove-copy': (isbn) => `Retirer l’exemplaire d’ISBN ${isbn}`,
   'book.lend-to': 'Prêter à',
@@ -576,6 +587,90 @@ export const fr: typeof en = {
   'select.moved': (count) => `${count} ${count > 1 ? 'livres déplacés' : 'livre déplacé'}. Tous les lecteurs le voient.`,
   'select.unchanged': 'Rien à changer.',
   'select.undone': 'Annulé.',
+
+  'chart.table': 'Tableau',
+  'chart.legend': 'Légende',
+  'chart.month': 'Mois',
+  'chart.year': 'Année',
+  'chart.figure': (label: string, figure: string) => `${label} ${figure}`,
+  'chart.group': (name: string, figures: string[]) => `${name} : ${figures.join(', ')}`,
+
+  // L'écran Statistiques (src/islands/Statistics.tsx, ADR 0019).
+  'stats.title': 'Statistiques',
+  'stats.share': 'Partager',
+  'stats.period': 'Période',
+  'stats.all-time': 'Depuis toujours',
+  'stats.filter': 'Filtrer',
+  'stats.filters-on': (count: number) => `${count} ${count > 1 ? 'filtres actifs' : 'filtre actif'}`,
+  'stats.label': 'Étiquette',
+  'stats.owned-only': 'Possédés seulement',
+  'stats.done': 'OK',
+  'stats.in-short': 'En bref',
+  'stats.read-in': (count: number, year?: string) => `${count > 1 ? 'lus' : 'lu'} ${year ? `en ${year}` : 'au total'}`,
+  'stats.added': 'Ajoutés',
+  'stats.reading': 'En cours',
+  'stats.owned-unread': 'Possédés non lus',
+  'stats.pages-read': 'Pages lues',
+  'stats.pages-read-at-least': 'Pages lues, au moins',
+  'stats.read': 'Lus',
+  'stats.by-month': 'Lus et ajoutés, par mois',
+  'stats.by-year': 'Lus et ajoutés, par année',
+  'stats.most-read': 'Les plus lus',
+  'stats.most-read-by': 'Les plus lus par',
+  'stats.dimension.series': 'Séries',
+  'stats.dimension.authors': 'Auteurs',
+  'stats.dimension.labels': 'Étiquettes',
+  'stats.dimension.publishers': 'Éditeurs',
+  'stats.outside.series': (count: number) => `${number(count)} ${count > 1 ? 'livres lus ne sont' : 'livre lu n’est'} dans aucune série.`,
+  'stats.outside.authors': (count: number) => `${number(count)} ${count > 1 ? 'livres lus n’ont' : 'livre lu n’a'} pas d’auteur.`,
+  'stats.outside.labels': (count: number) => `${number(count)} ${count > 1 ? 'livres lus n’ont' : 'livre lu n’a'} pas d’étiquette.`,
+  'stats.outside.publishers': (count: number) => `${number(count)} ${count > 1 ? 'livres lus n’ont' : 'livre lu n’a'} pas d’éditeur connu.`,
+  'stats.most-read-none': 'Aucun livre lu sur cette période.',
+  'stats.library-today': 'Votre bibliothèque aujourd’hui',
+  'stats.status': 'Statut de lecture',
+  'stats.works': 'Œuvres',
+  'stats.owned-line': (copies: number, series: number, readNotOwned: number) =>
+    `${number(copies)} ${copies > 1 ? 'exemplaires possédés' : 'exemplaire possédé'}, dans ${number(series)} ${series > 1 ? 'séries' : 'série'}.` +
+    (readNotOwned > 0 ? ` Et ${number(readNotOwned)} ${readNotOwned > 1 ? 'œuvres lues non possédées' : 'œuvre lue non possédée'}.` : ''),
+  'stats.loans': 'Prêts',
+  'stats.lent-now': 'Prêtés en ce moment',
+  'stats.loans-in': (year: string) => `Prêts en ${year}`,
+  'stats.loans-all': 'Prêts, depuis toujours',
+  'stats.average-days': 'Jours, en moyenne',
+  'stats.no-average': '–',
+  'stats.undated': (reads: number, copies: number) => {
+    const read = `${number(reads)} ${reads > 1 ? 'livres lus' : 'livre lu'}`;
+    const got = `${number(copies)} ${copies > 1 ? 'exemplaires' : 'exemplaire'}`;
+    const both = reads > 0 && copies > 0;
+    const many = both || reads > 1 || copies > 1;
+    const named = both ? `${read} et ${got}` : reads > 0 ? read : got;
+    return `${named} ${many ? 'n’ont' : 'n’a'} pas de date. ${many ? 'Ils comptent' : 'Il compte'} dans les totaux, pas par mois.`;
+  },
+  'stats.add-dates': 'Ajouter des dates',
+  'stats.empty':
+    'Aucun livre lu n’a encore de jour de fin : aucune lecture ne s’affiche par mois. Marquez un livre comme lu sur sa page et Atomes garde le jour ; pour un livre lu avant, tapez-y le jour où vous l’avez fini.',
+
+  'picture.brand': 'Atomes',
+  'picture.period': (year?: string) => `Mes lectures · ${year ?? 'Depuis toujours'}`,
+  'picture.read': (count: number) => (count > 1 ? 'lus' : 'lu'),
+  'picture.added': (count: number) => `${count > 1 ? 'ajoutés' : 'ajouté'} à ma bibliothèque`,
+  'picture.followed': (count: number) => (count > 1 ? 'Séries suivies' : 'Série suivie'),
+  'picture.made-with': 'Fait avec Atomes',
+  'picture.filters': (filters: string[]) => filters.join(' · '),
+  'picture.alt': (read: number, year: string | undefined, added: number, followed: number, names: string[], filters: string[]) =>
+    `Image : ${number(read)} ${read > 1 ? 'lus' : 'lu'} ${year ? `en ${year}` : 'au total'}, ${number(added)} ${added > 1 ? 'ajoutés' : 'ajouté'}, ` +
+    `${number(followed)} ${followed > 1 ? 'séries suivies' : 'série suivie'}.` +
+    (filters.length > 0 ? ` Filtres : ${filters.join(', ')}.` : '') +
+    (names.length > 0 ? ` Les plus lus : ${names.join(', ')}.` : ''),
+  'share.format': 'Format',
+  'share.story': 'Story',
+  'share.square': 'Carré',
+  'share.names': 'Noms des séries',
+  'share.send': 'Partager l’image',
+  'share.download': 'Télécharger',
+  'share.note': 'Faite sur cet appareil. Rien n’est publié, rien ne part sur le serveur.',
+  'share.failed': 'Le partage ne s’est pas ouvert. Téléchargez l’image à la place.',
+  'share.not-drawn': 'Ce navigateur n’a pas pu dessiner l’image.',
 
   'privacy.title': 'Politique de confidentialité',
   'privacy.intro':

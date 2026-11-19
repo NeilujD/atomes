@@ -293,7 +293,7 @@ describe('Editions added to To Buy by hand', () => {
     await deleteToBuy(space, remove!);
     await deleteToBuy(space, '9782266320481');
 
-    expect(stored(copyCollection).map(({ value }) => value)).toEqual([{ $type: copyCollection, isbn: isbns[4], works: ['wd:Q2000005'], createdAt: now.toISOString() }]);
+    expect(stored(copyCollection).map(({ value }) => value)).toEqual([{ $type: copyCollection, isbn: isbns[4], works: ['wd:Q2000005'], acquiredAt: '2026-11-10T00:00:00.000Z', createdAt: now.toISOString() }]);
     expect(stored(toBuyCollection)).toEqual([]);
     expect(toBuyList((await loadLibrary(space)).library, lines, editions, 'en').byHand).toEqual([]);
   });

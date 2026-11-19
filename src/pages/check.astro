@@ -159,7 +159,7 @@ const answers = [
   import type { Edition } from '../lib/catalog/catalog';
   import { coverUrl, lookupEdition, lookupVolumes } from '../lib/catalog/client';
   import { deviceCatalog } from '../lib/catalog/device';
-  import { saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
+  import { quickAddCopy, saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
   import { editionWork, readIsbn } from '../lib/library/ids';
   import { cameraProblem, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
   import { reportNetwork, reportWaiting } from '../lib/connection';
@@ -588,10 +588,9 @@ const answers = [
     try {
       const now = new Date();
       const { isbn, work } = current;
-      const copy = { isbn, works: [work], ...(typedBook && { details: typedBook }), createdAt: now.toISOString() };
       const states: WriteState[] = [];
-      states.push((await saveCopy(space, copy)).state);
-      const change = chosen && statusChange(work, isbn, chosen, library, now);
+      states.push((await saveCopy(space, quickAddCopy({ isbn, work, details: typedBook }, now))).state);
+      const change = chosen && statusChange(work, isbn, chosen, library, now, { dated: true });
       if (change) states.push(await saveReadingStatus(space, change));
       const follow = chosen && followOnRead(current.edition, chosen, library, now);
       if (follow) states.push(await saveFollow(space, follow));

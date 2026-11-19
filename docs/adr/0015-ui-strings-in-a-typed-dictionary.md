@@ -16,7 +16,7 @@ The UI was English with its text written in the code. The first readers are Fren
 - The server renders each page, so the server chooses the language: the Settings choice (cookie `atomes-language`), else the first language the browser sends (`Accept-Language`, the same as `navigator.language`), else English. It writes the language on `<html lang>`.
 - Astro frontmatter uses `translator(requestLanguage(Astro.request))`. Page scripts and the modules they use import `t`, which reads `<html lang>` (English when there is no page, as in Node tests).
 - A change in Settings reloads the page. Offline, the service worker serves the last copy of a page, in the language it had then.
-- The JSON error messages of `/api/catalog` stay English: they are for programs, not screens. The development page `/dev/series-reset` stays English.
+- The JSON error messages of `/api/catalog` stay English: they are for programs, not screens. The development pages `/dev/series-reset` and `/dev/charts` (`src/pages/dev/charts.astro`, its sample data in `src/islands/charts/ChartsSample.tsx`) stay English.
 
 ## Considered Options
 

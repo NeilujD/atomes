@@ -1,0 +1,324 @@
+---
+// Statistics (ADR 0019): the numbers of a period, with its filters
+// (src/islands/Statistics.tsx). Rendered on the device: it reads the Library,
+// so it opens offline. The cobalt glow behind the title and the lead number is
+// drawn here, on the server, so it shows before the island (ui-direction Q9).
+import AppShell from '../layouts/AppShell.astro';
+import '../styles/glow.css';
+import '../styles/charts.css';
+import '../styles/share-picture.css';
+import Icon from '../components/Icon.astro';
+import Statistics, { StatisticsSkeleton } from '../islands/Statistics';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
+---
+
+<AppShell title={t('stats.title')} current="statistics">
+  <!-- The main action of the screen (filled cobalt): it opens the share
+       dialog (src/islands/SharePicture.tsx), which enables it once the island
+       has drawn (ui-direction: Before the scripts run). -->
+  <button slot="actions" class="button button-main" type="button" disabled data-statistics-share>
+    <Icon name="share" />
+    {t('stats.share')}
+  </button>
+  <div class="stats-page">
+    <div class="glow stats-glow" aria-hidden="true">
+      <div class="glow-blob glow-b1 stats-b1"></div>
+      <div class="glow-blob glow-b2 stats-b2"></div>
+      <div class="glow-blob glow-b3 stats-b3"></div>
+    </div>
+    <Statistics client:only="preact">
+      <StatisticsSkeleton slot="fallback" />
+    </Statistics>
+  </div>
+</AppShell>
+
+<style is:global>
+  /* Global: the island renders on the device, outside this page's scoped styles. */
+  .stats-page {
+    position: relative;
+  }
+
+  /* The glow (Q9), as on Home: cobalt blobs behind the title and the lead number. */
+  .stats-glow {
+    --tone: var(--accent-fill);
+    --tone-deep: var(--accent);
+    z-index: -1;
+    inset: calc(var(--glow-unit) * -14) calc(var(--space-20) * -1) auto;
+    height: calc(var(--glow-unit) * 34);
+    overflow: hidden;
+    /* Only the alpha of a mask counts: full ink is opaque in both themes. */
+    mask-image: linear-gradient(var(--ink) var(--glow-stop-3), transparent);
+  }
+
+  .stats-b1 {
+    left: calc(var(--glow-unit) * -9);
+    top: calc(var(--glow-unit) * -6);
+    width: calc(var(--glow-unit) * 30);
+    height: calc(var(--glow-unit) * 30);
+  }
+
+  .stats-b2 {
+    right: calc(var(--glow-unit) * -10);
+    top: calc(var(--glow-unit) * 2);
+    width: calc(var(--glow-unit) * 24);
+    height: calc(var(--glow-unit) * 24);
+  }
+
+  .stats-b3 {
+    left: calc(var(--glow-unit) * 12);
+    top: calc(var(--glow-unit) * 10);
+    width: calc(var(--glow-unit) * 18);
+    height: calc(var(--glow-unit) * 18);
+  }
+
+  .stats {
+    /* Sizes this screen names once. */
+    --hero: 64px;
+    --stats-skeleton-tile: 72px;
+    --stats-skeleton-chart: 220px;
+    max-width: var(--page-width);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-24);
+  }
+
+  .stats-message {
+    color: var(--text-quiet);
+  }
+
+  /* The period chips, then the filters: a "Filter" button on the phone, the chips on desktop. */
+  .stats-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-8);
+  }
+
+  .stats-periods {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: var(--space-6);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .stats-periods .chip {
+    flex: none;
+  }
+
+  .stats-filter-button {
+    flex: none;
+    gap: var(--space-6);
+    min-height: var(--pill-height);
+    padding: 0 var(--space-12);
+    border-radius: var(--radius-pill);
+    font-size: var(--type-small);
+  }
+
+  .stats-badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: var(--badge-height);
+    height: var(--badge-height);
+    padding: 0 var(--space-6);
+    border-radius: var(--radius-pill);
+    background: var(--ink);
+    color: var(--surface);
+    font-size: var(--type-badge);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stats-filters-wide {
+    display: none;
+  }
+
+  .stats-filter-chips,
+  .stats-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-6);
+  }
+
+  .stats-filter-chips {
+    gap: var(--space-12);
+  }
+
+  .stats-filter-name {
+    color: var(--text-quiet);
+    font-size: var(--type-chip);
+  }
+
+  /* Phone: the filters in a sheet from the bottom, as the Library's. */
+  .stats-sheet {
+    inset: auto 0 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: var(--space-20) var(--space-20) max(var(--space-20), env(safe-area-inset-bottom));
+    border: 0;
+    border-top: var(--hairline) solid var(--line);
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  .stats-sheet[open] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-20);
+  }
+
+  .stats-sheet::backdrop {
+    background: var(--scrim);
+  }
+
+  .stats-sheet .stats-filter-chips {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* The lead number, then the tiles. */
+  .stats-lead {
+    display: grid;
+    gap: var(--space-16);
+  }
+
+  .stats-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-12);
+    margin: 0;
+  }
+
+  .stats-hero-value {
+    font-size: var(--hero);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: var(--tracking-tight);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stats-hero-label {
+    color: var(--text-quiet);
+    font-size: var(--type-body);
+  }
+
+  .stats-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-8);
+  }
+
+  /* With "Pages read", four tiles: two rows of two. */
+  .stats-tiles:has(> :nth-child(4)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Empty state: no read has a day yet. */
+  .stats-empty {
+    margin: 0;
+    padding: var(--space-16);
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+  }
+
+  .stats-pair {
+    display: grid;
+    gap: var(--space-24);
+  }
+
+  .stats-loans {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+  }
+
+  .stats-numbers {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-8);
+    margin: 0;
+  }
+
+  .stats-numbers div {
+    display: flex;
+    flex-direction: column-reverse;
+    /* The numbers on one line, when a label takes two. */
+    justify-content: flex-end;
+    gap: var(--space-4);
+  }
+
+  .stats-numbers dt {
+    color: var(--text-quiet);
+    font-size: var(--type-chip);
+    line-height: 1.3;
+  }
+
+  .stats-numbers dd {
+    margin: 0;
+    font-size: var(--type-heading);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The foot line: what has no date, and the way to add it. */
+  .stats-undated {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-8) var(--space-16);
+    margin: 0;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+  }
+
+  .stats-undated a {
+    color: var(--ink);
+    text-decoration-color: var(--line-link);
+    text-underline-offset: var(--space-4);
+  }
+
+  .stats-skeleton-hero {
+    width: 40%;
+    height: var(--hero);
+  }
+
+  .stats-skeleton-tile {
+    height: var(--stats-skeleton-tile);
+  }
+
+  .stats-skeleton-chart {
+    height: var(--stats-skeleton-chart);
+  }
+
+  @media (min-width: 960px) {
+    /* Over the panel: its own stacking context, so the glow stays on the panel and under the sticky view header. */
+    .stats-page {
+      isolation: isolate;
+    }
+
+    .stats-glow {
+      inset: calc(var(--space-24) * -1) calc(var(--space-24) * -1) auto;
+      height: calc(var(--glow-unit) * 28);
+    }
+
+    .stats-filter-button {
+      display: none;
+    }
+
+    .stats-filters-wide {
+      display: block;
+      margin-left: auto;
+    }
+
+    .stats-pair {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+</style>

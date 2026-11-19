@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { Edition } from '../lib/catalog/catalog';
 import { copyCollection, saveCopy } from '../lib/library/copy';
 import { saveFollow } from '../lib/library/follow';
@@ -67,7 +67,10 @@ function addByIsbn(typed: string) {
   return sheet;
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('To Buy screen', () => {
   test('shows the Volumes the reader does not own in a Followed Series, and the Edition added by hand', async () => {
@@ -100,14 +103,18 @@ describe('To Buy screen', () => {
     expect(group(followed).getByRole('link', { name: 'Open the Series page' }).getAttribute('href')).toBe(`/series?isbn=${isbns[1]}`);
   });
 
-  test('"I bought it" on a Volume adds the Copy, and the Volume leaves the list', async () => {
+  test('"I bought it" on a Volume adds the Copy, got today, and the Volume leaves the list', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 18, 23, 30));
     const { stored } = await screenWithLibrary();
     await openSeries('Blacksad · 3 Volumes (2, 4–5)');
 
     fireEvent.click(within(row(followed, 'Volume 2')).getByRole('button', { name: 'I bought it' }));
 
     expect(await screen.findByRole('button', { name: 'Blacksad · 2 Volumes (4–5)' })).toBeTruthy();
-    expect(stored(copyCollection).map(({ value }) => (value as { isbn: string }).isbn)).toContain(isbns[1]);
+    const copy = stored(copyCollection).find(({ value }) => (value as { isbn: string }).isbn === isbns[1]);
+    // The day on the reader's device, as Quick Add writes it (ADR 0019).
+    expect(copy?.value).toMatchObject({ acquiredAt: '2026-11-18T00:00:00.000Z' });
   });
 
   test('the first group is at the top: adding by ISBN waits in a sheet', async () => {

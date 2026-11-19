@@ -852,7 +852,16 @@ button.chip {
   pointer-events: none;
 }
 
-/* A checkbox drawn as a switch: ink when on. */
+/*
+ * A checkbox drawn as a switch: ink when on. No tap highlight: Chrome on
+ * Android flashes a light square over the round switch (or its label) at
+ * each tap; the moving knob is the feedback.
+ */
+label:has(> .switch),
+.switch {
+  -webkit-tap-highlight-color: transparent;
+}
+
 .switch {
   appearance: none;
   flex: none;

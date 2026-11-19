@@ -4,6 +4,9 @@
 
 type TileState = 'read' | 'owned' | 'missing' | 'read-not-owned';
 
+// A count in a sentence, as the language writes it (Intl).
+const number = (value: number) => new Intl.NumberFormat('en').format(value);
+
 export const en = {
   // Frame (AppShell, ConnectionStatus, toasts)
   'nav.main': 'Main',
@@ -14,6 +17,7 @@ export const en = {
   'nav.library': 'Library',
   'nav.new': 'New & upcoming',
   'nav.to-buy': 'To Buy',
+  'nav.statistics': 'Statistics',
   'nav.check': 'Check',
   'nav.settings': 'Settings',
   'nav.you': 'You',
@@ -142,6 +146,7 @@ export const en = {
   'home.owned-unread': 'Owned, not read yet',
   'home.reading': 'Reading now',
   'home.empty': 'Nothing here yet.',
+  'home.year': (year: number) => `Statistics ${year}`,
 
   // Settings
   'settings.title': 'Settings',
@@ -187,6 +192,8 @@ export const en = {
   'settings.language': 'Language',
   'settings.on-this-device': 'Kept on this device.',
   'settings.your-data': 'Your data',
+  'settings.reading': 'Your reading',
+  'settings.statistics-hint': 'What you read and added, by month and by year.',
   'settings.privacy': 'Privacy notice',
   'settings.privacy-hint': 'What this instance keeps, who can read it, and your rights.',
   'settings.export': 'Export my Library',
@@ -303,13 +310,17 @@ export const en = {
   'book.add-a-book': 'Add a book',
   'book.add-this-book': 'Add this book',
   'book.reading-status': 'Reading Status',
+  'book.started-on': 'Started on',
   'book.finished-on': 'Finished on',
+  'book.finished-before-started': 'The finish day cannot be before the start day.',
   'book.optional': 'Optional',
   'book.copies': 'Your Copies',
   'book.no-copies': 'You have no Copy of this book.',
   'book.add-copy': 'Add another Copy',
   // The main action of the Book page while the reader has no Copy of the Work.
   'book.add-first-copy': 'Add a Copy',
+  'book.got-on': 'Got on',
+  'book.got-on-copy': (isbn: string) => `Got on, Copy with ISBN ${isbn}`,
   'book.remove': 'Remove',
   'book.remove-copy': (isbn: string) => `Remove the Copy with ISBN ${isbn}`,
   'book.lend-to': 'Lend to',
@@ -582,6 +593,97 @@ export const en = {
   'select.moved': (count: number) => `${count} ${count === 1 ? 'book' : 'books'} moved. Every reader sees it.`,
   'select.unchanged': 'Nothing to change.',
   'select.undone': 'Undone.',
+
+  // The chart parts of Statistics (src/islands/charts/, ADR 0019).
+  'chart.table': 'Table',
+  'chart.legend': 'Legend',
+  'chart.month': 'Month',
+  'chart.year': 'Year',
+  'chart.figure': (label: string, figure: string) => `${label} ${figure}`,
+  'chart.group': (name: string, figures: string[]) => `${name}: ${figures.join(', ')}`,
+
+  // The Statistics screen (src/islands/Statistics.tsx, ADR 0019).
+  'stats.title': 'Statistics',
+  'stats.share': 'Share',
+  'stats.period': 'Period',
+  'stats.all-time': 'All time',
+  'stats.filter': 'Filter',
+  'stats.filters-on': (count: number) => `${count} ${count === 1 ? 'filter' : 'filters'} on`,
+  'stats.label': 'Label',
+  'stats.owned-only': 'Owned only',
+  'stats.done': 'Done',
+  'stats.in-short': 'In short',
+  // After the lead number; no year: All time.
+  'stats.read-in': (_count: number, year?: string) => (year ? `read in ${year}` : 'read in all'),
+  'stats.added': 'Added',
+  'stats.reading': 'Reading',
+  'stats.owned-unread': 'Owned, not read yet',
+  // Some books read in the period have no page count in the Catalog.
+  'stats.pages-read': 'Pages read',
+  'stats.pages-read-at-least': 'Pages read, at least',
+  'stats.read': 'Read',
+  'stats.by-month': 'Read and added, by month',
+  'stats.by-year': 'Read and added, by year',
+  'stats.most-read': 'Most read',
+  'stats.most-read-by': 'Most read by',
+  'stats.dimension.series': 'Series',
+  'stats.dimension.authors': 'Authors',
+  'stats.dimension.labels': 'Labels',
+  'stats.dimension.publishers': 'Publishers',
+  'stats.outside.series': (count: number) => `${number(count)} ${count === 1 ? 'book read is' : 'books read are'} in no Series.`,
+  'stats.outside.authors': (count: number) => `${number(count)} ${count === 1 ? 'book read has' : 'books read have'} no author.`,
+  'stats.outside.labels': (count: number) => `${number(count)} ${count === 1 ? 'book read has' : 'books read have'} no Label.`,
+  'stats.outside.publishers': (count: number) => `${number(count)} ${count === 1 ? 'book read has' : 'books read have'} no known publisher.`,
+  'stats.most-read-none': 'No book read in this period.',
+  'stats.library-today': 'Your Library today',
+  'stats.status': 'Reading Status',
+  'stats.works': 'Works',
+  'stats.owned-line': (copies: number, series: number, readNotOwned: number) =>
+    `${number(copies)} ${copies === 1 ? 'Copy' : 'Copies'} owned, in ${number(series)} Series.` +
+    (readNotOwned > 0 ? ` ${number(readNotOwned)} more read and not owned.` : ''),
+  'stats.loans': 'Loans',
+  'stats.lent-now': 'Lent now',
+  'stats.loans-in': (year: string) => `Loans in ${year}`,
+  'stats.loans-all': 'Loans, all time',
+  'stats.average-days': 'Days, on average',
+  'stats.no-average': '–',
+  'stats.undated': (reads: number, copies: number) => {
+    const read = `${number(reads)} ${reads === 1 ? 'book read' : 'books read'}`;
+    const got = `${number(copies)} ${copies === 1 ? 'Copy' : 'Copies'}`;
+    const both = reads > 0 && copies > 0;
+    const named = both ? `${read} and ${got}` : reads > 0 ? read : got;
+    return `${named} ${both || reads + copies > 1 ? 'have' : 'has'} no date. ${both || reads + copies > 1 ? 'They count' : 'It counts'} in the totals, not by month.`;
+  },
+  'stats.add-dates': 'Add dates',
+  'stats.empty':
+    'No book read has a finish day yet, so no read shows by month. Mark a book read on its Book page and Atomes keeps the day; for a book you read before, type the day you finished it there.',
+
+  // The share picture (src/lib/library/share-picture.ts) and its dialog (src/islands/SharePicture.tsx).
+  'picture.brand': 'Atomes',
+  // No year: All time.
+  'picture.period': (year?: string) => `My reading · ${year ?? 'All time'}`,
+  // The count: French inflects these words, English does not.
+  /* eslint-disable @typescript-eslint/no-unused-vars -- the type of every language takes the count */
+  'picture.read': (_count: number) => 'read',
+  'picture.added': (_count: number) => 'added to my Library',
+  'picture.followed': (_count: number) => 'Series followed',
+  /* eslint-enable @typescript-eslint/no-unused-vars */
+  'picture.made-with': 'Made with Atomes',
+  // The filters on, under the period: the name of the Label, "Owned only".
+  'picture.filters': (filters: string[]) => filters.join(' · '),
+  'picture.alt': (read: number, year: string | undefined, added: number, followed: number, names: string[], filters: string[]) =>
+    `Picture: ${number(read)} read ${year ? `in ${year}` : 'in all'}, ${number(added)} added, ${number(followed)} Series followed.` +
+    (filters.length > 0 ? ` Filters: ${filters.join(', ')}.` : '') +
+    (names.length > 0 ? ` Most read: ${names.join(', ')}.` : ''),
+  'share.format': 'Format',
+  'share.story': 'Story',
+  'share.square': 'Square',
+  'share.names': 'Series names',
+  'share.send': 'Share the picture',
+  'share.download': 'Download',
+  'share.note': 'Made on this device. Nothing is published, and nothing goes to the server.',
+  'share.failed': 'The share sheet did not open. Download the picture instead.',
+  'share.not-drawn': 'This browser could not draw the picture.',
 
   // Privacy notice (src/pages/privacy.astro, CORE-55), approved by the owner on
   // 2026-11-16. A change to it needs the owner's approval and a new date.

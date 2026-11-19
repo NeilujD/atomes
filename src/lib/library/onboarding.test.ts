@@ -148,6 +148,16 @@ describe('Series Onboarding from an omnibus', () => {
   });
 });
 
+describe('Series Onboarding writes no day on its Copies', () => {
+  test('the Volumes were got before: no Copy holds the day the reader got it', () => {
+    const onboarding = seriesOnboarding(volume(1), volumes, library());
+    const save = onboardingSave(onboarding, library(), { ...onboarding.start, ownedUpTo: 3 }, now);
+
+    expect(save.copies).toHaveLength(3);
+    expect(save.copies.map((copy) => copy.acquiredAt)).toEqual([undefined, undefined, undefined]);
+  });
+});
+
 describe('Series Onboarding choices', () => {
   // Quick Add just saved Volume 1, read.
   const afterQuickAdd = library({ copies: [copyOf(1)], readingStatuses: [readOf(1)] });
@@ -276,6 +286,20 @@ describe('Series Onboarding choices', () => {
     expect(onboardingSave(some, before, { ...some.start, ownedUpTo: 2, readUpTo: 2 }, now).readingStatuses.map(({ isbn }) => isbn)).toEqual([
       isbns[0],
       isbns[1],
+    ]);
+  });
+
+  test('Series Onboarding is not dated: a Volume marked read gets no day, and a start day is kept (ADR 0019)', () => {
+    const started = readOf(2, 'reading');
+    started.value.startedAt = '2026-10-01T00:00:00.000Z';
+    const before = library({ copies: [copyOf(1)], readingStatuses: [started] });
+    const some = seriesOnboarding(volume(1), volumes, before);
+
+    const saved = onboardingSave(some, before, { ...some.start, ownedUpTo: 2, readUpTo: 2 }, now).readingStatuses;
+
+    expect(saved.map(({ isbn, startedAt, finishedAt }) => [isbn, startedAt, finishedAt])).toEqual([
+      [isbns[0], undefined, undefined],
+      [isbns[1], '2026-10-01T00:00:00.000Z', undefined],
     ]);
   });
 

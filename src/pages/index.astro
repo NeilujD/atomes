@@ -150,6 +150,61 @@ const t = translator(requestLanguage(Astro.request));
     text-decoration: underline;
   }
 
+  /* The card of the year: a link to Statistics, in ink (charts take no colour, ADR 0019). */
+  .home-year {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-12);
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .home-year-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-8);
+  }
+
+  .home-year-chevron {
+    flex: none;
+    width: var(--icon-size-inline);
+    height: var(--icon-size-inline);
+    stroke-width: var(--icon-stroke);
+    color: var(--text-quiet);
+  }
+
+  .home-year-numbers {
+    display: flex;
+    gap: var(--space-28);
+    margin: 0;
+  }
+
+  /* The number over its label; a screen reader reads the label first (as a Tile). */
+  .home-year-numbers > div {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: var(--space-4);
+  }
+
+  .home-year-numbers dt {
+    color: var(--text-quiet);
+    font-size: var(--type-chip);
+  }
+
+  .home-year-numbers dd {
+    margin: 0;
+    font-size: var(--type-title);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: var(--tracking-tight);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .home-year:hover .small-heading {
+    text-decoration: underline;
+  }
+
   @media (min-width: 960px) {
     /* Over the panel: its own stacking context, so the glow stays on the panel and under the sticky view header. */
     .home-page {

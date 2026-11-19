@@ -20,7 +20,7 @@ export const sourceUrls = {
   sudocRecord: (ppn: string) => `https://www.sudoc.fr/${ppn}.xml`,
   inventaire: (uri: string) => `https://inventaire.io/api/entities?action=by-uris&uris=${encodeURIComponent(uri)}`,
   openLibrary: (isbn: string) =>
-    `https://openlibrary.org/search.json?isbn=${isbn}&fields=key,title,cover_i,series_key,series_name,series_position`,
+    `https://openlibrary.org/search.json?isbn=${isbn}&fields=key,title,cover_i,series_key,series_name,series_position,number_of_pages_median`,
 };
 
 // 404 means "not known here"; any other failure is an error, so the Catalog
@@ -154,7 +154,15 @@ export async function inventaireEditions(fetch: SourceFetch, wanted: string[]): 
   return found;
 }
 
-type OpenLibraryDoc = { title?: string; cover_i?: number; series_key?: string[]; series_name?: string[]; series_position?: string[] };
+type OpenLibraryDoc = {
+  title?: string;
+  cover_i?: number;
+  series_key?: string[];
+  series_name?: string[];
+  series_position?: string[];
+  // The median of the page counts of the Editions of the Work it finds.
+  number_of_pages_median?: number;
+};
 
 export async function openLibrary(fetch: SourceFetch, isbn: string): Promise<Facts | undefined> {
   const response = await read(fetch, sourceUrls.openLibrary(isbn));
@@ -167,6 +175,8 @@ export async function openLibrary(fetch: SourceFetch, isbn: string): Promise<Fac
     cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : undefined,
     series: seriesId && isSeriesId(seriesId) ? { id: seriesId, title: doc.series_name?.[0] } : undefined,
     volumes: volumeNumbers(doc.series_position?.[0]),
+    // A median of other Editions: the last fallback, as fetchFacts puts Open Library after BnF and SUDOC.
+    pages: doc.number_of_pages_median || undefined,
   };
 }
 
