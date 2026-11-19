@@ -141,6 +141,24 @@ export function landingPage(env: Record<string, string | undefined>): boolean {
   return env.LANDING_PAGE?.trim() !== 'off';
 }
 
+// The facts of the Legal notice (/legal) that change with each instance:
+// LEGAL_PUBLISHER (who publishes it), LEGAL_CONTACT (how to reach them) and
+// LEGAL_HOST (the host's company name, postal address and phone). Free text,
+// shown as given; a missing one shows as not given on the page.
+export interface LegalFacts {
+  publisher?: string;
+  contact?: string;
+  host?: string;
+}
+
+export function legalFacts(env: Record<string, string | undefined>): LegalFacts {
+  return {
+    publisher: env.LEGAL_PUBLISHER?.trim() || undefined,
+    contact: env.LEGAL_CONTACT?.trim() || undefined,
+    host: env.LEGAL_HOST?.trim() || undefined,
+  };
+}
+
 // The https origin readers open, as given: the preview URL on a Coolify pull
 // request preview, else PUBLIC_APP_ORIGIN. Undefined in local development.
 function givenOrigin(env: Record<string, string | undefined>): string | undefined {

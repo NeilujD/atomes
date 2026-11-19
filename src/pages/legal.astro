@@ -7,12 +7,20 @@
 import Notice from '../components/Notice.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
+import { legalFacts } from '../lib/server/settings';
 
 const t = translator(requestLanguage(Astro.request));
+// Who publishes and hosts this instance: its own settings (LEGAL_*), so a
+// self-hosted instance never names the publisher of another.
+const { publisher, contact, host } = legalFacts(process.env);
+const notGiven = (...names: (string | false)[]) => t('legal.not-set', names.filter(Boolean).join(', '));
 
 const sections = [
-  { heading: t('legal.publisher-heading'), texts: [t('legal.publisher')] },
-  { heading: t('legal.host-heading'), texts: [t('legal.host')] },
+  {
+    heading: t('legal.publisher-heading'),
+    texts: [publisher && contact ? t('legal.publisher', publisher, contact) : notGiven(!publisher && 'LEGAL_PUBLISHER', !contact && 'LEGAL_CONTACT')],
+  },
+  { heading: t('legal.host-heading'), texts: [host ?? notGiven('LEGAL_HOST')] },
   { heading: t('legal.software-heading'), texts: [t('legal.software')] },
   { heading: t('legal.content-heading'), texts: [t('legal.content')] },
 ];

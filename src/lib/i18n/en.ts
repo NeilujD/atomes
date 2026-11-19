@@ -719,13 +719,15 @@ export const en = {
   'legal.title': 'Legal notice',
   'legal.intro': 'French law (loi n° 2004-575 of 21 June 2004, article 1-1) asks every public website to say who publishes it and who hosts it.',
   'legal.publisher-heading': 'Who publishes this site',
-  'legal.publisher': 'Julien Collard, a private person, publishes this Atomes instance and is its director of publication. Contact: julien.collard14@gmail.com.',
+  // The publisher, their contact and the host are settings of the instance (LEGAL_*, settings.ts).
+  'legal.publisher': (publisher: string, contact: string) =>
+    `${publisher} publishes this Atomes instance and is its director of publication. Contact: ${contact}.`,
   'legal.host-heading': 'Who hosts it',
-  'legal.host': '[Host: company name, postal address and phone number. To fill in before publication.]',
+  'legal.not-set': (settings: string) => `Not given yet by the operator of this instance (${settings}).`,
   'legal.software-heading': 'The software',
   'legal.software': 'Atomes is open-source software under the GNU AGPL-3.0 license. Its source code is public: github.com/NeilujD/atomes.',
   'legal.content-heading': 'Book covers and book facts',
-  'legal.content': 'Book covers belong to their publishers and only illustrate the books of your Library. Book facts come from BnF, SUDOC (ABES), Inventaire, Open Library and Wikidata, under their own licenses. To ask for a cover or a text to be removed, write to julien.collard14@gmail.com.',
+  'legal.content': 'Book covers belong to their publishers and only illustrate the books of your Library. Book facts come from BnF, SUDOC (ABES), Inventaire, Open Library and Wikidata, under their own licenses. To ask for a cover or a text to be removed, write to the contact above.',
   'legal.updated': 'Last change: 19 November 2026.',
 
   // Landing page (src/pages/welcome.astro, src/layouts/Landing.astro; M12, CORE-159).
