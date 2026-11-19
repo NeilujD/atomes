@@ -558,8 +558,10 @@ docker run -d -p 4321:4321 -v atomes-data:/data \
     font-weight: 600;
   }
 
+  /* Each frame keeps the height of its picture: the second one starts lower, and a stretched first frame showed an empty tail. */
   .shelf-shots {
     display: flex;
+    align-items: flex-start;
     justify-content: center;
     gap: var(--space-20);
   }
