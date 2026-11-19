@@ -127,7 +127,13 @@ describe('the share dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Share the picture' }));
     expect(shared).toEqual([]);
     const download = screen.getByRole('link', { name: 'Download' });
-    expect([download.hasAttribute('href'), download.getAttribute('aria-disabled')]).toEqual([false, null]);
+    // The link keeps every attribute (a link that loses its href blinks in Safari), and a tap saves nothing.
+    expect([download.getAttribute('href'), download.getAttribute('download'), download.getAttribute('aria-disabled')]).toEqual([
+      'blob:picture',
+      'atomes-2026-story.png',
+      null,
+    ]);
+    expect(fireEvent.click(download)).toBe(false);
     expect([canvas.getAttribute('width'), canvas.getAttribute('height')]).toEqual(['1080', '1920']);
     expect(canvas.hasAttribute('data-ready')).toBe(false);
 

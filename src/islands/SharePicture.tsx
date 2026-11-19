@@ -41,8 +41,8 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
   const [names, setNames] = useState(true);
   const [picture, setPicture] = useState<Picture | null>(null);
   // The picture of a new choice is being made: the last one stays on screen
-  // meanwhile, and the buttons keep their place and look, so nothing jumps;
-  // they do nothing until the new PNG is ready.
+  // meanwhile, and the buttons keep their place, look and attributes, so
+  // nothing jumps or blinks; they do nothing until the new PNG is ready.
   const [making, setMaking] = useState(false);
   const [failed, setFailed] = useState<'share' | 'draw' | null>(null);
   const choice: PictureChoice = { numbers, period, filters, format, language: pageLanguage(), names };
@@ -184,12 +184,15 @@ export function SharePicture({ numbers, period, filters, make = live }: SharePic
         {/* Download always: the main action where the browser cannot share a file. */}
         <a
           class={shareable ? 'button' : 'button button-main'}
-          // While the next picture is made, no href: a tap saves no old picture.
-          href={ready?.url}
-          download={ready?.file.name}
+          // While the next picture is made, the link keeps the last one, so
+          // nothing on it changes (a link that loses its href blinks in
+          // Safari), and a tap saves nothing.
+          href={picture?.url}
+          download={picture?.file.name}
+          onClick={(event) => ready || event.preventDefault()}
           // Dimmed only before the first picture: a dim at each choice would blink.
           aria-disabled={picture ? undefined : 'true'}
-          role={ready ? undefined : 'link'}
+          role={picture ? undefined : 'link'}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 15V3" />
