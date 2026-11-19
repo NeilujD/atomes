@@ -80,9 +80,9 @@
 }
 
 @media (max-width: 959.98px) {
-  /* The new page covers the whole screen, so the old one does not show under it. */
+  /* The new page covers the whole screen, so the old one does not show under it
+     (its height: AppShell, phone frame). */
   [data-frame='panel'] {
-    min-height: 100dvh;
     background: var(--ground);
   }
 
