@@ -687,7 +687,7 @@ export const en = {
   'share.not-drawn': 'This browser could not draw the picture.',
 
   // Privacy notice (src/pages/privacy.astro, CORE-55), approved by the owner on
-  // 2026-11-16. A change to it needs the owner's approval and a new date.
+  // 2026-11-19 (CORE-162). A change to it needs the owner's approval and a new date.
   'privacy.title': 'Privacy notice',
   'privacy.intro': 'This page tells what this Atomes instance keeps about you, who can read it, and how to take it with you or delete it.',
   'privacy.operator-heading': 'Who is responsible',
@@ -719,8 +719,8 @@ export const en = {
   'privacy.rights-backups': 'The encrypted backups still hold it for up to 30 days.',
   'privacy.requests': 'For any other request, write to the contact above.',
   'privacy.updated': 'Last change: 19 November 2026.',
-  // Legal notice (src/pages/legal.astro, CORE-160). DRAFT: the owner approves
-  // the text and gives the host's facts before the Landing page goes public (CORE-162).
+  // Legal notice (src/pages/legal.astro, CORE-160), approved by the owner on
+  // 2026-11-19 (CORE-162). A change to it needs the owner's approval and a new date.
   'legal.title': 'Legal notice',
   'legal.intro': 'French law (loi n° 2004-575 of 21 June 2004, article 1-1) asks every public website to say who publishes it and who hosts it.',
   'legal.publisher-heading': 'Who publishes this site',

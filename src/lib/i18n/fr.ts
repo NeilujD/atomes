@@ -703,8 +703,8 @@ export const fr: typeof en = {
   'privacy.rights-backups': 'Les sauvegardes chiffrées la gardent encore 30 jours au plus.',
   'privacy.requests': 'Pour toute autre demande, écrivez au contact ci-dessus.',
   'privacy.updated': 'Dernière modification : 19 novembre 2026.',
-  // Legal notice (src/pages/legal.astro, CORE-160). DRAFT: the owner approves
-  // the text and gives the host's facts before the Landing page goes public (CORE-162).
+  // Legal notice (src/pages/legal.astro, CORE-160), approved by the owner on
+  // 2026-11-19 (CORE-162). A change to it needs the owner's approval and a new date.
   'legal.title': 'Mentions légales',
   'legal.intro': 'La loi (loi n° 2004-575 du 21 juin 2004, article 1-1) demande à chaque site public de dire qui l’édite et qui l’héberge.',
   'legal.publisher-heading': 'Qui édite ce site',
