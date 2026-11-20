@@ -136,7 +136,9 @@ describe('the gate', () => {
       const response = await call(undefined, method, path, {});
       expect(response.status).toBe(404);
       expect(response.headers.get('location')).toBeNull();
-      expect(response.headers.get('cache-control')).toBe('no-store');
+      // A bare 404: no body and no header of its own, so the app answers as for a path that does not exist.
+      expect(await response.text()).toBe('');
+      expect([...response.headers.keys()]).toEqual([]);
     }
   });
 
@@ -270,10 +272,36 @@ describe('the Admin Log', () => {
 
     const { lines } = (await json(await call(cookie, 'GET', '/api/admin/log'))) as { lines: Body[] };
 
+    // An Admin of now shows by identity, as actor and as target; the script as null.
     expect(lines.map(({ admin, action, target }) => ({ admin, action, target }))).toEqual([
-      { admin: 'test.reader', action: 'role.grant', target: accountReference(target) },
-      { admin: null, action: 'role.grant', target: accountReference(accounts.ofDid(alice)) },
+      { admin: 'test.reader', action: 'role.grant', target: 'test.reader' },
+      { admin: null, action: 'role.grant', target: 'test.reader' },
     ]);
+  });
+
+  test('a former Admin is a reader again: the log and the Admins part name them by Account Reference only', async () => {
+    const first = accounts.ofEmail('first@example.org');
+    roles.grant(first, null);
+    const cookie = asAdmin(alice);
+    signedInEmail('carol@example.org');
+    roles.grant(accounts.ofEmail('carol@example.org'), first);
+    roles.revoke(first, accounts.ofDid(alice));
+
+    const log = await (await call(cookie, 'GET', '/api/admin/log')).text();
+    const admins = (await json(await call(cookie, 'GET', '/api/admin/admins'))) as { admins: Body[] };
+
+    expect(log).not.toContain('first@');
+    expect(log).toContain(accountReference(first));
+    expect(admins.admins.find(({ name }) => name === 'carol@example.org')).toMatchObject({ grantedBy: accountReference(first) });
+  });
+
+  test('a line older than 12 months is not shown, also when no write came since', () => {
+    const admin = createAdminStore(db);
+    const now = Date.UTC(2026, 10, 20, 12);
+    admin.write({ admin: null, action: 'invite.make', target: null, detail: 'kept' }, now);
+
+    expect(admin.log(Date.UTC(2027, 10, 20, 11)).map(({ detail }) => detail)).toEqual(['kept']);
+    expect(admin.log(Date.UTC(2027, 10, 20, 13))).toEqual([]);
   });
 
   test('a deleted Account still shows its Account Reference', async () => {
@@ -639,7 +667,10 @@ describe('add an Account', () => {
     expect(response.status).toBe(409);
     expect(await json(response)).toEqual({ error: 'Exists' });
     expect(outbox).toEqual([]);
-    expect({ accounts: accountCount(), log: logLines().length }).toEqual(before);
+    expect(accountCount()).toBe(before.accounts);
+    // The Admin learned that the address has an Account: one search line, with the Account and no address.
+    expect(logLines().slice(before.log)).toEqual([{ admin: accounts.ofDid(alice), action: 'identity.find', target: accounts.ofEmail('carol@example.org'), detail: null }]);
+    expect(everyValue()).not.toContain('carol@');
   });
 
   test('a text that is not an address, or a language the app does not have, is refused', async () => {
@@ -668,17 +699,18 @@ describe('add an Account', () => {
     warn.mockRestore();
   });
 
-  test('an Admin adds 20 Accounts in one hour at most; another Admin is not held back', async () => {
+  test('an Admin adds 20 Accounts in one hour at most, a try for a known address counts too; another Admin is not held back', async () => {
     const cookie = asAdmin(alice);
     const other = asAdmin(bob);
-    for (let i = 0; i < 20; i++) expect((await add(cookie, `reader${i}@example.org`)).status).toBe(201);
+    for (let i = 0; i < 19; i++) expect((await add(cookie, `reader${i}@example.org`)).status).toBe(201);
+    expect((await add(cookie, 'reader0@example.org')).status).toBe(409);
 
     const over = await add(cookie, 'one-more@example.org');
 
     expect(over.status).toBe(429);
     expect(await json(over)).toEqual({ error: 'TooMany' });
     expect(roles.accountOf('one-more@example.org')).toBeUndefined();
-    expect(outbox).toHaveLength(20);
+    expect(outbox).toHaveLength(19);
     expect((await add(other, 'one-more@example.org')).status).toBe(201);
   });
 });

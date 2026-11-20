@@ -27,7 +27,7 @@ export type LibraryFacts = Omit<AccountFacts, 'corrections' | 'corrections7d' | 
 
 export interface AdminStore {
   // Newest first.
-  log(): LogLine[];
+  log(now?: number): LogLine[];
   write(line: Omit<LogLine, 'at'>, now?: number): void;
   // The Account Reference of every Account of the instance and of every
   // Account the Admin Log names, deleted ones too (8 characters on a collision).
@@ -54,7 +54,7 @@ export interface AdminStore {
 // `db` has run `librarySteps`. Does not close it.
 export function createAdminStore(db: DatabaseSync): AdminStore {
   return {
-    log: () => readLog(db),
+    log: (now) => readLog(db, now),
     write: (line, now) => writeLog(db, line, now),
     references() {
       const rows = db

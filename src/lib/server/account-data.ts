@@ -28,7 +28,6 @@ export interface DeleteDeps {
 
 export interface AccountDataDeps extends DeleteDeps {
   account: AccountId;
-  accounts: Pick<Accounts, 'identitiesOf' | 'forget'>;
   library: Pick<LibraryStore, 'changesSince' | 'forget'>;
 }
 

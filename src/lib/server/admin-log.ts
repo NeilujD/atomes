@@ -45,7 +45,9 @@ export function writeLog(db: DatabaseSync, line: Omit<LogLine, 'at'>, now = Date
   );
 }
 
-// Newest first.
-export function readLog(db: DatabaseSync): LogLine[] {
-  return db.prepare('select at, admin, action, target, detail from admin_action order by at desc, id desc').all() as unknown as LogLine[];
+// Newest first. A line older than 12 months is not read, also when no write has removed it yet.
+export function readLog(db: DatabaseSync, now = Date.now()): LogLine[] {
+  return db
+    .prepare('select at, admin, action, target, detail from admin_action where at >= ? order by at desc, id desc')
+    .all(keptSince(now)) as unknown as LogLine[];
 }

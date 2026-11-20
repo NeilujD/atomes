@@ -57,7 +57,8 @@ const actions = {
                   <span>{actions[line.action]}</span>
                 </th>
                 <td data-label={t('admin.target')} class:list={{ blank: !line.target }}>
-                  {line.target ? <span class="reference">{line.target}</span> : <span class="none">—</span>}
+                  {/* An Account Reference, or the name of an Admin of now. */}
+                  {line.target ? <span class:list={{ reference: line.target.startsWith('A-') }}>{line.target}</span> : <span class="none">—</span>}
                 </td>
                 <td data-label={t('admin.detail')} class:list={['detail', { blank: !line.detail }]}>
                   {line.detail ?? <span class="none">—</span>}

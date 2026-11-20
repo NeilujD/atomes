@@ -45,6 +45,8 @@ const checked: Record<string, string[]> = {
   './selection.css': [],
   './charts.css': [],
   './share-picture.css': [],
+  './admin.css': [],
+  './admin-table.css': [],
   '../pages/sign-in.astro': [],
   '../components/Notice.astro': [],
   '../pages/index.astro': [],

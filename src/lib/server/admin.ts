@@ -3,11 +3,12 @@
 // admin page and each admin API route reads the browser session and the role
 // of its Account from the tables, on every request, so a revoke works at once.
 // Anyone else gets the same 404 as an unknown path, with no redirect: the
-// panel does not show that it exists. Every answer is `no-store`. The
+// panel does not show that it exists. Every answer to an Admin is `no-store`. The
 // middleware refuses a write from another site (security.ts).
 //   GET  /api/admin/accounts      { totals, accounts: AccountRow[] }; ?flagged=1: flagged Accounts only
 //   POST /api/admin/accounts      { email, language } -> 201 { reference, mailSent } | 400 BadAddress | 400 BadLanguage
-//                                 | 409 Exists | 429 TooMany. One mail to the person; no Invite.
+//                                 | 409 Exists (logged as a search) | 429 TooMany (20 tries in one hour).
+//                                 One mail to the person; no Invite.
 //   POST /api/admin/accounts/delete { account, reference } -> 200 { sharedLeft } | 400 WrongReference
 //                                 | 403 OwnAccount | 403 IsAdmin | 409 NoAccount. The full delete of
 //                                 "Delete my account"; `reference` is the Account Reference the Admin typed.
@@ -20,7 +21,7 @@
 //                                 The two answers that name a reader, each after a reason of 3 to 200
 //                                 characters, each written to the Admin Log first. The typed address is never stored.
 //   GET  /api/admin/admins        { admins: AdminRow[] }
-//   POST /api/admin/roles/grant   { email } -> 200 { account } | 400 BadAddress | 422 NoAccount
+//   POST /api/admin/roles/grant   { email } -> 200 | 400 BadAddress | 422 NoAccount
 //   POST /api/admin/roles/revoke  { account } -> 200 | 403 OwnRole | 409 NotAdmin
 //   GET  /api/admin/log           { lines: LogRow[] }
 // An answer names a reader by Account Reference only; an Admin by identity.
@@ -61,7 +62,10 @@ export interface AdminDeps extends AdminGateDeps {
 
 export const noStore = { 'cache-control': 'no-store' };
 
-export const notFound = () => Response.json({ error: 'NotFound', message: 'Not found' }, { status: 404, headers: noStore });
+// The answer to anyone but an Admin, and for an unknown admin path: a bare
+// 404, with no body and no header of its own, so Astro answers the 404 of the
+// app, as it does for a path that does not exist.
+export const notFound = () => new Response(null, { status: 404 });
 const answer = (body: unknown, status = 200) => Response.json(body, { status, headers: noStore });
 const refused = (status: number, error: string) => answer({ error }, status);
 
@@ -78,25 +82,38 @@ export interface AdminRow {
   // Email address, else handle, else DID.
   name: string;
   grantedAt: number;
-  // The name of the Admin who granted it; null for the script.
+  // The Admin who granted it, named as in the log; null for the script.
   grantedBy: string | null;
   you: boolean;
 }
 
 export interface LogRow {
   at: number;
-  // The name of the Admin (their Account Reference once deleted); null for the script.
+  // The name of the Admin (their Account Reference once they are no Admin); null for the script.
   admin: string | null;
   action: AdminAction;
-  // The Account Reference of the Account it touched; null for an Invite or a search with no match.
+  // The Account it touched: its Account Reference, or its name when it is an Admin now; null for an Invite or a search with no match.
   target: string | null;
   detail: string | null;
 }
 
-// How the panel names an Admin: an Admin is not pseudonymous to the other Admins.
-function nameOf({ accounts, store }: AdminDeps, account: string, references: Map<string, string>): string {
-  const { email, did } = accounts.identitiesOf(account as AccountId);
-  return email ?? store.handleOf(account as AccountId) ?? did ?? references.get(account) ?? account;
+// How the panel names an Account: an Admin of now by identity (email address,
+// else handle, else DID), since an Admin is not pseudonymous to the other
+// Admins; any other Account, a former Admin and a deleted Account too, by its
+// Account Reference. One lookup for each Account.
+function namer(deps: AdminDeps): (account: string) => string {
+  const references = deps.admin.references();
+  const admins = new Set(deps.roles.admins().map(({ account }) => account));
+  const names = new Map<string, string>();
+  return (account) => {
+    let name = names.get(account);
+    if (name === undefined) {
+      const { email, did } = admins.has(account) ? deps.accounts.identitiesOf(account as AccountId) : {};
+      name = email ?? (did && (deps.store.handleOf(account as AccountId) ?? did)) ?? references.get(account) ?? account;
+      names.set(account, name);
+    }
+    return name;
+  };
 }
 
 // The totals of the instance and one row for each Account, from grouped
@@ -154,23 +171,23 @@ export function inviteRows(deps: AdminDeps, now = Date.now()): InviteRow[] {
 }
 
 export function adminRows(deps: AdminDeps, you: AccountId): AdminRow[] {
-  const references = deps.admin.references();
+  const nameOf = namer(deps);
   return deps.roles.admins().map(({ account, grantedAt, grantedBy }) => ({
     account,
-    name: nameOf(deps, account, references),
+    name: nameOf(account),
     grantedAt,
-    grantedBy: grantedBy === null ? null : nameOf(deps, grantedBy, references),
+    grantedBy: grantedBy === null ? null : nameOf(grantedBy),
     you: account === you,
   }));
 }
 
 export function logRows(deps: AdminDeps): LogRow[] {
-  const references = deps.admin.references();
+  const nameOf = namer(deps);
   return deps.admin.log().map(({ at, admin, action, target, detail }) => ({
     at,
-    admin: admin === null ? null : nameOf(deps, admin, references),
+    admin: admin === null ? null : nameOf(admin),
     action,
-    target: target === null || action.startsWith('invite.') ? null : (references.get(target) ?? null),
+    target: target === null || action.startsWith('invite.') ? null : nameOf(target),
     detail,
   }));
 }
@@ -194,11 +211,14 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
       const address = normalEmail(email);
       if (!address) return refused(400, 'BadAddress');
       if (!languages.includes(language as Language)) return refused(400, 'BadLanguage');
-      if (deps.roles.accountOf(address) !== undefined) return refused(409, 'Exists');
-      // The key holds a hash: no Account ID stays in auth.sqlite after a delete.
+      // Each try counts, so the form cannot test many addresses. The key holds a hash: no Account ID stays in auth.sqlite after a delete.
       if (!deps.limits.allow(`admin-add:${createHash('sha256').update(admin).digest('hex')}`, addLimit.max, addLimit.windowMs)) return refused(429, 'TooMany');
       const account = deps.admin.addAccount(admin, address);
-      if (account === undefined) return refused(409, 'Exists');
+      if (account === undefined) {
+        // The Admin learned that this address has an Account: a search, with its trace and no address.
+        deps.admin.write({ admin, action: 'identity.find', target: deps.roles.accountOf(address) ?? null, detail: null });
+        return refused(409, 'Exists');
+      }
       // The Account stays when the mail fails; the panel says so. No address reaches a log line.
       const mailSent = await deps.sendMail(accountAddedMail(address, language as Language, deps.site, deps.contact)).then(
         () => true,
@@ -219,8 +239,9 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
       if (can(deps.roles.rolesOf(account), 'panel.open')) return refused(403, 'IsAdmin');
       // The Admin typed the Account Reference of this Account, and of no other.
       if (typeof reference !== 'string' || reference.trim().toUpperCase() !== deps.admin.references().get(account)) return refused(400, 'WrongReference');
-      const { sharedLeft } = await forgetAccount(account as AccountId, deps.deletion);
+      // The log line first: no delete runs with no trace, even one that fails on its way.
       deps.admin.write({ admin, action: 'account.delete', target: account, detail: null });
+      const { sharedLeft } = await forgetAccount(account as AccountId, deps.deletion);
       return answer({ sharedLeft });
     },
   },
@@ -286,7 +307,7 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
         return refused(422, 'NoAccount');
       }
       deps.roles.grant(account, admin);
-      return answer({ account });
+      return answer({});
     },
   },
   'POST /api/admin/roles/revoke': {
