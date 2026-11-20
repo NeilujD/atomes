@@ -246,8 +246,13 @@
   /* A cover grid on desktop (Home, Library Grid): its narrowest column. */
   --grid-cover: 140px;
 
-  /* The widest a page grows (Book, Series, To Buy, Settings). */
+  /*
+   * The widest a page grows, centred in the panel: a page of forms and text
+   * (Book, To Buy, Settings), and an overview page that lays its parts side by
+   * side on a wide screen (Statistics, Series).
+   */
   --page-width: 880px;
+  --page-wide: 1200px;
 
   /*
    * The Series page (src/styles/series.css): its big cover; the cover above a

@@ -78,7 +78,8 @@ const t = translator(requestLanguage(Astro.request));
     --hero: 64px;
     --stats-skeleton-tile: 72px;
     --stats-skeleton-chart: 220px;
-    max-width: var(--page-width);
+    max-width: var(--page-wide);
+    margin-inline: auto;
     display: flex;
     flex-direction: column;
     gap: var(--space-24);
@@ -227,7 +228,7 @@ const t = translator(requestLanguage(Astro.request));
     font-size: var(--type-small);
   }
 
-  .stats-pair {
+  .stats-parts {
     display: grid;
     gap: var(--space-24);
   }
@@ -317,8 +318,38 @@ const t = translator(requestLanguage(Astro.request));
       margin-left: auto;
     }
 
-    .stats-pair {
+    .stats-parts {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Two columns: Loans on its own row, as wide as both. */
+    .stats-loans {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* A wide panel: the four tiles on one row. */
+  @media (min-width: 1280px) {
+    .stats-tiles:has(> :nth-child(4)) {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  /* Wider: Most read, Your Library today and Loans side by side (the four tabs of Most read fit on one line). */
+  @media (min-width: 1440px) {
+    .stats-parts {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .stats-loans {
+      grid-column: auto;
+    }
+
+    /* The heading at the height of the chart heads beside it, which hold a Table button. */
+    .stats-loans .small-heading {
+      display: flex;
+      align-items: center;
+      min-height: var(--row);
     }
   }
 </style>
