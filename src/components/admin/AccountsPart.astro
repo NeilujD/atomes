@@ -1,0 +1,192 @@
+---
+// The Accounts part of the admin panel (ADR 0020, CORE-169): the totals of
+// the instance, then one row for each Account, named by its Account Reference.
+// Counts and dates only: no email address, no handle, nothing a Library holds.
+// Flagged Accounts first; "Flagged only" is a link, so it works with no script.
+// A flag is an ink chip with a dot (O1). Numbers and days in the language of
+// the Admin (O4).
+import { formatDay } from '../../lib/admin/format';
+import { translator, type Language } from '../../lib/i18n/i18n';
+import type { AccountRow, Flag, Totals } from '../../lib/server/admin-accounts';
+
+interface Props {
+  language: Language;
+  totals: Totals;
+  accounts: AccountRow[];
+  flaggedOnly: boolean;
+}
+
+const { language, totals, accounts, flaggedOnly } = Astro.props;
+const t = translator(language);
+const numbers = new Intl.NumberFormat(language);
+const format = (value: number) => numbers.format(value);
+
+const flagLabels: Record<Flag, string> = {
+  'no-activity': t('admin.flag-no-activity'),
+  'heavy-writes': t('admin.flag-heavy-writes'),
+  'many-corrections': t('admin.flag-many-corrections'),
+  'many-sessions': t('admin.flag-many-sessions'),
+};
+const startLabels: Record<AccountRow['start']['kind'], string> = {
+  'admin-invite': t('admin.start-admin-invite'),
+  'reader-invite': t('admin.start-reader-invite'),
+  added: t('admin.start-added'),
+  script: t('admin.start-script'),
+};
+const signInLabels: Record<AccountRow['signIn'], string> = {
+  email: t('admin.sign-in-email'),
+  atproto: t('admin.sign-in-atproto'),
+  both: t('admin.sign-in-both'),
+};
+---
+
+<section class="group" aria-labelledby="totals-title">
+  <h2 class="small-heading" id="totals-title">{t('admin.instance')}</h2>
+  <div class="totals">
+    <div class="card total total-accounts">
+      <dl class="figure">
+        <dt>{t('admin.part-accounts')}</dt>
+        <dd>{format(totals.accounts.total)}</dd>
+      </dl>
+      <table class="periods">
+        <thead>
+          <tr>
+            <td></td>
+            <th scope="col">{t('admin.days-7')}</th>
+            <th scope="col">{t('admin.days-30')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">{t('admin.new')}</th>
+            <td>{format(totals.accounts.new7d)}</td>
+            <td>{format(totals.accounts.new30d)}</td>
+          </tr>
+          <tr>
+            <th scope="row">{t('admin.active')}</th>
+            <td>{format(totals.accounts.active7d)}</td>
+            <td>{format(totals.accounts.active30d)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card total total-invites">
+      <dl class="figure">
+        <dt>{t('admin.invites-open')}</dt>
+        <dd>{format(totals.invites.open)}</dd>
+      </dl>
+      <dl class="figure">
+        <dt>{t('admin.invites-used')}</dt>
+        <dd>{format(totals.invites.used)}</dd>
+      </dl>
+      <dl class="figure">
+        <dt>{t('admin.invites-expired')}</dt>
+        <dd>{format(totals.invites.expired)}</dd>
+      </dl>
+    </div>
+    <div class="card total">
+      <dl class="figure">
+        <dt>{t('admin.records')}</dt>
+        <dd>{format(totals.records)}</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section class="group" aria-labelledby="accounts-title">
+  <div class="toolbar">
+    <h2 class="small-heading" id="accounts-title">{t('admin.part-accounts')}</h2>
+    <a class="chip" href={flaggedOnly ? '/admin?part=accounts' : '/admin?part=accounts&flagged=1'} aria-current={flaggedOnly ? 'true' : undefined}>
+      {t('admin.flagged-only')}
+    </a>
+    <div class="toolbar-actions">
+      <slot name="actions" />
+    </div>
+  </div>
+
+  <slot name="form" />
+
+  {accounts.length === 0 && <p class="row-hint">{t('admin.no-flagged')}</p>}
+  {
+    accounts.length > 0 && (
+      <div class="table-scroll">
+        <table class="rows accounts">
+          <thead>
+            <tr>
+              <th scope="col">{t('admin.account')}</th>
+              <th scope="col">{t('admin.signed-up')}</th>
+              <th scope="col">{t('admin.last-active')}</th>
+              <th scope="col">{t('admin.started')}</th>
+              <th scope="col">{t('admin.sign-in')}</th>
+              <th scope="col" class="num">
+                {t('admin.records')}
+              </th>
+              <th scope="col" class="num">
+                {t('admin.in-7-days')}
+              </th>
+              <th scope="col" class="num">
+                {t('admin.part-invites')}
+                <br />
+                {t('admin.made-used')}
+              </th>
+              <th scope="col" class="num">
+                {t('admin.corrections')}
+              </th>
+              <th scope="col" class="num">
+                {t('admin.sessions')}
+              </th>
+              <th scope="col">
+                <span class="visually-hidden">{t('admin.actions')}</span>
+              </th>
+            </tr>
+          </thead>
+          {accounts.map((account) => (
+            <tbody data-account={account.account} data-reference={account.reference} id={account.reference}>
+              <tr>
+                <th scope="row" class="main">
+                  <span class="reference">{account.reference}</span>
+                  {account.flags.map((flag) => (
+                    <span class="chip flag">{flagLabels[flag]}</span>
+                  ))}
+                </th>
+                <td data-label={t('admin.signed-up')}>{formatDay(language, account.signedUpAt)}</td>
+                <td data-label={t('admin.last-active')}>
+                  {account.lastActiveDay ? formatDay(language, Date.parse(account.lastActiveDay)) : <span class="none">{t('admin.never')}</span>}
+                </td>
+                <td data-label={t('admin.started')}>
+                  <span>
+                    {startLabels[account.start.kind]}
+                    {account.start.label && ` · ${account.start.label}`}
+                    {account.start.by && (
+                      <>
+                        {' · '}
+                        <span class="reference">{account.start.by}</span>
+                      </>
+                    )}
+                  </span>
+                </td>
+                <td data-label={t('admin.sign-in')}>{signInLabels[account.signIn]}</td>
+                <td data-label={t('admin.records')} class="num">
+                  {format(account.records)}
+                </td>
+                <td data-label={t('admin.changed-7-days')} class="num quiet">
+                  +{format(account.changed7d)}
+                </td>
+                <td data-label={t('admin.invites-made-used')} class="num">
+                  {format(account.invitesMade)} / {format(account.invitesUsed)}
+                </td>
+                <td data-label={t('admin.series-corrections')} class="num">
+                  {format(account.corrections)}
+                </td>
+                <td data-label={t('admin.open-sessions')} class="num">
+                  {format(account.sessions)}
+                </td>
+                <td class="actions empty" />
+              </tr>
+            </tbody>
+          ))}
+        </table>
+      </div>
+    )
+  }
+</section>

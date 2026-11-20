@@ -173,6 +173,27 @@ describe('library.sqlite made before the Admin role', () => {
   });
 });
 
+describe('library.sqlite made before the last active day', () => {
+  test('each Account gets the day of its last Library write, and none with no write', () => {
+    const file = join(dir, 'library.sqlite');
+    const before = openDatabase(file, librarySteps.slice(0, 6));
+    const accounts = createAccounts(before);
+    const writer = accounts.ofDid(did);
+    const idle = accounts.ofDid(second);
+    const insert = before.prepare("insert into record (account, collection, rkey, value, rev, updated_at, deleted) values (?, 'app.atomes.toBuy', ?, '{}', ?, ?, 0)");
+    insert.run(writer, 'a', 1, '2026-10-02T23:30:00.000Z');
+    insert.run(writer, 'b', 2, '2026-11-05T08:00:00.000Z');
+    before.close();
+
+    const after = openDatabase(file, librarySteps);
+    const day = (account: string) => (after.prepare('select last_active_day as day from account where id = ?').get(account) as { day: string | null }).day;
+    expect(version(after)).toBe(librarySteps.length);
+    expect(day(writer)).toBe('2026-11-05');
+    expect(day(idle)).toBeNull();
+    after.close();
+  });
+});
+
 describe('migrate', () => {
   test('a failed step rolls back and leaves user_version at the last step that ran', () => {
     const db = new DatabaseSync(':memory:');

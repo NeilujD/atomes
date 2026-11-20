@@ -7,7 +7,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { createCatalog, type Catalog } from '../catalog/catalog';
 import { createAccounts, type Accounts, type Did } from './accounts';
+import type { AccountRow, Totals } from './admin-accounts';
+import { makeInvite } from './invites';
+import { createLibraryStore, type LibraryStore } from './library-store';
 import { adminOf, handleAdminRequest } from './admin';
 import { session, sessionCookie, signInAs } from './auth';
 import { createAuthStore, type AuthStore } from './auth-store';
@@ -27,17 +31,28 @@ let db: DatabaseSync;
 let accounts: Accounts;
 let auth: AuthStore;
 let roles: Roles;
+let library: LibraryStore;
+let catalog: Catalog;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'atomes-admin-'));
   const file = join(dir, 'library.sqlite');
   db = openDatabase(file, librarySteps);
   accounts = createAccounts(openDatabase(file, librarySteps));
-  auth = createAuthStore({ db: openDatabase(join(dir, 'auth.sqlite'), authSteps(accounts)), box: secretBox(randomBytes(32)) });
+  // As the instance wires it: reading a session keeps the last active day.
+  auth = createAuthStore({
+    db: openDatabase(join(dir, 'auth.sqlite'), authSteps(accounts)),
+    box: secretBox(randomBytes(32)),
+    seen: (account) => accounts.seen(account),
+  });
   roles = createRoles(db);
+  library = createLibraryStore(openDatabase(file, librarySteps));
+  catalog = createCatalog({ file: join(dir, 'catalog.sqlite'), fetch: () => Promise.reject(new TypeError('offline')), host: 'catalog.test', accounts });
 });
 
 afterEach(() => {
+  catalog.close();
+  library.close();
   auth.close();
   accounts.close();
   db.close();
@@ -56,7 +71,7 @@ function asAdmin(did: Did): string {
   return cookie;
 }
 
-const deps = () => ({ store: auth, roles, accounts, admin: createAdminStore(db) });
+const deps = () => ({ store: auth, roles, accounts, admin: createAdminStore(db), catalog });
 
 function request(cookie: string | undefined, method: string, path: string, body?: unknown): Request {
   const headers: Record<string, string> = { origin: app };
@@ -240,5 +255,111 @@ describe('the Admin Log', () => {
     admin.write({ admin: null, action: 'invite.make', target: null, detail: 'new' }, now);
 
     expect(admin.log().map(({ detail }) => detail)).toEqual(['new', 'kept']);
+  });
+});
+
+describe('the Accounts part', () => {
+  const view = async (cookie: string, query = '') =>
+    (await json(await call(cookie, 'GET', `/api/admin/accounts${query}`))) as unknown as { totals: Totals; accounts: AccountRow[] };
+  const today = new Date().toISOString().slice(0, 10);
+  // A Series Correction of the Account, as the Catalog keeps it.
+  function correct(account: string, isbn: string) {
+    const file = new DatabaseSync(join(dir, 'catalog.sqlite'));
+    file.prepare('insert into series_correction (isbn, anchor, account, created_at) values (?, ?, ?, ?)').run(isbn, '9782723478991', account, new Date().toISOString());
+    file.close();
+  }
+
+  test('one row for each Account: how it started, its sign-in ways, its counts, and the totals of the instance', async () => {
+    const cookie = asAdmin(alice);
+    const admin = accounts.ofDid(alice);
+    // Bob makes a reader Invite; Carol signs up with it by email, then links an AT Protocol Account.
+    const bobAccount = accounts.ofDid(bob);
+    const carol = accounts.signInEmail('carol@example.org', accounts.makeInvite(bobAccount)!.token);
+    accounts.link(carol, 'did', 'did:plc:carol');
+    auth.openBrowserSession({ account: carol, handle: 'carol.test' });
+    auth.openBrowserSession({ account: carol, handle: 'carol.test' });
+    // Dave signs up by email with an Invite of the script.
+    const dave = accounts.signInEmail('dave@example.org', makeInvite(db).token);
+    library.put(carol, 'app.atomes.copy', 'one', { $type: 'app.atomes.copy', title: 'A secret title' });
+    library.put(carol, 'app.atomes.copy', 'two', { $type: 'app.atomes.copy' });
+    library.put(carol, 'app.atomes.copy', 'gone', { $type: 'app.atomes.copy' });
+    library.delete(carol, 'app.atomes.copy', 'gone');
+    correct(carol, '9782723488525');
+    makeInvite(db);
+
+    const { totals, accounts: rows } = await view(cookie);
+
+    const row = (account: string) => rows.find((each) => each.account === account)!;
+    expect(rows).toHaveLength(4);
+    expect(row(carol)).toEqual({
+      account: carol,
+      reference: accountReference(carol),
+      flags: [],
+      signedUpAt: expect.any(Number) as number,
+      lastActiveDay: null,
+      start: { kind: 'reader-invite', by: accountReference(bobAccount) },
+      signIn: 'both',
+      records: 2,
+      changed7d: 3,
+      invitesMade: 0,
+      invitesUsed: 0,
+      corrections: 1,
+      sessions: 2,
+    });
+    expect(row(bobAccount)).toMatchObject({ start: { kind: 'script' }, signIn: 'atproto', invitesMade: 1, invitesUsed: 1, records: 0, sessions: 0 });
+    expect(row(dave)).toMatchObject({ start: { kind: 'script' }, signIn: 'email' });
+    // The Admin's own request is its activity of today.
+    expect(row(admin)).toMatchObject({ lastActiveDay: today, sessions: 1 });
+    expect(totals).toEqual({
+      accounts: { total: 4, new7d: 4, new30d: 4, active7d: 1, active30d: 1 },
+      invites: { open: 1, used: 2, expired: 0 },
+      records: 2,
+    });
+  });
+
+  test('the answer holds no email address, no handle, no DID and nothing a Library holds', async () => {
+    const cookie = asAdmin(alice);
+    const carol = accounts.signInEmail('carol@example.org', makeInvite(db).token);
+    accounts.link(carol, 'did', 'did:plc:carol');
+    auth.openBrowserSession({ account: carol, handle: 'carol.test' });
+    library.put(carol, 'app.atomes.copy', 'one', { $type: 'app.atomes.copy', title: 'A secret title' });
+
+    const text = await (await call(cookie, 'GET', '/api/admin/accounts')).text();
+
+    for (const secret of ['carol@', 'example.org', 'carol.test', 'test.reader', 'did:', 'secret title']) expect(text).not.toContain(secret);
+  });
+
+  test('flagged Accounts come first, and "flagged only" leaves the others out', async () => {
+    const cookie = asAdmin(alice);
+    const shared = accounts.ofDid(bob);
+    for (let i = 0; i < 11; i++) auth.openBrowserSession({ account: shared, handle: '' });
+
+    const all = await view(cookie);
+    const flagged = await view(cookie, '?flagged=1');
+
+    expect(all.accounts.map(({ account, flags }) => ({ account, flags }))).toEqual([
+      { account: shared, flags: ['many-sessions'] },
+      { account: accounts.ofDid(alice), flags: [] },
+    ]);
+    expect(flagged.accounts.map(({ account }) => account)).toEqual([shared]);
+    expect(flagged.totals).toEqual(all.totals);
+  });
+
+  test('the last active day is written once a day, when the stored day is older', () => {
+    const account = accounts.ofDid(bob);
+    const stored = () => (db.prepare('select last_active_day as day from account where id = ?').get(account) as { day: string | null }).day;
+    expect(stored()).toBeNull();
+
+    accounts.seen(account, Date.UTC(2026, 10, 20, 9));
+    expect(stored()).toBe('2026-11-20');
+
+    accounts.seen(account, Date.UTC(2026, 10, 20, 23, 59));
+    accounts.seen(account, Date.UTC(2026, 10, 19, 12));
+    expect(stored()).toBe('2026-11-20');
+
+    accounts.seen(account, Date.UTC(2026, 10, 21, 0, 1));
+    expect(stored()).toBe('2026-11-21');
+    // Nothing else of the request is kept: the Account row holds its ID, its sign-up and this day.
+    expect(Object.keys(db.prepare('select * from account where id = ?').get(account) as object).sort()).toEqual(['created_at', 'id', 'last_active_day']);
   });
 });

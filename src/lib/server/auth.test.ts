@@ -278,7 +278,7 @@ describe('Invites', () => {
 
   test('the Accounts made by the migration of the allow-list sign in with no Invite', async () => {
     const before: Did = 'did:plc:before';
-    library.exec(`insert into account values ('acc-before', '2026-11-16T10:00:00.000Z');
+    library.exec(`insert into account (id, created_at) values ('acc-before', '2026-11-16T10:00:00.000Z');
       insert into identity (account, kind, value) values ('acc-before', 'did', '${before}');`);
 
     expect((await signInForm({ handle: 'before.test' })).headers.get('location')).toMatch(/^https:\/\/pds\.test\//);

@@ -52,6 +52,10 @@ export interface Accounts {
   // Adds an identity the reader proved (Settings, ADR 0016). The same
   // identity again gives `linked`.
   link(account: AccountId, kind: 'did' | 'email', value: string): LinkResult;
+  // The server saw a request of a session of the Account: keeps the day (UTC)
+  // as its last active day (ADR 0020). One write a day for each Account at
+  // most; no IP address, no request log.
+  seen(account: AccountId, now?: number): void;
   // Empty for an unknown Account.
   identitiesOf(account: AccountId): Identities;
   // Deletes the Account and its identities (CORE-55). The Invite it signed up
@@ -102,6 +106,8 @@ export function createAccounts(db: DatabaseSync): Accounts {
     if (invite === undefined) throw new NoInviteError();
     return make(kind, value, invite);
   };
+  // The day this process last wrote for each Account: no statement runs for the other requests of the day.
+  const seenOn = new Map<AccountId, string>();
   const maySignIn = (kind: Kind, value: string, invite: string | undefined) =>
     find(kind, value) !== undefined || (invite !== undefined && inviteIsOpen(db, invite));
   return {
@@ -123,6 +129,12 @@ export function createAccounts(db: DatabaseSync): Accounts {
         db.prepare('insert into identity (account, kind, value) values (?, ?, ?)').run(account, kind, value);
         return 'linked';
       });
+    },
+    seen(account, now = Date.now()) {
+      const day = new Date(now).toISOString().slice(0, 10);
+      if (seenOn.get(account) === day) return;
+      db.prepare('update account set last_active_day = ? where id = ? and (last_active_day is null or last_active_day < ?)').run(day, account, day);
+      seenOn.set(account, day);
     },
     identitiesOf(account) {
       const rows = db.prepare('select kind, value from identity where account = ?').all(account) as { kind: 'did' | 'email'; value: string }[];

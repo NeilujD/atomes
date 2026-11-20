@@ -1,0 +1,162 @@
+/* A list of the admin panel as a dense table: one row of columns under a
+   header line. Not imported as a stylesheet of the page: src/pages/admin.astro
+   links it with a `media` attribute, so the lists of few columns turn to a
+   table from 960 px, and the Accounts list, which needs more room, from
+   1200 px (ADR 0020, O7). Under that width, a list is one card for each row
+   (admin.css). The rules nest under `.admin`: they
+   win over the card rules whatever the order of the two stylesheets. */
+.admin {
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  /* A list of few columns is as wide as the cards over it. */
+  .table-narrow {
+    max-width: var(--page-width);
+  }
+
+  .rows {
+    display: table;
+    border-collapse: collapse;
+  }
+
+  .rows thead {
+    position: static;
+    display: table-header-group;
+    width: auto;
+    height: auto;
+    clip-path: none;
+  }
+
+  .rows tbody {
+    display: table-row-group;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .rows tr {
+    display: table-row;
+  }
+
+  .rows th,
+  .rows td {
+    display: table-cell;
+    height: var(--row);
+    padding: 0 var(--space-10) 0 0;
+    border-bottom: var(--hairline) solid var(--line);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .rows thead th {
+    color: var(--text-quiet);
+    font-size: var(--type-chip);
+    font-weight: 500;
+    line-height: 1.3;
+    height: auto;
+    padding-bottom: var(--space-6);
+    vertical-align: bottom;
+  }
+
+  /* In a narrow window, the flags go under the reference before the list scrolls sideways. */
+  .rows.accounts .main {
+    padding-block: var(--space-4);
+    white-space: normal;
+  }
+
+  .rows .chip {
+    vertical-align: middle;
+  }
+
+  /* A row stays one --row high: its text buttons fill it, with no room under them. */
+  .rows .button {
+    vertical-align: top;
+  }
+
+  .rows td[data-label]::before {
+    content: none;
+  }
+
+  .rows td,
+  .rows td > * {
+    text-align: inherit;
+  }
+
+  .rows .num,
+  .rows .actions {
+    text-align: right;
+  }
+
+  .rows .main {
+    display: table-cell;
+    padding-block: 0;
+    font-size: inherit;
+    font-weight: 500;
+  }
+
+  .rows .main > * + * {
+    margin-left: var(--space-6);
+  }
+
+  .rows .main .reference {
+    font-size: var(--type-chip);
+  }
+
+  .rows .main .state {
+    margin-left: var(--space-6);
+  }
+
+  .rows .only-phone {
+    display: none;
+  }
+
+  .rows .only-desktop,
+  .rows .blank,
+  .rows .actions.empty {
+    display: table-cell;
+  }
+
+  .rows .actions {
+    margin: 0;
+    padding: 0;
+    border-top: 0;
+  }
+
+  .rows .actions .button {
+    margin-inline: 0;
+    padding: 0 var(--space-6);
+  }
+
+  /* On the line of its button. */
+  .reason {
+    display: inline-block;
+    margin-right: var(--space-8);
+    line-height: var(--row);
+    vertical-align: top;
+  }
+
+  /* The identity: one cell under its row, which loses its own hairline. */
+  .rows tbody:has(.identity) tr:first-child > * {
+    border-bottom: 0;
+  }
+
+  .rows .identity td {
+    padding-top: 0;
+    padding-right: 0;
+    padding-bottom: var(--space-10);
+  }
+
+  .rows td .identity-box {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-6) var(--space-24);
+  }
+
+  .rows .detail {
+    white-space: normal;
+  }
+}

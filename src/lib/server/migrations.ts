@@ -180,5 +180,14 @@ const libraryV5: Step = (db) =>
     create index admin_action_at on admin_action (at);
   `);
 
-export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3, libraryV4, libraryV5];
+// The last active day of an Account (ADR 0020): a calendar day in UTC, written
+// once a day at most (accounts.ts, `seen`). Filled from the day of the last
+// Library write, the only activity date the instance had; null with no write.
+const libraryV6: Step = (db) =>
+  db.exec(`
+    alter table account add column last_active_day text;
+    update account set last_active_day = (select substr(max(updated_at), 1, 10) from record where record.account = account.id);
+  `);
+
+export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3, libraryV4, libraryV5, libraryV6];
 export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts), authV2];

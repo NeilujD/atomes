@@ -5,12 +5,15 @@
 // Anyone else gets the same 404 as an unknown path, with no redirect: the
 // panel does not show that it exists. Every answer is `no-store`. The
 // middleware refuses a write from another site (security.ts).
+//   GET  /api/admin/accounts      { totals, accounts: AccountRow[] }; ?flagged=1: flagged Accounts only
 //   GET  /api/admin/admins        { admins: AdminRow[] }
 //   POST /api/admin/roles/grant   { email } -> 200 { account } | 400 BadAddress | 422 NoAccount
 //   POST /api/admin/roles/revoke  { account } -> 200 | 403 OwnRole | 409 NotAdmin
 //   GET  /api/admin/log           { lines: LogRow[] }
 // An answer names a reader by Account Reference only; an Admin by identity.
+import type { Catalog } from '../catalog/catalog';
 import type { AccountId, Accounts } from './accounts';
+import { accountRows, totalsOf, type AccountRow, type Totals } from './admin-accounts';
 import type { AdminAction } from './admin-log';
 import type { AdminStore } from './admin-store';
 import { readerOf } from './auth';
@@ -27,6 +30,7 @@ export interface AdminDeps extends AdminGateDeps {
   roles: Roles;
   accounts: Pick<Accounts, 'identitiesOf'>;
   admin: AdminStore;
+  catalog: Pick<Catalog, 'correctionCounts'>;
 }
 
 export const noStore = { 'cache-control': 'no-store' };
@@ -69,6 +73,21 @@ function nameOf({ accounts, store }: AdminDeps, account: string, references: Map
   return email ?? store.handleOf(account as AccountId) ?? did ?? references.get(account) ?? account;
 }
 
+// The totals of the instance and one row for each Account, from grouped
+// queries on the three SQLite files. Nothing in it names a reader.
+export function accountsView(deps: AdminDeps, { flagged = false, now = Date.now() } = {}): { totals: Totals; accounts: AccountRow[] } {
+  const sessions = deps.store.sessionCounts();
+  const corrections = deps.catalog.correctionCounts(new Date(now - 7 * 24 * 3600 * 1000));
+  const facts = deps.admin.accountFacts(now).map((each) => ({
+    ...each,
+    sessions: sessions.get(each.account) ?? 0,
+    corrections: corrections.get(each.account)?.total ?? 0,
+    corrections7d: corrections.get(each.account)?.recent ?? 0,
+  }));
+  const rows = accountRows(facts, deps.admin.references(), now);
+  return { totals: totalsOf(facts, deps.admin.inviteTotals(now), now), accounts: flagged ? rows.filter(({ flags }) => flags.length > 0) : rows };
+}
+
 export function adminRows(deps: AdminDeps, you: AccountId): AdminRow[] {
   const references = deps.admin.references();
   return deps.roles.admins().map(({ account, grantedAt, grantedBy }) => ({
@@ -99,6 +118,10 @@ async function bodyOf(request: Request): Promise<Record<string, unknown>> {
 type Route = (request: Request, deps: AdminDeps, admin: AccountId) => Response | Promise<Response>;
 
 const routes: Record<string, { permission: Permission; run: Route }> = {
+  'GET /api/admin/accounts': {
+    permission: 'accounts.read',
+    run: (request, deps) => answer(accountsView(deps, { flagged: new URL(request.url).searchParams.get('flagged') === '1' })),
+  },
   'GET /api/admin/admins': { permission: 'panel.open', run: (_, deps, admin) => answer({ admins: adminRows(deps, admin) }) },
   'GET /api/admin/log': { permission: 'log.read', run: (_, deps) => answer({ lines: logRows(deps) }) },
   'POST /api/admin/roles/grant': {
