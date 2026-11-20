@@ -819,3 +819,116 @@ describe('delete an Account', () => {
     expect(pds.records.size).toBe(0);
   });
 });
+
+describe('identity', () => {
+  const show = (cookie: string, account: unknown, reason?: unknown) => call(cookie, 'POST', '/api/admin/identity/show', { account, reason });
+  const find = (cookie: string, email: unknown, reason?: unknown) => call(cookie, 'POST', '/api/admin/identity/find', { email, reason });
+  const reason = 'Asked for the delete by mail';
+
+  test('"Show identity" needs a reason of 3 to 200 characters: with none, no identity is in the answer and nothing is logged', async () => {
+    const cookie = asAdmin(alice);
+    const carol = accounts.ofEmail('carol@example.org');
+    const before = logLines().length;
+
+    for (const typed of [undefined, '', '  ', 'ab', ' ab ', 'x'.repeat(201), 42]) {
+      const response = await show(cookie, carol, typed);
+      expect(response.status).toBe(400);
+      expect(await response.text()).not.toContain('carol');
+    }
+    expect(logLines()).toHaveLength(before);
+
+    expect((await show(cookie, carol, 'abc')).status).toBe(200);
+    expect((await show(cookie, carol, 'x'.repeat(200))).status).toBe(200);
+  });
+
+  test('the answer gives the email address, the handle or the DID of the Account, is never kept by a cache, and one log line holds the reason', async () => {
+    const cookie = asAdmin(alice);
+    const byEmail = accounts.ofEmail('carol@example.org');
+    const both = accounts.ofEmail('dave@example.org');
+    accounts.link(both, 'did', 'did:plc:dave');
+    auth.openBrowserSession({ account: both, handle: 'dave.test' });
+    const noHandle = accounts.ofDid('did:plc:erin');
+    const before = logLines().length;
+
+    const first = await show(cookie, byEmail, `  ${reason} `);
+    expect(first.headers.get('cache-control')).toBe('no-store');
+    expect(await json(first)).toEqual({ email: 'carol@example.org' });
+    expect(await json(await show(cookie, both, reason))).toEqual({ email: 'dave@example.org', atproto: 'dave.test' });
+    expect(await json(await show(cookie, noHandle, reason))).toEqual({ atproto: 'did:plc:erin' });
+
+    const admin = accounts.ofDid(alice);
+    expect(logLines().slice(before)).toEqual([
+      { admin, action: 'identity.show', target: byEmail, detail: reason },
+      { admin, action: 'identity.show', target: both, detail: reason },
+      { admin, action: 'identity.show', target: noHandle, detail: reason },
+    ]);
+    expect(everyValue()).not.toContain('carol@');
+  });
+
+  test('"Show identity" of an Account that does not exist gives none', async () => {
+    const cookie = asAdmin(alice);
+
+    expect((await show(cookie, 'no-such-account', reason)).status).toBe(409);
+  });
+
+  test('"Find by email address" answers the Account Reference of the address, typed in any case, and logs the Account with the reason', async () => {
+    const cookie = asAdmin(alice);
+    const carol = accounts.ofEmail('carol@example.org');
+
+    const response = await find(cookie, '  Carol@Example.ORG ', reason);
+
+    expect(response.status).toBe(200);
+    expect(await json(response)).toEqual({ reference: accountReference(carol) });
+    expect(logLines().at(-1)).toEqual({ admin: accounts.ofDid(alice), action: 'identity.find', target: carol, detail: reason });
+    expect(everyValue()).not.toContain('carol@');
+  });
+
+  test('a search with no match answers no Account, and its log line has the reason, no target and no address', async () => {
+    const cookie = asAdmin(alice);
+
+    const response = await find(cookie, 'nobody@example.org', reason);
+
+    expect(await json(response)).toEqual({ reference: null });
+    expect(logLines().at(-1)).toEqual({ admin: accounts.ofDid(alice), action: 'identity.find', target: null, detail: reason });
+    expect(everyValue()).not.toContain('nobody');
+  });
+
+  test('a search needs the same reason, and an email address', async () => {
+    const cookie = asAdmin(alice);
+    accounts.ofEmail('carol@example.org');
+    const before = logLines().length;
+
+    expect((await find(cookie, 'carol@example.org')).status).toBe(400);
+    expect((await find(cookie, 'carol@example.org', 'ab')).status).toBe(400);
+    expect((await find(cookie, 'not an address', reason)).status).toBe(400);
+    expect(logLines()).toHaveLength(before);
+  });
+
+  test('the Admin Log keeps no email address: a reason or an Invite label that holds one is refused', async () => {
+    const cookie = asAdmin(alice);
+    const carol = accounts.ofEmail('carol@example.org');
+    const before = logLines().length;
+
+    const shown = await show(cookie, carol, 'carol@example.org asked for it');
+    expect(shown.status).toBe(400);
+    expect(await json(shown)).toEqual({ error: 'ReasonHasAddress' });
+    expect((await find(cookie, 'carol@example.org', 'for carol@example.org')).status).toBe(400);
+    expect((await call(cookie, 'POST', '/api/admin/invites', { count: 1, label: 'for bob@example.org' })).status).toBe(400);
+    expect(logLines()).toHaveLength(before);
+  });
+
+  test('no other answer of the admin API names a reader', async () => {
+    const cookie = asAdmin(alice);
+    const carol = accounts.signInEmail('carol@example.org', makeInvite(db).token);
+    accounts.link(carol, 'did', 'did:plc:carol');
+    auth.openBrowserSession({ account: carol, handle: 'carol.test' });
+    accounts.makeInvite(carol);
+    await show(cookie, carol, reason);
+    await find(cookie, 'carol@example.org', reason);
+
+    for (const path of ['/api/admin/accounts', '/api/admin/invites', '/api/admin/admins', '/api/admin/log']) {
+      const text = await (await call(cookie, 'GET', path)).text();
+      for (const secret of ['carol@', 'carol.test', 'did:plc:carol']) expect(text).not.toContain(secret);
+    }
+  });
+});

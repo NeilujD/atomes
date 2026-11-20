@@ -15,6 +15,10 @@
 //   POST /api/admin/invites       { count, label? } -> 201 { links, expiresAt } | 400 BadCount | 400 BadLabel
 //                                 The links are in this answer only: never stored, never logged.
 //   POST /api/admin/invites/revoke { id } -> 200 | 409 NotOpen
+//   POST /api/admin/identity/show { account, reason } -> 200 { email?, atproto? } | 400 BadReason | 409 NoAccount
+//   POST /api/admin/identity/find { email, reason } -> 200 { reference | null } | 400 BadReason | 400 BadAddress
+//                                 The two answers that name a reader, each after a reason of 3 to 200
+//                                 characters, each written to the Admin Log first. The typed address is never stored.
 //   GET  /api/admin/admins        { admins: AdminRow[] }
 //   POST /api/admin/roles/grant   { email } -> 200 { account } | 400 BadAddress | 422 NoAccount
 //   POST /api/admin/roles/revoke  { account } -> 200 | 403 OwnRole | 409 NotAdmin
@@ -120,6 +124,19 @@ export function accountsView(
 // Accounts an Admin adds in one hour: an error or a stolen session cannot send mail to many addresses.
 export const addLimit = { max: 20, windowMs: 3600 * 1000 } as const;
 
+export const reasonLimits = { min: 3, max: 200 } as const;
+
+// The Admin Log keeps no email address: a reason or a label that holds one is refused.
+const holdsAddress = (text: string) => /[^\s@]+@[^\s@]+\.[^\s@]+/.test(text);
+
+// The reason an Admin typed, or the refusal.
+function reasonOf(value: unknown): { reason: string } | { refusal: Response } {
+  const reason = typeof value === 'string' ? value.trim() : '';
+  if (reason.length < reasonLimits.min || reason.length > reasonLimits.max) return { refusal: refused(400, 'BadReason') };
+  if (holdsAddress(reason)) return { refusal: refused(400, 'ReasonHasAddress') };
+  return { reason };
+}
+
 export const inviteLimits = { maxCount: 50, maxLabel: 60 } as const;
 
 // An Invite in the list: its maker and the Account that used it show as Account References.
@@ -215,7 +232,7 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
       if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > inviteLimits.maxCount) return refused(400, 'BadCount');
       if (label !== undefined && label !== null && typeof label !== 'string') return refused(400, 'BadLabel');
       const text = (label ?? '').trim();
-      if (text.length > inviteLimits.maxLabel) return refused(400, 'BadLabel');
+      if (text.length > inviteLimits.maxLabel || holdsAddress(text)) return refused(400, 'BadLabel');
       const { tokens, expiresAt } = deps.admin.makeInvites(admin, count, text || null);
       return answer({ links: tokens.map((token) => `${deps.site}/sign-in#invite=${token}`), expiresAt }, 201);
     },
@@ -226,6 +243,33 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
       const { id } = await bodyOf(request);
       if (typeof id !== 'string' || !deps.admin.revokeInvite(admin, id)) return refused(409, 'NotOpen');
       return answer({});
+    },
+  },
+  'POST /api/admin/identity/show': {
+    permission: 'identity.show',
+    async run(request, deps, admin) {
+      const { account, reason: typed } = await bodyOf(request);
+      const checked = reasonOf(typed);
+      if ('refusal' in checked) return checked.refusal;
+      if (typeof account !== 'string' || !deps.admin.hasAccount(account)) return refused(409, 'NoAccount');
+      // The log line first: no identity leaves with no trace.
+      deps.admin.write({ admin, action: 'identity.show', target: account, detail: checked.reason });
+      const { email, did } = deps.accounts.identitiesOf(account as AccountId);
+      return answer({ email, atproto: did && (deps.store.handleOf(account as AccountId) ?? did) });
+    },
+  },
+  'POST /api/admin/identity/find': {
+    permission: 'identity.show',
+    async run(request, deps, admin) {
+      const { email, reason: typed } = await bodyOf(request);
+      const checked = reasonOf(typed);
+      if ('refusal' in checked) return checked.refusal;
+      const address = normalEmail(email);
+      if (!address) return refused(400, 'BadAddress');
+      const account = deps.roles.accountOf(address);
+      // With no match: no target. The typed address is never stored.
+      deps.admin.write({ admin, action: 'identity.find', target: account ?? null, detail: checked.reason });
+      return answer({ reference: account === undefined ? null : (deps.admin.references().get(account) ?? null) });
     },
   },
   'GET /api/admin/admins': { permission: 'panel.open', run: (_, deps, admin) => answer({ admins: adminRows(deps, admin) }) },

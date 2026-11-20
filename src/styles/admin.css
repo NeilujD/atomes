@@ -463,6 +463,18 @@ select.field {
 }
 
 /* Desktop: one row of columns under a header line. */
+/* The row that "Find by email address" leads to. */
+.rows tbody:target {
+  outline: var(--stroke) solid var(--accent);
+  outline-offset: var(--stroke);
+  scroll-margin-top: var(--space-24);
+}
+
+/* A second field in a dialog. */
+.confirm .form-item + .form-item {
+  margin-bottom: var(--space-8);
+}
+
 /* An Invite on the phone: two lines (O5). Its name, state and Revoke, then its days and Accounts. */
 @media (max-width: 959px) {
   .rows.invites tbody {

@@ -8,6 +8,7 @@
 import Icon from '../Icon.astro';
 import AddAccount from './AddAccount.astro';
 import DeleteAccount from './DeleteAccount.astro';
+import Identity from './Identity.astro';
 import { formatDay } from '../../lib/admin/format';
 import { translator, type Language } from '../../lib/i18n/i18n';
 import type { AccountsRow } from '../../lib/server/admin';
@@ -104,6 +105,10 @@ const signInLabels: Record<AccountRow['signIn'], string> = {
       {t('admin.flagged-only')}
     </a>
     <div class="toolbar-actions">
+      <button class="button button-quiet" type="button" data-find-open disabled>
+        <Icon name="search" />
+        {t('admin.find')}
+      </button>
       {/* The main action of this part; disabled until its script runs. */}
       <button class="button button-main" type="button" data-add-open disabled>
         <Icon name="plus" />
@@ -190,7 +195,10 @@ const signInLabels: Record<AccountRow['signIn'], string> = {
                 <td data-label={t('admin.open-sessions')} class="num">
                   {format(account.sessions)}
                 </td>
-                <td class:list={['actions', { empty: !account.canDelete }]}>
+                <td class="actions">
+                  <button class="button button-quiet" type="button" data-show-identity disabled>
+                    {t('admin.show-identity')}
+                  </button>
                   {account.canDelete && (
                     <button class="button button-quiet button-danger" type="button" data-delete-account disabled>
                       {t('admin.delete')}
@@ -208,3 +216,4 @@ const signInLabels: Record<AccountRow['signIn'], string> = {
 </section>
 
 <DeleteAccount language={language} />
+<Identity language={language} />

@@ -13,8 +13,8 @@ const { language } = Astro.props;
 const t = translator(language);
 ---
 
-<form class="card group-card add-form" data-add-form hidden>
-  <p class="row-label">{t('admin.add')}</p>
+<form class="card group-card add-form" data-add-form aria-labelledby="add-title" hidden>
+  <p class="row-label" id="add-title">{t('admin.add')}</p>
   <div class="form-line">
     <div class="form-item form-wide">
       <label class="form-label" for="add-email">{t('admin.email')}</label>
