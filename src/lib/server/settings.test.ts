@@ -191,13 +191,13 @@ describe('appEnvironment', () => {
   });
 });
 
-// The Landing page at /welcome (M12, CORE-158): on unless the instance turns it off.
+// The Landing page at /welcome (M12, CORE-158): off unless the instance turns it on.
 describe('LANDING_PAGE', () => {
   test.each([
-    ['missing', {}, true],
+    ['missing', {}, false],
     ['on', { LANDING_PAGE: 'on' }, true],
     ['off', { LANDING_PAGE: 'off' }, false],
-    ['off, with spaces', { LANDING_PAGE: ' off ' }, false],
+    ['on, with spaces', { LANDING_PAGE: ' on ' }, true],
   ])('%s', (_, env, on) => {
     expect(readSettings({ ...local, ...env }).landingPage).toBe(on);
     expect(landingPage(env)).toBe(on);

@@ -133,6 +133,7 @@ function startServer() {
       ...process.env,
       DATA_DIR: dataDir,
       DEV_TOOLBAR: 'off',
+      LANDING_PAGE: 'on',
       PORT: String(port),
       SESSION_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
     },

@@ -3,7 +3,7 @@ import { invite } from './invites';
 import { expect, test } from './test';
 
 // The Landing page (M12, CORE-158). The E2E server runs with LANDING_PAGE on
-// (the default); `off` is covered by the unit tests (settings, gate, welcome).
+// (playwright.config.ts); `off`, the default, is covered by the unit tests (settings, gate, welcome).
 
 test('A visitor who opens Home lands on the Landing page, and never sees Home first', async ({ page }) => {
   // Hold the session check, so the screen is caught before the gate answers.
