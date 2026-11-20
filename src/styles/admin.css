@@ -463,6 +463,43 @@ select.field {
 }
 
 /* Desktop: one row of columns under a header line. */
+/* An Invite on the phone: two lines (O5). Its name, state and Revoke, then its days and Accounts. */
+@media (max-width: 959px) {
+  .rows.invites tbody {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-4) var(--space-8);
+    padding-block: var(--space-10);
+  }
+
+  .rows.invites .main {
+    padding-bottom: 0;
+  }
+
+  .rows.invites .main .state {
+    margin-left: 0;
+  }
+
+  .rows.invites .summary {
+    grid-column: 1 / -1;
+    display: block;
+    color: var(--text-quiet);
+    text-align: left;
+  }
+
+  .rows.invites .actions {
+    grid-area: 1 / 2;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .rows.invites .actions .button {
+    margin-block: calc(var(--space-8) * -1);
+  }
+}
+
 @media (min-width: 960px) {
   .parts {
     display: inline-flex;

@@ -189,5 +189,15 @@ const libraryV6: Step = (db) =>
     update account set last_active_day = (select substr(max(updated_at), 1, 10) from record where record.account = account.id);
   `);
 
-export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3, libraryV4, libraryV5, libraryV6];
+// An Invite keeps its origin and a label (ADR 0020): a reader in Settings, an
+// Admin in the panel, or scripts/invite.ts. The Invites made before: those
+// with a maker are reader Invites, the others script Invites.
+const libraryV7: Step = (db) =>
+  db.exec(`
+    alter table invite add column origin text not null default 'script' check (origin in ('reader', 'admin', 'script'));
+    alter table invite add column label text;
+    update invite set origin = 'reader' where made_by is not null;
+  `);
+
+export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3, libraryV4, libraryV5, libraryV6, libraryV7];
 export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts), authV2];

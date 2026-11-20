@@ -9,10 +9,11 @@ import '../styles/admin.css';
 import tableStyles from '../styles/admin-table.css?url';
 import AccountsPart from '../components/admin/AccountsPart.astro';
 import AdminsPart from '../components/admin/AdminsPart.astro';
+import InvitesPart from '../components/admin/InvitesPart.astro';
 import LogPart from '../components/admin/LogPart.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
-import { accountsView, adminOf, adminRows, logRows } from '../lib/server/admin';
+import { accountsView, adminOf, adminRows, inviteRows, logRows } from '../lib/server/admin';
 import { adminDeps } from '../lib/server/admin-instance';
 
 const deps = await adminDeps();
@@ -32,7 +33,6 @@ const parts = [
 type Part = (typeof parts)[number]['key'];
 const asked = Astro.url.searchParams.get('part');
 const part: Part = parts.find(({ key }) => key === asked)?.key ?? 'accounts';
-const partLabel = parts.find(({ key }) => key === part)!.label;
 // The lists turn from cards to a table at 960 px; the Accounts list, which needs more room, at 1200 px (O7).
 const tableFrom = part === 'accounts' ? 1200 : 960;
 const flaggedOnly = Astro.url.searchParams.get('flagged') === '1';
@@ -54,15 +54,6 @@ const flaggedOnly = Astro.url.searchParams.get('flagged') === '1';
     {part === 'accounts' && <AccountsPart language={language} flaggedOnly={flaggedOnly} {...accountsView(deps, { flagged: flaggedOnly })} />}
     {part === 'admins' && <AdminsPart language={language} admins={adminRows(deps, admin.account)} />}
     {part === 'log' && <LogPart language={language} lines={logRows(deps)} />}
-    {
-      part === 'invites' && (
-        <section class="group" aria-labelledby="part-title">
-          <h2 class="small-heading" id="part-title">
-            {partLabel}
-          </h2>
-          <p class="row-hint">{t('admin.empty')}</p>
-        </section>
-      )
-    }
+    {part === 'invites' && <InvitesPart language={language} invites={inviteRows(deps)} />}
   </div>
 </AppShell>

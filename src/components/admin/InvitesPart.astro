@@ -1,0 +1,240 @@
+---
+// The Invites part of the admin panel (ADR 0020, CORE-170): make 1 to 50
+// Invites with an optional label, see every Invite of the instance, revoke an
+// open one of an Admin or of the script. The links are in the answer of the
+// make request only: the page shows them once. The list names Accounts by
+// Account Reference. Revoke is in ink (O2); on the phone an Invite is a card
+// of two lines (O5).
+import { formatDay } from '../../lib/admin/format';
+import { translator, type Language } from '../../lib/i18n/i18n';
+import { inviteLimits, type InviteRow } from '../../lib/server/admin';
+
+interface Props {
+  language: Language;
+  invites: InviteRow[];
+}
+
+const { language, invites } = Astro.props;
+const t = translator(language);
+const origins: Record<InviteRow['origin'], string> = {
+  admin: t('admin.origin-admin'),
+  reader: t('admin.origin-reader'),
+  script: t('admin.origin-script'),
+};
+const states: Record<InviteRow['state'], string> = {
+  open: t('admin.state-open'),
+  used: t('admin.state-used'),
+  expired: t('admin.state-expired'),
+};
+---
+
+<section class="group" aria-labelledby="make-title">
+  <h2 class="small-heading" id="make-title">{t('admin.make')}</h2>
+  <form class="card group-card" data-make-form>
+    <div class="form-line">
+      <div class="form-item form-short">
+        <label class="form-label" for="invite-count">{t('admin.how-many')}</label>
+        <input class="field" id="invite-count" name="count" type="number" inputmode="numeric" min="1" max={inviteLimits.maxCount} value="1" required />
+      </div>
+      <div class="form-item form-wide">
+        <label class="form-label" for="invite-label">{t('admin.label-optional')}</label>
+        <input class="field" id="invite-label" name="label" type="text" autocomplete="off" maxlength={inviteLimits.maxLabel} />
+      </div>
+      <button class="button button-main" type="submit" disabled>{t('admin.make')}</button>
+    </div>
+    <p class="row-hint" data-make-message role="status">{t('admin.make-hint')}</p>
+  </form>
+</section>
+
+<section class="card group-card made" aria-labelledby="made-title" data-made hidden>
+  <div class="made-head">
+    <p class="row-label" id="made-title" data-made-title></p>
+    <button class="button" type="button" data-copy-all>{t('admin.copy-all')}</button>
+  </div>
+  <p class="note">{t('admin.links-once')}</p>
+  <ol class="made-links" data-made-links></ol>
+  <template data-made-link>
+    <li>
+      <input class="field link" type="text" readonly />
+      <button class="button" type="button" data-copy>{t('admin.copy')}</button>
+    </li>
+  </template>
+</section>
+
+<section class="group" aria-labelledby="invites-title">
+  <h2 class="small-heading" id="invites-title">{t('admin.part-invites')}</h2>
+  <div data-invite-list>
+    {invites.length === 0 && <p class="row-hint">{t('admin.no-invites')}</p>}
+    {
+      invites.length > 0 && (
+        <div class="table-scroll table-narrow">
+          <table class="rows invites">
+            <thead>
+              <tr>
+                <th scope="col">{t('admin.origin')}</th>
+                <th scope="col">{t('admin.label')}</th>
+                <th scope="col">{t('admin.state')}</th>
+                <th scope="col">{t('admin.made')}</th>
+                <th scope="col">{t('admin.used')}</th>
+                <th scope="col">{t('admin.maker')}</th>
+                <th scope="col">{t('admin.used-by')}</th>
+                <th scope="col">
+                  <span class="visually-hidden">{t('admin.actions')}</span>
+                </th>
+              </tr>
+            </thead>
+            {invites.map((invite) => {
+              const made = formatDay(language, invite.madeAt);
+              const used = invite.usedAt === null ? undefined : formatDay(language, invite.usedAt);
+              const maker = invite.origin === 'script' ? t('admin.script') : invite.madeBy;
+              return (
+                <tbody>
+                  <tr>
+                    <th scope="row" class="main">
+                      <span>{origins[invite.origin]}</span>
+                      {invite.label && <span class="only-phone">{invite.label}</span>}
+                      <span class:list={['chip', 'state', 'only-phone', { 'state-over': invite.state !== 'open' }]}>{states[invite.state]}</span>
+                    </th>
+                    <td class="only-desktop">{invite.label ?? <span class="none">—</span>}</td>
+                    <td class="only-desktop">
+                      <span class:list={['chip', 'state', { 'state-over': invite.state !== 'open' }]}>{states[invite.state]}</span>
+                    </td>
+                    <td class="only-desktop">{made}</td>
+                    <td class="only-desktop">{used ?? <span class="none">—</span>}</td>
+                    <td class="only-desktop">{maker ? invite.origin === 'script' ? maker : <span class="reference">{maker}</span> : <span class="none">—</span>}</td>
+                    <td class="only-desktop">{invite.usedBy ? <span class="reference">{invite.usedBy}</span> : <span class="none">—</span>}</td>
+                    {/* The phone: the days and the Accounts on one line under the name (O5). */}
+                    <td class="only-phone summary">
+                      {t('admin.made')} {made}
+                      {maker && (
+                        <>
+                          {' · '}
+                          {invite.origin === 'script' ? maker : <span class="reference">{maker}</span>}
+                        </>
+                      )}
+                      {used && ` · ${t('admin.used')} ${used}`}
+                      {invite.usedBy && (
+                        <>
+                          {' · '}
+                          <span class="reference">{invite.usedBy}</span>
+                        </>
+                      )}
+                    </td>
+                    <td class:list={['actions', { empty: !invite.canRevoke }]}>
+                      {invite.canRevoke && (
+                        <button class="button button-quiet" type="button" data-revoke-invite={invite.id} disabled>
+                          {t('admin.revoke')}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              );
+            })}
+          </table>
+        </div>
+      )
+    }
+  </div>
+</section>
+
+<!-- A revoke cannot be undone: the confirm dialog, Cancel first (ui-direction). -->
+<dialog class="confirm" data-revoke-dialog aria-labelledby="revoke-title" aria-describedby="revoke-text">
+  <form method="dialog">
+    <h2 class="confirm-title" id="revoke-title">{t('admin.revoke-invite-title')}</h2>
+    <p class="confirm-text" id="revoke-text">{t('admin.revoke-invite-text')}</p>
+    <div class="confirm-actions">
+      <button class="button" value="cancel">{t('admin.cancel')}</button>
+      <button class="button button-main" value="confirm">{t('admin.revoke')}</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  import { postAdmin } from '../../lib/admin/client';
+  import { confirmed } from '../../lib/admin/confirm';
+  import { t } from '../../lib/i18n/i18n';
+  import { toast } from '../../lib/toast';
+
+  const form = document.querySelector<HTMLFormElement>('[data-make-form]')!;
+  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const message = form.querySelector<HTMLElement>('[data-make-message]')!;
+  const made = document.querySelector<HTMLElement>('[data-made]')!;
+  const madeTitle = made.querySelector<HTMLElement>('[data-made-title]')!;
+  const madeLinks = made.querySelector<HTMLElement>('[data-made-links]')!;
+  const linkTemplate = made.querySelector<HTMLTemplateElement>('[data-made-link]')!;
+  const list = document.querySelector<HTMLElement>('[data-invite-list]')!;
+  const revokeDialog = document.querySelector<HTMLDialogElement>('[data-revoke-dialog]')!;
+
+  const copy = (text: string, field?: HTMLInputElement) =>
+    navigator.clipboard.writeText(text).then(
+      () => toast(t('invite.copied')),
+      () => {
+        field?.select();
+        toast(t('invite.copy-failed'), { error: true });
+      },
+    );
+
+  // The revoke buttons of the list work from here on.
+  function ready() {
+    for (const button of list.querySelectorAll<HTMLButtonElement>('[data-revoke-invite]')) button.disabled = false;
+  }
+
+  // The list again, as the server draws it; the links just made stay on the page.
+  async function refresh() {
+    const response = await fetch(location.href, { cache: 'no-store', credentials: 'same-origin' });
+    if (!response.ok) return location.reload();
+    const next = new DOMParser().parseFromString(await response.text(), 'text/html').querySelector('[data-invite-list]');
+    if (!next) return location.reload();
+    list.replaceChildren(...next.childNodes);
+    ready();
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const label = String(data.get('label') ?? '').trim();
+    submit.disabled = true;
+    void postAdmin('/api/admin/invites', { count: Number(data.get('count')), label }).then(async ({ ok, error, body }) => {
+      submit.disabled = false;
+      if (!ok) {
+        message.textContent = error === 'BadCount' ? t('admin.bad-count') : error === 'BadLabel' ? t('admin.bad-label') : t('admin.failed');
+        return;
+      }
+      message.textContent = t('admin.make-hint');
+      const links = body.links as string[];
+      madeTitle.textContent = t('admin.made-title', links.length, label);
+      madeLinks.replaceChildren(
+        ...links.map((link, index) => {
+          const item = linkTemplate.content.cloneNode(true) as DocumentFragment;
+          const field = item.querySelector('input')!;
+          field.value = link;
+          field.setAttribute('aria-label', t('admin.invite-link', index + 1));
+          item.querySelector('button')!.addEventListener('click', () => void copy(link, field));
+          return item;
+        }),
+      );
+      made.hidden = false;
+      await refresh();
+    });
+  });
+  made.querySelector('[data-copy-all]')!.addEventListener('click', () => {
+    void copy([...madeLinks.querySelectorAll('input')].map((field) => field.value).join('\n'));
+  });
+
+  list.addEventListener('click', (event) => {
+    const button = (event.target as Element).closest<HTMLButtonElement>('[data-revoke-invite]');
+    if (!button) return;
+    void confirmed(revokeDialog).then(async (yes) => {
+      if (!yes) return;
+      button.disabled = true;
+      const { ok, error } = await postAdmin('/api/admin/invites/revoke', { id: button.dataset.revokeInvite });
+      if (ok) toast(t('admin.invite-revoked'));
+      else toast(error === 'NotOpen' ? t('admin.not-open') : t('admin.failed'), { error: true });
+      await refresh();
+    });
+  });
+
+  ready();
+  submit.disabled = false;
+</script>

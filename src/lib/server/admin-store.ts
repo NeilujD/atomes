@@ -4,6 +4,22 @@ import type { DatabaseSync } from 'node:sqlite';
 import { accountReferences } from './account-reference';
 import type { AccountFacts, Start, Totals } from './admin-accounts';
 import { readLog, writeLog, type LogLine } from './admin-log';
+import { inviteLifetimeMs, makeInvite, type InviteOrigin } from './invites';
+import { inTransaction } from './migrate';
+
+// An Invite as the Invites part lists it. `id` is the hash of its token: the
+// instance keeps no token, so no list can show a link again.
+export interface InviteFacts {
+  id: string;
+  origin: InviteOrigin;
+  label: string | null;
+  state: 'open' | 'used' | 'expired';
+  madeAt: number;
+  usedAt: number | null;
+  // Account IDs; null for the script, and once the Account is deleted.
+  madeBy: string | null;
+  usedBy: string | null;
+}
 
 // What `library.sqlite` knows of an Account; the Catalog and the auth store give the rest.
 export type LibraryFacts = Omit<AccountFacts, 'corrections' | 'corrections7d' | 'sessions'>;
@@ -19,6 +35,14 @@ export interface AdminStore {
   // for each Account; a record is counted and never read.
   accountFacts(now?: number): LibraryFacts[];
   inviteTotals(now?: number): Totals['invites'];
+  // Every Invite of the instance, newest first.
+  invites(now?: number): InviteFacts[];
+  // `count` Invites of the Admin, each for 14 days, with one Admin Log line,
+  // in one transaction. Gives the tokens: the only copy.
+  makeInvites(admin: string, count: number, label: string | null, now?: number): { tokens: string[]; expiresAt: number };
+  // Removes an open Invite of an Admin or of the script, with one Admin Log
+  // line. False for any other Invite: nothing changes.
+  revokeInvite(admin: string, id: string, now?: number): boolean;
 }
 
 // `db` has run `librarySteps`. Does not close it.
@@ -55,10 +79,17 @@ export function createAdminStore(db: DatabaseSync): AdminStore {
           'select made_by as account, count(*) as made, count(used_at) as used from invite where made_by is not null group by made_by',
         ),
       );
-      const starts = by(all<{ account: string; madeBy: string | null }>('select used_by as account, made_by as madeBy from invite where used_by is not null'));
+      const starts = by(
+        all<{ account: string; origin: InviteOrigin; madeBy: string | null; label: string | null }>(
+          'select used_by as account, origin, made_by as madeBy, label from invite where used_by is not null',
+        ),
+      );
+      // An Account with no Invite came from the operator's shell too (a migration, the preview setting).
       const startOf = (account: string): Start => {
         const invite = starts.get(account);
-        return invite?.madeBy ? { kind: 'reader-invite', by: invite.madeBy } : { kind: 'script' };
+        if (invite?.origin === 'admin') return { kind: 'admin-invite', label: invite.label };
+        if (invite?.origin === 'reader') return { kind: 'reader-invite', by: invite.madeBy };
+        return { kind: 'script' };
       };
 
       return all<{ id: string; createdAt: string; lastActiveDay: string | null }>(
@@ -89,6 +120,37 @@ export function createAdminStore(db: DatabaseSync): AdminStore {
            from invite`,
         )
         .get(now, now) as unknown as Totals['invites'];
+    },
+    invites(now = Date.now()) {
+      const rows = db
+        .prepare(
+          `select token_hash as id, origin, label, expires_at as expiresAt, used_at as usedAt, made_by as madeBy, used_by as usedBy
+           from invite order by expires_at desc, rowid desc`,
+        )
+        .all() as unknown as (Omit<InviteFacts, 'state' | 'madeAt'> & { expiresAt: number })[];
+      return rows.map(({ expiresAt, ...invite }) => ({
+        ...invite,
+        state: invite.usedAt !== null ? 'used' : expiresAt > now ? 'open' : 'expired',
+        // An Invite lives 14 days from the moment it is made.
+        madeAt: expiresAt - inviteLifetimeMs,
+      }));
+    },
+    makeInvites(admin, count, label, now = Date.now()) {
+      return inTransaction(db, () => {
+        const made = Array.from({ length: count }, () => makeInvite(db, now, admin, { label }));
+        writeLog(db, { admin, action: 'invite.make', target: null, detail: label === null ? String(count) : `${count} · ${label}` }, now);
+        return { tokens: made.map(({ token }) => token), expiresAt: made[0].expiresAt };
+      });
+    },
+    revokeInvite(admin, id, now = Date.now()) {
+      return inTransaction(db, () => {
+        const revoked = db
+          .prepare("delete from invite where token_hash = ? and used_at is null and expires_at > ? and origin in ('admin', 'script') returning label")
+          .get(id, now) as { label: string | null } | undefined;
+        if (!revoked) return false;
+        writeLog(db, { admin, action: 'invite.revoke', target: id, detail: revoked.label }, now);
+        return true;
+      });
     },
   };
 }

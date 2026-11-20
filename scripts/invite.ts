@@ -16,8 +16,9 @@ try {
   const { dataDir, appOrigin, port } = readSettings(process.env, { sendsMail: false });
   const file = join(dataDir, 'library.sqlite');
   const db = existsSync(file) ? new DatabaseSync(file) : undefined;
-  if (!db?.prepare("select 1 from sqlite_master where type = 'table' and name = 'invite'").get()) {
-    console.error(`${file} has no Invite table yet: start the server once, then run this again.`);
+  // The Invite table as this version writes it: with the origin of an Invite (ADR 0020).
+  if (!db?.prepare("select 1 from pragma_table_info('invite') where name = 'origin'").get()) {
+    console.error(`${file} has no Invite table of this version yet: start the server once, then run this again.`);
     process.exit(1);
   }
   const { token, expiresAt } = makeInvite(db);

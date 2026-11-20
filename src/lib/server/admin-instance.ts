@@ -4,11 +4,13 @@ import { catalog } from '../catalog/instance';
 import type { AdminDeps } from './admin';
 import { createAdminStore, type AdminStore } from './admin-store';
 import { accountStore, authDeps, libraryDatabase, roleStore } from './instance';
+import { settings } from './settings';
 
 let adminStore: AdminStore | undefined;
 
 export async function adminDeps(): Promise<AdminDeps> {
   const { store } = await authDeps();
   adminStore ??= createAdminStore(libraryDatabase());
-  return { store, roles: roleStore(), accounts: accountStore(), admin: adminStore, catalog: catalog() };
+  const { appOrigin, port } = settings();
+  return { store, roles: roleStore(), accounts: accountStore(), admin: adminStore, catalog: catalog(), site: appOrigin ?? `http://127.0.0.1:${port}` };
 }

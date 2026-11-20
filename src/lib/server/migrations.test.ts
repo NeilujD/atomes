@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createAccounts, type AccountId } from './accounts';
 import { createAuthStore } from './auth-store';
-import { inviteIsOpen } from './invites';
+import { inviteIsOpen, readerInvite } from './invites';
 import { createLibraryStore } from './library-store';
 import { migrate, openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
@@ -169,6 +169,32 @@ describe('library.sqlite made before the Admin role', () => {
     expect(roles.admins()).toEqual([]);
     expect(roles.grant(account, null)).toBe(true);
     expect(roles.rolesOf(account)).toEqual(['admin']);
+    after.close();
+  });
+});
+
+describe('library.sqlite made before an Invite kept its origin', () => {
+  test('an Invite with a maker becomes a reader Invite, the others script Invites, and each keeps working', () => {
+    const file = join(dir, 'library.sqlite');
+    const before = openDatabase(file, librarySteps.slice(0, 7));
+    const reader = createAccounts(before).ofDid(did);
+    // As the code of before made them: no origin column yet.
+    const insert = before.prepare('insert into invite (token_hash, expires_at, made_by) values (?, ?, ?)');
+    const ofScript = 'A'.repeat(43);
+    const ofReader = 'B'.repeat(43);
+    insert.run(createHash('sha256').update(ofScript).digest('hex'), Date.now() + 3600_000, null);
+    insert.run(createHash('sha256').update(ofReader).digest('hex'), Date.now() + 3600_000, reader);
+    before.close();
+
+    const after = openDatabase(file, librarySteps);
+    expect(version(after)).toBe(librarySteps.length);
+    expect(after.prepare('select origin, label from invite order by origin').all()).toEqual([
+      { origin: 'reader', label: null },
+      { origin: 'script', label: null },
+    ]);
+    expect(inviteIsOpen(after, ofReader)).toBe(true);
+    expect(inviteIsOpen(after, ofScript)).toBe(true);
+    expect(readerInvite(after, reader).state).toBe('open');
     after.close();
   });
 });

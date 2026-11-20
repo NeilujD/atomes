@@ -6,6 +6,10 @@
 // panel does not show that it exists. Every answer is `no-store`. The
 // middleware refuses a write from another site (security.ts).
 //   GET  /api/admin/accounts      { totals, accounts: AccountRow[] }; ?flagged=1: flagged Accounts only
+//   GET  /api/admin/invites       { invites: InviteRow[] }
+//   POST /api/admin/invites       { count, label? } -> 201 { links, expiresAt } | 400 BadCount | 400 BadLabel
+//                                 The links are in this answer only: never stored, never logged.
+//   POST /api/admin/invites/revoke { id } -> 200 | 409 NotOpen
 //   GET  /api/admin/admins        { admins: AdminRow[] }
 //   POST /api/admin/roles/grant   { email } -> 200 { account } | 400 BadAddress | 422 NoAccount
 //   POST /api/admin/roles/revoke  { account } -> 200 | 403 OwnRole | 409 NotAdmin
@@ -15,7 +19,7 @@ import type { Catalog } from '../catalog/catalog';
 import type { AccountId, Accounts } from './accounts';
 import { accountRows, totalsOf, type AccountRow, type Totals } from './admin-accounts';
 import type { AdminAction } from './admin-log';
-import type { AdminStore } from './admin-store';
+import type { AdminStore, InviteFacts } from './admin-store';
 import { readerOf } from './auth';
 import type { AuthStore } from './auth-store';
 import { can, type Permission, type Roles } from './roles';
@@ -31,6 +35,8 @@ export interface AdminDeps extends AdminGateDeps {
   accounts: Pick<Accounts, 'identitiesOf'>;
   admin: AdminStore;
   catalog: Pick<Catalog, 'correctionCounts'>;
+  // The origin of the instance, for an Invite link (settings.ts), never of the request.
+  site: string;
 }
 
 export const noStore = { 'cache-control': 'no-store' };
@@ -88,6 +94,22 @@ export function accountsView(deps: AdminDeps, { flagged = false, now = Date.now(
   return { totals: totalsOf(facts, deps.admin.inviteTotals(now), now), accounts: flagged ? rows.filter(({ flags }) => flags.length > 0) : rows };
 }
 
+export const inviteLimits = { maxCount: 50, maxLabel: 60 } as const;
+
+// An Invite in the list: its maker and the Account that used it show as Account References.
+export type InviteRow = Omit<InviteFacts, 'madeBy' | 'usedBy'> & { madeBy: string | null; usedBy: string | null; canRevoke: boolean };
+
+export function inviteRows(deps: AdminDeps, now = Date.now()): InviteRow[] {
+  const references = deps.admin.references();
+  const reference = (account: string | null) => (account === null ? null : (references.get(account) ?? null));
+  return deps.admin.invites(now).map((invite) => ({
+    ...invite,
+    madeBy: reference(invite.madeBy),
+    usedBy: reference(invite.usedBy),
+    canRevoke: invite.state === 'open' && invite.origin !== 'reader',
+  }));
+}
+
 export function adminRows(deps: AdminDeps, you: AccountId): AdminRow[] {
   const references = deps.admin.references();
   return deps.roles.admins().map(({ account, grantedAt, grantedBy }) => ({
@@ -121,6 +143,27 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
   'GET /api/admin/accounts': {
     permission: 'accounts.read',
     run: (request, deps) => answer(accountsView(deps, { flagged: new URL(request.url).searchParams.get('flagged') === '1' })),
+  },
+  'GET /api/admin/invites': { permission: 'invites.make', run: (_, deps) => answer({ invites: inviteRows(deps) }) },
+  'POST /api/admin/invites': {
+    permission: 'invites.make',
+    async run(request, deps, admin) {
+      const { count, label } = await bodyOf(request);
+      if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > inviteLimits.maxCount) return refused(400, 'BadCount');
+      if (label !== undefined && label !== null && typeof label !== 'string') return refused(400, 'BadLabel');
+      const text = (label ?? '').trim();
+      if (text.length > inviteLimits.maxLabel) return refused(400, 'BadLabel');
+      const { tokens, expiresAt } = deps.admin.makeInvites(admin, count, text || null);
+      return answer({ links: tokens.map((token) => `${deps.site}/sign-in#invite=${token}`), expiresAt }, 201);
+    },
+  },
+  'POST /api/admin/invites/revoke': {
+    permission: 'invites.revoke',
+    async run(request, deps, admin) {
+      const { id } = await bodyOf(request);
+      if (typeof id !== 'string' || !deps.admin.revokeInvite(admin, id)) return refused(409, 'NotOpen');
+      return answer({});
+    },
   },
   'GET /api/admin/admins': { permission: 'panel.open', run: (_, deps, admin) => answer({ admins: adminRows(deps, admin) }) },
   'GET /api/admin/log': { permission: 'log.read', run: (_, deps) => answer({ lines: logRows(deps) }) },

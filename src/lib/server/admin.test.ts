@@ -10,7 +10,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createCatalog, type Catalog } from '../catalog/catalog';
 import { createAccounts, type Accounts, type Did } from './accounts';
 import type { AccountRow, Totals } from './admin-accounts';
-import { makeInvite } from './invites';
+import { inviteLifetimeMs, makeInvite } from './invites';
+import type { InviteRow } from './admin';
 import { createLibraryStore, type LibraryStore } from './library-store';
 import { adminOf, handleAdminRequest } from './admin';
 import { session, sessionCookie, signInAs } from './auth';
@@ -71,7 +72,7 @@ function asAdmin(did: Did): string {
   return cookie;
 }
 
-const deps = () => ({ store: auth, roles, accounts, admin: createAdminStore(db), catalog });
+const deps = () => ({ store: auth, roles, accounts, admin: createAdminStore(db), catalog, site: app });
 
 function request(cookie: string | undefined, method: string, path: string, body?: unknown): Request {
   const headers: Record<string, string> = { origin: app };
@@ -361,5 +362,157 @@ describe('the Accounts part', () => {
     expect(stored()).toBe('2026-11-21');
     // Nothing else of the request is kept: the Account row holds its ID, its sign-up and this day.
     expect(Object.keys(db.prepare('select * from account where id = ?').get(account) as object).sort()).toEqual(['created_at', 'id', 'last_active_day']);
+  });
+});
+
+describe('the Invites part', () => {
+  const make = (cookie: string, body: unknown) => call(cookie, 'POST', '/api/admin/invites', body);
+  const tokenOf = (link: string) => link.split('#invite=')[1];
+  const list = async (cookie: string) => ((await json(await call(cookie, 'GET', '/api/admin/invites'))) as unknown as { invites: InviteRow[] }).invites;
+  const inviteCount = () => (db.prepare('select count(*) as n from invite').get() as { n: number }).n;
+
+  test('an Admin makes Invites with a label: links on the instance origin, each works once, for 14 days, with the Admin as maker', async () => {
+    const cookie = asAdmin(alice);
+    const before = Date.now();
+
+    const response = await make(cookie, { count: 3, label: '  Book club ' });
+
+    expect(response.status).toBe(201);
+    const { links, expiresAt } = (await json(response)) as { links: string[]; expiresAt: number };
+    expect(links).toHaveLength(3);
+    expect(new Set(links).size).toBe(3);
+    for (const link of links) expect(link).toMatch(/^https:\/\/atomes\.test\/sign-in#invite=[A-Za-z0-9_-]{43}$/);
+    expect(expiresAt).toBeGreaterThanOrEqual(before + inviteLifetimeMs);
+    expect(db.prepare('select distinct origin, label, made_by as madeBy from invite').all()).toEqual([
+      { origin: 'admin', label: 'Book club', madeBy: accounts.ofDid(alice) },
+    ]);
+    // Once: the first sign-up uses it up.
+    const carol = accounts.signInEmail('carol@example.org', tokenOf(links[0]));
+    expect(accounts.inviteIsOpen(tokenOf(links[0]))).toBe(false);
+    expect(accounts.maySignInEmail('dave@example.org', tokenOf(links[0]))).toBe(false);
+    expect(accounts.inviteIsOpen(tokenOf(links[1]))).toBe(true);
+    // The instance keeps only the hash of a token.
+    expect(JSON.stringify(db.prepare('select * from invite').all())).not.toContain(tokenOf(links[1]));
+    expect(everyValue()).not.toContain(tokenOf(links[1]));
+    // The new Account started with an Admin Invite and its label.
+    const { accounts: rows } = (await json(await call(cookie, 'GET', '/api/admin/accounts'))) as unknown as { accounts: AccountRow[] };
+    expect(rows.find(({ account }) => account === carol)!.start).toEqual({ kind: 'admin-invite', label: 'Book club' });
+  });
+
+  test('one log line for a make, with the count and the label and no link', async () => {
+    const cookie = asAdmin(alice);
+    const before = logLines().length;
+
+    await make(cookie, { count: 2, label: 'Friends' });
+    await make(cookie, { count: 1 });
+
+    expect(logLines().slice(before)).toEqual([
+      { admin: accounts.ofDid(alice), action: 'invite.make', target: null, detail: '2 · Friends' },
+      { admin: accounts.ofDid(alice), action: 'invite.make', target: null, detail: '1' },
+    ]);
+  });
+
+  test('a count out of 1 to 50 or a label over 60 characters is refused on the server, and nothing is made', async () => {
+    const cookie = asAdmin(alice);
+
+    for (const count of [0, 51, 1.5, -1, '3', null, undefined]) expect((await make(cookie, { count })).status).toBe(400);
+    expect((await make(cookie, { count: 1, label: 'x'.repeat(61) })).status).toBe(400);
+    expect((await make(cookie, { count: 1, label: 7 })).status).toBe(400);
+    expect(inviteCount()).toBe(0);
+
+    expect((await make(cookie, { count: 50, label: 'x'.repeat(60) })).status).toBe(201);
+    expect(inviteCount()).toBe(50);
+  });
+
+  test('panel Invites and the reader Invite of the same Admin do not mix', async () => {
+    const cookie = asAdmin(alice);
+    const admin = accounts.ofDid(alice);
+    const { links } = (await json(await make(cookie, { count: 2 }))) as { links: string[] };
+    accounts.signInEmail('carol@example.org', tokenOf(links[0]));
+
+    // A person used a panel Invite: the reader Invite of the Admin is still to make.
+    expect(accounts.inviteOf(admin)).toEqual({ state: 'none' });
+    const mine = accounts.makeInvite(admin);
+    expect(mine).toBeDefined();
+    // A new reader Invite removes only the unused reader Invite, not the open panel Invite.
+    const again = accounts.makeInvite(admin)!;
+    expect(accounts.inviteIsOpen(mine!.token)).toBe(false);
+    expect(accounts.inviteIsOpen(tokenOf(links[1]))).toBe(true);
+
+    // The reverse: the reader Invite is used up, and the panel still makes Invites.
+    accounts.signInEmail('dave@example.org', again.token);
+    expect(accounts.inviteOf(admin)).toEqual({ state: 'used' });
+    expect(accounts.makeInvite(admin)).toBeUndefined();
+    expect((await make(cookie, { count: 1 })).status).toBe(201);
+  });
+
+  test('the list shows every Invite with its origin, label, state and days, and names Accounts by Account Reference only', async () => {
+    const cookie = asAdmin(alice);
+    const admin = accounts.ofDid(alice);
+    const { links } = (await json(await make(cookie, { count: 2, label: 'Friends' }))) as { links: string[] };
+    const carol = accounts.signInEmail('carol@example.org', tokenOf(links[0]));
+    makeInvite(db);
+    makeInvite(db, Date.now() - inviteLifetimeMs - 1000);
+    accounts.makeInvite(carol);
+
+    const response = await call(cookie, 'GET', '/api/admin/invites');
+    const text = await response.clone().text();
+    const invites = ((await json(response)) as unknown as { invites: InviteRow[] }).invites;
+
+    const shape = ({ origin, label, state, madeBy, usedBy, canRevoke }: InviteRow) => ({ origin, label, state, madeBy, usedBy, canRevoke });
+    expect(invites.map(shape).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))).toEqual(
+      [
+        { origin: 'admin', label: 'Friends', state: 'used', madeBy: accountReference(admin), usedBy: accountReference(carol), canRevoke: false },
+        { origin: 'admin', label: 'Friends', state: 'open', madeBy: accountReference(admin), usedBy: null, canRevoke: true },
+        { origin: 'script', label: null, state: 'open', madeBy: null, usedBy: null, canRevoke: true },
+        { origin: 'script', label: null, state: 'expired', madeBy: null, usedBy: null, canRevoke: false },
+        { origin: 'reader', label: null, state: 'open', madeBy: accountReference(carol), usedBy: null, canRevoke: false },
+      ].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    );
+    const used = invites.find(({ state }) => state === 'used')!;
+    expect(used.usedAt).toEqual(expect.any(Number));
+    expect(Math.abs(used.madeAt - Date.now())).toBeLessThan(60_000);
+    for (const secret of ['carol@', 'example.org', 'test.reader', 'did:', tokenOf(links[1])]) expect(text).not.toContain(secret);
+  });
+
+  test('revoke removes an open Invite of an Admin or of the script: the link then fails as an unknown Invite', async () => {
+    const cookie = asAdmin(alice);
+    const { links } = (await json(await make(cookie, { count: 1, label: 'Friends' }))) as { links: string[] };
+    const script = makeInvite(db);
+    const before = logLines().length;
+
+    for (const { id } of await list(cookie)) expect((await call(cookie, 'POST', '/api/admin/invites/revoke', { id })).status).toBe(200);
+
+    expect(inviteCount()).toBe(0);
+    expect(accounts.inviteIsOpen(tokenOf(links[0]))).toBe(false);
+    expect(accounts.inviteIsOpen(script.token)).toBe(false);
+    expect(() => accounts.signInEmail('carol@example.org', tokenOf(links[0]))).toThrow();
+    const lines = logLines().slice(before);
+    expect(lines.map(({ admin, action }) => ({ admin, action }))).toEqual([
+      { admin: accounts.ofDid(alice), action: 'invite.revoke' },
+      { admin: accounts.ofDid(alice), action: 'invite.revoke' },
+    ]);
+    expect(lines.map(({ detail }) => detail).sort()).toEqual(['Friends', null]);
+  });
+
+  test('a used Invite, an expired one and a reader Invite cannot be revoked', async () => {
+    const cookie = asAdmin(alice);
+    const { links } = (await json(await make(cookie, { count: 1 }))) as { links: string[] };
+    const carol = accounts.signInEmail('carol@example.org', tokenOf(links[0]));
+    makeInvite(db, Date.now() - inviteLifetimeMs - 1000);
+    accounts.makeInvite(carol);
+    const before = logLines().length;
+
+    for (const { id } of await list(cookie)) expect((await call(cookie, 'POST', '/api/admin/invites/revoke', { id })).status).toBe(409);
+    expect((await call(cookie, 'POST', '/api/admin/invites/revoke', { id: 'unknown' })).status).toBe(409);
+
+    expect(inviteCount()).toBe(3);
+    expect(logLines()).toHaveLength(before);
+  });
+
+  test('an Invite of the script keeps the script origin', () => {
+    makeInvite(db);
+
+    expect(db.prepare('select origin, made_by as madeBy, label from invite').all()).toEqual([{ origin: 'script', madeBy: null, label: null }]);
   });
 });
