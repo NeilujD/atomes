@@ -127,10 +127,9 @@ export const en = {
   'mail.added.lead': 'An Admin of this Atomes instance made an Account for you, with this email address.',
   'mail.added.button': 'Open Atomes',
   'mail.added.steps': 'Sign in with this address. Atomes then sends you a Sign-in Code. There is no password.',
-  'mail.added.refuse': (contact: string | undefined) =>
-    `You do not want this Account? Write to ${contact ?? 'the operator of this instance'} and ask for its delete.`,
+  'mail.added.refuse': (contact: string) => `You do not want this Account? Write to ${contact} and ask for its delete.`,
   'mail.added.reason': 'because an Admin made an Account with this address on',
-  'mail.added.text': (signIn: string, contact: string | undefined, privacy: string) =>
+  'mail.added.text': (signIn: string, contact: string, privacy: string) =>
     `An Admin of this Atomes instance made an Account for you, with this email address.
 
 To use it, open this page and sign in with this address:
@@ -138,7 +137,7 @@ ${signIn}
 
 Atomes then sends you a Sign-in Code. There is no password.
 
-You do not want this Account? Write to ${contact ?? 'the operator of this instance'} and ask for its delete.
+You do not want this Account? Write to ${contact} and ask for its delete.
 
 What this instance keeps: ${privacy}`,
   'mail.link.text': (code: string) =>
@@ -1035,6 +1034,7 @@ What this instance keeps: ${privacy}`,
   'admin.added-no-mail': (reference: string) => `Account ${reference} added, but the mail did not go. Tell the person yourself.`,
   'admin.exists': 'This address has an Account already. No mail went.',
   'admin.too-many': 'You tried to add 20 Accounts in one hour. Try again later.',
+  'admin.no-contact': 'This instance gives no contact (LEGAL_CONTACT). Set it before you add an Account: the mail must say who to write to.',
   'admin.delete': 'Delete',
   'admin.delete-title': (reference: string) => `Delete Account ${reference}?`,
   'admin.delete-label': (reference: string) => `Delete Account ${reference}`,
@@ -1043,7 +1043,8 @@ What this instance keeps: ${privacy}`,
   'admin.delete-sessions': 'its sessions',
   'admin.delete-invites': 'its open Invites',
   'admin.delete-shared': 'its Shared records',
-  'admin.delete-invited': (references: string) => `This Account invited ${references}. That Account is not deleted.`,
+  'admin.delete-invited': (references: string, count: number) =>
+    `This Account invited ${references}. ${count === 1 ? 'That Account is' : 'Those Accounts are'} not deleted.`,
   'admin.delete-type': (reference: string) => `Type ${reference} to confirm`,
   'admin.delete-confirm': 'Delete the Account',
   'admin.deleted': (reference: string) => `Account ${reference} deleted.`,

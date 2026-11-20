@@ -55,6 +55,7 @@ export interface AdminDeps extends AdminGateDeps {
   // The limit store that sign-in uses (auth.sqlite).
   limits: Pick<SignInCodes, 'allow'>;
   // The operator's contact of the instance settings (LEGAL_CONTACT), named in the mail of an added Account.
+  // With none, no Account is added: the mail must say who to write to for the delete.
   contact?: string;
   // The stores of the delete of an Account, as "Delete my account" has them.
   deletion: DeleteDeps;
@@ -211,6 +212,8 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
   'POST /api/admin/accounts': {
     permission: 'accounts.add',
     async run(request, deps, admin) {
+      const { contact } = deps;
+      if (!contact) return refused(409, 'NoContact');
       const { email, language } = await bodyOf(request);
       const address = normalEmail(email);
       if (!address) return refused(400, 'BadAddress');
@@ -224,7 +227,7 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
         return refused(409, 'Exists');
       }
       // The Account stays when the mail fails; the panel says so. No address reaches a log line.
-      const mailSent = await deps.sendMail(accountAddedMail(address, language as Language, deps.site, deps.contact)).then(
+      const mailSent = await deps.sendMail(accountAddedMail(address, language as Language, deps.site, contact)).then(
         () => true,
         (error: unknown) => {
           console.warn(`Added-Account mail failed: ${errorLogText(error).replaceAll(address, '[address]')}`);

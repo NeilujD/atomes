@@ -94,7 +94,7 @@ export function createAdminStore(db: DatabaseSync): AdminStore {
       // An Account with no Invite came from the operator's shell too (a migration, the preview setting).
       const startOf = (account: string): Start => {
         const invite = starts.get(account);
-        if (invite?.origin === 'admin') return { kind: 'admin-invite', label: invite.label };
+        if (invite?.origin === 'admin') return { kind: 'admin-invite', label: invite.label, by: invite.madeBy };
         if (invite?.origin === 'reader') return { kind: 'reader-invite', by: invite.madeBy };
         return { kind: 'script' };
       };

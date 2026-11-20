@@ -70,7 +70,7 @@ export const linkCodeMail = (to: string, code: string, language: Language, site:
 // for you, open the link, sign in with this address and a Sign-in Code. The
 // link is the plain sign-in page: it holds no token. `contact`: the operator's
 // contact of the instance settings (LEGAL_CONTACT), to ask for the delete.
-export function accountAddedMail(to: string, language: Language, site: string, contact: string | undefined): Mail {
+export function accountAddedMail(to: string, language: Language, site: string, contact: string): Mail {
   const t = translator(language);
   const signIn = new URL('/sign-in', site).href;
   const subject = t('mail.added.subject');

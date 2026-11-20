@@ -706,6 +706,26 @@ describe('add an Account', () => {
     expect(everyValue()).not.toContain('carol@');
   });
 
+  // The mail must say who to write to for the delete (L2): with no LEGAL_CONTACT, no Account is added.
+  test('an instance that gives no contact: the add is refused, no Account is made and no mail goes', async () => {
+    const cookie = asAdmin(alice);
+    const before = { accounts: accountCount(), log: logLines().length };
+    const addWithNoContact = () =>
+      handleAdminRequest(request(cookie, 'POST', '/api/admin/accounts', { email: 'carol@example.org', language: 'en' }), { ...deps(), contact: undefined });
+
+    const response = await addWithNoContact();
+
+    expect(response.status).toBe(409);
+    expect(await json(response)).toEqual({ error: 'NoContact' });
+    expect(outbox).toEqual([]);
+    expect(accountCount()).toBe(before.accounts);
+    expect(roles.accountOf('carol@example.org')).toBeUndefined();
+    expect(logLines()).toHaveLength(before.log);
+    // A refused try does not count in the hourly limit: the Admin can add as soon as the contact is set.
+    for (let n = 0; n < 25; n += 1) await addWithNoContact();
+    expect((await add(cookie, 'carol@example.org')).status).toBe(201);
+  });
+
   test('a text that is not an address, or a language the app does not have, is refused', async () => {
     const cookie = asAdmin(alice);
     const before = accountCount();

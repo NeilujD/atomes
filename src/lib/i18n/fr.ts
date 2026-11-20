@@ -124,10 +124,10 @@ export const fr: typeof en = {
   'mail.added.lead': 'Un administrateur de cette instance Atomes a créé un compte pour vous, avec cette adresse e-mail.',
   'mail.added.button': 'Ouvrir Atomes',
   'mail.added.steps': 'Connectez-vous avec cette adresse. Atomes vous envoie alors un Code de connexion. Il n’y a pas de mot de passe.',
-  'mail.added.refuse': (contact: string | undefined) =>
-    `Vous ne voulez pas de ce compte ? Écrivez à ${contact ?? 'l’opérateur de cette instance'} et demandez sa suppression.`,
+  'mail.added.refuse': (contact: string) =>
+    `Vous ne voulez pas de ce compte ? Écrivez à ${contact} et demandez sa suppression.`,
   'mail.added.reason': 'parce qu’un administrateur a créé un compte avec cette adresse sur',
-  'mail.added.text': (signIn: string, contact: string | undefined, privacy: string) =>
+  'mail.added.text': (signIn: string, contact: string, privacy: string) =>
     `Un administrateur de cette instance Atomes a créé un compte pour vous, avec cette adresse e-mail.
 
 Pour l’utiliser, ouvrez cette page et connectez-vous avec cette adresse :
@@ -135,7 +135,7 @@ ${signIn}
 
 Atomes vous envoie alors un Code de connexion. Il n’y a pas de mot de passe.
 
-Vous ne voulez pas de ce compte ? Écrivez à ${contact ?? 'l’opérateur de cette instance'} et demandez sa suppression.
+Vous ne voulez pas de ce compte ? Écrivez à ${contact} et demandez sa suppression.
 
 Ce que cette instance garde : ${privacy}`,
   'mail.link.text': (code: string) =>
@@ -1018,6 +1018,8 @@ Ce que cette instance garde : ${privacy}`,
   'admin.added-no-mail': (reference: string) => `Compte ${reference} ajouté, mais l’e-mail n’est pas parti. Prévenez la personne vous-même.`,
   'admin.exists': 'Cette adresse a déjà un compte. Aucun e-mail n’est parti.',
   'admin.too-many': 'Vous avez essayé d’ajouter 20 comptes en une heure. Réessayez plus tard.',
+  'admin.no-contact':
+    'Cette instance ne donne pas de contact (LEGAL_CONTACT). Renseignez-le avant d’ajouter un compte : l’e-mail doit dire à qui écrire.',
   'admin.delete': 'Supprimer',
   'admin.delete-title': (reference: string) => `Supprimer le compte ${reference} ?`,
   'admin.delete-label': (reference: string) => `Supprimer le compte ${reference}`,
@@ -1026,7 +1028,8 @@ Ce que cette instance garde : ${privacy}`,
   'admin.delete-sessions': 'ses sessions',
   'admin.delete-invites': 'ses invitations ouvertes',
   'admin.delete-shared': 'ses enregistrements partagés',
-  'admin.delete-invited': (references: string) => `Ce compte a invité ${references}. Ce compte-là n’est pas supprimé.`,
+  'admin.delete-invited': (references: string, count: number) =>
+    `Ce compte a invité ${references}. ${count === 1 ? 'Ce compte-là n’est pas supprimé' : 'Ces comptes-là ne sont pas supprimés'}.`,
   'admin.delete-type': (reference: string) => `Saisissez ${reference} pour confirmer`,
   'admin.delete-confirm': 'Supprimer le compte',
   'admin.deleted': (reference: string) => `Compte ${reference} supprimé.`,

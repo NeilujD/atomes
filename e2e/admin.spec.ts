@@ -93,7 +93,10 @@ test('An Admin makes Invites, adds an Account, shows its identity, deletes it an
   // The panel leads to the new row.
   await expect(page).toHaveURL(new RegExp(`#${reference}$`));
   const mail = await page.request.get(`/dev/outbox?to=${encodeURIComponent(address)}`);
-  expect(await mail.text()).toContain('An Admin of this Atomes instance made an Account for you');
+  const text = await mail.text();
+  expect(text).toContain('An Admin of this Atomes instance made an Account for you');
+  // The mail says who to write to for the delete: the contact of the instance settings.
+  expect(text).toContain('operator@atomes.test');
 
   // The Admin's own row says "you", and has no Delete.
   const own = page.locator('.rows.accounts tbody', { has: page.locator('.chip', { hasText: /^you$/ }) });

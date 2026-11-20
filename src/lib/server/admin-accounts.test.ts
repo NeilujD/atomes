@@ -86,7 +86,7 @@ test('a row names the maker of its reader Invite by Account Reference, and gives
 
   expect(row.start).toEqual({ kind: 'reader-invite', by: 'A-MAKER2' });
   expect(row.signIn).toBe('both');
-  expect(accountRows([facts({ start: { kind: 'admin-invite', label: 'Book club' }, email: false, atproto: true })], references, now)[0]).toMatchObject({
+  expect(accountRows([facts({ start: { kind: 'admin-invite', label: 'Book club', by: null }, email: false, atproto: true })], references, now)[0]).toMatchObject({
     start: { kind: 'admin-invite', label: 'Book club' },
     signIn: 'atproto',
   });
@@ -101,6 +101,30 @@ test('a row lists the Accounts that signed up with its reader Invite', () => {
 
   expect(rows.find(({ account }) => account === 'maker')!.invited).toEqual(['A-GUEST2']);
   expect(rows.find(({ account }) => account === 'guest')!.invited).toEqual([]);
+});
+
+// A former Admin can be deleted from the panel: the dialog must name every Account its panel Invites made (L4).
+test('a row lists the Accounts that signed up with an Admin Invite of its Account too', () => {
+  const references = new Map([
+    ['former', 'A-FORMER'],
+    ['one', 'A-GUEST1'],
+    ['two', 'A-GUEST2'],
+    ['three', 'A-GUEST3'],
+  ]);
+  const rows = accountRows(
+    [
+      facts({ account: 'former' }),
+      facts({ account: 'one', start: { kind: 'admin-invite', label: 'Book club', by: 'former' } }),
+      facts({ account: 'two', start: { kind: 'admin-invite', label: null, by: 'former' } }),
+      facts({ account: 'three', start: { kind: 'reader-invite', by: 'former' } }),
+    ],
+    references,
+    now,
+  );
+
+  expect(rows.find(({ account }) => account === 'former')!.invited.toSorted()).toEqual(['A-GUEST1', 'A-GUEST2', 'A-GUEST3']);
+  // The row of a guest still shows the label of its Invite, and not who made it.
+  expect(rows.find(({ account }) => account === 'one')!.start).toEqual({ kind: 'admin-invite', label: 'Book club' });
 });
 
 test('totals: Accounts in total, new and active in 7 and 30 days, and the records', () => {

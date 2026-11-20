@@ -21,9 +21,9 @@ export const flagLimits = {
 
 export type Flag = 'no-activity' | 'heavy-writes' | 'many-corrections' | 'many-sessions';
 
-// How an Account started. `by`: the Account that made the reader Invite; null once it is deleted.
+// How an Account started. `by`: the Account that made the Invite; null once it is deleted.
 export type Start =
-  | { kind: 'admin-invite'; label: string | null }
+  | { kind: 'admin-invite'; label: string | null; by: string | null }
   | { kind: 'reader-invite'; by: string | null }
   | { kind: 'added' }
   | { kind: 'script' };
@@ -62,7 +62,8 @@ export interface AccountRow {
   invitesUsed: number;
   corrections: number;
   sessions: number;
-  // The Account References of the Accounts that signed up with a reader Invite of this Account.
+  // The Account References of the Accounts that signed up with an Invite of this Account: its reader Invite,
+  // and the Admin Invites it made (an Admin whose role was revoked can be deleted from the panel).
   invited: string[];
 }
 
@@ -89,7 +90,7 @@ export function accountRows(facts: readonly AccountFacts[], references: Readonly
   const reference = (account: string) => references.get(account) ?? account;
   const invitedBy = new Map<string, string[]>();
   for (const { account, start } of facts) {
-    if (start.kind === 'reader-invite' && start.by) invitedBy.set(start.by, [...(invitedBy.get(start.by) ?? []), reference(account)]);
+    if ((start.kind === 'reader-invite' || start.kind === 'admin-invite') && start.by) invitedBy.set(start.by, [...(invitedBy.get(start.by) ?? []), reference(account)]);
   }
   const rows = facts.map((each): AccountRow => {
     const { start } = each;
