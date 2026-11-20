@@ -4,6 +4,8 @@
 // `scripts/role.ts` runs this file with Node alone (type stripping), so no
 // import outside `node:` and relative `.ts` files that follow the same rule.
 import type { DatabaseSync } from 'node:sqlite';
+import { writeLog } from './admin-log.ts';
+import { inTransaction } from './migrate.ts';
 import { normalEmail } from './sign-in-codes.ts';
 
 export const permissions = [
@@ -38,23 +40,37 @@ export interface Grant {
 export interface Roles {
   // Read from the table on each call: a revoke works at the next request.
   rolesOf(account: string): Role[];
-  // False when the Account had the role already.
-  grant(account: string, grantedBy: string | null, now?: number): boolean;
+  // `by`: the Admin who acts; null for the script. Each change writes one
+  // line to the Admin Log, in the same transaction. False when the Account
+  // had the role already: nothing is written.
+  grant(account: string, by: string | null, now?: number): boolean;
   // False when the Account did not have the role.
-  revoke(account: string): boolean;
+  revoke(account: string, by: string | null, now?: number): boolean;
   // The Admins, oldest grant first.
   admins(): Grant[];
+  // As findAccount.
+  accountOf(identity: string): string | undefined;
 }
 
 // `db` has run `librarySteps` (migrations.ts). Does not close it.
 export function createRoles(db: DatabaseSync): Roles {
   return {
     rolesOf: (account) => (db.prepare('select role from account_role where account = ?').all(account) as { role: Role }[]).map(({ role }) => role),
-    grant: (account, grantedBy, now = Date.now()) =>
-      db
-        .prepare("insert into account_role (account, role, granted_by, granted_at) values (?, 'admin', ?, ?) on conflict do nothing")
-        .run(account, grantedBy, now).changes === 1,
-    revoke: (account) => db.prepare("delete from account_role where account = ? and role = 'admin'").run(account).changes === 1,
+    grant: (account, by, now = Date.now()) =>
+      inTransaction(db, () => {
+        const { changes } = db
+          .prepare("insert into account_role (account, role, granted_by, granted_at) values (?, 'admin', ?, ?) on conflict do nothing")
+          .run(account, by, now);
+        if (changes === 1) writeLog(db, { admin: by, action: 'role.grant', target: account, detail: null }, now);
+        return changes === 1;
+      }),
+    revoke: (account, by, now = Date.now()) =>
+      inTransaction(db, () => {
+        const { changes } = db.prepare("delete from account_role where account = ? and role = 'admin'").run(account);
+        if (changes === 1) writeLog(db, { admin: by, action: 'role.revoke', target: account, detail: null }, now);
+        return changes === 1;
+      }),
+    accountOf: (identity) => findAccount(db, identity),
     admins: () =>
       db
         .prepare("select account, granted_by as grantedBy, granted_at as grantedAt from account_role where role = 'admin' order by granted_at, account")
@@ -90,7 +106,8 @@ const usage = 'Usage: scripts/role.ts grant|revoke <email address or DID>, or sc
 // `scripts/role.ts grant|revoke|list <identity>`. `db` is the library.sqlite
 // of the instance, as the server left it.
 export function roleCommand(db: DatabaseSync, command: string | undefined, identity?: string, now = Date.now()): RoleCommandOutcome {
-  if (!db.prepare("select 1 from sqlite_master where type = 'table' and name = 'account_role'").get()) {
+  const tables = db.prepare("select count(*) as n from sqlite_master where type = 'table' and name in ('account_role', 'admin_action')").get() as { n: number };
+  if (tables.n < 2) {
     return { ok: false, lines: ['This library.sqlite has no role table yet: start the server once, then run this again.'] };
   }
   const roles = createRoles(db);
@@ -108,7 +125,7 @@ export function roleCommand(db: DatabaseSync, command: string | undefined, ident
   if (command === 'grant') {
     return { ok: true, lines: [roles.grant(account, null, now) ? 'Granted the Admin role.' : 'This Account is an Admin already.'] };
   }
-  if (!roles.revoke(account)) return { ok: true, lines: ['This Account is not an Admin: nothing changed.'] };
+  if (!roles.revoke(account, null, now)) return { ok: true, lines: ['This Account is not an Admin: nothing changed.'] };
   const warning = roles.admins().length === 0 ? 'The instance has no Admin now: grant the role again with this script.' : undefined;
   return { ok: true, lines: ['Revoked the Admin role.'], warning };
 }

@@ -16,6 +16,8 @@ import { openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
 import { createOAuthClient, oauthPort, repoAccess } from './oauth';
 import { createRoles, type Roles } from './roles';
+import type { AdminDeps } from './admin';
+import { createAdminStore, type AdminStore } from './admin-store';
 import { secretBox } from './secret-box';
 import { settings } from './settings';
 import { createSharing, logFailure, type Sharing } from './sharing';
@@ -24,6 +26,7 @@ import { createSignInCodes } from './sign-in-codes';
 let library: LibraryStore | undefined;
 let accounts: Accounts | undefined;
 let roles: Roles | undefined;
+let adminStore: AdminStore | undefined;
 let sharing: Promise<Sharing> | undefined;
 let auth: Promise<AuthDeps & { client: NodeOAuthClient }> | undefined;
 let migrated: string | undefined;
@@ -69,6 +72,13 @@ export function accountStore(): Accounts {
 export function roleStore(): Roles {
   roles ??= createRoles(open('library.sqlite'));
   return roles;
+}
+
+// What the admin panel and the admin API read and write (ADR 0020).
+export async function adminDeps(): Promise<AdminDeps> {
+  const { store } = await authDeps();
+  adminStore ??= createAdminStore(open('library.sqlite'));
+  return { store, roles: roleStore(), accounts: accountStore(), admin: adminStore };
 }
 
 export function authDeps(): Promise<AuthDeps & { client: NodeOAuthClient }> {

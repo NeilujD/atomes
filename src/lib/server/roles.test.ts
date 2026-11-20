@@ -116,6 +116,19 @@ describe('the role command', () => {
     old.close();
   });
 
+  test('a grant and a revoke by the script each write one Admin Log line with no Admin', () => {
+    const alice = accounts.ofEmail('alice@example.org');
+
+    roleCommand(db, 'grant', 'alice@example.org');
+    roleCommand(db, 'grant', 'alice@example.org');
+    roleCommand(db, 'revoke', 'alice@example.org');
+
+    expect(db.prepare('select admin, action, target, detail from admin_action order by id').all()).toEqual([
+      { admin: null, action: 'role.grant', target: alice, detail: null },
+      { admin: null, action: 'role.revoke', target: alice, detail: null },
+    ]);
+  });
+
   test('the delete of an Admin Account removes its role', () => {
     const alice = accounts.ofEmail('alice@example.org');
     roleCommand(db, 'grant', 'alice@example.org');

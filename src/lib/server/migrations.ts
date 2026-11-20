@@ -165,5 +165,20 @@ const libraryV4: Step = (db) =>
     );
   `);
 
-export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3, libraryV4];
+// The Admin Log (ADR 0020, admin-log.ts). No foreign key: a line stays when
+// its Account goes.
+const libraryV5: Step = (db) =>
+  db.exec(`
+    create table admin_action (
+      id integer primary key,
+      at integer not null,
+      admin text,
+      action text not null,
+      target text,
+      detail text
+    );
+    create index admin_action_at on admin_action (at);
+  `);
+
+export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3, libraryV4, libraryV5];
 export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts), authV2];

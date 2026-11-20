@@ -12,10 +12,23 @@
   display: flex;
 }
 
+/* One line at 360 px in French too ("Administrateurs"): a segment is as wide as its word. */
+.segmented.parts {
+  flex-wrap: nowrap;
+}
+
 .parts .segment {
-  flex: 1;
+  flex: 1 1 auto;
   justify-content: center;
   text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 959px) {
+  .parts .segment {
+    padding-inline: var(--space-6);
+    font-size: var(--type-small);
+  }
 }
 
 .parts .segment[aria-current='page'] {

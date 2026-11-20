@@ -14,6 +14,8 @@ import { createAuthStore, type AuthStore } from './auth-store';
 import { openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
 import { createRoles, type Roles } from './roles';
+import { accountReference } from './account-reference';
+import { createAdminStore } from './admin-store';
 import { secretBox } from './secret-box';
 
 const app = 'https://atomes.test';
@@ -54,7 +56,7 @@ function asAdmin(did: Did): string {
   return cookie;
 }
 
-const deps = () => ({ store: auth, roles });
+const deps = () => ({ store: auth, roles, accounts, admin: createAdminStore(db) });
 
 function request(cookie: string | undefined, method: string, path: string, body?: unknown): Request {
   const headers: Record<string, string> = { origin: app };
@@ -97,7 +99,7 @@ describe('the gate', () => {
     const cookie = asAdmin(alice);
     expect(adminOf(request(cookie, 'GET', '/admin'), deps())).toEqual({ account: accounts.ofDid(alice) });
 
-    roles.revoke(accounts.ofDid(alice));
+    roles.revoke(accounts.ofDid(alice), null);
 
     expect(adminOf(request(cookie, 'GET', '/admin'), deps())).toBeUndefined();
   });
@@ -113,5 +115,130 @@ describe('the session answer', () => {
 
     expect((await sessionOf(admin)).admin).toBe(true);
     expect((await sessionOf(reader)).admin).toBeUndefined();
+  });
+});
+
+// An Account with an email address, signed in; gives its cookie value.
+function signedInEmail(address: string): string {
+  return auth.openBrowserSession({ account: accounts.ofEmail(address), handle: '' }).cookie;
+}
+
+type Body = Record<string, unknown>;
+const json = async (response: Response) => (await response.json()) as Body;
+const logLines = () => db.prepare('select admin, action, target, detail from admin_action order by id').all() as Body[];
+const everyValue = () => JSON.stringify(db.prepare('select * from admin_action').all());
+
+describe('the Admins part', () => {
+  test('lists each Admin by email address, else by handle, with the day of the grant and who granted it', async () => {
+    const cookie = asAdmin(alice);
+    signedInEmail('carol@example.org');
+    await call(cookie, 'POST', '/api/admin/roles/grant', { email: 'carol@example.org' });
+
+    const { admins } = (await json(await call(cookie, 'GET', '/api/admin/admins'))) as { admins: Body[] };
+
+    expect(admins).toEqual([
+      { account: accounts.ofDid(alice), name: 'test.reader', grantedAt: expect.any(Number) as number, grantedBy: null, you: true },
+      { account: accounts.ofEmail('carol@example.org'), name: 'carol@example.org', grantedAt: expect.any(Number) as number, grantedBy: 'test.reader', you: false },
+    ]);
+  });
+
+  test('a grant by email address, typed in any case, gives the role; the log line names the Account, never the address', async () => {
+    const cookie = asAdmin(alice);
+    const carol = accounts.ofEmail('carol@example.org');
+
+    const response = await call(cookie, 'POST', '/api/admin/roles/grant', { email: '  Carol@Example.ORG ' });
+
+    expect(response.status).toBe(200);
+    expect(roles.rolesOf(carol)).toEqual(['admin']);
+    expect(logLines().at(-1)).toEqual({ admin: accounts.ofDid(alice), action: 'role.grant', target: carol, detail: null });
+    expect(everyValue()).not.toContain('carol@');
+  });
+
+  test('a grant for an address with no Account answers NoAccount and logs a search with no target and no address', async () => {
+    const cookie = asAdmin(alice);
+
+    const response = await call(cookie, 'POST', '/api/admin/roles/grant', { email: 'nobody@example.org' });
+
+    expect(response.status).toBe(422);
+    expect(await json(response)).toEqual({ error: 'NoAccount' });
+    expect(logLines().at(-1)).toEqual({ admin: accounts.ofDid(alice), action: 'identity.find', target: null, detail: null });
+    expect(everyValue()).not.toContain('nobody');
+  });
+
+  test('a text that is not an address is refused, and nothing is logged', async () => {
+    const cookie = asAdmin(alice);
+    const before = logLines().length;
+
+    expect((await call(cookie, 'POST', '/api/admin/roles/grant', { email: 'not an address' })).status).toBe(400);
+    expect(logLines()).toHaveLength(before);
+  });
+
+  test('an Admin revokes the role of another Admin, with a log line', async () => {
+    const cookie = asAdmin(alice);
+    asAdmin(bob);
+    const target = accounts.ofDid(bob);
+
+    const response = await call(cookie, 'POST', '/api/admin/roles/revoke', { account: target });
+
+    expect(response.status).toBe(200);
+    expect(roles.rolesOf(target)).toEqual([]);
+    expect(logLines().at(-1)).toEqual({ admin: accounts.ofDid(alice), action: 'role.revoke', target, detail: null });
+  });
+
+  test('the revoke of the own role is refused on the server', async () => {
+    const cookie = asAdmin(alice);
+
+    const response = await call(cookie, 'POST', '/api/admin/roles/revoke', { account: accounts.ofDid(alice) });
+
+    expect(response.status).toBe(403);
+    expect(roles.rolesOf(accounts.ofDid(alice))).toEqual(['admin']);
+  });
+
+  test('the revoke of an Account that is not an Admin changes nothing', async () => {
+    const cookie = asAdmin(alice);
+    signedIn(bob);
+    const before = logLines().length;
+
+    expect((await call(cookie, 'POST', '/api/admin/roles/revoke', { account: accounts.ofDid(bob) })).status).toBe(409);
+    expect(logLines()).toHaveLength(before);
+  });
+});
+
+describe('the Admin Log', () => {
+  test('lists the lines newest first: the Admin by name, the script as null, the target by Account Reference', async () => {
+    const cookie = asAdmin(alice);
+    signedIn(bob);
+    const target = accounts.ofDid(bob);
+    roles.grant(target, accounts.ofDid(alice));
+
+    const { lines } = (await json(await call(cookie, 'GET', '/api/admin/log'))) as { lines: Body[] };
+
+    expect(lines.map(({ admin, action, target }) => ({ admin, action, target }))).toEqual([
+      { admin: 'test.reader', action: 'role.grant', target: accountReference(target) },
+      { admin: null, action: 'role.grant', target: accountReference(accounts.ofDid(alice)) },
+    ]);
+  });
+
+  test('a deleted Account still shows its Account Reference', async () => {
+    const cookie = asAdmin(alice);
+    const carol = accounts.ofEmail('carol@example.org');
+    roles.grant(carol, accounts.ofDid(alice));
+    roles.revoke(carol, accounts.ofDid(alice));
+    accounts.forget(carol);
+
+    const { lines } = (await json(await call(cookie, 'GET', '/api/admin/log'))) as { lines: Body[] };
+
+    expect(lines[0]).toMatchObject({ action: 'role.revoke', target: accountReference(carol) });
+  });
+
+  test('a write removes the lines older than 12 months', () => {
+    const admin = createAdminStore(db);
+    const now = Date.UTC(2026, 10, 20, 12);
+    admin.write({ admin: null, action: 'invite.make', target: null, detail: 'old' }, Date.UTC(2025, 10, 20, 11));
+    admin.write({ admin: null, action: 'invite.make', target: null, detail: 'kept' }, Date.UTC(2025, 10, 20, 13));
+
+    admin.write({ admin: null, action: 'invite.make', target: null, detail: 'new' }, now);
+
+    expect(admin.log().map(({ detail }) => detail)).toEqual(['new', 'kept']);
   });
 });

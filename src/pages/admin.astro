@@ -6,17 +6,20 @@
 // `no-store`, and the service worker keeps none of it (public/sw.js). Not in
 // the tab bar or the sidebar: Settings links here for an Admin only.
 import '../styles/admin.css';
+import AdminsPart from '../components/admin/AdminsPart.astro';
+import LogPart from '../components/admin/LogPart.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
-import { adminOf } from '../lib/server/admin';
-import { authDeps, roleStore } from '../lib/server/instance';
+import { adminOf, adminRows, logRows } from '../lib/server/admin';
+import { adminDeps } from '../lib/server/instance';
 
-const { store } = await authDeps();
-const admin = adminOf(Astro.request, { store, roles: roleStore() });
+const deps = await adminDeps();
+const admin = adminOf(Astro.request, deps);
 if (!admin) return new Response(null, { status: 404, headers: { 'cache-control': 'no-store' } });
 Astro.response.headers.set('cache-control', 'no-store');
 
-const t = translator(requestLanguage(Astro.request));
+const language = requestLanguage(Astro.request);
+const t = translator(language);
 
 const parts = [
   { key: 'accounts', label: t('admin.part-accounts') },
@@ -42,9 +45,17 @@ const partLabel = parts.find(({ key }) => key === part)!.label;
       }
     </nav>
 
-    <section class="group" aria-labelledby="part-title">
-      <h2 class="small-heading" id="part-title">{partLabel}</h2>
-      <p class="row-hint">{t('admin.empty')}</p>
-    </section>
+    {part === 'admins' && <AdminsPart language={language} admins={adminRows(deps, admin.account)} />}
+    {part === 'log' && <LogPart language={language} lines={logRows(deps)} />}
+    {
+      (part === 'accounts' || part === 'invites') && (
+        <section class="group" aria-labelledby="part-title">
+          <h2 class="small-heading" id="part-title">
+            {partLabel}
+          </h2>
+          <p class="row-hint">{t('admin.empty')}</p>
+        </section>
+      )
+    }
   </div>
 </AppShell>

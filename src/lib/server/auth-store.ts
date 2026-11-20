@@ -36,6 +36,9 @@ export interface AuthStore {
   closeBrowserSession(cookie: string): AccountId | undefined;
   // The handle of every browser session of the Account, after a link.
   setHandle(account: AccountId, handle: string): void;
+  // The handle of the newest browser session of the Account that has one: how
+  // the admin panel names an Admin with no email address (ADR 0020).
+  handleOf(account: AccountId): string | undefined;
   // True while another browser session of the Account is still open.
   hasBrowserSessions(account: AccountId): boolean;
   // Ends every browser session of the Account, and deletes the OAuth session
@@ -114,6 +117,12 @@ export function createAuthStore(options: {
     },
     setHandle(account, handle) {
       db.prepare('update browser_session set handle = ? where account = ?').run(handle, account);
+    },
+    handleOf(account) {
+      const row = db.prepare("select handle from browser_session where account = ? and handle != '' order by expires_at desc limit 1").get(account) as
+        | { handle: string }
+        | undefined;
+      return row?.handle;
     },
     hasBrowserSessions(account) {
       return db.prepare('select 1 from browser_session where account = ? and expires_at > ?').get(account, now()) !== undefined;

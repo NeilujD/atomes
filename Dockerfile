@@ -28,7 +28,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/scripts/check-settings.ts /app/scripts/reset-env.ts /app/scripts/repair-shared-works.ts /app/scripts/invite.ts /app/scripts/role.ts ./scripts/
-COPY --from=build /app/src/lib/server/settings.ts /app/src/lib/server/reset.ts /app/src/lib/server/repair-shared-works.ts /app/src/lib/server/library-store.ts /app/src/lib/server/invites.ts /app/src/lib/server/roles.ts /app/src/lib/server/sign-in-codes.ts ./src/lib/server/
+COPY --from=build /app/src/lib/server/settings.ts /app/src/lib/server/reset.ts /app/src/lib/server/repair-shared-works.ts /app/src/lib/server/library-store.ts /app/src/lib/server/invites.ts /app/src/lib/server/roles.ts /app/src/lib/server/sign-in-codes.ts /app/src/lib/server/admin-log.ts /app/src/lib/server/migrate.ts ./src/lib/server/
 COPY package.json ./
 RUN mkdir -p /data && chown node:node /data
 VOLUME /data

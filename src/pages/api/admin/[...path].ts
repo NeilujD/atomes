@@ -2,9 +2,6 @@
 // role on every request, and answers 404 to anyone else.
 import type { APIRoute } from 'astro';
 import { handleAdminRequest } from '../../../lib/server/admin';
-import { authDeps, roleStore } from '../../../lib/server/instance';
+import { adminDeps } from '../../../lib/server/instance';
 
-export const ALL: APIRoute = async ({ request }) => {
-  const { store } = await authDeps();
-  return handleAdminRequest(request, { store, roles: roleStore() });
-};
+export const ALL: APIRoute = async ({ request }) => handleAdminRequest(request, await adminDeps());
