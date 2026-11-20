@@ -17,7 +17,8 @@
     "lint": "eslint .",
     "astro": "astro",
     "reset": "bun scripts/reset-env.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "landing-shots": "node scripts/landing-shots.ts"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",

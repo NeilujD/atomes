@@ -1,0 +1,871 @@
+---
+// The Landing page (M12): what Atomes does, why it is built on the AT
+// Protocol, who it is built on, and the way in. Public: no session needed.
+// English or French, chosen as the app chooses (ADR 0015; `landing.*` keys).
+// Spec: "Spec: M12 · Landing page" (Linear).
+import '../styles/glow.css';
+import Icon from '../components/Icon.astro';
+import type { IconName } from '../components/icons';
+import LandingShot from '../components/LandingShot.astro';
+import Mark from '../components/Mark.astro';
+import Landing from '../layouts/Landing.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+import { landingPage } from '../lib/server/settings';
+import { sourceCodeUrl } from '../lib/source-code';
+
+// LANDING_PAGE=off: an instance with no Landing page has no such page.
+if (!landingPage(process.env)) return new Response(null, { status: 404 });
+
+const t = translator(requestLanguage(Astro.request));
+
+const features: { icon: IconName; title: string; text: string }[] = [
+  { icon: 'library', title: t('landing.feature-library'), text: t('landing.feature-library-text') },
+  { icon: 'layers', title: t('landing.feature-series'), text: t('landing.feature-series-text') },
+  { icon: 'scan-barcode', title: t('landing.feature-quick-add'), text: t('landing.feature-quick-add-text') },
+  { icon: 'check', title: t('landing.feature-check'), text: t('landing.feature-check-text') },
+  { icon: 'shopping-bag', title: t('landing.feature-to-buy'), text: t('landing.feature-to-buy-text') },
+  { icon: 'book-open', title: t('landing.feature-status'), text: t('landing.feature-status-text') },
+  { icon: 'chart-column', title: t('landing.feature-statistics'), text: t('landing.feature-statistics-text') },
+  { icon: 'handshake', title: t('landing.feature-loans'), text: t('landing.feature-loans-text') },
+  { icon: 'tag', title: t('landing.feature-labels'), text: t('landing.feature-labels-text') },
+  { icon: 'lock', title: t('landing.feature-private'), text: t('landing.feature-private-text') },
+  { icon: 'wifi-off', title: t('landing.feature-offline'), text: t('landing.feature-offline-text') },
+  { icon: 'database', title: t('landing.feature-catalog'), text: t('landing.feature-catalog-text') },
+  { icon: 'download', title: t('landing.feature-data'), text: t('landing.feature-data-text') },
+  { icon: 'languages', title: t('landing.feature-language'), text: t('landing.feature-language-text') },
+];
+
+const principles: { icon: IconName; title: string; text: string }[] = [
+  { icon: 'user', title: t('landing.principle-account'), text: t('landing.principle-account-text') },
+  { icon: 'lock', title: t('landing.principle-private'), text: t('landing.principle-private-text') },
+  { icon: 'server', title: t('landing.principle-yours'), text: t('landing.principle-yours-text') },
+  { icon: 'heart', title: t('landing.principle-quiet'), text: t('landing.principle-quiet-text') },
+];
+
+// Proper names stay as their authors write them.
+const credits: { name: string; role: string; by: string; href: string }[] = [
+  { name: 'Astro', role: t('landing.credit-astro'), by: t('landing.credit-astro-by'), href: 'https://astro.build' },
+  { name: 'Preact', role: t('landing.credit-preact'), by: t('landing.credit-preact-by'), href: 'https://preactjs.com' },
+  { name: 'AT Protocol', role: t('landing.credit-atproto'), by: t('landing.credit-atproto-by'), href: 'https://atproto.com' },
+  { name: 'Lucide', role: t('landing.credit-lucide'), by: t('landing.credit-lucide-by'), href: 'https://lucide.dev' },
+  { name: 'Schibsted Grotesk', role: t('landing.credit-font'), by: t('landing.credit-font-by'), href: 'https://github.com/schibsted/schibsted-grotesk' },
+  { name: t('landing.credit-barcode-name'), role: t('landing.credit-barcode'), by: t('landing.credit-barcode-by'), href: 'https://github.com/Sec-ant/zxing-wasm' },
+  { name: t('landing.credit-server-name'), role: t('landing.credit-server'), by: t('landing.credit-server-by'), href: 'https://nodejs.org' },
+  { name: 'Nodemailer', role: t('landing.credit-mail'), by: 'Andris Reinman', href: 'https://nodemailer.com' },
+  { name: t('landing.credit-tests-name'), role: t('landing.credit-tests'), by: t('landing.credit-tests-by'), href: 'https://playwright.dev' },
+  { name: 'Coolify', role: t('landing.credit-coolify'), by: t('landing.credit-coolify-by'), href: 'https://coolify.io' },
+  { name: 'Linear', role: t('landing.credit-linear'), by: t('landing.credit-linear-by'), href: 'https://linear.app/now/how-we-redesigned-the-linear-ui' },
+];
+
+const sources: { name: string; by: string; href: string }[] = [
+  { name: 'BnF', by: 'Bibliothèque nationale de France, Licence Ouverte', href: 'https://catalogue.bnf.fr' },
+  { name: 'SUDOC', by: 'ABES, Licence Ouverte', href: 'https://www.sudoc.abes.fr' },
+  { name: 'Inventaire', by: t('landing.source-inventaire'), href: 'https://inventaire.io' },
+  { name: 'Open Library', by: 'Internet Archive', href: 'https://openlibrary.org' },
+  { name: 'Wikidata', by: t('landing.source-wikidata'), href: 'https://www.wikidata.org' },
+];
+---
+
+<Landing title={t('landing.title')} description={t('landing.description')}>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="glow hero-glow" aria-hidden="true">
+      <div class="glow-blob glow-b1 hero-b1"></div>
+      <div class="glow-blob glow-b2 hero-b2"></div>
+      <div class="glow-blob glow-b3 hero-b3"></div>
+    </div>
+    <div class="column hero-inner">
+      <div class="hero-text">
+        <p class="eyebrow">
+          <span class="chip">{t('landing.chip-books')}</span><span class="chip">{t('landing.chip-private')}</span><span class="chip"
+            >{t('landing.chip-open')}</span
+          >
+        </p>
+        <h1 id="hero-title">{t('landing.hero-title')}</h1>
+        <p class="lead">{t('landing.hero-lead')}</p>
+        <div class="actions">
+          <a class="button button-main button-big" href="/sign-in" data-cta>{t('landing.sign-in')}</a>
+          <a class="button button-big" href="#open-source">{t('landing.run-your-own')}<Icon name="arrow-right" /></a>
+        </div>
+        <p class="fine">{t('landing.fine')}</p>
+      </div>
+      <div class="hero-shots">
+        <div class="hero-desktop">
+          <LandingShot view="library" device="desktop" alt={t('landing.alt-library')} eager />
+        </div>
+        <div class="hero-phone">
+          <LandingShot view="check-owned" device="phone" alt={t('landing.alt-check-owned-phone')} eager />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section shelf" aria-labelledby="shelf-title">
+    <div class="glow shelf-glow" aria-hidden="true">
+      <div class="glow-blob glow-b1 shelf-green"></div>
+      <div class="glow-blob glow-b2 shelf-orange"></div>
+    </div>
+    <div class="column shelf-inner">
+      <div class="shelf-text">
+        <p class="kicker">{t('landing.shelf-kicker')}</p>
+        <h2 id="shelf-title">{t('landing.shelf-title')}</h2>
+        <ol class="steps">
+          <li><span class="step-number">1</span><span><strong>{t('landing.step-scan')}</strong> {t('landing.step-scan-text')}</span></li>
+          <li>
+            <span class="step-number">2</span>
+            <span>
+              <strong>{t('landing.step-answer')}</strong>{' '}
+              <span class="owned">{t('landing.step-orange')}</span>{t('landing.step-orange-text')}{' '}
+              <span class="not-owned">{t('landing.step-green')}</span>{t('landing.step-green-text')}
+            </span>
+          </li>
+          <li><span class="step-number">3</span><span><strong>{t('landing.step-add')}</strong>{t('landing.step-add-text')}</span></li>
+        </ol>
+      </div>
+      <div class="shelf-shots">
+        <LandingShot view="check-not-owned" device="phone" alt={t('landing.alt-check-not-owned')} />
+        <LandingShot view="check-owned" device="phone" alt={t('landing.alt-check-owned')} />
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="column">
+      <p class="kicker">{t('landing.features-kicker')}</p>
+      <h2 id="features-title">{t('landing.features-title')}</h2>
+      <div class="gallery">
+        <figure>
+          <LandingShot view="series" device="phone" alt={t('landing.alt-series')} />
+          <figcaption>{t('landing.caption-series')}</figcaption>
+        </figure>
+        <figure>
+          <LandingShot view="statistics" device="phone" alt={t('landing.alt-statistics')} />
+          <figcaption>{t('landing.caption-statistics')}</figcaption>
+        </figure>
+        <figure>
+          <LandingShot view="to-buy" device="phone" alt={t('landing.alt-to-buy')} />
+          <figcaption>{t('landing.caption-to-buy')}</figcaption>
+        </figure>
+      </div>
+      <ul class="features">
+        {
+          features.map((feature) => (
+            <li class="card feature">
+              <span class="feature-icon">
+                <Icon name={feature.icon} size={20} />
+              </span>
+              <h3>{feature.title}</h3>
+              <p>{feature.text}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="philosophy" aria-labelledby="philosophy-title">
+    <div class="column">
+      <p class="kicker">{t('landing.philosophy-kicker')}</p>
+      <h2 id="philosophy-title">{t('landing.philosophy-title')}</h2>
+      <p class="lead">
+        {t('landing.philosophy-lead-before')}<a href="https://atproto.com">AT Protocol</a>{t('landing.philosophy-lead-after')}
+      </p>
+      <div class="diagram" aria-hidden="true">
+        <span class="node">{t('landing.diagram-you')}</span>
+        <span class="link"></span>
+        <span class="node node-strong"><Icon name="server" />{t('landing.diagram-pds')}</span>
+        <span class="link"></span>
+        <span class="node-group"><span class="node"><Mark size={14} />Atomes</span><span class="node">{t('landing.diagram-apps')}</span></span>
+      </div>
+      <ul class="principles">
+        {
+          principles.map((principle) => (
+            <li class="card principle">
+              <span class="feature-icon">
+                <Icon name={principle.icon} size={20} />
+              </span>
+              <h3>{principle.title}</h3>
+              <p>{principle.text}</p>
+            </li>
+          ))
+        }
+      </ul>
+      <aside class="honest" aria-labelledby="honest-title">
+        <h3 id="honest-title">{t('landing.honest-title')}</h3>
+        <blockquote>
+          <p>{t('landing.honest')}</p>
+        </blockquote>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section" id="open-source" aria-labelledby="open-source-title">
+    <div class="column open">
+      <div>
+        <p class="kicker">{t('landing.open-kicker')}</p>
+        <h2 id="open-source-title">{t('landing.open-title')}</h2>
+        <ul class="facts">
+          <li><Icon name="scale" /><span><strong>AGPL-3.0</strong> {t('landing.fact-agpl')}</span></li>
+          <li>
+            <Icon name="code-xml" /><span
+              ><strong>MIT</strong> {t('landing.fact-mit-before')} <code>app.atomes.*</code>{t('landing.fact-mit-after')}</span
+            >
+          </li>
+          <li><Icon name="server" /><span><strong>{t('landing.fact-docker')}</strong>{t('landing.fact-docker-text')}</span></li>
+          <li><Icon name="download" /><span><strong>{t('landing.fact-backups')}</strong> {t('landing.fact-backups-text')}</span></li>
+        </ul>
+        <div class="actions">
+          <a class="button" href={sourceCodeUrl}><Icon name="code-xml" />{t('landing.source-code')}</a>
+          <a class="button" href={`${sourceCodeUrl}#run-with-docker`}>{t('landing.self-host')}<Icon name="arrow-right" /></a>
+        </div>
+      </div>
+      <pre
+        class="code"
+        aria-label={t('landing.docker-example')}><code>docker build -t atomes .
+docker run -d -p 4321:4321 -v atomes-data:/data \
+  -e PUBLIC_APP_ORIGIN=https://books.example.org \
+  -e SESSION_ENCRYPTION_KEY=… \
+  -e SMTP_URL=smtps://…  -e MAIL_FROM=… \
+  atomes</code></pre>
+    </div>
+  </section>
+
+  <section class="section" id="credits" aria-labelledby="credits-title">
+    <div class="column">
+      <p class="kicker">{t('landing.credits-kicker')}</p>
+      <h2 id="credits-title">{t('landing.credits-title')}</h2>
+      <p class="lead">{t('landing.credits-lead')}</p>
+      <ul class="credits">
+        {
+          credits.map((credit) => (
+            <li>
+              <a class="card credit" href={credit.href}>
+                <span class="credit-name">{credit.name}</span>
+                <span class="credit-role">{credit.role}</span>
+                <span class="credit-by">{credit.by}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+      <h3 class="small-heading sources-title">{t('landing.sources-title')}</h3>
+      <ul class="sources">
+        {
+          sources.map((source) => (
+            <li>
+              <a class="chip source" href={source.href}>
+                <strong>{source.name}</strong>
+                <span>{source.by}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="section final" aria-labelledby="final-title">
+    <div class="glow final-glow" aria-hidden="true">
+      <div class="glow-blob glow-b1 final-b1"></div>
+      <div class="glow-blob glow-b2 final-b2"></div>
+    </div>
+    <div class="column final-inner">
+      <Mark size={56} />
+      <h2 id="final-title">{t('landing.final-title')}</h2>
+      <p class="lead">{t('landing.final-lead')}</p>
+      <div class="actions">
+        <a class="button button-main button-big" href="/sign-in" data-cta>{t('landing.sign-in')}</a>
+        <a class="button button-big" href={sourceCodeUrl}><Icon name="code-xml" />{t('landing.source-code')}</a>
+      </div>
+    </div>
+  </section>
+</Landing>
+
+<style>
+  /*
+   * Sizes of the Landing page, named once (ui-direction, "The one look"):
+   * larger type and more room than an app screen. Phone first.
+   */
+  .hero,
+  .section {
+    --landing-h1: 40px;
+    --landing-h2: 30px;
+    --landing-lead: 17px;
+    --landing-section: 72px;
+    --landing-phone: 240px;
+    --landing-text: 560px;
+    --landing-feature: 150px;
+    --landing-credit: 220px;
+    --landing-quote-bar: 4px;
+    position: relative;
+    isolation: isolate;
+  }
+
+  @media (min-width: 960px) {
+    .hero,
+    .section {
+      --landing-h1: 64px;
+      --landing-h2: 44px;
+      --landing-lead: 19px;
+      --landing-section: 120px;
+      --landing-phone: 260px;
+      --landing-feature: 240px;
+    }
+  }
+
+  .column {
+    width: min(100%, var(--landing-width));
+    margin: 0 auto;
+    padding: 0 var(--landing-gutter);
+  }
+
+  .section {
+    padding: var(--landing-section) 0 0;
+  }
+
+  h1,
+  h2,
+  h3 {
+    margin: 0;
+    letter-spacing: var(--tracking-tight);
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: var(--landing-h1);
+    line-height: 1.05;
+  }
+
+  h2 {
+    max-width: var(--landing-text);
+    font-size: var(--landing-h2);
+    line-height: 1.1;
+  }
+
+  h3 {
+    font-size: var(--type-heading);
+  }
+
+  p {
+    margin: 0;
+  }
+
+  .lead {
+    max-width: var(--landing-text);
+    margin-top: var(--space-20);
+    color: var(--text-quiet);
+    font-size: var(--landing-lead);
+    text-wrap: pretty;
+  }
+
+  .lead a {
+    color: var(--ink);
+    text-decoration-color: var(--line-link);
+    text-underline-offset: var(--space-4);
+  }
+
+  .kicker {
+    margin-bottom: var(--space-12);
+    color: var(--accent);
+    font-size: var(--type-small);
+    font-weight: 600;
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-12);
+    margin-top: var(--space-28);
+  }
+
+  .button-big {
+    min-height: var(--button-height-large);
+    padding: 0 var(--space-24);
+    font-size: var(--type-button-large);
+  }
+
+  .fine {
+    margin-top: var(--space-16);
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+  }
+
+  /* Hero: text, then the app on a desktop and a phone. */
+  .hero {
+    padding: var(--landing-section) 0 0;
+  }
+
+  .hero-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-28) var(--landing-section);
+  }
+
+  .eyebrow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8);
+    margin-bottom: var(--space-20);
+  }
+
+  .hero-shots {
+    position: relative;
+    padding-bottom: var(--space-28);
+  }
+
+  /* Phone: the phone picture only; the desktop window would be too small to read. */
+  .hero-desktop {
+    display: none;
+  }
+
+  .hero-phone {
+    width: var(--landing-phone);
+    margin: 0 auto;
+  }
+
+  @media (min-width: 960px) {
+    .hero-desktop {
+      display: block;
+    }
+
+    .hero-phone {
+      position: absolute;
+      bottom: 0;
+      margin: 0;
+    }
+
+    .hero-inner {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+      align-items: center;
+    }
+
+    .hero-desktop {
+      width: 130%;
+    }
+
+    .hero-phone {
+      right: calc(var(--landing-gutter) * -1);
+      width: calc(var(--landing-phone) * 0.8);
+    }
+  }
+
+  /* The glows (glow.css): cobalt behind the hero and the end; green and orange only where Shelf Check answers ownership. */
+  .hero-glow,
+  .final-glow {
+    --tone: var(--accent-fill);
+    --tone-deep: var(--accent);
+    z-index: -1;
+    inset: 0;
+    overflow: hidden;
+    mask-image: linear-gradient(var(--ink) var(--glow-stop-3), transparent);
+  }
+
+  .hero-b1 {
+    left: calc(var(--glow-unit) * -12);
+    top: calc(var(--glow-unit) * -10);
+    width: calc(var(--glow-unit) * 60);
+    height: calc(var(--glow-unit) * 60);
+  }
+
+  .hero-b2 {
+    right: calc(var(--glow-unit) * -14);
+    top: calc(var(--glow-unit) * 6);
+    width: calc(var(--glow-unit) * 54);
+    height: calc(var(--glow-unit) * 54);
+  }
+
+  .hero-b3 {
+    left: 40%;
+    top: calc(var(--glow-unit) * 24);
+    width: calc(var(--glow-unit) * 40);
+    height: calc(var(--glow-unit) * 40);
+  }
+
+  /* Shelf Check: the answer colours. */
+  .shelf-glow {
+    --tone: var(--not-owned);
+    --tone-deep: var(--not-owned-deep);
+    z-index: -1;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  .shelf-green {
+    left: 30%;
+    top: calc(var(--glow-unit) * 10);
+    width: calc(var(--glow-unit) * 50);
+    height: calc(var(--glow-unit) * 50);
+  }
+
+  .shelf-orange {
+    --blob: var(--owned);
+    right: calc(var(--glow-unit) * -10);
+    top: calc(var(--glow-unit) * 20);
+    width: calc(var(--glow-unit) * 50);
+    height: calc(var(--glow-unit) * 50);
+  }
+
+  .shelf-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-28) var(--landing-section);
+  }
+
+  @media (min-width: 960px) {
+    .shelf-inner {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: center;
+    }
+  }
+
+  .steps {
+    display: grid;
+    gap: var(--space-20);
+    margin: var(--space-28) 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--text-quiet);
+    font-size: var(--landing-lead);
+  }
+
+  .steps li {
+    display: flex;
+    gap: var(--space-16);
+  }
+
+  .steps strong {
+    color: var(--ink);
+  }
+
+  .step-number {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: var(--icon-button);
+    height: var(--icon-button);
+    border: var(--hairline) solid var(--line-control);
+    border-radius: var(--radius-pill);
+    background: var(--fill-veil);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .owned {
+    color: var(--owned-text);
+    font-weight: 600;
+  }
+
+  .not-owned {
+    color: var(--not-owned-text);
+    font-weight: 600;
+  }
+
+  /* Each frame keeps the height of its picture: the second one starts lower, and a stretched first frame showed an empty tail. */
+  .shelf-shots {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: var(--space-20);
+  }
+
+  .shelf-shots > :global(*) {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: var(--landing-phone);
+  }
+
+  .shelf-shots > :global(:last-child) {
+    margin-top: var(--landing-section);
+  }
+
+  /* Features: three screens, then a card per feature. */
+  .gallery {
+    display: flex;
+    gap: var(--space-20);
+    margin: var(--space-28) calc(var(--landing-gutter) * -1) 0;
+    padding: var(--space-8) var(--landing-gutter) var(--space-28);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+
+  .gallery figure {
+    flex: none;
+    width: var(--landing-phone);
+    margin: 0;
+    scroll-snap-align: center;
+  }
+
+  .gallery figcaption {
+    margin-top: var(--space-12);
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+    text-align: center;
+  }
+
+  @media (min-width: 960px) {
+    .gallery {
+      justify-content: center;
+      overflow: visible;
+    }
+  }
+
+  .features,
+  .principles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--landing-feature)), 1fr));
+    gap: var(--space-16);
+    margin: var(--space-28) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .feature,
+  .principle {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+    padding: var(--space-14);
+  }
+
+  /* Phone: two cards a row, so the list stays short. */
+  @media (max-width: 959px) {
+    .feature h3,
+    .principle h3 {
+      font-size: var(--type-body);
+    }
+
+    .feature p,
+    .principle p {
+      font-size: var(--type-small);
+    }
+  }
+
+  @media (min-width: 960px) {
+    .feature,
+    .principle {
+      padding: var(--space-20);
+    }
+  }
+
+  .feature p,
+  .principle p {
+    color: var(--text-quiet);
+    text-wrap: pretty;
+  }
+
+  .feature-icon {
+    display: grid;
+    place-items: center;
+    width: var(--icon-button);
+    height: var(--icon-button);
+    margin-bottom: var(--space-4);
+    border-radius: var(--radius-panel);
+    background: color-mix(in srgb, var(--accent) var(--alpha-tone-fill), var(--surface));
+    color: var(--accent);
+  }
+
+  /* Philosophy: who holds what, in one line. */
+  .diagram {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-12);
+    margin-top: var(--space-28);
+  }
+
+  .node,
+  .node-group {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-8);
+  }
+
+  .node {
+    min-height: var(--pill-height);
+    padding: 0 var(--space-14);
+    border: var(--hairline) solid var(--line-control);
+    border-radius: var(--radius-pill);
+    background: var(--fill-veil);
+    font-weight: 500;
+  }
+
+  .node-strong {
+    border-color: color-mix(in srgb, var(--accent) var(--alpha-tone-line), transparent);
+    background: color-mix(in srgb, var(--accent) var(--alpha-tone-fill), var(--surface));
+    color: var(--accent);
+  }
+
+  .link {
+    width: var(--space-28);
+    height: var(--stroke);
+    border-radius: var(--radius-pill);
+    background: var(--line-button);
+  }
+
+  /* "To be honest": a quote, set off by a cobalt bar, not a card. */
+  .honest {
+    max-width: var(--landing-text);
+    margin-top: var(--space-28);
+    padding-inline-start: var(--space-20);
+    border-inline-start: var(--landing-quote-bar) solid var(--accent);
+  }
+
+  .honest blockquote {
+    margin: var(--space-8) 0 0;
+  }
+
+  .honest p {
+    color: var(--text-quiet);
+    font-size: var(--landing-lead);
+    text-wrap: pretty;
+  }
+
+  /* Open source. */
+  .open {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-28) var(--landing-section);
+  }
+
+  @media (min-width: 960px) {
+    .open {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: center;
+    }
+  }
+
+  .facts {
+    display: grid;
+    gap: var(--space-14);
+    margin: var(--space-28) 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--text-quiet);
+  }
+
+  .facts li {
+    display: flex;
+    gap: var(--space-12);
+  }
+
+  .facts :global(svg) {
+    flex: none;
+    margin-top: var(--space-4);
+    color: var(--accent);
+  }
+
+  .facts strong {
+    color: var(--ink);
+  }
+
+  .code {
+    margin: 0;
+    padding: var(--space-20);
+    overflow-x: auto;
+    border: var(--hairline) solid var(--line-card);
+    border-radius: var(--radius-card);
+    background: var(--fill-card);
+    font-family: var(--font-tech);
+    font-size: var(--type-small);
+    line-height: 1.7;
+  }
+
+  /* Credits. */
+  .credits {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--landing-credit)), 1fr));
+    gap: var(--space-12);
+    margin: var(--space-28) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .credit {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .credit:hover {
+    border-color: var(--line-button);
+  }
+
+  .credit-name {
+    font-weight: 600;
+  }
+
+  .credit-role {
+    color: var(--accent);
+    font-size: var(--type-small);
+  }
+
+  .credit-by {
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+  }
+
+  .sources-title {
+    margin-top: var(--space-28);
+  }
+
+  .sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8);
+    margin: var(--space-12) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .source {
+    gap: var(--space-6);
+    color: var(--text-chip);
+    text-decoration: none;
+  }
+
+  .source strong {
+    color: var(--ink);
+  }
+
+  /* The end: the way in again. */
+  .final {
+    padding-bottom: var(--landing-section);
+  }
+
+  .final-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .final-inner h2 {
+    margin-top: var(--space-20);
+  }
+
+  .final-inner .actions {
+    justify-content: center;
+  }
+
+  .final-glow {
+    mask-image: none;
+  }
+
+  .final-b1 {
+    left: 20%;
+    top: calc(var(--glow-unit) * 4);
+    width: calc(var(--glow-unit) * 50);
+    height: calc(var(--glow-unit) * 50);
+  }
+
+  .final-b2 {
+    right: 15%;
+    top: calc(var(--glow-unit) * 10);
+    width: calc(var(--glow-unit) * 40);
+    height: calc(var(--glow-unit) * 40);
+  }
+</style>

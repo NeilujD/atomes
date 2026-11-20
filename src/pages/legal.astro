@@ -1,0 +1,31 @@
+---
+// The Legal notice (M12, CORE-160): who publishes this instance and who hosts
+// it, as French law asks of every public site (loi n° 2004-575, article 1-1
+// since the 2024 SREN law; a private person may give the host only). Linked
+// from the sign-in screen and the Landing page. French or English.
+// Text approved by the owner on 2026-11-19 (`legal.*` in src/lib/i18n, CORE-162).
+import Notice from '../components/Notice.astro';
+import AppShell from '../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+import { notGiven } from '../lib/notice';
+import { legalFacts } from '../lib/server/settings';
+
+const t = translator(requestLanguage(Astro.request));
+// Who publishes and hosts this instance: its own settings (LEGAL_*), so a
+// self-hosted instance never names the publisher of another.
+const { publisher, contact, host } = legalFacts(process.env);
+
+const sections = [
+  {
+    heading: t('legal.publisher-heading'),
+    texts: [publisher && contact ? t('legal.publisher', publisher, contact) : notGiven(t, !publisher && 'LEGAL_PUBLISHER', !contact && 'LEGAL_CONTACT')],
+  },
+  { heading: t('legal.host-heading'), texts: [host ?? notGiven(t, 'LEGAL_HOST')] },
+  { heading: t('legal.software-heading'), texts: [t('legal.software')] },
+  { heading: t('legal.content-heading'), texts: [t('legal.content')] },
+];
+---
+
+<AppShell title={t('legal.title')} flow>
+  <Notice title={t('legal.title')} intro={t('legal.intro')} sections={sections} updated={t('legal.updated')} />
+</AppShell>

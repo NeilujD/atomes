@@ -6,6 +6,7 @@ import { version } from '../../../package.json';
 import { readerOf } from '../server/auth';
 import { accountStore, authDeps } from '../server/instance';
 import { settings } from '../server/settings';
+import { sourceCodeUrl } from '../source-code';
 import { type CatalogAccess, createIpLimit } from './access';
 import type { Catalog } from './catalog';
 import { createCatalog } from './catalog';
@@ -42,7 +43,7 @@ export function catalog(): Catalog {
     instance = createCatalog({
       file: join(dir, 'catalog.sqlite'),
       // Sources ask for a contact URL, never an email (spike 0002).
-      fetch: recorded ?? politeFetch(`Atomes/${version} (+${origin ?? 'https://github.com/NeilujD/atomes'})`),
+      fetch: recorded ?? politeFetch(`Atomes/${version} (+${origin ?? sourceCodeUrl})`),
       host: origin ? new URL(origin).host : 'localhost',
       // Opens library.sqlite after its own steps: a Catalog step reads its Accounts.
       accounts: accountStore(),

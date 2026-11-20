@@ -31,6 +31,10 @@ export interface Settings {
   // owner signs in with a Sign-in Code and no Invite. A preview gets the
   // staging variables: staging and production ignore it.
   previewAccountEmail?: string;
+  // LANDING_PAGE (M12): `on` (default) shows the Landing page at /welcome to a
+  // visitor who opens Home with no session; `off` answers 404 there, and Home
+  // leads to sign-in.
+  landingPage: boolean;
 }
 
 // No parameter property (`readonly problems` in the constructor): Node's type
@@ -50,9 +54,8 @@ export class SettingsError extends Error {
 export function readSettings(env: Record<string, string | undefined>, { sendsMail = true } = {}): Settings {
   const problems: string[] = [];
 
-  const preview = previewUrl(env);
-  const originName = preview ? 'COOLIFY_URL' : 'PUBLIC_APP_ORIGIN';
-  const appOrigin = preview ?? (env.PUBLIC_APP_ORIGIN?.trim() || undefined);
+  const originName = previewUrl(env) ? 'COOLIFY_URL' : 'PUBLIC_APP_ORIGIN';
+  const appOrigin = givenOrigin(env);
   const httpsOrigin = appOrigin !== undefined && isHttpsOrigin(appOrigin);
   if (appOrigin !== undefined && !httpsOrigin) {
     problems.push(`${originName} must be an https origin, for example https://atomes.example.org. Found: ${appOrigin}`);
@@ -111,6 +114,9 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
     problems.push('PREVIEW_ACCOUNT_EMAIL must be one email address, for example owner@example.org.');
   }
 
+  const landing = env.LANDING_PAGE?.trim() || 'on';
+  if (landing !== 'on' && landing !== 'off') problems.push(`LANDING_PAGE must be on or off. Found: ${landing}`);
+
   const port = Number(env.PORT ?? 4321);
   if (!Number.isInteger(port) || port <= 0) problems.push(`PORT must be a port number. Found: ${String(env.PORT)}`);
 
@@ -125,7 +131,64 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
     smtpUrl,
     mailFrom,
     previewAccountEmail,
+    landingPage: landingPage(env),
   };
+}
+
+// Whether this instance has the Landing page. Read by the pages from the
+// environment, as appEnvironment: readSettings has refused a wrong value at start.
+export function landingPage(env: Record<string, string | undefined>): boolean {
+  return env.LANDING_PAGE?.trim() !== 'off';
+}
+
+// The facts of the Legal notice (/legal) that change with each instance:
+// LEGAL_PUBLISHER (who publishes it), LEGAL_CONTACT (how to reach them) and
+// LEGAL_HOST (the host's company name, postal address and phone). Free text,
+// shown as given; a missing one shows as not given on the page.
+export interface LegalFacts {
+  publisher?: string;
+  contact?: string;
+  host?: string;
+}
+
+export function legalFacts(env: Record<string, string | undefined>): LegalFacts {
+  return {
+    publisher: env.LEGAL_PUBLISHER?.trim() || undefined,
+    contact: env.LEGAL_CONTACT?.trim() || undefined,
+    host: env.LEGAL_HOST?.trim() || undefined,
+  };
+}
+
+// The processors the Privacy notice names, which change with each instance:
+// PRIVACY_MAIL_PROCESSOR (who sends the Sign-in Codes) and, on an instance
+// with backups (BACKUP_S3_ENDPOINT, docs/backups.md), PRIVACY_BACKUP_PROCESSOR
+// (where they go). Free text, shown as given in every language.
+export interface PrivacyFacts {
+  mailProcessor?: string;
+  backups: boolean;
+  backupProcessor?: string;
+}
+
+export function privacyFacts(env: Record<string, string | undefined>): PrivacyFacts {
+  return {
+    mailProcessor: env.PRIVACY_MAIL_PROCESSOR?.trim() || undefined,
+    backups: Boolean(env.BACKUP_S3_ENDPOINT?.trim()),
+    backupProcessor: env.PRIVACY_BACKUP_PROCESSOR?.trim() || undefined,
+  };
+}
+
+// The https origin readers open, as given: the preview URL on a Coolify pull
+// request preview, else PUBLIC_APP_ORIGIN. Undefined in local development.
+function givenOrigin(env: Record<string, string | undefined>): string | undefined {
+  return previewUrl(env) ?? (env.PUBLIC_APP_ORIGIN?.trim() || undefined);
+}
+
+// The origin of this instance for the absolute addresses of a page (the share
+// preview of the Landing page), read from the environment as appEnvironment:
+// readSettings has refused a wrong value at start. Undefined in local development.
+export function publicOrigin(env: Record<string, string | undefined>): string | undefined {
+  const origin = givenOrigin(env);
+  return origin && URL.canParse(origin) ? new URL(origin).origin : undefined;
 }
 
 // A Coolify pull request preview gets the staging variables, so its

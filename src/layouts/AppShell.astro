@@ -2,7 +2,6 @@
 // The app frame. Desktop: sidebar and view header form an inverted L around one
 // content panel. Phone: large title on top, tab bar under the thumb.
 // Behaviour rules: docs/design/ui-direction.md.
-import { createHash } from 'node:crypto';
 import '@fontsource-variable/schibsted-grotesk';
 import '../styles/theme.css';
 import '../styles/page-transitions.css';
@@ -10,13 +9,13 @@ import ConnectionStatus from '../components/ConnectionStatus.astro';
 import EnvironmentBadge from '../components/EnvironmentBadge.astro';
 import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
+import PageHead from '../components/PageHead.astro';
 import type { IconName } from '../components/icons';
 import { bootScript } from '../lib/appearance';
 import { gateBootScript } from '../lib/auth/gate-boot';
 import { pageTransitionScript } from '../lib/page-transition';
-import { appIcons } from '../lib/environment';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
-import { appEnvironment } from '../lib/server/settings';
+import { landingPage } from '../lib/server/settings';
 
 type Section = 'home' | 'library' | 'new' | 'to-buy' | 'statistics' | 'check' | 'settings';
 
@@ -41,9 +40,6 @@ const t = translator(language);
 // page transitions (src/lib/page-transition.ts). Flow screens need them too:
 // they keep the previous page right for the next transition.
 const boot = (flow ? bootScript : bootScript + gateBootScript) + pageTransitionScript;
-// Astro hashes its own scripts, not `is:inline` ones: the CSP (ADR 0013) must
-// allow the boot script by its hash. No CSP in `astro dev`, so no `Astro.csp`.
-Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(boot).digest('base64')}`);
 
 // New & upcoming stays out until its screen exists (CORE-68): no link to a missing page.
 const sidebarItems: { key: Section; href: string; label: string; icon: IconName }[] = [
@@ -65,29 +61,21 @@ const tabItems: { key: Section; href: string; label: string; icon: IconName }[] 
   { key: 'settings', href: '/settings', label: t('nav.you'), icon: 'user' },
 ];
 
+// The gate sends a visitor with no session from Home to the Landing page, when the instance has it (M12).
+const landing = landingPage(process.env) ? 'on' : undefined;
 const ariaCurrent = (key: Section) => (key === current ? 'page' : undefined);
 // The tab bar keeps five entries (ui-direction): Statistics is reached from
 // You, so You shows as the place the reader is in.
 const tabCurrent = (key: Section) => ariaCurrent(key) ?? (key === 'settings' && current === 'statistics' ? 'true' : undefined);
-// Outside production, the favicon and home screen icon are orange (src/lib/environment.ts).
-const icons = appIcons(appEnvironment(process.env));
 ---
 
-<html lang={language}>
+<html lang={language} data-landing={landing}>
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" data-theme="light" media="(prefers-color-scheme: light)" content="#f6f6f3" />
-    <meta name="theme-color" data-theme="dark" media="(prefers-color-scheme: dark)" content="#121317" />
-    <script is:inline set:html={boot} />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" type="image/svg+xml" href={icons.favicon} />
-    <link rel="icon" type="image/png" sizes="32x32" href={icons.favicon32} />
-    <link rel="apple-touch-icon" href={icons.appleTouch} />
-    <meta name="generator" content={Astro.generator} />
-    <title>{title} · Atomes</title>
-    <!-- The new page of a transition shows only once its body is parsed (src/lib/page-transition.ts). -->
-    <link rel="expect" href="#page-end" blocking="render" />
+    <PageHead title={`${title} · Atomes`} boot={boot}>
+      <link rel="manifest" href="/manifest.webmanifest" />
+      <!-- The new page of a transition shows only once its body is parsed (src/lib/page-transition.ts). -->
+      <link rel="expect" href="#page-end" blocking="render" />
+    </PageHead>
   </head>
   <body>
     {

@@ -46,7 +46,7 @@ const checked: Record<string, string[]> = {
   './charts.css': [],
   './share-picture.css': [],
   '../pages/sign-in.astro': [],
-  '../pages/privacy.astro': [],
+  '../components/Notice.astro': [],
   '../pages/index.astro': [],
   '../pages/library.astro': ['../islands/LibraryCoverFlow.tsx', '../lib/cover.ts'],
   '../pages/to-buy.astro': [],
@@ -55,6 +55,9 @@ const checked: Record<string, string[]> = {
   '../pages/settings.astro': [],
   '../pages/check.astro': [],
   '../components/Mark.astro': [],
+  '../pages/welcome.astro': ['../layouts/Landing.astro'],
+  '../layouts/Landing.astro': [],
+  '../components/LandingShot.astro': [],
 };
 
 for (const [path, setters] of Object.entries(checked)) {

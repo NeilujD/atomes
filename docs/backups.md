@@ -1,6 +1,6 @@
 # Backups of the Library and the Catalog
 
-Every hour, the production instance sends an encrypted copy of `library.sqlite` and `catalog.sqlite` to a Cloudflare R2 bucket (ADR 0011, amendment 2026-11-09). This page tells how to set it up, how to restore, and keeps the log of restore tests.
+Every hour, the production instance sends an encrypted copy of `library.sqlite` and `catalog.sqlite` to a Cloudflare R2 bucket in the EU jurisdiction (ADR 0011, amendment 2026-11-09). This page tells how to set it up, how to restore, and keeps the log of restore tests.
 
 ## How it works
 
@@ -18,19 +18,21 @@ All five settings are **Runtime only** variables of the **production** app in Co
 
 | Name | Value |
 | --- | --- |
-| `BACKUP_S3_ENDPOINT` | `https://<account id>.r2.cloudflarestorage.com` ([S3 API](https://developers.cloudflare.com/r2/api/s3/api/)) |
+| `BACKUP_S3_ENDPOINT` | `https://<account id>.eu.r2.cloudflarestorage.com`: the endpoint of a bucket in the EU jurisdiction ([S3 API](https://developers.cloudflare.com/r2/api/s3/api/), [data location](https://developers.cloudflare.com/r2/reference/data-location/)) |
 | `BACKUP_S3_BUCKET` | the bucket name, for example `atomes-production-backups` |
 | `BACKUP_S3_ACCESS_KEY_ID` | **Access Key ID** of the R2 API token |
 | `BACKUP_S3_SECRET_ACCESS_KEY` | **Secret Access Key** of the R2 API token |
 | `BACKUP_ENCRYPTION_KEY` | 32 random bytes in base64: `openssl rand -base64 32` |
 
+Add `PRIVACY_BACKUP_PROCESSOR` too: `Cloudflare R2 (Cloudflare, Inc., EU)`, true only for a bucket in the EU jurisdiction (step 1). The Privacy notice names it as the place of the backups, as soon as `BACKUP_S3_ENDPOINT` is set (README settings table).
+
 **Keep `BACKUP_ENCRYPTION_KEY` in your password manager too.** If the host is lost, Coolify and its settings are lost with it. Without this key, no backup can be decrypted.
 
 ## Set it up
 
-1. **Create the bucket.** In the Cloudflare dashboard, open **R2 object storage** and create a bucket, for example `atomes-production-backups` ([create buckets](https://developers.cloudflare.com/r2/buckets/create-buckets/)). Keep the default storage class, **Standard**: the free tier does not apply to Infrequent Access.
+1. **Create the bucket.** In the Cloudflare dashboard, open **R2 object storage** and create a bucket, for example `atomes-production-backups` ([create buckets](https://developers.cloudflare.com/r2/buckets/create-buckets/)). Under **Location**, choose **Specify jurisdiction**, then **European Union (EU)**: only a jurisdiction keeps the objects in the EU. A location hint, such as Western Europe (WEUR), is a best effort and not a guarantee, so the Privacy notice cannot say "EU" for it ([data location](https://developers.cloudflare.com/r2/reference/data-location/)). The jurisdiction cannot change after the bucket exists. Keep the default storage class, **Standard**: the free tier does not apply to Infrequent Access.
 2. **Delete old copies.** In the bucket, open **Settings > Object lifecycle rules** and add a rule for all objects that deletes them after **30 days** ([object lifecycles](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)). Objects are removed within about 24 hours after that age.
-3. **Create the API token.** On the **R2 object storage** page, next to **API Tokens**, select **Manage**, then **Create Account API token** ([authentication](https://developers.cloudflare.com/r2/api/tokens/)). Choose the **Object Read & Write** permission and scope it to this bucket only. Copy the **Access Key ID** and the **Secret Access Key**: the dashboard shows the secret only once.
+3. **Create the API token.** On the **R2 object storage** page, next to **API Tokens**, select **Manage**, then **Create Account API token** ([authentication](https://developers.cloudflare.com/r2/api/tokens/)). Choose the **Object Read & Write** permission and scope it to this bucket only. Copy the **Access Key ID** and the **Secret Access Key**: the dashboard shows the secret only once. For `BACKUP_S3_ENDPOINT`, use the EU endpoint the token page gives, with `.eu.` in it: an EU bucket answers only there.
 4. **Make the encryption key.** On your Mac, run `openssl rand -base64 32` and save the output in your password manager.
 5. **Add the settings.** In the production app in Coolify, open **Environment Variables** and add the five settings from the table above, runtime only ([environment variables](https://coolify.io/docs/applications/configuration/environment-variables)). Then select **Restart**.
 6. **Add the task.** In the production app, open **Scheduled Tasks**, select **+ Add** and fill in **New Scheduled Task** ([create a task](https://github.com/coollabsio/coolify-docs/blob/main/content/docs/core/automation/scheduled-tasks/create-a-task.mdx)):
@@ -46,6 +48,16 @@ All five settings are **Runtime only** variables of the **production** app in Co
    Select **Add task**. Coolify runs the command with `sh -c` inside the running app container.
 7. **Run it once.** Open the task and select **Execute now**. Under **Recent executions**, the status changes to **Success** and the output shows `backup <stamp>: library.sqlite, catalog.sqlite`. In R2, the bucket has a `<stamp>/` folder with two objects.
 8. **Get a message when a run fails.** If a run fails, the command exits with code 1 and prints `backup failed: <reason>`. In Coolify, open **Notifications**, select a channel, and under **Notification events > Scheduled tasks** choose **Scheduled Task Failure** ([notification events](https://github.com/coollabsio/coolify-docs/blob/main/content/docs/core/notifications/events.mdx)).
+
+### Move the backups to a new bucket
+
+For example, from a bucket with a location hint to one in the EU jurisdiction.
+
+1. Do steps 1 to 3 for the new bucket.
+2. In the production app in Coolify, change `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID` and `BACKUP_S3_SECRET_ACCESS_KEY`. Keep `BACKUP_ENCRYPTION_KEY`. Select **Restart**.
+3. Do step 7: the new bucket has a `<stamp>/` folder with two objects.
+4. Test a restore from the new bucket (Restore, below) and add a line to the restore log.
+5. Delete the old bucket and its API token. Until then, the old copies are still in the old place.
 
 Staging holds test data only and needs no backup. If you want one anyway, use a second bucket and a second token: the two instances must never write to the same bucket.
 

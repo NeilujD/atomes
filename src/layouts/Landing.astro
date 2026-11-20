@@ -1,0 +1,449 @@
+---
+// The frame of the public pages (M12): the Landing page now, Docs and Blog
+// later. No sidebar, tab bar, gate or service worker: a visitor with no
+// Account reads it, and it never stands in for the app offline (spec M12,
+// "Layout"). Same head, font, tokens, Mark and icons as the app. English or
+// French, as the app chooses; the switch sets the same choice as Settings.
+import '@fontsource-variable/schibsted-grotesk';
+import '../styles/theme.css';
+import Icon from '../components/Icon.astro';
+import Mark from '../components/Mark.astro';
+import PageHead from '../components/PageHead.astro';
+import { bootScript } from '../lib/appearance';
+import { requestLanguage, translator, type Language } from '../lib/i18n/i18n';
+import { publicOrigin } from '../lib/server/settings';
+import { sourceCodeUrl } from '../lib/source-code';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+const language = requestLanguage(Astro.request);
+const t = translator(language);
+// The switch offers the other language, named in itself.
+const other: Language = language === 'fr' ? 'en' : 'fr';
+const otherName = t(`language.${other}`);
+
+// The share preview (CORE-161): absolute addresses on the instance origin; the
+// request's own origin only in local development, where none is set.
+const origin = publicOrigin(process.env) ?? Astro.url.origin;
+const canonical = new URL(Astro.url.pathname, origin).href;
+// Made by `bun run landing-shots` (scripts/landing-shots.ts), one per language.
+const preview = { src: new URL(`/landing/${language}/preview.jpg`, origin).href, width: 1200, height: 630, alt: t('landing.preview-alt') };
+
+// The pages of the navbar. Docs and Blog stay hidden until their page exists.
+const links: { href: string; label: string; shown: boolean }[] = [
+  { href: '/welcome#features', label: t('landing.nav-features'), shown: true },
+  { href: '/welcome#philosophy', label: t('landing.nav-philosophy'), shown: true },
+  { href: '/welcome#open-source', label: t('landing.nav-open-source'), shown: true },
+  { href: '/docs', label: t('landing.nav-docs'), shown: false },
+  { href: '/blog', label: t('landing.nav-blog'), shown: false },
+];
+
+---
+
+<html lang={language}>
+  <head>
+    <PageHead title={title} boot={bootScript}>
+      <meta name="description" content={description} />
+      <link rel="canonical" href={canonical} />
+      <meta property="og:type" content="website" />
+      <meta property="og:site_name" content="Atomes" />
+      <meta property="og:title" content={title} />
+      <meta property="og:description" content={description} />
+      <meta property="og:url" content={canonical} />
+      <meta property="og:image" content={preview.src} />
+      <meta property="og:image:width" content={String(preview.width)} />
+      <meta property="og:image:height" content={String(preview.height)} />
+      <meta property="og:image:alt" content={preview.alt} />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={title} />
+      <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={preview.src} />
+      <meta name="twitter:image:alt" content={preview.alt} />
+    </PageHead>
+  </head>
+  <body class="landing">
+    <a class="skip" href="#main">{t('landing.skip')}</a>
+    <header class="nav" data-nav>
+      <div class="nav-inner">
+        <a class="brand" href="/welcome">
+          <Mark size={22} />
+          <span>Atomes</span>
+        </a>
+        <nav class="nav-links" id="landing-menu" aria-label={t('landing.pages')}>
+          <ul>
+            {
+              links
+                .filter((link) => link.shown)
+                .map((link) => (
+                  <li>
+                    <a href={link.href}>{link.label}</a>
+                  </li>
+                ))
+            }
+            <li>
+              <button class="link-button" type="button" lang={other} data-language={other} disabled>
+                <Icon name="languages" />{otherName}
+              </button>
+            </li>
+            <!-- Phone: light or dark moves into the menu, so the bar keeps room for the call to action. -->
+            <li class="menu-only">
+              <button class="link-button" type="button" data-theme-toggle disabled>
+                <span class="theme-moon"><Icon name="moon" /></span><span class="theme-sun"><Icon name="sun" /></span>{t('landing.theme')}
+              </button>
+            </li>
+          </ul>
+        </nav>
+        <div class="nav-actions">
+          <button class="icon-button theme" type="button" aria-label={t('landing.theme')} title={t('landing.theme')} data-theme-toggle disabled>
+            <span class="theme-moon"><Icon name="moon" /></span>
+            <span class="theme-sun"><Icon name="sun" /></span>
+          </button>
+          <a class="button button-main nav-cta" href="/sign-in" data-cta="short">{t('landing.sign-in')}</a>
+          <button class="icon-button menu" type="button" aria-label={t('landing.menu')} aria-expanded="false" aria-controls="landing-menu" data-menu disabled>
+            <Icon name="menu" />
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <a class="brand" href="/welcome">
+          <Mark size={18} />
+          <span>Atomes</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="/privacy">{t('signin.privacy')}</a></li>
+          <li><a href="/legal">{t('legal.title')}</a></li>
+          <li><a href={sourceCodeUrl}>{t('landing.source-code')}</a></li>
+          <li><a href={`${sourceCodeUrl}/blob/main/LICENSE`}>{t('landing.license')}</a></li>
+          <li>
+            <button class="link-button" type="button" lang={other} data-language={other} disabled>
+              <Icon name="languages" />{otherName}
+            </button>
+          </li>
+        </ul>
+        <p class="footer-note">{t('landing.footer-note')}</p>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<script>
+  import { applyAppearance, readAppearance, resolveTheme, saveAppearance } from '../lib/appearance';
+  import { accountKey } from '../lib/auth/gate-boot';
+  import { parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
+
+  // A reader with a saved Account goes back to the app in one tap. The navbar
+  // takes the short label: a phone bar has no room for the long one.
+  let known = false;
+  try {
+    known = localStorage.getItem(accountKey) !== null;
+  } catch {
+    // Storage refused: a visitor.
+  }
+  if (known) {
+    for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-cta]')) {
+      link.href = '/';
+      link.textContent = t(link.dataset.cta === 'short' ? 'landing.nav-open-library' : 'landing.open-library');
+    }
+  }
+
+  // The language: the same choice as Settings (a cookie the server reads), so
+  // sign-in and the app open in it too. The server renders the page in it: reload.
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-language]')) {
+    button.addEventListener('click', () => {
+      saveLanguage(parseLanguage(button.dataset.language));
+      location.reload();
+    });
+    button.disabled = false;
+  }
+
+  // Light or dark: the same Appearance setting as Settings, kept on the device.
+  const prefersDark = matchMedia('(prefers-color-scheme: dark)');
+  for (const toggle of document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]')) {
+    toggle.addEventListener('click', () => {
+      const next = resolveTheme(readAppearance(), prefersDark.matches) === 'dark' ? 'light' : 'dark';
+      saveAppearance(next);
+      applyAppearance(document, next, prefersDark.matches);
+    });
+    toggle.disabled = false;
+  }
+
+  // The phone menu: the button opens the links under the bar; Escape or a link closes them.
+  const nav = document.querySelector<HTMLElement>('[data-nav]')!;
+  const menu = document.querySelector<HTMLButtonElement>('[data-menu]')!;
+  const setOpen = (open: boolean) => {
+    nav.dataset.open = String(open);
+    menu.setAttribute('aria-expanded', String(open));
+  };
+  menu.addEventListener('click', () => setOpen(nav.dataset.open !== 'true'));
+  menu.disabled = false;
+  nav.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || nav.dataset.open !== 'true') return;
+    setOpen(false);
+    menu.focus();
+  });
+  for (const link of nav.querySelectorAll('.nav-links a')) link.addEventListener('click', () => setOpen(false));
+</script>
+
+<style>
+  /*
+   * Sizes of the public pages, named once (ui-direction, "The one look"):
+   * the widest column, the bar, the blur under it.
+   */
+  .landing {
+    --landing-width: 1160px;
+    --landing-gutter: 20px;
+    --landing-nav: 64px;
+    --landing-blur: 16px;
+    --landing-nav-fill: color-mix(in srgb, var(--ground) var(--alpha-text-heading), transparent);
+    overflow-x: clip;
+  }
+
+  @media (min-width: 720px) {
+    .landing {
+      --landing-gutter: 32px;
+    }
+  }
+
+  :global(html) {
+    scroll-behavior: smooth;
+    scroll-padding-top: var(--landing-nav);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(html) {
+      scroll-behavior: auto;
+    }
+  }
+
+  .skip {
+    position: absolute;
+    top: var(--space-8);
+    left: var(--space-8);
+    z-index: 3;
+    padding: var(--space-8) var(--space-12);
+    border-radius: var(--radius-control);
+    background: var(--accent-fill);
+    color: var(--on-accent);
+    transform: translateY(calc(-100% - var(--space-16)));
+  }
+
+  .skip:focus {
+    transform: none;
+  }
+
+  main:focus {
+    outline: none;
+  }
+
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    border-bottom: var(--hairline) solid var(--line-card);
+    background: var(--landing-nav-fill);
+    backdrop-filter: blur(var(--landing-blur));
+    -webkit-backdrop-filter: blur(var(--landing-blur));
+  }
+
+  .nav-inner {
+    width: min(100%, var(--landing-width));
+    min-height: var(--landing-nav);
+    margin: 0 auto;
+    padding: 0 var(--landing-gutter);
+    display: flex;
+    align-items: center;
+    gap: var(--space-16);
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-10);
+    color: var(--ink);
+    font-weight: 700;
+    font-size: var(--type-heading);
+    letter-spacing: var(--tracking-tight);
+    text-decoration: none;
+  }
+
+  .nav-links {
+    margin-inline-start: auto;
+  }
+
+  .nav-links ul {
+    display: flex;
+    gap: var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .nav-links a,
+  .nav-links .link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-6);
+    min-height: var(--row);
+    padding: 0 var(--space-12);
+    border-radius: var(--radius-control);
+    color: var(--text-quiet);
+    text-decoration: none;
+  }
+
+  .link-button {
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .nav-links a:hover,
+  .nav-links .link-button:hover:not(:disabled) {
+    background: var(--fill-chip);
+    color: var(--ink);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+  }
+
+  .nav-cta {
+    min-height: var(--icon-button);
+    white-space: nowrap;
+  }
+
+  /* One icon of the two: the theme the button switches to. */
+  .theme-sun {
+    display: none;
+  }
+
+  :global(:root[data-appearance='dark']) .theme-sun {
+    display: contents;
+  }
+
+  :global(:root[data-appearance='dark']) .theme-moon {
+    display: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-appearance='light'])) .theme-sun {
+      display: contents;
+    }
+
+    :global(:root:not([data-appearance='light'])) .theme-moon {
+      display: none;
+    }
+  }
+
+  .menu,
+  .menu-only {
+    display: none;
+  }
+
+  /* Phone: the links fold under a menu button; the bar keeps the brand, the theme and Sign in. */
+  @media (max-width: 719px) {
+    .nav-links {
+      position: absolute;
+      inset: 100% 0 auto;
+      display: none;
+      padding: var(--space-8) var(--landing-gutter) var(--space-16);
+      border-bottom: var(--hairline) solid var(--line-card);
+      background: var(--ground);
+    }
+
+    .nav[data-open='true'] .nav-links {
+      display: block;
+    }
+
+    .nav-links ul {
+      flex-direction: column;
+    }
+
+    .nav-links a,
+    .nav-links .link-button {
+      min-height: var(--target-min);
+      padding: var(--space-12);
+      width: 100%;
+    }
+
+    .nav-actions {
+      margin-inline-start: auto;
+    }
+
+    .menu {
+      display: inline-flex;
+    }
+
+    .menu-only {
+      display: list-item;
+    }
+
+    .nav-actions .theme {
+      display: none;
+    }
+  }
+
+  .footer {
+    margin-top: var(--space-28);
+    border-top: var(--hairline) solid var(--line-card);
+  }
+
+  .footer-inner {
+    width: min(100%, var(--landing-width));
+    margin: 0 auto;
+    padding: var(--space-28) var(--landing-gutter);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-16) var(--space-28);
+  }
+
+  .footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8) var(--space-20);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .footer-links a,
+  .footer-links .link-button {
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+    text-decoration-color: var(--line-link);
+    text-underline-offset: var(--space-4);
+  }
+
+  .footer-links .link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: 0;
+  }
+
+  .footer-links a:hover,
+  .footer-links .link-button:hover:not(:disabled) {
+    color: var(--ink);
+  }
+
+  .footer-note {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+  }
+</style>
