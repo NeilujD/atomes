@@ -25,7 +25,7 @@ const t = translator(Astro.props.language);
     </div>
     <p class="row-hint" data-dialog-message role="status">{t('admin.reason-hint')}</p>
     <div class="confirm-actions">
-      <button class="button" value="cancel" formnovalidate>{t('admin.cancel')}</button>
+      <button class="button" type="button" data-dialog-cancel>{t('admin.cancel')}</button>
       <button class="button button-main" value="confirm">{t('admin.show-identity')}</button>
     </div>
   </form>
@@ -45,7 +45,7 @@ const t = translator(Astro.props.language);
     </div>
     <p class="row-hint" data-dialog-message role="status">{t('admin.reason-hint')}</p>
     <div class="confirm-actions">
-      <button class="button" value="cancel" formnovalidate>{t('admin.cancel')}</button>
+      <button class="button" type="button" data-dialog-cancel>{t('admin.cancel')}</button>
       <button class="button button-main" value="confirm">{t('admin.find-submit')}</button>
     </div>
   </form>
@@ -64,7 +64,7 @@ const t = translator(Astro.props.language);
 </template>
 
 <script>
-  import { enable, postAdmin } from '../../lib/admin/client';
+  import { enable, postAdmin, say, showRow } from '../../lib/admin/client';
   import { t } from '../../lib/i18n/i18n';
   import { toast } from '../../lib/toast';
 
@@ -72,6 +72,11 @@ const t = translator(Astro.props.language);
   const identityDialog = document.querySelector<HTMLDialogElement>('[data-identity-dialog]')!;
   const findDialog = document.querySelector<HTMLDialogElement>('[data-find-dialog]')!;
   const rowTemplate = document.querySelector<HTMLTemplateElement>('[data-identity-row]')!;
+
+  // Cancel is not a submit button: Enter in a field then submits the action, not Cancel.
+  for (const dialog of [identityDialog, findDialog]) {
+    dialog.querySelector('[data-dialog-cancel]')!.addEventListener('click', () => dialog.close('cancel'));
+  }
 
   const refusals: Record<string, () => string> = {
     BadReason: () => t('admin.bad-reason'),
@@ -86,7 +91,7 @@ const t = translator(Astro.props.language);
     const form = dialog.querySelector('form')!;
     const message = dialog.querySelector<HTMLElement>('[data-dialog-message]')!;
     form.reset();
-    message.textContent = t('admin.reason-hint');
+    say(message, t('admin.reason-hint'));
     form.onsubmit = (event) => {
       const confirm = (event.submitter as HTMLButtonElement | null)?.value === 'confirm';
       if (!confirm) return;
@@ -96,7 +101,7 @@ const t = translator(Astro.props.language);
       void send(new FormData(form)).then(({ ok, error }) => {
         button.disabled = false;
         if (ok) dialog.close();
-        else message.textContent = (refusals[error ?? ''] ?? (() => t('admin.failed')))();
+        else say(message, (refusals[error ?? ''] ?? (() => t('admin.failed')))(), true);
       });
     };
     dialog.showModal();
@@ -138,9 +143,7 @@ const t = translator(Astro.props.language);
         return { ok };
       }
       toast(t('admin.found', reference));
-      // To its row; with "Flagged only" on, the row may not be in the list: the whole list then.
-      if (document.getElementById(reference)) location.hash = reference;
-      else location.assign(`/admin?part=accounts#${reference}`);
+      showRow(reference);
       return { ok };
     });
   });

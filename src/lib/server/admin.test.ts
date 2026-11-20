@@ -213,14 +213,14 @@ describe('the Admins part', () => {
     expect(everyValue()).not.toContain('carol@');
   });
 
-  test('a grant for an address with no Account answers NoAccount and logs a search with no target and no address', async () => {
+  test('a grant for an address with no Account answers NoAccount and logs the try with no target and no address', async () => {
     const cookie = asAdmin(alice);
 
     const response = await call(cookie, 'POST', '/api/admin/roles/grant', { email: 'nobody@example.org' });
 
     expect(response.status).toBe(422);
     expect(await json(response)).toEqual({ error: 'NoAccount' });
-    expect(logLines().at(-1)).toEqual({ admin: accounts.ofDid(alice), action: 'identity.find', target: null, detail: null });
+    expect(logLines().at(-1)).toEqual({ admin: accounts.ofDid(alice), action: 'role.grant-no-account', target: null, detail: null });
     expect(everyValue()).not.toContain('nobody');
   });
 
@@ -229,6 +229,29 @@ describe('the Admins part', () => {
     const before = logLines().length;
 
     expect((await call(cookie, 'POST', '/api/admin/roles/grant', { email: 'not an address' })).status).toBe(400);
+    expect(logLines()).toHaveLength(before);
+  });
+
+  test('a grant by Account Reference, typed in any case, gives the role to an Account with no email address', async () => {
+    const cookie = asAdmin(alice);
+    const target = accounts.ofDid(bob);
+
+    const response = await call(cookie, 'POST', '/api/admin/roles/grant', { reference: ` ${accountReference(target).toLowerCase()} ` });
+
+    expect(response.status).toBe(200);
+    expect(roles.rolesOf(target)).toEqual(['admin']);
+    expect(logLines().at(-1)).toEqual({ admin: accounts.ofDid(alice), action: 'role.grant', target, detail: null });
+  });
+
+  test('a grant by an Account Reference no Account has answers NoAccount and changes nothing', async () => {
+    const cookie = asAdmin(alice);
+    const before = logLines().length;
+
+    const response = await call(cookie, 'POST', '/api/admin/roles/grant', { reference: 'A-ZZZZZZ' });
+
+    expect(response.status).toBe(422);
+    expect(await json(response)).toEqual({ error: 'NoAccount' });
+    expect(roles.admins()).toHaveLength(1);
     expect(logLines()).toHaveLength(before);
   });
 
@@ -324,7 +347,7 @@ describe('the Admin Log', () => {
 
     admin.write({ admin: null, action: 'invite.make', target: null, detail: 'new' }, now);
 
-    expect(admin.log().map(({ detail }) => detail)).toEqual(['new', 'kept']);
+    expect(admin.log(now).map(({ detail }) => detail)).toEqual(['new', 'kept']);
   });
 });
 
@@ -376,11 +399,13 @@ describe('the Accounts part', () => {
       corrections: 1,
       sessions: 2,
       invited: [],
-      canDelete: true,
+      you: false,
+      admin: false,
     });
     // The Account that Bob invited, for the delete dialog; an Admin cannot be deleted from the panel.
     expect(row(bobAccount).invited).toEqual([accountReference(carol)]);
-    expect(row(admin).canDelete).toBe(false);
+    // The Admin's own row says so: it is why the row has no Delete.
+    expect(row(admin)).toMatchObject({ you: true, admin: true });
     expect(row(bobAccount)).toMatchObject({ start: { kind: 'script' }, signIn: 'atproto', invitesMade: 1, invitesUsed: 1, records: 0, sessions: 0 });
     expect(row(dave)).toMatchObject({ start: { kind: 'script' }, signIn: 'email' });
     // The Admin's own request is its activity of today.
@@ -442,6 +467,9 @@ describe('the Accounts part', () => {
 describe('the Invites part', () => {
   const make = (cookie: string, body: unknown) => call(cookie, 'POST', '/api/admin/invites', body);
   const tokenOf = (link: string) => link.split('#invite=')[1];
+  type Made = { id: string; tag: string; link: string };
+  const madeOf = async (response: Promise<Response>) => ((await json(await response)) as { invites: Made[] }).invites;
+  const linksOf = async (response: Promise<Response>) => (await madeOf(response)).map(({ link }) => link);
   const list = async (cookie: string) => ((await json(await call(cookie, 'GET', '/api/admin/invites'))) as unknown as { invites: InviteRow[] }).invites;
   const inviteCount = () => (db.prepare('select count(*) as n from invite').get() as { n: number }).n;
 
@@ -452,7 +480,8 @@ describe('the Invites part', () => {
     const response = await make(cookie, { count: 3, label: '  Book club ' });
 
     expect(response.status).toBe(201);
-    const { links, expiresAt } = (await json(response)) as { links: string[]; expiresAt: number };
+    const { invites: made, expiresAt } = (await json(response)) as { invites: Made[]; expiresAt: number };
+    const links = made.map(({ link }) => link);
     expect(links).toHaveLength(3);
     expect(new Set(links).size).toBe(3);
     for (const link of links) expect(link).toMatch(/^https:\/\/atomes\.test\/sign-in#invite=[A-Za-z0-9_-]{43}$/);
@@ -501,7 +530,7 @@ describe('the Invites part', () => {
   test('panel Invites and the reader Invite of the same Admin do not mix', async () => {
     const cookie = asAdmin(alice);
     const admin = accounts.ofDid(alice);
-    const { links } = (await json(await make(cookie, { count: 2 }))) as { links: string[] };
+    const links = await linksOf(make(cookie, { count: 2 }));
     accounts.signInEmail('carol@example.org', tokenOf(links[0]));
 
     // A person used a panel Invite: the reader Invite of the Admin is still to make.
@@ -523,7 +552,8 @@ describe('the Invites part', () => {
   test('the list shows every Invite with its origin, label, state and days, and names Accounts by Account Reference only', async () => {
     const cookie = asAdmin(alice);
     const admin = accounts.ofDid(alice);
-    const { links } = (await json(await make(cookie, { count: 2, label: 'Friends' }))) as { links: string[] };
+    const made = await madeOf(make(cookie, { count: 2, label: 'Friends' }));
+    const links = made.map(({ link }) => link);
     const carol = accounts.signInEmail('carol@example.org', tokenOf(links[0]));
     makeInvite(db);
     makeInvite(db, Date.now() - inviteLifetimeMs - 1000);
@@ -543,6 +573,9 @@ describe('the Invites part', () => {
         { origin: 'reader', label: null, state: 'open', madeBy: accountReference(carol), usedBy: null, canRevoke: false },
       ].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
     );
+    // Each made link and its row in the list carry the same tag, so the Admin knows which row is which link.
+    for (const { id, tag } of made) expect(invites.find((invite) => invite.id === id)).toMatchObject({ tag, expiresAt: expect.any(Number) as number });
+    expect(new Set(made.map(({ tag }) => tag)).size).toBe(2);
     const used = invites.find(({ state }) => state === 'used')!;
     expect(used.usedAt).toEqual(expect.any(Number));
     expect(Math.abs(used.madeAt - Date.now())).toBeLessThan(60_000);
@@ -551,7 +584,7 @@ describe('the Invites part', () => {
 
   test('revoke removes an open Invite of an Admin or of the script: the link then fails as an unknown Invite', async () => {
     const cookie = asAdmin(alice);
-    const { links } = (await json(await make(cookie, { count: 1, label: 'Friends' }))) as { links: string[] };
+    const links = await linksOf(make(cookie, { count: 1, label: 'Friends' }));
     const script = makeInvite(db);
     const before = logLines().length;
 
@@ -571,7 +604,7 @@ describe('the Invites part', () => {
 
   test('a used Invite, an expired one and a reader Invite cannot be revoked', async () => {
     const cookie = asAdmin(alice);
-    const { links } = (await json(await make(cookie, { count: 1 }))) as { links: string[] };
+    const links = await linksOf(make(cookie, { count: 1 }));
     const carol = accounts.signInEmail('carol@example.org', tokenOf(links[0]));
     makeInvite(db, Date.now() - inviteLifetimeMs - 1000);
     accounts.makeInvite(carol);
@@ -669,7 +702,7 @@ describe('add an Account', () => {
     expect(outbox).toEqual([]);
     expect(accountCount()).toBe(before.accounts);
     // The Admin learned that the address has an Account: one search line, with the Account and no address.
-    expect(logLines().slice(before.log)).toEqual([{ admin: accounts.ofDid(alice), action: 'identity.find', target: accounts.ofEmail('carol@example.org'), detail: null }]);
+    expect(logLines().slice(before.log)).toEqual([{ admin: accounts.ofDid(alice), action: 'account.add-exists', target: accounts.ofEmail('carol@example.org'), detail: null }]);
     expect(everyValue()).not.toContain('carol@');
   });
 

@@ -30,7 +30,7 @@ const t = translator(Astro.props.language);
       <input class="field reference" id="delete-reference" name="reference" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
     </div>
     <div class="confirm-actions">
-      <button class="button" value="cancel" data-delete-cancel>{t('admin.cancel')}</button>
+      <button class="button" type="button" data-delete-cancel>{t('admin.cancel')}</button>
       <button class="button button-danger" value="confirm" data-delete-confirm disabled>{t('admin.delete-confirm')}</button>
     </div>
   </form>
@@ -48,6 +48,10 @@ const t = translator(Astro.props.language);
   const typed = dialog.querySelector<HTMLInputElement>('[name="reference"]')!;
   const confirm = dialog.querySelector<HTMLButtonElement>('[data-delete-confirm]')!;
   const list = document.querySelector<HTMLElement>('[data-accounts-list]')!;
+
+  // Cancel is not a submit button: Enter in the field then deletes (once the Account Reference is typed), not cancels.
+  const cancel = dialog.querySelector<HTMLButtonElement>('[data-delete-cancel]')!;
+  cancel.addEventListener('click', () => dialog.close('cancel'));
 
   // The Account of the open dialog.
   let subject: { account: string; reference: string } | undefined;
@@ -72,7 +76,7 @@ const t = translator(Astro.props.language);
     dialog.returnValue = '';
     dialog.showModal();
     // Cancel takes the focus, as in every confirm dialog, though the field comes before it.
-    dialog.querySelector<HTMLButtonElement>('[data-delete-cancel]')!.focus();
+    cancel.focus();
   });
 
   // The action wakes up once the Account Reference is typed; the server checks it again.

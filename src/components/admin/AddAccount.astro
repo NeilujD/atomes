@@ -36,7 +36,7 @@ const t = translator(language);
 </form>
 
 <script>
-  import { postAdmin, redraw } from '../../lib/admin/client';
+  import { postAdmin, redraw, say, showRow } from '../../lib/admin/client';
   import { t } from '../../lib/i18n/i18n';
   import { toast } from '../../lib/toast';
 
@@ -50,7 +50,7 @@ const t = translator(language);
   function show(on: boolean) {
     form.hidden = !on;
     open.hidden = on;
-    message.textContent = t('admin.add-hint');
+    say(message, t('admin.add-hint'));
     if (on) email.focus();
     else form.reset();
   }
@@ -70,7 +70,7 @@ const t = translator(language);
     void postAdmin('/api/admin/accounts', { email: data.get('email'), language: data.get('language') }).then(async ({ ok, error, body }) => {
       submit.disabled = false;
       if (!ok) {
-        message.textContent = (refusals[error ?? ''] ?? (() => t('admin.failed')))();
+        say(message, (refusals[error ?? ''] ?? (() => t('admin.failed')))(), true);
         return;
       }
       show(false);
@@ -78,6 +78,7 @@ const t = translator(language);
       if (body.mailSent) toast(t('admin.added', reference));
       else toast(t('admin.added-no-mail', reference), { error: true });
       await redraw('[data-totals]', '[data-accounts-list]');
+      showRow(reference);
     });
   });
   open.disabled = false;

@@ -57,12 +57,28 @@ test('An Admin makes Invites, adds an Account, shows its identity, deletes it an
   await page.getByRole('button', { name: 'Make Invites' }).click();
   await expect(page.getByText(`2 Invites made · ${label}`)).toBeVisible();
   await expect(page.getByText('These links show once.', { exact: false })).toBeVisible();
-  await expect(page.getByLabel('Invite link 1')).toHaveValue(/\/sign-in#invite=[A-Za-z0-9_-]{43}$/);
-  await expect(page.getByLabel('Invite link 2')).toHaveValue(/\/sign-in#invite=[A-Za-z0-9_-]{43}$/);
+  const links = page.getByLabel(/^Link of Invite [0-9A-F]{6}$/);
+  await expect(links).toHaveCount(2);
+  for (const link of await links.all()) await expect(link).toHaveValue(/\/sign-in#invite=[A-Za-z0-9_-]{43}$/);
   const made = page.locator('.rows.invites tbody', { hasText: label });
   await expect(made).toHaveCount(2);
   // The state shows once on a phone; the table of a wide screen has its own cell for it.
   await expect(made.first().locator('.state:visible')).toHaveText('Open');
+  // A link and its row in the list carry the same tag.
+  const tag = await page.locator('[data-made-tag]').first().innerText();
+  const tagged = made.filter({ hasText: tag });
+  await expect(tagged).toHaveCount(1);
+
+  // A second make asks first: the links on the page would go.
+  await page.getByRole('button', { name: 'Make Invites' }).click();
+  await page.getByRole('dialog', { name: 'Make new Invites?' }).getByRole('button', { name: 'Cancel' }).click();
+  await expect(links).toHaveCount(2);
+
+  // A revoke names the Invite by its tag, and its link on the page stops looking usable.
+  await tagged.getByRole('button', { name: `Revoke Invite ${tag}` }).click();
+  await page.getByRole('dialog', { name: `Revoke Invite ${tag}?` }).getByRole('button', { name: 'Revoke' }).click();
+  await expect(made).toHaveCount(1);
+  await expect(page.getByRole('button', { name: `Copy Invite ${tag}` })).toBeDisabled();
 
   // Accounts: add one by its email address; the person gets one mail.
   const address = `e2e-${browserName}-added@example.org`;
@@ -74,8 +90,15 @@ test('An Admin makes Invites, adds an Account, shows its identity, deletes it an
   const added = page.getByText(/Account A-[A-Z2-7]{6,8} added\. The mail went\./);
   await expect(added).toBeVisible();
   const reference = /A-[A-Z2-7]{6,8}/.exec(await added.innerText())![0];
+  // The panel leads to the new row.
+  await expect(page).toHaveURL(new RegExp(`#${reference}$`));
   const mail = await page.request.get(`/dev/outbox?to=${encodeURIComponent(address)}`);
   expect(await mail.text()).toContain('An Admin of this Atomes instance made an Account for you');
+
+  // The Admin's own row says "you", and has no Delete.
+  const own = page.locator('.rows.accounts tbody', { has: page.locator('.chip', { hasText: /^you$/ }) });
+  await expect(own).toHaveCount(1);
+  await expect(own.getByRole('button', { name: /^Delete/ })).toHaveCount(0);
 
   // It is in the list, by its Account Reference, with no address.
   const row = page.locator(`[data-reference="${reference}"]`);
@@ -85,8 +108,9 @@ test('An Admin makes Invites, adds an Account, shows its identity, deletes it an
   // Its identity shows after a reason, and only then.
   await row.getByRole('button', { name: 'Show identity' }).click();
   const identity = page.getByRole('dialog', { name: `Show identity of ${reference}` });
+  // Enter in the field confirms: Cancel is not the default button of the form.
   await identity.getByLabel('Reason').fill('E2E journey of the admin panel');
-  await identity.getByRole('button', { name: 'Show identity' }).click();
+  await identity.getByLabel('Reason').press('Enter');
   await expect(row.getByText(address)).toBeVisible();
   await page.reload();
   await expect(row).toBeVisible();
@@ -97,7 +121,7 @@ test('An Admin makes Invites, adds an Account, shows its identity, deletes it an
   const remove = page.getByRole('dialog', { name: `Delete Account ${reference}?` });
   await expect(remove.getByRole('button', { name: 'Delete the Account' })).toBeDisabled();
   await remove.getByLabel(`Type ${reference} to confirm`).fill(reference);
-  await remove.getByRole('button', { name: 'Delete the Account' }).click();
+  await remove.getByLabel(`Type ${reference} to confirm`).press('Enter');
   await expect(page.getByText(`Account ${reference} deleted.`)).toBeVisible();
   await expect(row).toHaveCount(0);
 

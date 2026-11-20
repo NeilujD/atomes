@@ -7,13 +7,13 @@
 // middleware refuses a write from another site (security.ts).
 //   GET  /api/admin/accounts      { totals, accounts: AccountRow[] }; ?flagged=1: flagged Accounts only
 //   POST /api/admin/accounts      { email, language } -> 201 { reference, mailSent } | 400 BadAddress | 400 BadLanguage
-//                                 | 409 Exists (logged as a search) | 429 TooMany (20 tries in one hour).
+//                                 | 409 Exists (logged) | 429 TooMany (20 tries in one hour).
 //                                 One mail to the person; no Invite.
 //   POST /api/admin/accounts/delete { account, reference } -> 200 { sharedLeft } | 400 WrongReference
 //                                 | 403 OwnAccount | 403 IsAdmin | 409 NoAccount. The full delete of
 //                                 "Delete my account"; `reference` is the Account Reference the Admin typed.
 //   GET  /api/admin/invites       { invites: InviteRow[] }
-//   POST /api/admin/invites       { count, label? } -> 201 { links, expiresAt } | 400 BadCount | 400 BadLabel
+//   POST /api/admin/invites       { count, label? } -> 201 { invites: { id, tag, link }[], expiresAt } | 400 BadCount | 400 BadLabel
 //                                 The links are in this answer only: never stored, never logged.
 //   POST /api/admin/invites/revoke { id } -> 200 | 409 NotOpen
 //   POST /api/admin/identity/show { account, reason } -> 200 { email?, atproto? } | 400 BadReason | 409 NoAccount
@@ -21,7 +21,7 @@
 //                                 The two answers that name a reader, each after a reason of 3 to 200
 //                                 characters, each written to the Admin Log first. The typed address is never stored.
 //   GET  /api/admin/admins        { admins: AdminRow[] }
-//   POST /api/admin/roles/grant   { email } -> 200 | 400 BadAddress | 422 NoAccount
+//   POST /api/admin/roles/grant   { email } | { reference } -> 200 | 400 BadAddress | 422 NoAccount
 //   POST /api/admin/roles/revoke  { account } -> 200 | 403 OwnRole | 409 NotAdmin
 //   GET  /api/admin/log           { lines: LogRow[] }
 // An answer names a reader by Account Reference only; an Admin by identity.
@@ -118,8 +118,8 @@ function namer(deps: AdminDeps): (account: string) => string {
 
 // The totals of the instance and one row for each Account, from grouped
 // queries on the three SQLite files. Nothing in it names a reader.
-// A row as the Admin `you` sees it. `canDelete`: not their own Account (Settings does that), not an Admin (revoke the role first).
-export type AccountsRow = AccountRow & { canDelete: boolean };
+// A row as the Admin `you` sees it. The panel deletes neither their own Account (Settings does that) nor an Admin (revoke the role first).
+export type AccountsRow = AccountRow & { you: boolean; admin: boolean };
 
 export function accountsView(
   deps: AdminDeps,
@@ -134,7 +134,7 @@ export function accountsView(
     corrections7d: corrections.get(each.account)?.recent ?? 0,
   }));
   const admins = new Set(deps.roles.admins().map(({ account }) => account));
-  const rows = accountRows(facts, deps.admin.references(), now).map((row) => ({ ...row, canDelete: row.account !== you && !admins.has(row.account) }));
+  const rows = accountRows(facts, deps.admin.references(), now).map((row) => ({ ...row, you: row.account === you, admin: admins.has(row.account) }));
   return { totals: totalsOf(facts, deps.admin.inviteTotals(now), now), accounts: flagged ? rows.filter(({ flags }) => flags.length > 0) : rows };
 }
 
@@ -156,14 +156,18 @@ function reasonOf(value: unknown): { reason: string } | { refusal: Response } {
 
 export const inviteLimits = { maxCount: 50, maxLabel: 60 } as const;
 
+// The short name of an Invite: the start of its token hash. The made link and its row in the list show it, so the Admin knows which row is which link.
+export const inviteTag = (id: string) => id.slice(0, 6).toUpperCase();
+
 // An Invite in the list: its maker and the Account that used it show as Account References.
-export type InviteRow = Omit<InviteFacts, 'madeBy' | 'usedBy'> & { madeBy: string | null; usedBy: string | null; canRevoke: boolean };
+export type InviteRow = Omit<InviteFacts, 'madeBy' | 'usedBy'> & { tag: string; madeBy: string | null; usedBy: string | null; canRevoke: boolean };
 
 export function inviteRows(deps: AdminDeps, now = Date.now()): InviteRow[] {
   const references = deps.admin.references();
   const reference = (account: string | null) => (account === null ? null : (references.get(account) ?? null));
   return deps.admin.invites(now).map((invite) => ({
     ...invite,
+    tag: inviteTag(invite.id),
     madeBy: reference(invite.madeBy),
     usedBy: reference(invite.usedBy),
     canRevoke: invite.state === 'open' && invite.origin !== 'reader',
@@ -215,8 +219,8 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
       if (!deps.limits.allow(`admin-add:${createHash('sha256').update(admin).digest('hex')}`, addLimit.max, addLimit.windowMs)) return refused(429, 'TooMany');
       const account = deps.admin.addAccount(admin, address);
       if (account === undefined) {
-        // The Admin learned that this address has an Account: a search, with its trace and no address.
-        deps.admin.write({ admin, action: 'identity.find', target: deps.roles.accountOf(address) ?? null, detail: null });
+        // The Admin learned that this address has an Account: a trace, with no address.
+        deps.admin.write({ admin, action: 'account.add-exists', target: deps.roles.accountOf(address) ?? null, detail: null });
         return refused(409, 'Exists');
       }
       // The Account stays when the mail fails; the panel says so. No address reaches a log line.
@@ -254,8 +258,9 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
       if (label !== undefined && label !== null && typeof label !== 'string') return refused(400, 'BadLabel');
       const text = (label ?? '').trim();
       if (text.length > inviteLimits.maxLabel || holdsAddress(text)) return refused(400, 'BadLabel');
-      const { tokens, expiresAt } = deps.admin.makeInvites(admin, count, text || null);
-      return answer({ links: tokens.map((token) => `${deps.site}/sign-in#invite=${token}`), expiresAt }, 201);
+      const { made, expiresAt } = deps.admin.makeInvites(admin, count, text || null);
+      const invites = made.map(({ token, id }) => ({ id, tag: inviteTag(id), link: `${deps.site}/sign-in#invite=${token}` }));
+      return answer({ invites, expiresAt }, 201);
     },
   },
   'POST /api/admin/invites/revoke': {
@@ -298,12 +303,21 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
   'POST /api/admin/roles/grant': {
     permission: 'roles.grant',
     async run(request, deps, admin) {
-      const address = normalEmail((await bodyOf(request)).email);
+      const { email, reference } = await bodyOf(request);
+      // By Account Reference: the Accounts part shows it, so an Account with no email address can get the role too.
+      if (typeof reference === 'string') {
+        const typed = reference.trim().toUpperCase();
+        const account = [...deps.admin.references()].find(([id, each]) => each === typed && deps.admin.hasAccount(id))?.[0];
+        if (account === undefined) return refused(422, 'NoAccount');
+        deps.roles.grant(account, admin);
+        return answer({});
+      }
+      const address = normalEmail(email);
       if (!address) return refused(400, 'BadAddress');
       const account = deps.roles.accountOf(address);
       if (account === undefined) {
-        // A search with no match: no target, and never the address.
-        deps.admin.write({ admin, action: 'identity.find', target: null, detail: null });
+        // The Admin learned that no Account has this address: a trace with no target, and never the address.
+        deps.admin.write({ admin, action: 'role.grant-no-account', target: null, detail: null });
         return refused(422, 'NoAccount');
       }
       deps.roles.grant(account, admin);

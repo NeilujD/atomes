@@ -26,18 +26,19 @@ export function makeInvite(
   now = Date.now(),
   madeBy: string | null = null,
   panel?: { label: string | null },
-): { token: string; expiresAt: number } {
+): { token: string; id: string; expiresAt: number } {
   const token = randomBytes(32).toString('base64url');
+  const id = hash(token);
   const expiresAt = now + inviteLifetimeMs;
   const origin: InviteOrigin = panel ? 'admin' : madeBy === null ? 'script' : 'reader';
   db.prepare('insert into invite (token_hash, expires_at, made_by, origin, label) values (?, ?, ?, ?, ?)').run(
-    hash(token),
+    id,
     expiresAt,
     madeBy,
     origin,
     panel?.label ?? null,
   );
-  return { token, expiresAt };
+  return { token, id, expiresAt };
 }
 
 // The Invite of a reader, as Settings shows it. `used` once a person made an

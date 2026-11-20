@@ -8,9 +8,13 @@ import type { DatabaseSync } from 'node:sqlite';
 export type AdminAction =
   | 'role.grant'
   | 'role.revoke'
+  // A grant by email address that no Account has: the Admin learned that none has it.
+  | 'role.grant-no-account'
   | 'invite.make'
   | 'invite.revoke'
   | 'account.add'
+  // A try to add an address that has an Account: the Admin learned that it has one.
+  | 'account.add-exists'
   | 'account.delete'
   | 'identity.show'
   | 'identity.find';

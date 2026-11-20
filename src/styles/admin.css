@@ -61,6 +61,11 @@
   text-wrap: pretty;
 }
 
+.row-hint.refused {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 /* An Account Reference: the technical font, so it reads as a code. */
 .reference {
   font-family: var(--font-tech);
@@ -453,7 +458,14 @@ select.field {
 
 .made-links li {
   display: flex;
+  align-items: center;
   gap: var(--space-8);
+}
+
+/* A link revoked since it was made: struck, and no Copy. */
+.made-links .revoked .link {
+  color: var(--text-quiet);
+  text-decoration: line-through;
 }
 
 .link {
@@ -463,7 +475,15 @@ select.field {
 }
 
 /* Desktop: one row of columns under a header line. */
-/* The row that "Find by email address" leads to. */
+/* The way to a row that "Find by email address" or "Add an Account" leads to: smooth, unless the reader asks for less motion. The phone scrolls the page, the desktop the panel (AppShell). */
+@media (prefers-reduced-motion: no-preference) {
+  :root:has(.admin),
+  .panel:has(.admin) {
+    scroll-behavior: smooth;
+  }
+}
+
+/* The row that "Find by email address" or "Add an Account" leads to. */
 .rows tbody:target {
   outline: var(--stroke) solid var(--accent);
   outline-offset: var(--stroke);

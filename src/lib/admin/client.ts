@@ -42,6 +42,22 @@ export async function redraw(...selectors: string[]): Promise<void> {
 
 export const redrawn = 'admin:redrawn';
 
+// Leads to the row of an Account and marks it (`:target`, admin.css). With
+// "Flagged only" on, the row may not be in the list: the whole list then.
+export function showRow(reference: string): void {
+  if (!document.getElementById(reference)) return location.assign(`/admin?part=accounts#${reference}`);
+  // The same hash again would not move: clear it first, with no jump.
+  if (location.hash === `#${reference}`) history.replaceState(null, '', location.pathname + location.search);
+  location.hash = reference;
+}
+
+// The line under a form or in a dialog: its hint, or why the server refused.
+// A refusal reads in ink and weight, not in red: red marks actions that destroy (ui-direction, colour roles).
+export function say(line: HTMLElement, text: string, refused = false): void {
+  line.textContent = text;
+  line.classList.toggle('refused', refused);
+}
+
 // Enables the buttons of `selector` now, and again after each redraw: a button
 // stays disabled until the script that handles it runs (ui-direction).
 export function enable(selector: string): void {
