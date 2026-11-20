@@ -326,6 +326,18 @@ const t = translator(requestLanguage(Astro.request));
     .stats-loans {
       grid-column: 1 / -1;
     }
+
+    /* No read yet, so no Most read: Your Library today and Loans share the row. */
+    .stats-parts:not(:has(> :nth-child(3))) .stats-loans {
+      grid-column: auto;
+    }
+
+    /* The heading at the height of the chart heads beside it, which hold a Table button. */
+    .stats-loans .small-heading {
+      display: flex;
+      align-items: center;
+      min-height: var(--row);
+    }
   }
 
   /* A wide panel: the four tiles on one row. */
@@ -341,15 +353,13 @@ const t = translator(requestLanguage(Astro.request));
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    .stats-loans {
-      grid-column: auto;
+    /* With two parts only, two columns: no empty third one. */
+    .stats-parts:not(:has(> :nth-child(3))) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    /* The heading at the height of the chart heads beside it, which hold a Table button. */
-    .stats-loans .small-heading {
-      display: flex;
-      align-items: center;
-      min-height: var(--row);
+    .stats-loans {
+      grid-column: auto;
     }
   }
 </style>
