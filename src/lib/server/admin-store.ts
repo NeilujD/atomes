@@ -48,6 +48,7 @@ export interface AdminStore {
   // as its identity, with no Invite, and one Admin Log line, in one
   // transaction. Undefined when the address has an Account: nothing changes.
   addAccount(admin: string, email: string, now?: number): string | undefined;
+  hasAccount(account: string): boolean;
 }
 
 // `db` has run `librarySteps`. Does not close it.
@@ -147,6 +148,7 @@ export function createAdminStore(db: DatabaseSync): AdminStore {
         return { tokens: made.map(({ token }) => token), expiresAt: made[0].expiresAt };
       });
     },
+    hasAccount: (account) => db.prepare('select 1 from account where id = ?').get(account) !== undefined,
     addAccount(admin, email, now = Date.now()) {
       return inTransaction(db, () => {
         if (db.prepare("select 1 from identity where kind = 'email' and value = ?").get(email)) return undefined;

@@ -7,14 +7,16 @@
 // the Admin (O4).
 import Icon from '../Icon.astro';
 import AddAccount from './AddAccount.astro';
+import DeleteAccount from './DeleteAccount.astro';
 import { formatDay } from '../../lib/admin/format';
 import { translator, type Language } from '../../lib/i18n/i18n';
+import type { AccountsRow } from '../../lib/server/admin';
 import type { AccountRow, Flag, Totals } from '../../lib/server/admin-accounts';
 
 interface Props {
   language: Language;
   totals: Totals;
-  accounts: AccountRow[];
+  accounts: AccountsRow[];
   flaggedOnly: boolean;
 }
 
@@ -148,7 +150,7 @@ const signInLabels: Record<AccountRow['signIn'], string> = {
             </tr>
           </thead>
           {accounts.map((account) => (
-            <tbody data-account={account.account} data-reference={account.reference} id={account.reference}>
+            <tbody data-account={account.account} data-reference={account.reference} data-invited={account.invited.join(',')} id={account.reference}>
               <tr>
                 <th scope="row" class="main">
                   <span class="reference">{account.reference}</span>
@@ -188,7 +190,13 @@ const signInLabels: Record<AccountRow['signIn'], string> = {
                 <td data-label={t('admin.open-sessions')} class="num">
                   {format(account.sessions)}
                 </td>
-                <td class="actions empty" />
+                <td class:list={['actions', { empty: !account.canDelete }]}>
+                  {account.canDelete && (
+                    <button class="button button-quiet button-danger" type="button" data-delete-account disabled>
+                      {t('admin.delete')}
+                    </button>
+                  )}
+                </td>
               </tr>
             </tbody>
           ))}
@@ -198,3 +206,5 @@ const signInLabels: Record<AccountRow['signIn'], string> = {
   }
   </div>
 </section>
+
+<DeleteAccount language={language} />

@@ -151,7 +151,7 @@ const states: Record<InviteRow['state'], string> = {
 </dialog>
 
 <script>
-  import { postAdmin, redraw } from '../../lib/admin/client';
+  import { enable, postAdmin, redraw } from '../../lib/admin/client';
   import { confirmed } from '../../lib/admin/confirm';
   import { t } from '../../lib/i18n/i18n';
   import { toast } from '../../lib/toast';
@@ -175,13 +175,8 @@ const states: Record<InviteRow['state'], string> = {
       },
     );
 
-  // The revoke buttons of the list work from here on.
-  function ready() {
-    for (const button of list.querySelectorAll<HTMLButtonElement>('[data-revoke-invite]')) button.disabled = false;
-  }
-
   // The list again, as the server draws it; the links just made stay on the page.
-  const refresh = () => redraw('[data-invite-list]').then(ready);
+  const refresh = () => redraw('[data-invite-list]');
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -228,6 +223,6 @@ const states: Record<InviteRow['state'], string> = {
     });
   });
 
-  ready();
+  enable('[data-revoke-invite]');
   submit.disabled = false;
 </script>

@@ -51,7 +51,7 @@ const flaggedOnly = Astro.url.searchParams.get('flagged') === '1';
       }
     </nav>
 
-    {part === 'accounts' && <AccountsPart language={language} flaggedOnly={flaggedOnly} {...accountsView(deps, { flagged: flaggedOnly })} />}
+    {part === 'accounts' && <AccountsPart language={language} flaggedOnly={flaggedOnly} {...accountsView(deps, { you: admin.account, flagged: flaggedOnly })} />}
     {part === 'admins' && <AdminsPart language={language} admins={adminRows(deps, admin.account)} />}
     {part === 'log' && <LogPart language={language} lines={logRows(deps)} />}
     {part === 'invites' && <InvitesPart language={language} invites={inviteRows(deps)} />}

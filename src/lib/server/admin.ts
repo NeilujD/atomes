@@ -8,6 +8,9 @@
 //   GET  /api/admin/accounts      { totals, accounts: AccountRow[] }; ?flagged=1: flagged Accounts only
 //   POST /api/admin/accounts      { email, language } -> 201 { reference, mailSent } | 400 BadAddress | 400 BadLanguage
 //                                 | 409 Exists | 429 TooMany. One mail to the person; no Invite.
+//   POST /api/admin/accounts/delete { account, reference } -> 200 { sharedLeft } | 400 WrongReference
+//                                 | 403 OwnAccount | 403 IsAdmin | 409 NoAccount. The full delete of
+//                                 "Delete my account"; `reference` is the Account Reference the Admin typed.
 //   GET  /api/admin/invites       { invites: InviteRow[] }
 //   POST /api/admin/invites       { count, label? } -> 201 { links, expiresAt } | 400 BadCount | 400 BadLabel
 //                                 The links are in this answer only: never stored, never logged.
@@ -17,8 +20,10 @@
 //   POST /api/admin/roles/revoke  { account } -> 200 | 403 OwnRole | 409 NotAdmin
 //   GET  /api/admin/log           { lines: LogRow[] }
 // An answer names a reader by Account Reference only; an Admin by identity.
+import { createHash } from 'node:crypto';
 import type { Catalog } from '../catalog/catalog';
 import { languages, type Language } from '../i18n/i18n';
+import { forgetAccount, type DeleteDeps } from './account-data';
 import { errorLogText, type AccountId, type Accounts } from './accounts';
 import { accountRows, totalsOf, type AccountRow, type Totals } from './admin-accounts';
 import type { AdminAction } from './admin-log';
@@ -46,6 +51,8 @@ export interface AdminDeps extends AdminGateDeps {
   limits: Pick<SignInCodes, 'allow'>;
   // The operator's contact of the instance settings (LEGAL_CONTACT), named in the mail of an added Account.
   contact?: string;
+  // The stores of the delete of an Account, as "Delete my account" has them.
+  deletion: DeleteDeps;
 }
 
 export const noStore = { 'cache-control': 'no-store' };
@@ -90,7 +97,13 @@ function nameOf({ accounts, store }: AdminDeps, account: string, references: Map
 
 // The totals of the instance and one row for each Account, from grouped
 // queries on the three SQLite files. Nothing in it names a reader.
-export function accountsView(deps: AdminDeps, { flagged = false, now = Date.now() } = {}): { totals: Totals; accounts: AccountRow[] } {
+// A row as the Admin `you` sees it. `canDelete`: not their own Account (Settings does that), not an Admin (revoke the role first).
+export type AccountsRow = AccountRow & { canDelete: boolean };
+
+export function accountsView(
+  deps: AdminDeps,
+  { you, flagged = false, now = Date.now() }: { you: string; flagged?: boolean; now?: number },
+): { totals: Totals; accounts: AccountsRow[] } {
   const sessions = deps.store.sessionCounts();
   const corrections = deps.catalog.correctionCounts(new Date(now - 7 * 24 * 3600 * 1000));
   const facts = deps.admin.accountFacts(now).map((each) => ({
@@ -99,7 +112,8 @@ export function accountsView(deps: AdminDeps, { flagged = false, now = Date.now(
     corrections: corrections.get(each.account)?.total ?? 0,
     corrections7d: corrections.get(each.account)?.recent ?? 0,
   }));
-  const rows = accountRows(facts, deps.admin.references(), now);
+  const admins = new Set(deps.roles.admins().map(({ account }) => account));
+  const rows = accountRows(facts, deps.admin.references(), now).map((row) => ({ ...row, canDelete: row.account !== you && !admins.has(row.account) }));
   return { totals: totalsOf(facts, deps.admin.inviteTotals(now), now), accounts: flagged ? rows.filter(({ flags }) => flags.length > 0) : rows };
 }
 
@@ -154,7 +168,7 @@ type Route = (request: Request, deps: AdminDeps, admin: AccountId) => Response |
 const routes: Record<string, { permission: Permission; run: Route }> = {
   'GET /api/admin/accounts': {
     permission: 'accounts.read',
-    run: (request, deps) => answer(accountsView(deps, { flagged: new URL(request.url).searchParams.get('flagged') === '1' })),
+    run: (request, deps, admin) => answer(accountsView(deps, { you: admin, flagged: new URL(request.url).searchParams.get('flagged') === '1' })),
   },
   'POST /api/admin/accounts': {
     permission: 'accounts.add',
@@ -164,7 +178,8 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
       if (!address) return refused(400, 'BadAddress');
       if (!languages.includes(language as Language)) return refused(400, 'BadLanguage');
       if (deps.roles.accountOf(address) !== undefined) return refused(409, 'Exists');
-      if (!deps.limits.allow(`admin-add:${admin}`, addLimit.max, addLimit.windowMs)) return refused(429, 'TooMany');
+      // The key holds a hash: no Account ID stays in auth.sqlite after a delete.
+      if (!deps.limits.allow(`admin-add:${createHash('sha256').update(admin).digest('hex')}`, addLimit.max, addLimit.windowMs)) return refused(429, 'TooMany');
       const account = deps.admin.addAccount(admin, address);
       if (account === undefined) return refused(409, 'Exists');
       // The Account stays when the mail fails; the panel says so. No address reaches a log line.
@@ -176,6 +191,20 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
         },
       );
       return answer({ reference: deps.admin.references().get(account), mailSent }, 201);
+    },
+  },
+  'POST /api/admin/accounts/delete': {
+    permission: 'accounts.delete',
+    async run(request, deps, admin) {
+      const { account, reference } = await bodyOf(request);
+      if (typeof account !== 'string' || !deps.admin.hasAccount(account)) return refused(409, 'NoAccount');
+      if (account === admin) return refused(403, 'OwnAccount');
+      if (can(deps.roles.rolesOf(account), 'panel.open')) return refused(403, 'IsAdmin');
+      // The Admin typed the Account Reference of this Account, and of no other.
+      if (typeof reference !== 'string' || reference.trim().toUpperCase() !== deps.admin.references().get(account)) return refused(400, 'WrongReference');
+      const { sharedLeft } = await forgetAccount(account as AccountId, deps.deletion);
+      deps.admin.write({ admin, action: 'account.delete', target: account, detail: null });
+      return answer({ sharedLeft });
     },
   },
   'GET /api/admin/invites': { permission: 'invites.make', run: (_, deps) => answer({ invites: inviteRows(deps) }) },

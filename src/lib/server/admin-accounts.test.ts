@@ -92,6 +92,17 @@ test('a row names the maker of its reader Invite by Account Reference, and gives
   });
 });
 
+test('a row lists the Accounts that signed up with its reader Invite', () => {
+  const references = new Map([
+    ['maker', 'A-MAKER2'],
+    ['guest', 'A-GUEST2'],
+  ]);
+  const rows = accountRows([facts({ account: 'maker' }), facts({ account: 'guest', start: { kind: 'reader-invite', by: 'maker' } })], references, now);
+
+  expect(rows.find(({ account }) => account === 'maker')!.invited).toEqual(['A-GUEST2']);
+  expect(rows.find(({ account }) => account === 'guest')!.invited).toEqual([]);
+});
+
 test('totals: Accounts in total, new and active in 7 and 30 days, and the records', () => {
   const totals = totalsOf(
     [

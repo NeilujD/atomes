@@ -62,6 +62,8 @@ export interface AccountRow {
   invitesUsed: number;
   corrections: number;
   sessions: number;
+  // The Account References of the Accounts that signed up with a reader Invite of this Account.
+  invited: string[];
 }
 
 export interface Totals {
@@ -85,6 +87,10 @@ export function flagsOf(facts: AccountFacts, now: number): Flag[] {
 // Flagged first, then the last active day, newest first; an Account never seen comes last.
 export function accountRows(facts: readonly AccountFacts[], references: ReadonlyMap<string, string>, now: number): AccountRow[] {
   const reference = (account: string) => references.get(account) ?? account;
+  const invitedBy = new Map<string, string[]>();
+  for (const { account, start } of facts) {
+    if (start.kind === 'reader-invite' && start.by) invitedBy.set(start.by, [...(invitedBy.get(start.by) ?? []), reference(account)]);
+  }
   const rows = facts.map((each): AccountRow => {
     const { start } = each;
     return {
@@ -105,6 +111,7 @@ export function accountRows(facts: readonly AccountFacts[], references: Readonly
       invitesUsed: each.invitesUsed,
       corrections: each.corrections,
       sessions: each.sessions,
+      invited: invitedBy.get(each.account) ?? [],
     };
   });
   const flagged = (row: AccountRow) => (row.flags.length > 0 ? 0 : 1);

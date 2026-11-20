@@ -3,7 +3,7 @@
 import { catalog } from '../catalog/instance';
 import type { AdminDeps } from './admin';
 import { createAdminStore, type AdminStore } from './admin-store';
-import { accountStore, emailSignInDeps, libraryDatabase, roleStore } from './instance';
+import { accountStore, authDeps, emailSignInDeps, libraryDatabase, libraryStore, roleStore, sharingService } from './instance';
 import { legalFacts } from './settings';
 
 let adminStore: AdminStore | undefined;
@@ -11,6 +11,7 @@ let adminStore: AdminStore | undefined;
 export async function adminDeps(): Promise<AdminDeps> {
   // The store, the limits, the mail and the origin of the instance, as sign-in has them.
   const { store, codes, sendMail, site } = await emailSignInDeps();
+  const { oauth } = await authDeps();
   adminStore ??= createAdminStore(libraryDatabase());
   return {
     store,
@@ -22,5 +23,13 @@ export async function adminDeps(): Promise<AdminDeps> {
     sendMail,
     limits: codes,
     contact: legalFacts(process.env).contact,
+    deletion: {
+      accounts: accountStore(),
+      library: libraryStore(),
+      sharing: await sharingService(),
+      auth: store,
+      revoke: (did) => oauth.revoke(did),
+      catalog: catalog(),
+    },
   };
 }

@@ -14,6 +14,11 @@ import { inviteLifetimeMs, makeInvite } from './invites';
 import type { Mail, SendMail } from './mail';
 import { sendCode } from './email-sign-in';
 import { createSignInCodes, type SignInCodes } from './sign-in-codes';
+import { publicRepo } from './public-repo';
+import { fakePublicRepo } from './public-repo.fake';
+import { createSharing, type RepoAccess, type Sharing } from './sharing';
+import { readerOf } from './auth';
+import type { AccountsRow, LogRow } from './admin';
 import type { InviteRow } from './admin';
 import { createLibraryStore, type LibraryStore } from './library-store';
 import { adminOf, handleAdminRequest } from './admin';
@@ -38,6 +43,7 @@ let roles: Roles;
 let library: LibraryStore;
 let catalog: Catalog;
 let codes: SignInCodes;
+let sharing: Sharing;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'atomes-admin-'));
@@ -59,9 +65,17 @@ beforeEach(() => {
   };
   library = createLibraryStore(openDatabase(file, librarySteps));
   catalog = createCatalog({ file: join(dir, 'catalog.sqlite'), fetch: () => Promise.reject(new TypeError('offline')), host: 'catalog.test', accounts });
+  repoOf = () => Promise.resolve(undefined);
+  sharing = createSharing({
+    db: openDatabase(file, librarySteps),
+    library,
+    access: { repoOf: (did) => repoOf(did) },
+    didOf: (account) => accounts.identitiesOf(account).did,
+  });
 });
 
 afterEach(() => {
+  sharing.close();
   codes.close();
   catalog.close();
   library.close();
@@ -86,7 +100,20 @@ function asAdmin(did: Did): string {
 // The fake mail outbox: no mail leaves a test.
 let outbox: Mail[];
 let sendMail: SendMail;
-const deps = () => ({ store: auth, roles, accounts, admin: createAdminStore(db), catalog, site: app, sendMail, limits: codes, contact: 'ada@atomes.test' });
+// The reader's public repo on their PDS: none until a test gives one.
+let repoOf: RepoAccess['repoOf'];
+const deps = () => ({
+  store: auth,
+  roles,
+  accounts,
+  admin: createAdminStore(db),
+  catalog,
+  site: app,
+  sendMail,
+  limits: codes,
+  contact: 'ada@atomes.test',
+  deletion: { accounts, library, sharing, auth, revoke: () => Promise.resolve(), catalog },
+});
 
 function request(cookie: string | undefined, method: string, path: string, body?: unknown): Request {
   const headers: Record<string, string> = { origin: app };
@@ -275,7 +302,7 @@ describe('the Admin Log', () => {
 
 describe('the Accounts part', () => {
   const view = async (cookie: string, query = '') =>
-    (await json(await call(cookie, 'GET', `/api/admin/accounts${query}`))) as unknown as { totals: Totals; accounts: AccountRow[] };
+    (await json(await call(cookie, 'GET', `/api/admin/accounts${query}`))) as unknown as { totals: Totals; accounts: AccountsRow[] };
   const today = new Date().toISOString().slice(0, 10);
   // A Series Correction of the Account, as the Catalog keeps it.
   function correct(account: string, isbn: string) {
@@ -320,7 +347,12 @@ describe('the Accounts part', () => {
       invitesUsed: 0,
       corrections: 1,
       sessions: 2,
+      invited: [],
+      canDelete: true,
     });
+    // The Account that Bob invited, for the delete dialog; an Admin cannot be deleted from the panel.
+    expect(row(bobAccount).invited).toEqual([accountReference(carol)]);
+    expect(row(admin).canDelete).toBe(false);
     expect(row(bobAccount)).toMatchObject({ start: { kind: 'script' }, signIn: 'atproto', invitesMade: 1, invitesUsed: 1, records: 0, sessions: 0 });
     expect(row(dave)).toMatchObject({ start: { kind: 'script' }, signIn: 'email' });
     // The Admin's own request is its activity of today.
@@ -648,5 +680,142 @@ describe('add an Account', () => {
     expect(roles.accountOf('one-more@example.org')).toBeUndefined();
     expect(outbox).toHaveLength(20);
     expect((await add(other, 'one-more@example.org')).status).toBe(201);
+  });
+});
+
+describe('delete an Account', () => {
+  const remove = (cookie: string, account: unknown, reference: unknown) => call(cookie, 'POST', '/api/admin/accounts/delete', { account, reference });
+  const email = 'bob@example.test';
+
+  // Every value of every row of the instance's SQLite files that holds one of these.
+  function rowsHolding(values: readonly string[]): string[] {
+    const found: string[] = [];
+    for (const name of ['library.sqlite', 'auth.sqlite', 'catalog.sqlite']) {
+      const file = new DatabaseSync(join(dir, name), { readOnly: true });
+      const tables = file.prepare("select name from sqlite_master where type = 'table'").all() as { name: string }[];
+      for (const { name: table } of tables) {
+        for (const row of file.prepare(`select * from "${table}"`).all()) {
+          const text = JSON.stringify(row);
+          if (values.some((value) => text.includes(value))) found.push(`${name} ${table}`);
+        }
+      }
+      file.close();
+    }
+    return found;
+  }
+
+  // What Bob has on the instance: the reader Invite he signed up with, records, Shared choices, an email
+  // address, sessions, an OAuth session, a Series Correction, and an open Invite of his own.
+  async function bobEverywhere() {
+    const carol = accounts.ofEmail('carol@example.org');
+    const account = accounts.signIn(bob, accounts.makeInvite(carol)!.token);
+    const session = signedIn(bob);
+    accounts.link(account, 'email', email);
+    library.put(account, 'app.atomes.copy', 'one', { $type: 'app.atomes.copy' });
+    library.put(carol, 'app.atomes.copy', 'hers', { $type: 'app.atomes.copy' });
+    await sharing.setShared(account, 'labels', false);
+    await sharing.setPrivate(account, 'wd:Q1', true);
+    await auth.sessions<{ token: string }>().set(bob, { token: 'sealed' });
+    const corrections = new DatabaseSync(join(dir, 'catalog.sqlite'));
+    corrections.prepare("insert into series_correction (isbn, anchor, volume, account, created_at) values ('9780000000001', '9782723478991', 1, ?, '2026-11-16T10:00:00.000Z')").run(account);
+    corrections.close();
+    const open = accounts.makeInvite(account)!;
+    expect(rowsHolding([account, email, bob]).length).toBeGreaterThan(5);
+    return { account, carol, session, open };
+  }
+
+  test('the same full delete as "Delete my account": nothing of the Account stays but the Admin Log line', async () => {
+    const cookie = asAdmin(alice);
+    const { account, carol, session, open } = await bobEverywhere();
+
+    const response = await remove(cookie, account, ` ${accountReference(account).toLowerCase()} `);
+
+    expect(response.status).toBe(200);
+    // No record, no session, no identity, no Invite, no role, no author: only the log names the Account, by its ID.
+    expect(rowsHolding([account, email, bob])).toEqual(['library.sqlite admin_action']);
+    expect(logLines().at(-1)).toEqual({ admin: accounts.ofDid(alice), action: 'account.delete', target: account, detail: null });
+    // Its sessions stop on their next request; its open Invite is gone; the Invite it used stays used.
+    expect(readerOf(request(session, 'GET', '/api/session'), { store: auth })).toBeUndefined();
+    expect(accounts.inviteIsOpen(open.token)).toBe(false);
+    expect(accounts.inviteOf(carol)).toEqual({ state: 'used' });
+    expect(catalog.correctionAccount('9780000000001')).toBeUndefined();
+    // The Account that invited it keeps everything.
+    expect(library.changesSince(carol, 0).records).toHaveLength(1);
+    // The Log part still names the deleted Account by its Account Reference.
+    const { lines } = (await json(await call(cookie, 'GET', '/api/admin/log'))) as unknown as { lines: LogRow[] };
+    expect(lines[0]).toMatchObject({ action: 'account.delete', target: accountReference(account) });
+  });
+
+  test('the delete of an Account does not touch the Account it invited', async () => {
+    const cookie = asAdmin(alice);
+    const { account, carol } = await bobEverywhere();
+
+    await remove(cookie, carol, accountReference(carol));
+
+    expect(accounts.identitiesOf(carol)).toEqual({});
+    expect(accounts.identitiesOf(account)).toEqual({ did: bob, email });
+    expect(library.changesSince(account, 0).records).toHaveLength(1);
+  });
+
+  test('a wrong Account Reference, or the one of another Account, changes nothing', async () => {
+    const cookie = asAdmin(alice);
+    const { account, carol } = await bobEverywhere();
+    const before = logLines().length;
+
+    for (const typed of ['A-WRONG1', accountReference(carol), '', undefined, 7]) {
+      const response = await remove(cookie, account, typed);
+      expect(response.status).toBe(400);
+      expect(await json(response)).toEqual({ error: 'WrongReference' });
+    }
+
+    expect(accounts.identitiesOf(account)).toEqual({ did: bob, email });
+    expect(library.changesSince(account, 0).records).toHaveLength(1);
+    expect(logLines()).toHaveLength(before);
+  });
+
+  test('the server refuses the own Account of the Admin, the Account of an Admin, and an Account that does not exist', async () => {
+    const cookie = asAdmin(alice);
+    asAdmin(bob);
+    const own = accounts.ofDid(alice);
+    const other = accounts.ofDid(bob);
+    const before = logLines().length;
+
+    const refusals = [await remove(cookie, own, accountReference(own)), await remove(cookie, other, accountReference(other)), await remove(cookie, 'no-such-account', 'A-AAAAAA')];
+
+    expect(refusals.map(({ status }) => status)).toEqual([403, 403, 409]);
+    expect(await Promise.all(refusals.map(json))).toEqual([{ error: 'OwnAccount' }, { error: 'IsAdmin' }, { error: 'NoAccount' }]);
+    expect(roles.admins().map(({ account }) => account).sort()).toEqual([own, other].sort());
+    expect(logLines()).toHaveLength(before);
+  });
+
+  test('the Shared records go from the PDS; when it cannot be reached, the Account is deleted and the answer says they stay', async () => {
+    const cookie = asAdmin(alice);
+    const pds = fakePublicRepo(bob);
+    repoOf = () => Promise.resolve(publicRepo(pds.handler, bob));
+    const { account } = await bobEverywhere();
+    library.put(account, 'app.atomes.readingStatus', 'wd:Q2', { $type: 'app.atomes.readingStatus', work: 'wd:Q2', isbn: '9782723478991', status: 'read', updatedAt: '2026-11-16T10:00:00.000Z' });
+    await sharing.setShared(account, 'readingStatuses', true);
+    expect(pds.records.size).toBe(1);
+    pds.network.online = false;
+
+    const response = await remove(cookie, account, accountReference(account));
+
+    expect(response.status).toBe(200);
+    expect(await json(response)).toEqual({ sharedLeft: true });
+    expect(rowsHolding([account, email, bob])).toEqual(['library.sqlite admin_action']);
+    expect(pds.records.size).toBe(1);
+  });
+
+  test('with the PDS in reach, the Shared records are removed from it', async () => {
+    const cookie = asAdmin(alice);
+    const pds = fakePublicRepo(bob);
+    repoOf = () => Promise.resolve(publicRepo(pds.handler, bob));
+    const account = accounts.ofDid(bob);
+    library.put(account, 'app.atomes.readingStatus', 'wd:Q1', { $type: 'app.atomes.readingStatus', work: 'wd:Q1', isbn: '9782723478991', status: 'read', updatedAt: '2026-11-16T10:00:00.000Z' });
+    await sharing.setShared(account, 'readingStatuses', true);
+    expect(pds.records.size).toBe(1);
+
+    expect(await json(await remove(cookie, account, accountReference(account)))).toEqual({ sharedLeft: false });
+    expect(pds.records.size).toBe(0);
   });
 });

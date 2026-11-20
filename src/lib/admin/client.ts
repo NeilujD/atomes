@@ -36,4 +36,18 @@ export async function redraw(...selectors: string[]): Promise<void> {
     if (!from || !to) return location.reload();
     to.replaceChildren(...from.childNodes);
   }
+  // The new rows come with their buttons disabled: each script enables its own again.
+  document.dispatchEvent(new Event(redrawn));
+}
+
+export const redrawn = 'admin:redrawn';
+
+// Enables the buttons of `selector` now, and again after each redraw: a button
+// stays disabled until the script that handles it runs (ui-direction).
+export function enable(selector: string): void {
+  const run = () => {
+    for (const button of document.querySelectorAll<HTMLButtonElement>(selector)) button.disabled = false;
+  };
+  run();
+  document.addEventListener(redrawn, run);
 }
