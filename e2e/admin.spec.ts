@@ -33,9 +33,25 @@ test('An Admin makes Invites, adds an Account, shows its identity, deletes it an
   // Another site cannot act with the Admin's session.
   expect((await page.request.post('/api/admin/invites', { data: { count: 1 }, headers: { origin: 'https://evil.example' } })).status()).toBe(403);
 
+  // From one part to another, the panel does not fade out and in (a blink): the page transition is
+  // skipped, or the browser has none. Read on the new page, when it shows.
+  await page.addInitScript(() => {
+    addEventListener('pagereveal', (event) => {
+      const transition = (event as Event & { viewTransition: { ready: Promise<void> } | null }).viewTransition;
+      const state = (value: string) => sessionStorage.setItem('e2e-transition', value);
+      if (!transition) return state('none');
+      void transition.ready.then(
+        () => state('ran'),
+        () => state('skipped'),
+      );
+    });
+  });
+
   // Invites: two, with a label; the links show once.
   const label = `E2E ${browserName}`;
   await page.getByRole('link', { name: 'Invites', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Make Invites' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('e2e-transition'))).toMatch(/^(skipped|none)$/);
   await page.getByLabel('How many').fill('2');
   await page.getByLabel('Label (optional)').fill(label);
   await page.getByRole('button', { name: 'Make Invites' }).click();
