@@ -859,4 +859,14 @@ export const fr: typeof en = {
   'landing.source-wikidata': 'La communauté Wikimedia',
   'landing.final-title': 'Commencez votre bibliothèque.',
   'landing.final-lead': 'Sur invitation pour l’instant : demandez une invitation à un ami qui lit avec Atomes, ou hébergez votre propre instance.',
+  // Administration (ADR 0020, src/pages/admin.astro)
+  'admin.title': 'Administration',
+  'admin.parts': 'Parties de l’administration',
+  'admin.part-accounts': 'Comptes',
+  'admin.part-invites': 'Invitations',
+  'admin.part-admins': 'Administrateurs',
+  'admin.part-log': 'Journal',
+  'admin.empty': 'Rien ici pour l’instant.',
+  'settings.admin': 'Administration',
+  'settings.admin-hint': 'Les invitations, les comptes et le journal d’administration de cette instance.',
 };

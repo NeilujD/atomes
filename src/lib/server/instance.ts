@@ -15,6 +15,7 @@ import { devOutbox, smtpSender, type SendMail } from './mail';
 import { openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
 import { createOAuthClient, oauthPort, repoAccess } from './oauth';
+import { createRoles, type Roles } from './roles';
 import { secretBox } from './secret-box';
 import { settings } from './settings';
 import { createSharing, logFailure, type Sharing } from './sharing';
@@ -22,6 +23,7 @@ import { createSignInCodes } from './sign-in-codes';
 
 let library: LibraryStore | undefined;
 let accounts: Accounts | undefined;
+let roles: Roles | undefined;
 let sharing: Promise<Sharing> | undefined;
 let auth: Promise<AuthDeps & { client: NodeOAuthClient }> | undefined;
 let migrated: string | undefined;
@@ -61,6 +63,12 @@ export function libraryStore(): LibraryStore {
 export function accountStore(): Accounts {
   accounts ??= createAccounts(open('library.sqlite'));
   return accounts;
+}
+
+// The Admin role (ADR 0020), in `library.sqlite`.
+export function roleStore(): Roles {
+  roles ??= createRoles(open('library.sqlite'));
+  return roles;
 }
 
 export function authDeps(): Promise<AuthDeps & { client: NodeOAuthClient }> {

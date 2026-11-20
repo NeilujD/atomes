@@ -1,0 +1,50 @@
+---
+// The admin panel (ADR 0020, M13): Accounts, Invites, Admins and the Admin
+// Log, one part at a time (`?part=`). The one screen checked on the server:
+// the frontmatter reads the session and the role on every request, and anyone
+// else gets the 404 of the app, with no redirect (src/lib/server/admin.ts).
+// `no-store`, and the service worker keeps none of it (public/sw.js). Not in
+// the tab bar or the sidebar: Settings links here for an Admin only.
+import '../styles/admin.css';
+import AppShell from '../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+import { adminOf } from '../lib/server/admin';
+import { authDeps, roleStore } from '../lib/server/instance';
+
+const { store } = await authDeps();
+const admin = adminOf(Astro.request, { store, roles: roleStore() });
+if (!admin) return new Response(null, { status: 404, headers: { 'cache-control': 'no-store' } });
+Astro.response.headers.set('cache-control', 'no-store');
+
+const t = translator(requestLanguage(Astro.request));
+
+const parts = [
+  { key: 'accounts', label: t('admin.part-accounts') },
+  { key: 'invites', label: t('admin.part-invites') },
+  { key: 'admins', label: t('admin.part-admins') },
+  { key: 'log', label: t('admin.part-log') },
+] as const;
+type Part = (typeof parts)[number]['key'];
+const asked = Astro.url.searchParams.get('part');
+const part: Part = parts.find(({ key }) => key === asked)?.key ?? 'accounts';
+const partLabel = parts.find(({ key }) => key === part)!.label;
+---
+
+<AppShell title={t('admin.title')}>
+  <div class="admin">
+    <nav class="segmented parts" aria-label={t('admin.parts')}>
+      {
+        parts.map(({ key, label }) => (
+          <a class="segment" href={`/admin?part=${key}`} aria-current={key === part ? 'page' : undefined}>
+            {label}
+          </a>
+        ))
+      }
+    </nav>
+
+    <section class="group" aria-labelledby="part-title">
+      <h2 class="small-heading" id="part-title">{partLabel}</h2>
+      <p class="row-hint">{t('admin.empty')}</p>
+    </section>
+  </div>
+</AppShell>

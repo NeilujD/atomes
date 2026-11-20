@@ -173,7 +173,7 @@ describe('check the code', () => {
 
     expect(answer.status).toBe(204);
     expect(answer.headers.get('set-cookie')).toMatch(/atomes_session=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Lax/);
-    const signedIn = session(new Request(`${app}/api/session`, { headers: { cookie: `${sessionCookie}=${sessionOf(answer)}` } }), { store, accounts });
+    const signedIn = session(new Request(`${app}/api/session`, { headers: { cookie: `${sessionCookie}=${sessionOf(answer)}` } }), { store, accounts, roles: { rolesOf: () => [] } });
     expect(await signedIn.json()).toMatchObject({ email: known });
     expect(accountCount()).toBe(1);
   });

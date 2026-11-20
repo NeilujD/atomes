@@ -877,4 +877,14 @@ export const en = {
   'landing.source-wikidata': 'Wikimedia community',
   'landing.final-title': 'Start your Library.',
   'landing.final-lead': 'Invite-only for now: ask a friend who reads with Atomes for an Invite, or run your own instance.',
+  // Admin panel (ADR 0020, src/pages/admin.astro)
+  'admin.title': 'Admin panel',
+  'admin.parts': 'Parts of the admin panel',
+  'admin.part-accounts': 'Accounts',
+  'admin.part-invites': 'Invites',
+  'admin.part-admins': 'Admins',
+  'admin.part-log': 'Log',
+  'admin.empty': 'Nothing here yet.',
+  'settings.admin': 'Administration',
+  'settings.admin-hint': 'Invites, Accounts and the Admin Log of this instance.',
 };

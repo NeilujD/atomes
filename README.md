@@ -56,7 +56,7 @@ docker run -d --name atomes -p 4321:4321 -v atomes-data:/data \
   -e MAIL_FROM='Atomes <atomes@example.org>' atomes
 ```
 
-The container stops at start, with a message that names each problem, when a required setting is missing or wrong. How to make the two keys: [docs/staging-coolify.md](docs/staging-coolify.md), step 8. Then make an Invite for each reader: `docker exec atomes node scripts/invite.ts` prints a link that works once and for 14 days.
+The container stops at start, with a message that names each problem, when a required setting is missing or wrong. How to make the two keys: [docs/staging-coolify.md](docs/staging-coolify.md), step 8. Then make an Invite for each reader: `docker exec atomes node scripts/invite.ts` prints a link that works once and for 14 days. To manage Invites and Accounts in the app, give your Account the Admin role once it exists: `docker exec atomes node scripts/role.ts grant <your email address or DID>` (also `revoke` and `list`; [ADR 0020](docs/adr/0020-admin-role-and-admin-panel.md)). The admin panel is then at `/admin`, linked from Settings.
 
 Put an HTTPS reverse proxy in front of it (Coolify, Caddy, Traefik): sign-in needs the app on its https origin. The project's own staging runs on Coolify ([ADR 0011](docs/adr/0011-project-instances-run-on-self-hosted-coolify.md)): [docs/staging-coolify.md](docs/staging-coolify.md).
 

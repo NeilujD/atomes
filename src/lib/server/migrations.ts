@@ -152,5 +152,18 @@ const libraryV3: Step = (db) =>
     create index invite_made_by on invite (made_by);
   `);
 
-export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3];
+// The Admin role (ADR 0020, roles.ts). `granted_by`: the Admin who granted
+// it; null for scripts/role.ts.
+const libraryV4: Step = (db) =>
+  db.exec(`
+    create table account_role (
+      account text not null references account (id),
+      role text not null check (role in ('admin')),
+      granted_by text,
+      granted_at integer not null,
+      primary key (account, role)
+    );
+  `);
+
+export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3, libraryV4];
 export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts), authV2];

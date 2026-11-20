@@ -10,6 +10,7 @@ import { inviteIsOpen } from './invites';
 import { createLibraryStore } from './library-store';
 import { migrate, openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
+import { createRoles } from './roles';
 import { secretBox } from './secret-box';
 import { createSharing } from './sharing';
 
@@ -152,6 +153,22 @@ describe('library.sqlite made before readers made Invites', () => {
     expect(version(after)).toBe(librarySteps.length);
     expect(inviteIsOpen(after, token)).toBe(true);
     expect(after.prepare('select made_by as madeBy from invite').all()).toEqual([{ madeBy: null }]);
+    after.close();
+  });
+});
+
+describe('library.sqlite made before the Admin role', () => {
+  test('its Accounts stay, with no role, and a role can be granted', () => {
+    const file = join(dir, 'library.sqlite');
+    const before = openDatabase(file, librarySteps.slice(0, 4));
+    const account = createAccounts(before).ofDid(did);
+
+    const after = openDatabase(file, librarySteps);
+    expect(version(after)).toBe(librarySteps.length);
+    const roles = createRoles(after);
+    expect(roles.admins()).toEqual([]);
+    expect(roles.grant(account, null)).toBe(true);
+    expect(roles.rolesOf(account)).toEqual(['admin']);
     after.close();
   });
 });

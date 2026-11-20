@@ -56,7 +56,7 @@ export interface Accounts {
   identitiesOf(account: AccountId): Identities;
   // Deletes the Account and its identities (CORE-55). The Invite it signed up
   // with stays used, with no Account; so does the Invite it made and a person
-  // used. Its open Invite is deleted.
+  // used. Its open Invite is deleted, and its role (ADR 0020).
   forget(account: AccountId): void;
   close(): void;
 }
@@ -135,6 +135,7 @@ export function createAccounts(db: DatabaseSync): Accounts {
         db.prepare('delete from invite where made_by = ? and used_at is null').run(account);
         db.prepare('update invite set made_by = null where made_by = ?').run(account);
         db.prepare('delete from identity where account = ?').run(account);
+        db.prepare('delete from account_role where account = ?').run(account);
         db.prepare('delete from account where id = ?').run(account);
       });
     },

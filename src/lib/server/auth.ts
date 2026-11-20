@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { returnTarget, signInPath } from '../auth/return-to';
 import { errorLogText, NoInviteError, type AccountId, type Accounts, type Did, type LinkResult } from './accounts';
 import { type AuthStore, browserSessionLifetimeMs } from './auth-store';
+import { can, type Roles } from './roles';
 
 export interface OAuthPort {
   // The DID of the handle, resolved by this server.
@@ -271,11 +272,17 @@ export const signedOut = () =>
   Response.json({ error: 'SignedOut', message: 'Sign in again' }, { status: 401, headers: { 'cache-control': 'no-store' } });
 
 // GET /api/session: who is signed in, for the device: { id, handle?, email?,
-// atproto }. `id` is the Account; the device keys its local copy with it.
-// `atproto`: an AT Protocol Account is linked (it can share).
-export function session(request: Request, deps: Pick<AuthDeps, 'store' | 'accounts'>): Response {
+// atproto, admin? }. `id` is the Account; the device keys its local copy with
+// it. `atproto`: an AT Protocol Account is linked (it can share). `admin`:
+// true for an Admin only, absent for every other reader (ADR 0020); Settings
+// shows the link to the panel with it. The panel checks the role again itself.
+export function session(request: Request, deps: Pick<AuthDeps, 'store' | 'accounts'> & { roles: Pick<Roles, 'rolesOf'> }): Response {
   const reader = readerOf(request, deps);
   if (!reader) return signedOut();
   const { email, did } = deps.accounts.identitiesOf(reader.account);
-  return Response.json({ id: reader.account, handle: reader.handle || undefined, email, atproto: did !== undefined }, { headers: { 'cache-control': 'no-store' } });
+  const admin = can(deps.roles.rolesOf(reader.account), 'panel.open') || undefined;
+  return Response.json(
+    { id: reader.account, handle: reader.handle || undefined, email, atproto: did !== undefined, admin },
+    { headers: { 'cache-control': 'no-store' } },
+  );
 }

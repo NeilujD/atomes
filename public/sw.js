@@ -37,7 +37,7 @@ const SHELL = [
 // Check a book also keeps there, under the same paths, the Editions of the
 // Library and the Edition Lines of the Followed Series for Shelf Check offline
 // (src/lib/catalog/device.ts).
-// Nothing else under /api/ or /oauth/ is cached: the Library and the session
+// Nothing else under /api/ or /oauth/ is cached, and nothing of the admin panel: the Library and the session
 // stay on the device only in the local copy (src/lib/space/local-copy.ts).
 const CATALOG_CACHE = 'atomes-catalog';
 
@@ -66,7 +66,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
 
-  if (url.origin !== self.location.origin) {
+  if (url.origin !== self.location.origin || isAdmin(url.pathname)) {
     return;
   } else if (request.mode === 'navigate') {
     // Kept by path, never with its query (`/book?work=…`, `/check?isbn=…`): the
@@ -79,6 +79,12 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request)));
   }
 });
+
+// The admin panel and its API (ADR 0020) go to the network only: nothing of
+// them stays on a shared device after a sign-out or a revoke.
+function isAdmin(pathname) {
+  return pathname === '/admin' || pathname.startsWith('/admin/') || pathname.startsWith('/api/admin/');
+}
 
 // Keeps the last good response under `key`; offline, serves it, else the `fallback` path.
 async function networkFirst(event, cacheName, fallback, key = event.request) {
