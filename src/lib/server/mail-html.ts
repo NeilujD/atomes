@@ -27,12 +27,52 @@ export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 }
 
-// `site`: the origin of the instance (settings.ts), never of the request.
-export function codeMailHtml({ language, code, site, words }: { language: Language; code: string; site: string; words: CodeMailWords }): string {
-  const w = Object.fromEntries((Object.entries(words) as [keyof CodeMailWords, string][]).map(([key, value]) => [key, escapeHtml(value)])) as unknown as CodeMailWords;
+// The words of the mail that tells a person an Admin made an Account for them (ADR 0020).
+export interface AddedMailWords {
+  title: string;
+  preheader: string;
+  heading: string;
+  lead: string;
+  button: string;
+  steps: string;
+  refuse: string;
+  sentTo: string;
+  reason: string;
+  private: string;
+}
+
+const escapeAll = <T extends Record<string, string>>(words: T): T =>
+  Object.fromEntries(Object.entries(words).map(([key, value]) => [key, escapeHtml(value)])) as T;
+
+interface Frame {
+  language: Language;
+  site: string;
+  // Escaped already, as every value below.
+  title: string;
+  preheader: string;
+  heading: string;
+  lead: string;
+  // The table rows of the centre of the card.
+  main: string;
+  // Small print under the line, one paragraph each.
+  notes: string[];
+  // Before and after the link to the instance, under the card.
+  footer: string;
+  closing: string;
+}
+
+// The frame of every mail: the mark, one card, a footer that names the
+// instance. `site`: the origin of the instance (settings.ts), never of the request.
+function frame({ language, site, title, preheader, heading, lead, main, notes: paragraphs, footer, closing }: Frame): string {
   const host = escapeHtml(new URL(site).host);
   const href = escapeHtml(new URL(site).origin);
-  const c = escapeHtml(code);
+  const notes = paragraphs
+    .map(
+      (text, index) => `                  <p class="t-gr" style="margin:${index === 0 ? '0' : '12px 0 0'}; font-family:${font}; font-size:13px; line-height:1.6; color:#5C606A;">
+                    ${text}
+                  </p>`,
+    )
+    .join('\n');
   return `<!doctype html>
 <html lang="${language}" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -43,7 +83,7 @@ export function codeMailHtml({ language, code, site, words }: { language: Langua
 <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
-<title>${w.title}</title>
+<title>${title}</title>
 <!--[if mso]>
 <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
 <style>table,td,div,p,a,span{font-family:'Segoe UI',Arial,sans-serif !important;}</style>
@@ -92,7 +132,7 @@ export function codeMailHtml({ language, code, site, words }: { language: Langua
 <body class="bg-g" style="margin:0; padding:0; background-color:#F6F6F3;">
 
 <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#F6F6F3; opacity:0;">
-  ${w.preheader}
+  ${preheader}
   &#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;
 </div>
 
@@ -123,17 +163,56 @@ export function codeMailHtml({ language, code, site, words }: { language: Langua
 
               <tr>
                 <td class="px pt" style="padding:40px 40px 0;">
-                  <h1 class="h1 t-ink" style="margin:0; font-family:${font}; font-size:28px; line-height:1.15; font-weight:700; letter-spacing:-0.8px; color:#17181C;">${w.heading}</h1>
-                  <p class="t-gr" style="margin:12px 0 0; font-family:${font}; font-size:15px; line-height:1.55; color:#5C606A;">${w.lead}</p>
+                  <h1 class="h1 t-ink" style="margin:0; font-family:${font}; font-size:28px; line-height:1.15; font-weight:700; letter-spacing:-0.8px; color:#17181C;">${heading}</h1>
+                  <p class="t-gr" style="margin:12px 0 0; font-family:${font}; font-size:15px; line-height:1.55; color:#5C606A;">${lead}</p>
+                </td>
+              </tr>
+
+${main}              <tr>
+                <td class="px" style="padding:32px 40px 0;">
+                  <div class="bd-line" style="height:0; border-top:1px solid #E3E3DE; font-size:0; line-height:0;">&nbsp;</div>
                 </td>
               </tr>
 
               <tr>
+                <td class="px" style="padding:24px 40px 40px;">
+${notes}
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td class="px" style="padding:24px 40px 0;">
+            <p class="t-gr" style="margin:0; font-family:${font}; font-size:12px; line-height:1.6; color:#5C606A;">
+              ${footer}
+              <a href="${href}" class="t-co" style="color:#2E46D1; font-weight:600; text-decoration:none;">${host}</a>.
+              ${closing}
+            </p>
+          </td>
+        </tr>
+
+      </table>
+      <!--[if mso]></td></tr></table><![endif]-->
+
+    </td>
+  </tr>
+</table>
+</body>
+</html>
+`;
+}
+
+export function codeMailHtml({ language, code, site, words }: { language: Language; code: string; site: string; words: CodeMailWords }): string {
+  const w = escapeAll({ ...words });
+  const main = `              <tr>
                 <td class="px" style="padding:28px 40px 0;">
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                     <tr>
                       <td align="center" class="bg-soft" style="background-color:#ECECE6; border-radius:12px; padding:22px 12px;">
-                        <span class="code t-ink" style="font-family:ui-monospace,'SF Mono','Roboto Mono',Menlo,Consolas,monospace; font-size:40px; line-height:44px; font-weight:700; letter-spacing:12px; color:#17181C; mso-line-height-rule:exactly;">${c}</span>
+                        <span class="code t-ink" style="font-family:ui-monospace,'SF Mono','Roboto Mono',Menlo,Consolas,monospace; font-size:40px; line-height:44px; font-weight:700; letter-spacing:12px; color:#17181C; mso-line-height-rule:exactly;">${escapeHtml(code)}</span>
                       </td>
                     </tr>
                   </table>
@@ -148,44 +227,51 @@ export function codeMailHtml({ language, code, site, words }: { language: Langua
                 </td>
               </tr>
 
-              <tr>
-                <td class="px" style="padding:32px 40px 0;">
-                  <div class="bd-line" style="height:0; border-top:1px solid #E3E3DE; font-size:0; line-height:0;">&nbsp;</div>
-                </td>
-              </tr>
-
-              <tr>
-                <td class="px" style="padding:24px 40px 40px;">
-                  <p class="t-gr" style="margin:0; font-family:${font}; font-size:13px; line-height:1.6; color:#5C606A;">
-                    ${w.ignore}
-                  </p>
-                  <p class="t-gr" style="margin:12px 0 0; font-family:${font}; font-size:13px; line-height:1.6; color:#5C606A;">
-                    ${w.neverAsk}
-                  </p>
-                </td>
-              </tr>
-
-            </table>
-          </td>
-        </tr>
-
-        <tr>
-          <td class="px" style="padding:24px 40px 0;">
-            <p class="t-gr" style="margin:0; font-family:${font}; font-size:12px; line-height:1.6; color:#5C606A;">
-              ${w.sentTo} ${w.reason}
-              <a href="${href}" class="t-co" style="color:#2E46D1; font-weight:600; text-decoration:none;">${host}</a>.
-              ${w.private}
-            </p>
-          </td>
-        </tr>
-
-      </table>
-      <!--[if mso]></td></tr></table><![endif]-->
-
-    </td>
-  </tr>
-</table>
-</body>
-</html>
 `;
+  return frame({
+    language,
+    site,
+    title: w.title,
+    preheader: w.preheader,
+    heading: w.heading,
+    lead: w.lead,
+    main,
+    notes: [w.ignore, w.neverAsk],
+    footer: `${w.sentTo} ${w.reason}`,
+    closing: w.private,
+  });
+}
+
+// One button to the sign-in page of the instance: the link holds no token
+// (ADR 0020), so the Sign-in Code stays the only proof of the address.
+export function addedMailHtml({ language, site, words }: { language: Language; site: string; words: AddedMailWords }): string {
+  const w = escapeAll({ ...words });
+  const signIn = escapeHtml(new URL('/sign-in', site).href);
+  const main = `              <tr>
+                <td class="px" style="padding:28px 40px 0;">
+                  <a href="${signIn}" style="display:inline-block; background-color:#2E46D1; border-radius:16px; padding:0 22px; font-family:${font}; font-size:15px; line-height:44px; font-weight:600; color:#FFFFFF; text-decoration:none;">${w.button}</a>
+                </td>
+              </tr>
+
+              <tr>
+                <td class="px" style="padding:16px 40px 0;">
+                  <p class="t-gr" style="margin:0; font-family:${font}; font-size:14px; line-height:1.5; color:#5C606A;">
+                    ${w.steps}
+                  </p>
+                </td>
+              </tr>
+
+`;
+  return frame({
+    language,
+    site,
+    title: w.title,
+    preheader: w.preheader,
+    heading: w.heading,
+    lead: w.lead,
+    main,
+    notes: [w.refuse],
+    footer: `${w.sentTo} ${w.reason}`,
+    closing: w.private,
+  });
 }

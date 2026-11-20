@@ -6,11 +6,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { createCatalog, type Catalog } from '../catalog/catalog';
-import { createAccounts, type Accounts, type Did } from './accounts';
+import { createAccounts, type AccountId, type Accounts, type Did } from './accounts';
 import type { AccountRow, Totals } from './admin-accounts';
 import { inviteLifetimeMs, makeInvite } from './invites';
+import type { Mail, SendMail } from './mail';
+import { sendCode } from './email-sign-in';
+import { createSignInCodes, type SignInCodes } from './sign-in-codes';
 import type { InviteRow } from './admin';
 import { createLibraryStore, type LibraryStore } from './library-store';
 import { adminOf, handleAdminRequest } from './admin';
@@ -34,6 +37,7 @@ let auth: AuthStore;
 let roles: Roles;
 let library: LibraryStore;
 let catalog: Catalog;
+let codes: SignInCodes;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'atomes-admin-'));
@@ -47,11 +51,18 @@ beforeEach(() => {
     seen: (account) => accounts.seen(account),
   });
   roles = createRoles(db);
+  codes = createSignInCodes({ db: openDatabase(join(dir, 'auth.sqlite'), authSteps(accounts)) });
+  outbox = [];
+  sendMail = (mail) => {
+    outbox.push(mail);
+    return Promise.resolve();
+  };
   library = createLibraryStore(openDatabase(file, librarySteps));
   catalog = createCatalog({ file: join(dir, 'catalog.sqlite'), fetch: () => Promise.reject(new TypeError('offline')), host: 'catalog.test', accounts });
 });
 
 afterEach(() => {
+  codes.close();
   catalog.close();
   library.close();
   auth.close();
@@ -72,7 +83,10 @@ function asAdmin(did: Did): string {
   return cookie;
 }
 
-const deps = () => ({ store: auth, roles, accounts, admin: createAdminStore(db), catalog, site: app });
+// The fake mail outbox: no mail leaves a test.
+let outbox: Mail[];
+let sendMail: SendMail;
+const deps = () => ({ store: auth, roles, accounts, admin: createAdminStore(db), catalog, site: app, sendMail, limits: codes, contact: 'ada@atomes.test' });
 
 function request(cookie: string | undefined, method: string, path: string, body?: unknown): Request {
   const headers: Record<string, string> = { origin: app };
@@ -361,7 +375,7 @@ describe('the Accounts part', () => {
     accounts.seen(account, Date.UTC(2026, 10, 21, 0, 1));
     expect(stored()).toBe('2026-11-21');
     // Nothing else of the request is kept: the Account row holds its ID, its sign-up and this day.
-    expect(Object.keys(db.prepare('select * from account where id = ?').get(account) as object).sort()).toEqual(['created_at', 'id', 'last_active_day']);
+    expect(Object.keys(db.prepare('select * from account where id = ?').get(account) as object).sort()).toEqual(['added_by_admin', 'created_at', 'id', 'last_active_day']);
   });
 });
 
@@ -514,5 +528,125 @@ describe('the Invites part', () => {
     makeInvite(db);
 
     expect(db.prepare('select origin, made_by as madeBy, label from invite').all()).toEqual([{ origin: 'script', madeBy: null, label: null }]);
+  });
+});
+
+describe('add an Account', () => {
+  const add = (cookie: string, email: unknown, language: unknown = 'en') => call(cookie, 'POST', '/api/admin/accounts', { email, language });
+  const accountCount = () => (db.prepare('select count(*) as n from account').get() as { n: number }).n;
+
+  test('the Account exists at once with the address as its identity, no Invite, and shows as added by an Admin', async () => {
+    const cookie = asAdmin(alice);
+
+    const response = await add(cookie, '  Carol@Example.ORG ');
+
+    expect(response.status).toBe(201);
+    const carol = roles.accountOf('carol@example.org')!;
+    expect(await json(response)).toEqual({ reference: accountReference(carol), mailSent: true });
+    expect(accounts.identitiesOf(carol as AccountId)).toEqual({ email: 'carol@example.org' });
+    expect(db.prepare('select count(*) as n from invite').get()).toEqual({ n: 0 });
+    const { accounts: rows } = (await json(await call(cookie, 'GET', '/api/admin/accounts'))) as unknown as { accounts: AccountRow[] };
+    expect(rows.find(({ account }) => account === carol)).toMatchObject({ start: { kind: 'added' }, signIn: 'email', lastActiveDay: null, flags: [] });
+    // One log line: the Account ID as the target, no address.
+    expect(logLines().at(-1)).toEqual({ admin: accounts.ofDid(alice), action: 'account.add', target: carol, detail: null });
+    expect(everyValue()).not.toContain('carol@');
+  });
+
+  test.each([
+    ['en', 'An Atomes Account was made for you', 'An Admin of this Atomes instance made an Account for you', 'ask for its delete'],
+    ['fr', 'Un compte Atomes a été créé pour vous', 'Un administrateur de cette instance Atomes a créé un compte pour vous', 'demandez sa suppression'],
+  ] as const)('%s: one mail in the selected language, with a text part and an HTML part, the sign-in page and the contact', async (language, subject, lead, refuse) => {
+    const cookie = asAdmin(alice);
+
+    await add(cookie, 'carol@example.org', language);
+
+    expect(outbox).toHaveLength(1);
+    const [mail] = outbox;
+    expect(mail).toMatchObject({ to: 'carol@example.org', subject });
+    for (const part of [mail.text, mail.html!]) {
+      expect(part).toContain(lead);
+      expect(part).toContain(refuse);
+      expect(part).toContain('ada@atomes.test');
+      // The link is the plain sign-in page of the instance: no token, no query, no fragment.
+      expect(part).toContain('https://atomes.test/sign-in');
+      expect(part).not.toMatch(/sign-in[?#]/);
+      expect(part).not.toContain('invite');
+    }
+    expect(mail.html).toContain(`<html lang="${language}"`);
+  });
+
+  test('the person signs in with the address and a Sign-in Code, with no Invite, and lands in an empty Library', async () => {
+    const cookie = asAdmin(alice);
+    await add(cookie, 'carol@example.org');
+    const carol = roles.accountOf('carol@example.org') as AccountId;
+
+    expect(accounts.maySignInEmail('carol@example.org', undefined)).toBe(true);
+    expect(accounts.signInEmail('carol@example.org', undefined)).toBe(carol);
+    expect(library.changesSince(carol, 0).records).toEqual([]);
+  });
+
+  test('sign-in still gives the same answer for an address with an Account and one with none', async () => {
+    const cookie = asAdmin(alice);
+    await add(cookie, 'carol@example.org');
+    const ask = (email: string) =>
+      sendCode(new Request(`${app}/api/sign-in/code`, { method: 'POST', body: JSON.stringify({ email }) }), { accounts, store: auth, codes, sendMail, site: app }, '203.0.113.7');
+
+    const known = await ask('carol@example.org');
+    const unknown = await ask('nobody@example.org');
+
+    expect([known.status, await known.text()]).toEqual([unknown.status, await unknown.text()]);
+  });
+
+  test('an address that has an Account: the panel says so, no mail goes, nothing changes', async () => {
+    const cookie = asAdmin(alice);
+    accounts.ofEmail('carol@example.org');
+    const before = { accounts: accountCount(), log: logLines().length };
+
+    const response = await add(cookie, 'CAROL@example.org');
+
+    expect(response.status).toBe(409);
+    expect(await json(response)).toEqual({ error: 'Exists' });
+    expect(outbox).toEqual([]);
+    expect({ accounts: accountCount(), log: logLines().length }).toEqual(before);
+  });
+
+  test('a text that is not an address, or a language the app does not have, is refused', async () => {
+    const cookie = asAdmin(alice);
+    const before = accountCount();
+
+    expect((await add(cookie, 'not an address')).status).toBe(400);
+    expect((await add(cookie, 42)).status).toBe(400);
+    expect((await add(cookie, 'carol@example.org', 'de')).status).toBe(400);
+    expect(accountCount()).toBe(before);
+    expect(outbox).toEqual([]);
+  });
+
+  test('when the mail fails, the Account stays and the answer says the mail did not go', async () => {
+    const cookie = asAdmin(alice);
+    sendMail = () => Promise.reject(new Error('SMTP refused carol@example.org'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const response = await add(cookie, 'carol@example.org');
+
+    expect(response.status).toBe(201);
+    expect(await json(response)).toMatchObject({ mailSent: false });
+    expect(roles.accountOf('carol@example.org')).toBeDefined();
+    // No address reaches a log line.
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('carol@');
+    warn.mockRestore();
+  });
+
+  test('an Admin adds 20 Accounts in one hour at most; another Admin is not held back', async () => {
+    const cookie = asAdmin(alice);
+    const other = asAdmin(bob);
+    for (let i = 0; i < 20; i++) expect((await add(cookie, `reader${i}@example.org`)).status).toBe(201);
+
+    const over = await add(cookie, 'one-more@example.org');
+
+    expect(over.status).toBe(429);
+    expect(await json(over)).toEqual({ error: 'TooMany' });
+    expect(roles.accountOf('one-more@example.org')).toBeUndefined();
+    expect(outbox).toHaveLength(20);
+    expect((await add(other, 'one-more@example.org')).status).toBe(201);
   });
 });

@@ -3,14 +3,24 @@
 import { catalog } from '../catalog/instance';
 import type { AdminDeps } from './admin';
 import { createAdminStore, type AdminStore } from './admin-store';
-import { accountStore, authDeps, libraryDatabase, roleStore } from './instance';
-import { settings } from './settings';
+import { accountStore, emailSignInDeps, libraryDatabase, roleStore } from './instance';
+import { legalFacts } from './settings';
 
 let adminStore: AdminStore | undefined;
 
 export async function adminDeps(): Promise<AdminDeps> {
-  const { store } = await authDeps();
+  // The store, the limits, the mail and the origin of the instance, as sign-in has them.
+  const { store, codes, sendMail, site } = await emailSignInDeps();
   adminStore ??= createAdminStore(libraryDatabase());
-  const { appOrigin, port } = settings();
-  return { store, roles: roleStore(), accounts: accountStore(), admin: adminStore, catalog: catalog(), site: appOrigin ?? `http://127.0.0.1:${port}` };
+  return {
+    store,
+    roles: roleStore(),
+    accounts: accountStore(),
+    admin: adminStore,
+    catalog: catalog(),
+    site,
+    sendMail,
+    limits: codes,
+    contact: legalFacts(process.env).contact,
+  };
 }

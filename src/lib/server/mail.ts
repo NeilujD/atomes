@@ -3,7 +3,7 @@
 // transport is given: tests and the dev server send nothing. In development
 // and E2E the mails go to an outbox in memory, read on /dev/outbox.
 import { translator, type Language } from '../i18n/i18n';
-import { codeMailHtml } from './mail-html';
+import { addedMailHtml, codeMailHtml } from './mail-html';
 import { codeLifetimeMs } from './sign-in-codes';
 
 export interface Mail {
@@ -65,6 +65,33 @@ export const signInCodeMail = (to: string, code: string, language: Language, sit
 
 // The code that adds the address to an Account, from Settings (link-email.ts).
 export const linkCodeMail = (to: string, code: string, language: Language, site: string): Mail => codeMail('link', to, code, language, site);
+
+// The one mail to a person an Admin added (ADR 0020): an Admin made an Account
+// for you, open the link, sign in with this address and a Sign-in Code. The
+// link is the plain sign-in page: it holds no token. `contact`: the operator's
+// contact of the instance settings (LEGAL_CONTACT), to ask for the delete.
+export function accountAddedMail(to: string, language: Language, site: string, contact: string | undefined): Mail {
+  const t = translator(language);
+  const signIn = new URL('/sign-in', site).href;
+  const subject = t('mail.added.subject');
+  const html = addedMailHtml({
+    language,
+    site,
+    words: {
+      title: subject,
+      preheader: `${t('mail.added.lead')} ${t('mail.added.steps')}`,
+      heading: t('mail.added.heading'),
+      lead: t('mail.added.lead'),
+      button: t('mail.added.button'),
+      steps: t('mail.added.steps'),
+      refuse: t('mail.added.refuse', contact),
+      sentTo: t('mail.sent-to', to),
+      reason: t('mail.added.reason'),
+      private: t('mail.private'),
+    },
+  });
+  return { to, subject, text: t('mail.added.text', signIn, contact, new URL('/privacy', site).href), html };
+}
 
 // Development only: no mail leaves. Keeps the last mail of each address.
 export function devOutbox(): { send: SendMail; last(to: string): Mail | undefined } {

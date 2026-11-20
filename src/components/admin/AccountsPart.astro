@@ -5,6 +5,8 @@
 // Flagged Accounts first; "Flagged only" is a link, so it works with no script.
 // A flag is an ink chip with a dot (O1). Numbers and days in the language of
 // the Admin (O4).
+import Icon from '../Icon.astro';
+import AddAccount from './AddAccount.astro';
 import { formatDay } from '../../lib/admin/format';
 import { translator, type Language } from '../../lib/i18n/i18n';
 import type { AccountRow, Flag, Totals } from '../../lib/server/admin-accounts';
@@ -42,7 +44,7 @@ const signInLabels: Record<AccountRow['signIn'], string> = {
 
 <section class="group" aria-labelledby="totals-title">
   <h2 class="small-heading" id="totals-title">{t('admin.instance')}</h2>
-  <div class="totals">
+  <div class="totals" data-totals>
     <div class="card total total-accounts">
       <dl class="figure">
         <dt>{t('admin.part-accounts')}</dt>
@@ -100,12 +102,17 @@ const signInLabels: Record<AccountRow['signIn'], string> = {
       {t('admin.flagged-only')}
     </a>
     <div class="toolbar-actions">
-      <slot name="actions" />
+      {/* The main action of this part; disabled until its script runs. */}
+      <button class="button button-main" type="button" data-add-open disabled>
+        <Icon name="plus" />
+        {t('admin.add')}
+      </button>
     </div>
   </div>
 
-  <slot name="form" />
+  <AddAccount language={language} />
 
+  <div data-accounts-list>
   {accounts.length === 0 && <p class="row-hint">{t('admin.no-flagged')}</p>}
   {
     accounts.length > 0 && (
@@ -189,4 +196,5 @@ const signInLabels: Record<AccountRow['signIn'], string> = {
       </div>
     )
   }
+  </div>
 </section>

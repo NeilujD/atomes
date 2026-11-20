@@ -6,6 +6,8 @@
 // panel does not show that it exists. Every answer is `no-store`. The
 // middleware refuses a write from another site (security.ts).
 //   GET  /api/admin/accounts      { totals, accounts: AccountRow[] }; ?flagged=1: flagged Accounts only
+//   POST /api/admin/accounts      { email, language } -> 201 { reference, mailSent } | 400 BadAddress | 400 BadLanguage
+//                                 | 409 Exists | 429 TooMany. One mail to the person; no Invite.
 //   GET  /api/admin/invites       { invites: InviteRow[] }
 //   POST /api/admin/invites       { count, label? } -> 201 { links, expiresAt } | 400 BadCount | 400 BadLabel
 //                                 The links are in this answer only: never stored, never logged.
@@ -16,14 +18,16 @@
 //   GET  /api/admin/log           { lines: LogRow[] }
 // An answer names a reader by Account Reference only; an Admin by identity.
 import type { Catalog } from '../catalog/catalog';
-import type { AccountId, Accounts } from './accounts';
+import { languages, type Language } from '../i18n/i18n';
+import { errorLogText, type AccountId, type Accounts } from './accounts';
 import { accountRows, totalsOf, type AccountRow, type Totals } from './admin-accounts';
 import type { AdminAction } from './admin-log';
 import type { AdminStore, InviteFacts } from './admin-store';
 import { readerOf } from './auth';
 import type { AuthStore } from './auth-store';
 import { can, type Permission, type Roles } from './roles';
-import { normalEmail } from './sign-in-codes';
+import { accountAddedMail, type SendMail } from './mail';
+import { normalEmail, type SignInCodes } from './sign-in-codes';
 
 export interface AdminGateDeps {
   store: AuthStore;
@@ -37,6 +41,11 @@ export interface AdminDeps extends AdminGateDeps {
   catalog: Pick<Catalog, 'correctionCounts'>;
   // The origin of the instance, for an Invite link (settings.ts), never of the request.
   site: string;
+  sendMail: SendMail;
+  // The limit store that sign-in uses (auth.sqlite).
+  limits: Pick<SignInCodes, 'allow'>;
+  // The operator's contact of the instance settings (LEGAL_CONTACT), named in the mail of an added Account.
+  contact?: string;
 }
 
 export const noStore = { 'cache-control': 'no-store' };
@@ -94,6 +103,9 @@ export function accountsView(deps: AdminDeps, { flagged = false, now = Date.now(
   return { totals: totalsOf(facts, deps.admin.inviteTotals(now), now), accounts: flagged ? rows.filter(({ flags }) => flags.length > 0) : rows };
 }
 
+// Accounts an Admin adds in one hour: an error or a stolen session cannot send mail to many addresses.
+export const addLimit = { max: 20, windowMs: 3600 * 1000 } as const;
+
 export const inviteLimits = { maxCount: 50, maxLabel: 60 } as const;
 
 // An Invite in the list: its maker and the Account that used it show as Account References.
@@ -143,6 +155,28 @@ const routes: Record<string, { permission: Permission; run: Route }> = {
   'GET /api/admin/accounts': {
     permission: 'accounts.read',
     run: (request, deps) => answer(accountsView(deps, { flagged: new URL(request.url).searchParams.get('flagged') === '1' })),
+  },
+  'POST /api/admin/accounts': {
+    permission: 'accounts.add',
+    async run(request, deps, admin) {
+      const { email, language } = await bodyOf(request);
+      const address = normalEmail(email);
+      if (!address) return refused(400, 'BadAddress');
+      if (!languages.includes(language as Language)) return refused(400, 'BadLanguage');
+      if (deps.roles.accountOf(address) !== undefined) return refused(409, 'Exists');
+      if (!deps.limits.allow(`admin-add:${admin}`, addLimit.max, addLimit.windowMs)) return refused(429, 'TooMany');
+      const account = deps.admin.addAccount(admin, address);
+      if (account === undefined) return refused(409, 'Exists');
+      // The Account stays when the mail fails; the panel says so. No address reaches a log line.
+      const mailSent = await deps.sendMail(accountAddedMail(address, language as Language, deps.site, deps.contact)).then(
+        () => true,
+        (error: unknown) => {
+          console.warn(`Added-Account mail failed: ${errorLogText(error).replaceAll(address, '[address]')}`);
+          return false;
+        },
+      );
+      return answer({ reference: deps.admin.references().get(account), mailSent }, 201);
+    },
   },
   'GET /api/admin/invites': { permission: 'invites.make', run: (_, deps) => answer({ invites: inviteRows(deps) }) },
   'POST /api/admin/invites': {

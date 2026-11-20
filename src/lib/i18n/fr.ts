@@ -118,6 +118,26 @@ export const fr: typeof en = {
   'mail.never-ask': 'Atomes ne vous demandera jamais ce code par e-mail, téléphone ou message.',
   'mail.sent-to': (email: string) => `Envoyé à ${email}`,
   'mail.private': 'Votre bibliothèque reste privée, sauf si vous la partagez.',
+  // L’e-mail à une personne qu’un administrateur a ajoutée (ADR 0020)
+  'mail.added.subject': 'Un compte Atomes a été créé pour vous',
+  'mail.added.heading': 'Un compte pour vous',
+  'mail.added.lead': 'Un administrateur de cette instance Atomes a créé un compte pour vous, avec cette adresse e-mail.',
+  'mail.added.button': 'Ouvrir Atomes',
+  'mail.added.steps': 'Connectez-vous avec cette adresse. Atomes vous envoie alors un Code de connexion. Il n’y a pas de mot de passe.',
+  'mail.added.refuse': (contact: string | undefined) =>
+    `Vous ne voulez pas de ce compte ? Écrivez à ${contact ?? 'l’opérateur de cette instance'} et demandez sa suppression.`,
+  'mail.added.reason': 'parce qu’un administrateur a créé un compte avec cette adresse sur',
+  'mail.added.text': (signIn: string, contact: string | undefined, privacy: string) =>
+    `Un administrateur de cette instance Atomes a créé un compte pour vous, avec cette adresse e-mail.
+
+Pour l’utiliser, ouvrez cette page et connectez-vous avec cette adresse :
+${signIn}
+
+Atomes vous envoie alors un Code de connexion. Il n’y a pas de mot de passe.
+
+Vous ne voulez pas de ce compte ? Écrivez à ${contact ?? 'l’opérateur de cette instance'} et demandez sa suppression.
+
+Ce que cette instance garde : ${privacy}`,
   'mail.link.text': (code: string) =>
     `Votre code pour ajouter cette adresse à votre compte Atomes :\n\n${code}\n\nIl sert une fois, pendant 10 minutes, dans l’écran Réglages où vous l’avez demandé.\n\nSi vous ne l’avez pas demandé, ignorez cet e-mail : personne ne peut ajouter votre adresse sans ce code.\n`,
   'signin.invite-kept': 'Invitation gardée. Connectez-vous pour créer votre compte.',
@@ -964,4 +984,12 @@ export const fr: typeof en = {
   'admin.revoke-invite-text': 'Son lien ne marche plus. Cette action est définitive.',
   'admin.invite-revoked': 'Invitation révoquée',
   'admin.not-open': 'Cette invitation n’est plus ouverte.',
+  'admin.add': 'Ajouter un compte',
+  'admin.add-submit': 'Ajouter le compte',
+  'admin.mail-language': 'Langue de l’e-mail',
+  'admin.add-hint': 'La personne reçoit un e-mail, avec un lien pour se connecter.',
+  'admin.added': (reference: string) => `Compte ${reference} ajouté. L’e-mail est parti.`,
+  'admin.added-no-mail': (reference: string) => `Compte ${reference} ajouté, mais l’e-mail n’est pas parti. Prévenez la personne vous-même.`,
+  'admin.exists': 'Cette adresse a déjà un compte. Aucun e-mail n’est parti.',
+  'admin.too-many': 'Vous avez ajouté 20 comptes en une heure. Réessayez plus tard.',
 };

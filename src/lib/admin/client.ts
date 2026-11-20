@@ -22,3 +22,18 @@ export async function postAdmin(path: string, body: unknown): Promise<AdminAnswe
     return { ok: false, status: 0, error: 'Network', body: {} };
   }
 }
+
+// The parts of the page that `selectors` name, again as the server draws them
+// now: the rest of the page stays (links just made, an open form). Reloads
+// the page when the server does not answer with it.
+export async function redraw(...selectors: string[]): Promise<void> {
+  const response = await fetch(location.href, { cache: 'no-store', credentials: 'same-origin' }).catch(() => undefined);
+  if (!response?.ok) return location.reload();
+  const next = new DOMParser().parseFromString(await response.text(), 'text/html');
+  for (const selector of selectors) {
+    const from = next.querySelector(selector);
+    const to = document.querySelector(selector);
+    if (!from || !to) return location.reload();
+    to.replaceChildren(...from.childNodes);
+  }
+}

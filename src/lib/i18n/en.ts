@@ -121,6 +121,26 @@ export const en = {
   'mail.never-ask': 'Atomes will never ask you for this code by email, phone or message.',
   'mail.sent-to': (email: string) => `Sent to ${email}`,
   'mail.private': 'Your Library stays private unless you share it.',
+  // The mail to a person an Admin added (ADR 0020)
+  'mail.added.subject': 'An Atomes Account was made for you',
+  'mail.added.heading': 'An Account for you',
+  'mail.added.lead': 'An Admin of this Atomes instance made an Account for you, with this email address.',
+  'mail.added.button': 'Open Atomes',
+  'mail.added.steps': 'Sign in with this address. Atomes then sends you a Sign-in Code. There is no password.',
+  'mail.added.refuse': (contact: string | undefined) =>
+    `You do not want this Account? Write to ${contact ?? 'the operator of this instance'} and ask for its delete.`,
+  'mail.added.reason': 'because an Admin made an Account with this address on',
+  'mail.added.text': (signIn: string, contact: string | undefined, privacy: string) =>
+    `An Admin of this Atomes instance made an Account for you, with this email address.
+
+To use it, open this page and sign in with this address:
+${signIn}
+
+Atomes then sends you a Sign-in Code. There is no password.
+
+You do not want this Account? Write to ${contact ?? 'the operator of this instance'} and ask for its delete.
+
+What this instance keeps: ${privacy}`,
   'mail.link.text': (code: string) =>
     `Your code to add this address to your Atomes account:\n\n${code}\n\nIt works once, for 10 minutes, in the Settings screen where you asked for it.\n\nIf you did not ask for it, ignore this email: no one can add your address without the code.\n`,
   'signin.invite-kept': 'Invite kept. Sign in to create your account.',
@@ -982,4 +1002,12 @@ export const en = {
   'admin.revoke-invite-text': 'Its link stops working. This cannot be undone.',
   'admin.invite-revoked': 'Invite revoked',
   'admin.not-open': 'This Invite is not open any more.',
+  'admin.add': 'Add an Account',
+  'admin.add-submit': 'Add the Account',
+  'admin.mail-language': 'Language of the mail',
+  'admin.add-hint': 'The person gets one mail, with a link to sign in.',
+  'admin.added': (reference: string) => `Account ${reference} added. The mail went.`,
+  'admin.added-no-mail': (reference: string) => `Account ${reference} added, but the mail did not go. Tell the person yourself.`,
+  'admin.exists': 'This address has an Account already. No mail went.',
+  'admin.too-many': 'You added 20 Accounts in one hour. Try again later.',
 };

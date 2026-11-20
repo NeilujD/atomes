@@ -1,6 +1,7 @@
 // What the admin panel reads in `library.sqlite` (ADR 0020), apart from the
 // role and the Invite stores: the Admin Log and the Account References.
 import type { DatabaseSync } from 'node:sqlite';
+import { newAccountId } from './accounts';
 import { accountReferences } from './account-reference';
 import type { AccountFacts, Start, Totals } from './admin-accounts';
 import { readLog, writeLog, type LogLine } from './admin-log';
@@ -43,6 +44,10 @@ export interface AdminStore {
   // Removes an open Invite of an Admin or of the script, with one Admin Log
   // line. False for any other Invite: nothing changes.
   revokeInvite(admin: string, id: string, now?: number): boolean;
+  // A new Account with this email address (trimmed and lower-cased already)
+  // as its identity, with no Invite, and one Admin Log line, in one
+  // transaction. Undefined when the address has an Account: nothing changes.
+  addAccount(admin: string, email: string, now?: number): string | undefined;
 }
 
 // `db` has run `librarySteps`. Does not close it.
@@ -92,15 +97,15 @@ export function createAdminStore(db: DatabaseSync): AdminStore {
         return { kind: 'script' };
       };
 
-      return all<{ id: string; createdAt: string; lastActiveDay: string | null }>(
-        'select id, created_at as createdAt, last_active_day as lastActiveDay from account',
-      ).map(({ id, createdAt, lastActiveDay }) => {
+      return all<{ id: string; createdAt: string; lastActiveDay: string | null; added: number }>(
+        'select id, created_at as createdAt, last_active_day as lastActiveDay, added_by_admin as added from account',
+      ).map(({ id, createdAt, lastActiveDay, added }) => {
         const kinds = identities.get(id)?.kinds.split(',') ?? [];
         return {
           account: id,
           createdAt: Date.parse(createdAt),
           lastActiveDay,
-          start: startOf(id),
+          start: added ? { kind: 'added' } : startOf(id),
           email: kinds.includes('email'),
           atproto: kinds.includes('did'),
           records: records.get(id)?.records ?? 0,
@@ -140,6 +145,16 @@ export function createAdminStore(db: DatabaseSync): AdminStore {
         const made = Array.from({ length: count }, () => makeInvite(db, now, admin, { label }));
         writeLog(db, { admin, action: 'invite.make', target: null, detail: label === null ? String(count) : `${count} · ${label}` }, now);
         return { tokens: made.map(({ token }) => token), expiresAt: made[0].expiresAt };
+      });
+    },
+    addAccount(admin, email, now = Date.now()) {
+      return inTransaction(db, () => {
+        if (db.prepare("select 1 from identity where kind = 'email' and value = ?").get(email)) return undefined;
+        const account = newAccountId();
+        db.prepare('insert into account (id, created_at, added_by_admin) values (?, ?, 1)').run(account, new Date(now).toISOString());
+        db.prepare("insert into identity (account, kind, value) values (?, 'email', ?)").run(account, email);
+        writeLog(db, { admin, action: 'account.add', target: account, detail: null }, now);
+        return account;
       });
     },
     revokeInvite(admin, id, now = Date.now()) {

@@ -199,5 +199,9 @@ const libraryV7: Step = (db) =>
     update invite set origin = 'reader' where made_by is not null;
   `);
 
-export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3, libraryV4, libraryV5, libraryV6, libraryV7];
+// An Account keeps that an Admin added it by its email address, with no
+// Invite (ADR 0020). No Account made before was added.
+const libraryV8: Step = (db) => db.exec('alter table account add column added_by_admin integer not null default 0');
+
+export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3, libraryV4, libraryV5, libraryV6, libraryV7, libraryV8];
 export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts), authV2];
