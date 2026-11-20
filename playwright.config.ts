@@ -61,6 +61,7 @@ export default defineConfig({
       CATALOG_SOURCES: 'recorded',
       DEV_TOOLBAR: 'off',
       DATA_DIR: 'data-e2e',
+      LANDING_PAGE: 'on',
       PORT: String(port),
       SESSION_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
       ...(process.env.CI ? { DEBUG: 'vite:hmr' } : {}),

@@ -31,8 +31,8 @@ export interface Settings {
   // owner signs in with a Sign-in Code and no Invite. A preview gets the
   // staging variables: staging and production ignore it.
   previewAccountEmail?: string;
-  // LANDING_PAGE (M12): `on` (default) shows the Landing page at /welcome to a
-  // visitor who opens Home with no session; `off` answers 404 there, and Home
+  // LANDING_PAGE (M12): `on` shows the Landing page at /welcome to a visitor
+  // who opens Home with no session; `off` (default) answers 404 there, and Home
   // leads to sign-in.
   landingPage: boolean;
 }
@@ -114,7 +114,7 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
     problems.push('PREVIEW_ACCOUNT_EMAIL must be one email address, for example owner@example.org.');
   }
 
-  const landing = env.LANDING_PAGE?.trim() || 'on';
+  const landing = env.LANDING_PAGE?.trim() || 'off';
   if (landing !== 'on' && landing !== 'off') problems.push(`LANDING_PAGE must be on or off. Found: ${landing}`);
 
   const port = Number(env.PORT ?? 4321);
@@ -138,7 +138,7 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
 // Whether this instance has the Landing page. Read by the pages from the
 // environment, as appEnvironment: readSettings has refused a wrong value at start.
 export function landingPage(env: Record<string, string | undefined>): boolean {
-  return env.LANDING_PAGE?.trim() !== 'off';
+  return env.LANDING_PAGE?.trim() === 'on';
 }
 
 // The facts of the Legal notice (/legal) that change with each instance:

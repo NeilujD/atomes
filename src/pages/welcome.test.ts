@@ -1,8 +1,12 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
-import { afterEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import Welcome from './welcome.astro';
 
-// LANDING_PAGE (M12, CORE-158): an instance that turns the Landing page off has no such page.
+// LANDING_PAGE (M12, CORE-158): off by default, so each test turns the Landing page on first.
+beforeEach(() => {
+  vi.stubEnv('LANDING_PAGE', 'on');
+});
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
