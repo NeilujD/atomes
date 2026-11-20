@@ -717,14 +717,26 @@ What this instance keeps: ${privacy}`,
   'privacy.stores-heading': 'What the instance keeps',
   'privacy.stores':
     'Your Account: an email address, the AT Protocol account you linked, or both. Your Library: Copies, Loans, Reading Statuses, Labels, Followed Series and To Buy. Your sharing choices. Your sessions, so you stay signed in. A Series Correction you make keeps your Account as its author. An Invite you make keeps your Account as its maker, and the Account a person made with it.',
+  // M13 (ADR 0020, CORE-167): draft, to be approved by the owner in the pull request.
+  'privacy.stores-activity':
+    'The last day on which you used the instance. For this, it keeps the day only: no time, no page, no IP address. Whether an Admin added your Account.',
   'privacy.not-kept':
     'No password: you sign in with a Sign-in Code or your AT Protocol account. The instance never writes your records in its logs. The Catalog learns only the ISBNs you look up, never who looked them up.',
   'privacy.readers-heading': 'Who can read it',
   'privacy.readers':
-    'You, and the operator of this instance, who can read every Library it keeps. Nobody else, except what you share. To keep your Library from any operator, run your own instance.',
+    'You, and the operator of this instance, who can read every Library it keeps. An Admin sees what the next part tells, and no Library. Nobody else, except what you share. To keep your Library from any operator, run your own instance.',
+  'privacy.admins-heading': 'What an Admin sees and does',
+  'privacy.admins':
+    'An Admin is an Account with the role that opens the admin panel of this instance. The operator gives the role to the first Admin; an Admin can give it to another Account. An Admin makes Invites, adds an Account for an email address, and deletes an Account: the same delete as "Delete my account". A person an Admin adds gets one mail that says so, and can ask the operator for the delete.',
+  'privacy.admins-panel':
+    'For your Account, the admin panel shows an Account Reference, a short code in place of your identity, with dates and counts: the day you signed up, your last active day, how your Account started, your sign-in ways, and the numbers of your records, Invites, Series Corrections and sessions. It marks an Account with unusual use: no activity after sign-up, or very many records changed, Series Corrections or sessions. It shows no email address, no AT Protocol account, and nothing your Library holds.',
+  'privacy.admins-identity':
+    'An Admin can ask to see the identity of one Account (its email address and its AT Protocol account), or to find the Account Reference of an email address. Each time, the Admin must type a reason, which the Admin Log keeps. The Admins see the identity of the other Admins.',
+  'privacy.admins-log':
+    'The Admin Log keeps what each Admin did, when, and on which Account or Invite: a reference, never a copy of your data, and no email address. Every Admin can read it. A line stays 12 months, also after the Account is deleted: it then names only a random number.',
   'privacy.processors-heading': 'Who helps',
   // The processors are settings of the instance (PRIVACY_*, settings.ts); backups only where it has them.
-  'privacy.processor-mail': (processor: string) => `${processor} sends your Sign-in Codes: it receives your email address and the code, for this only.`,
+  'privacy.processor-mail': (processor: string) => `${processor} sends your Sign-in Codes, and the mail to a person an Admin adds: it receives the email address and the mail, for this only.`,
   'privacy.processor-backups': (processor: string) => `Every hour, an encrypted copy of the Library is sent to ${processor}, and kept for 30 days.`,
   'privacy.no-backups': 'No copy of the Library leaves the server of this instance.',
   'privacy.shared-heading': 'What you share',
@@ -738,7 +750,7 @@ What this instance keeps: ${privacy}`,
     'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account.',
   'privacy.rights-backups': 'The encrypted backups still hold it for up to 30 days.',
   'privacy.requests': 'For any other request, write to the contact above.',
-  'privacy.updated': 'Last change: 19 November 2026.',
+  'privacy.updated': 'Last change: 20 November 2026.',
   // Legal notice (src/pages/legal.astro, CORE-160), approved by the owner on
   // 2026-11-19 (CORE-162). A change to it needs the owner's approval and a new date.
   'legal.title': 'Legal notice',

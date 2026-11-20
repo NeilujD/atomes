@@ -1,6 +1,6 @@
 # An Admin role and an admin panel, with pseudonymous monitoring
 
-Status: accepted (2026-11-20). Amends ADR 0013 and ADR 0016. Not built yet: milestone "M13 · Admin panel". Research: spike 0006 (`docs/spikes/0006-admin-panel-roles-and-permission-libraries.md`).
+Status: accepted (2026-11-20). Amends ADR 0013 and ADR 0016. Built in milestone "M13 · Admin panel". Research: spike 0006 (`docs/spikes/0006-admin-panel-roles-and-permission-libraries.md`).
 
 The operator of an instance manages Accounts from a shell today: `scripts/invite.ts` prints one Invite for each run, nothing adds an Account with no Invite, only the reader can delete their Account, and nothing shows how the Accounts use the instance. The code has no role: every signed-in Account is a reader, and the operator's power is shell access. Decision (grilling of 2026-11-20, Q1 to Q20): **an Account can hold the Admin role, and an Admin manages Invites and Accounts in an admin panel at `/admin` that shows each Account by a reference, never by its identity.**
 

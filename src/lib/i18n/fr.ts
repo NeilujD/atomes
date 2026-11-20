@@ -702,13 +702,26 @@ Ce que cette instance garde : ${privacy}`,
   'privacy.stores-heading': 'Ce que l’instance garde',
   'privacy.stores':
     'Votre compte : une adresse e-mail, le compte AT Protocol que vous avez lié, ou les deux. Votre bibliothèque : exemplaires, prêts, statuts de lecture, étiquettes, séries suivies et liste À acheter. Vos choix de partage. Vos sessions, pour rester connecté. Une correction de série que vous faites garde votre compte comme auteur. Une Invitation que vous créez garde votre compte, et le compte qu’une personne a créé avec elle.',
+  // M13 (ADR 0020, CORE-167) : brouillon, à approuver par le propriétaire dans la pull request.
+  'privacy.stores-activity':
+    'Le dernier jour où vous avez utilisé l’instance. Pour cela, elle garde le jour seulement : ni heure, ni page, ni adresse IP. Si un administrateur a ajouté votre compte.',
   'privacy.not-kept':
     'Aucun mot de passe : vous vous connectez avec un code de connexion ou votre compte AT Protocol. L’instance n’écrit jamais vos enregistrements dans ses journaux. Le catalogue n’apprend que les ISBN que vous cherchez, jamais qui les cherche.',
   'privacy.readers-heading': 'Qui peut le lire',
   'privacy.readers':
-    'Vous, et l’opérateur de cette instance, qui peut lire toutes les bibliothèques qu’elle garde. Personne d’autre, sauf ce que vous partagez. Pour garder votre bibliothèque hors de portée de tout opérateur, hébergez votre propre instance.',
+    'Vous, et l’opérateur de cette instance, qui peut lire toutes les bibliothèques qu’elle garde. Un administrateur voit ce que dit la partie suivante, et aucune bibliothèque. Personne d’autre, sauf ce que vous partagez. Pour garder votre bibliothèque hors de portée de tout opérateur, hébergez votre propre instance.',
+  'privacy.admins-heading': 'Ce qu’un administrateur voit et fait',
+  'privacy.admins':
+    'Un administrateur est un compte qui a le rôle qui ouvre l’administration de cette instance. L’opérateur donne le rôle au premier administrateur ; un administrateur peut le donner à un autre compte. Un administrateur crée des invitations, ajoute un compte pour une adresse e-mail, et supprime un compte : la même suppression que « Supprimer mon compte ». Une personne qu’un administrateur ajoute reçoit un e-mail qui le dit, et peut demander la suppression à l’opérateur.',
+  'privacy.admins-panel':
+    'Pour votre compte, l’administration affiche une référence de compte, un code court à la place de votre identité, avec des dates et des nombres : le jour de votre inscription, votre dernier jour d’activité, l’origine de votre compte, vos moyens de connexion, et les nombres de vos enregistrements, invitations, corrections de série et sessions. Elle signale un compte à l’usage inhabituel : aucune activité après l’inscription, ou un très grand nombre d’enregistrements modifiés, de corrections de série ou de sessions. Elle n’affiche ni adresse e-mail, ni compte AT Protocol, ni rien de ce que contient votre bibliothèque.',
+  'privacy.admins-identity':
+    'Un administrateur peut demander à voir l’identité d’un compte (son adresse e-mail et son compte AT Protocol), ou à trouver la référence de compte d’une adresse e-mail. Chaque fois, il doit saisir un motif, que le journal d’administration garde. Les administrateurs voient l’identité des autres administrateurs.',
+  'privacy.admins-log':
+    'Le journal d’administration garde ce que chaque administrateur a fait, quand, et sur quel compte ou quelle invitation : une référence, jamais une copie de vos données, et aucune adresse e-mail. Chaque administrateur peut le lire. Une ligne reste 12 mois, même après la suppression du compte : elle ne nomme alors qu’un nombre aléatoire.',
   'privacy.processors-heading': 'Qui aide',
-  'privacy.processor-mail': (processor) => `${processor} envoie vos codes de connexion : il reçoit votre adresse e-mail et le code, pour cela seulement.`,
+  'privacy.processor-mail': (processor) =>
+    `${processor} envoie vos codes de connexion, et l’e-mail à une personne qu’un administrateur ajoute : il reçoit l’adresse e-mail et l’e-mail, pour cela seulement.`,
   'privacy.processor-backups': (processor) => `Chaque heure, une copie chiffrée de la bibliothèque part vers ${processor}, et y reste 30 jours.`,
   'privacy.no-backups': 'Aucune copie de la bibliothèque ne quitte le serveur de cette instance.',
   'privacy.shared-heading': 'Ce que vous partagez',
@@ -722,7 +735,7 @@ Ce que cette instance garde : ${privacy}`,
     'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés.',
   'privacy.rights-backups': 'Les sauvegardes chiffrées la gardent encore 30 jours au plus.',
   'privacy.requests': 'Pour toute autre demande, écrivez au contact ci-dessus.',
-  'privacy.updated': 'Dernière modification : 19 novembre 2026.',
+  'privacy.updated': 'Dernière modification : 20 novembre 2026.',
   // Legal notice (src/pages/legal.astro, CORE-160), approved by the owner on
   // 2026-11-19 (CORE-162). A change to it needs the owner's approval and a new date.
   'legal.title': 'Mentions légales',
