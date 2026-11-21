@@ -141,9 +141,29 @@ _Avoid_: PDS, DID, handle (in text shown to the reader)
 _French_: Compte AT Protocol
 
 **Invite**:
-A link, made by the owner of an Atomes instance or by a reader, that lets one person create an Account. It works once, for 14 days. A reader makes one in Settings, and only one person can create an Account with the Invites of a reader; the owner has no limit.
+A link, made by an Admin of an Atomes instance or by a reader, that lets one person create an Account. It works once, for 14 days. A reader makes one in Settings, and only one person can create an Account with the Invites of a reader; an Admin has no limit.
 _Avoid_: Allow-list, access code, referral
 _French_: Invitation
+
+**Operator**:
+The person who runs an Atomes instance and answers for it: the data controller that the Privacy notice names. The operator has the server, so they can read every Library it keeps.
+_Avoid_: Owner, host, publisher (for the person who runs the instance)
+_French_: Opérateur
+
+**Admin**:
+An Account with the role that opens the admin panel. An Admin makes Invites with no limit, adds and deletes Accounts, and sees how each Account uses the instance. The operator makes the first Admin with a script; an Admin can grant the role to another Account.
+_Avoid_: Owner, moderator, superuser, staff
+_French_: Administrateur
+
+**Account Reference**:
+The short code that names an Account in the admin panel, in place of its email address or its AT Protocol Account. It never changes, and it does not say who the reader is.
+_Avoid_: Account code (a Sign-in Code is a different thing), pseudonym, user ID
+_French_: Référence de compte
+
+**Admin Log**:
+The list of what Admins did in the admin panel and with the role script: who, when, which action, and on which Account or Invite. It keeps no copy of the data, and a line stays 12 months.
+_Avoid_: Audit trail, history, activity log
+_French_: Journal d’administration
 
 ## Capture
 

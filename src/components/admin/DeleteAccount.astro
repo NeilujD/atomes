@@ -1,0 +1,100 @@
+---
+// The delete of an Account from its row (ADR 0020, CORE-172): the confirm
+// dialog, Cancel first. It names the Account by its Account Reference only,
+// shows the Accounts it invited (they are not deleted), and asks the Admin to
+// type the Account Reference: the server checks it. The delete is the full
+// delete of "Delete my account". Red is for this action only (O2).
+import { translator, type Language } from '../../lib/i18n/i18n';
+
+interface Props {
+  language: Language;
+}
+
+const t = translator(Astro.props.language);
+---
+
+<dialog class="confirm" data-delete-dialog aria-labelledby="delete-title">
+  <form method="dialog">
+    {/* The script names the Account in the title and in the label when the dialog opens. */}
+    <h2 class="confirm-title" id="delete-title" data-delete-title>{t('admin.delete')}</h2>
+    <p class="confirm-text">{t('admin.delete-text')}</p>
+    <ul class="confirm-list">
+      <li>{t('admin.delete-library')}</li>
+      <li>{t('admin.delete-sessions')}</li>
+      <li>{t('admin.delete-invites')}</li>
+      <li>{t('admin.delete-shared')}</li>
+    </ul>
+    <p class="confirm-text" data-delete-invited hidden></p>
+    <div class="form-item confirm-field">
+      <label class="form-label" for="delete-reference" data-delete-label>{t('admin.account-reference')}</label>
+      <input class="field reference" id="delete-reference" name="reference" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+    </div>
+    <div class="confirm-actions">
+      <button class="button" type="button" data-delete-cancel>{t('admin.cancel')}</button>
+      <button class="button button-danger" value="confirm" data-delete-confirm disabled>{t('admin.delete-confirm')}</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  import { enable, postAdmin, redraw } from '../../lib/admin/client';
+  import { t } from '../../lib/i18n/i18n';
+  import { toast } from '../../lib/toast';
+
+  const dialog = document.querySelector<HTMLDialogElement>('[data-delete-dialog]')!;
+  const title = dialog.querySelector<HTMLElement>('[data-delete-title]')!;
+  const invited = dialog.querySelector<HTMLElement>('[data-delete-invited]')!;
+  const label = dialog.querySelector<HTMLElement>('[data-delete-label]')!;
+  const typed = dialog.querySelector<HTMLInputElement>('[name="reference"]')!;
+  const confirm = dialog.querySelector<HTMLButtonElement>('[data-delete-confirm]')!;
+  const list = document.querySelector<HTMLElement>('[data-accounts-list]')!;
+
+  // Cancel is not a submit button: Enter in the field then deletes (once the Account Reference is typed), not cancels.
+  const cancel = dialog.querySelector<HTMLButtonElement>('[data-delete-cancel]')!;
+  cancel.addEventListener('click', () => dialog.close('cancel'));
+
+  // The Account of the open dialog.
+  let subject: { account: string; reference: string } | undefined;
+
+  const refusals: Record<string, () => string> = {
+    WrongReference: () => t('admin.wrong-reference'),
+    IsAdmin: () => t('admin.is-admin'),
+    OwnAccount: () => t('admin.own-account'),
+  };
+
+  list.addEventListener('click', (event) => {
+    const row = (event.target as Element).closest('[data-delete-account]')?.closest<HTMLElement>('[data-account]');
+    if (!row) return;
+    const { account = '', reference = '', invited: guests = '' } = row.dataset;
+    subject = { account, reference };
+    title.textContent = t('admin.delete-title', reference);
+    label.textContent = t('admin.delete-type', reference);
+    const references = guests ? guests.split(',') : [];
+    invited.textContent = references.length > 0 ? t('admin.delete-invited', references.join(', '), references.length) : '';
+    invited.hidden = references.length === 0;
+    typed.value = '';
+    confirm.disabled = true;
+    dialog.returnValue = '';
+    dialog.showModal();
+    // Cancel takes the focus, as in every confirm dialog, though the field comes before it.
+    cancel.focus();
+  });
+
+  // The action wakes up once the Account Reference is typed; the server checks it again.
+  typed.addEventListener('input', () => {
+    confirm.disabled = typed.value.trim().toUpperCase() !== subject?.reference;
+  });
+
+  dialog.addEventListener('close', () => {
+    if (dialog.returnValue !== 'confirm' || !subject) return;
+    const { account, reference } = subject;
+    void postAdmin('/api/admin/accounts/delete', { account, reference: typed.value }).then(async ({ ok, error, body }) => {
+      if (!ok) toast((refusals[error ?? ''] ?? (() => t('admin.failed')))(), { error: true });
+      else if (body.sharedLeft) toast(t('admin.deleted-shared-left', reference), { error: true });
+      else toast(t('admin.deleted', reference));
+      await redraw('[data-totals]', '[data-accounts-list]');
+    });
+  });
+
+  enable('[data-delete-account]');
+</script>

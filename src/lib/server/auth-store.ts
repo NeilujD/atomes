@@ -36,6 +36,11 @@ export interface AuthStore {
   closeBrowserSession(cookie: string): AccountId | undefined;
   // The handle of every browser session of the Account, after a link.
   setHandle(account: AccountId, handle: string): void;
+  // The handle of the newest browser session of the Account that has one: how
+  // the admin panel names an Admin with no email address (ADR 0020).
+  handleOf(account: AccountId): string | undefined;
+  // The number of open browser sessions of each Account that has one (admin panel, ADR 0020).
+  sessionCounts(): Map<string, number>;
   // True while another browser session of the Account is still open.
   hasBrowserSessions(account: AccountId): boolean;
   // Ends every browser session of the Account, and deletes the OAuth session
@@ -56,6 +61,8 @@ export function createAuthStore(options: {
   db: DatabaseSync;
   box: SecretBox;
   now?: () => number;
+  // Called with the Account of each request whose session is read (the last active day, ADR 0020).
+  seen?: (account: AccountId) => void;
 }): AuthStore {
   const { db, box } = options;
   const now = options.now ?? Date.now;
@@ -104,6 +111,7 @@ export function createAuthStore(options: {
       const row = db
         .prepare('select account, handle from browser_session where token_hash = ? and expires_at > ?')
         .get(hash(cookie), now()) as BrowserSession | undefined;
+      if (row) options.seen?.(row.account);
       return row && { account: row.account, handle: row.handle };
     },
     closeBrowserSession(cookie) {
@@ -114,6 +122,16 @@ export function createAuthStore(options: {
     },
     setHandle(account, handle) {
       db.prepare('update browser_session set handle = ? where account = ?').run(handle, account);
+    },
+    handleOf(account) {
+      const row = db.prepare("select handle from browser_session where account = ? and handle != '' order by expires_at desc limit 1").get(account) as
+        | { handle: string }
+        | undefined;
+      return row?.handle;
+    },
+    sessionCounts() {
+      const rows = db.prepare('select account, count(*) as n from browser_session where expires_at > ? group by account').all(now()) as { account: string; n: number }[];
+      return new Map(rows.map(({ account, n }) => [account, n]));
     },
     hasBrowserSessions(account) {
       return db.prepare('select 1 from browser_session where account = ? and expires_at > ?').get(account, now()) !== undefined;

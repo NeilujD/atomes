@@ -75,6 +75,7 @@ const tabCurrent = (key: Section) => ariaCurrent(key) ?? (key === 'settings' && 
       <link rel="manifest" href="/manifest.webmanifest" />
       <!-- The new page of a transition shows only once its body is parsed (src/lib/page-transition.ts). -->
       <link rel="expect" href="#page-end" blocking="render" />
+      <slot name="head" />
     </PageHead>
   </head>
   <body>

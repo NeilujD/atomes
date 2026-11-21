@@ -152,5 +152,56 @@ const libraryV3: Step = (db) =>
     create index invite_made_by on invite (made_by);
   `);
 
-export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3];
+// The Admin role (ADR 0020, roles.ts). `granted_by`: the Admin who granted
+// it; null for scripts/role.ts.
+const libraryV4: Step = (db) =>
+  db.exec(`
+    create table account_role (
+      account text not null references account (id),
+      role text not null check (role in ('admin')),
+      granted_by text,
+      granted_at integer not null,
+      primary key (account, role)
+    );
+  `);
+
+// The Admin Log (ADR 0020, admin-log.ts). No foreign key: a line stays when
+// its Account goes.
+const libraryV5: Step = (db) =>
+  db.exec(`
+    create table admin_action (
+      id integer primary key,
+      at integer not null,
+      admin text,
+      action text not null,
+      target text,
+      detail text
+    );
+    create index admin_action_at on admin_action (at);
+  `);
+
+// The last active day of an Account (ADR 0020): a calendar day in UTC, written
+// once a day at most (accounts.ts, `seen`). Filled from the day of the last
+// Library write, the only activity date the instance had; null with no write.
+const libraryV6: Step = (db) =>
+  db.exec(`
+    alter table account add column last_active_day text;
+    update account set last_active_day = (select substr(max(updated_at), 1, 10) from record where record.account = account.id);
+  `);
+
+// An Invite keeps its origin and a label (ADR 0020): a reader in Settings, an
+// Admin in the panel, or scripts/invite.ts. The Invites made before: those
+// with a maker are reader Invites, the others script Invites.
+const libraryV7: Step = (db) =>
+  db.exec(`
+    alter table invite add column origin text not null default 'script' check (origin in ('reader', 'admin', 'script'));
+    alter table invite add column label text;
+    update invite set origin = 'reader' where made_by is not null;
+  `);
+
+// An Account keeps that an Admin added it by its email address, with no
+// Invite (ADR 0020). No Account made before was added.
+const libraryV8: Step = (db) => db.exec('alter table account add column added_by_admin integer not null default 0');
+
+export const librarySteps: readonly Step[] = [libraryV0, libraryV1, libraryV2, libraryV3, libraryV4, libraryV5, libraryV6, libraryV7, libraryV8];
 export const authSteps = (accounts: { ofDid(did: Did): AccountId }): readonly Step[] => [authV0, authV1(accounts), authV2];

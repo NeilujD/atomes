@@ -1,0 +1,152 @@
+---
+// "Show identity" and "Find by email address" (ADR 0020, CORE-173): the only
+// place where the admin panel shows who a reader is. Each needs a reason, and
+// the server writes it to the Admin Log before it answers. The identity shows
+// under its row for this page view only: nothing keeps it, and a reload shows
+// the row with no identity again. It says "AT Protocol Account", not "handle" (O3).
+import { translator, type Language } from '../../lib/i18n/i18n';
+import { reasonLimits } from '../../lib/server/admin';
+
+interface Props {
+  language: Language;
+}
+
+const t = translator(Astro.props.language);
+---
+
+<dialog class="confirm" data-identity-dialog aria-labelledby="identity-title" aria-describedby="identity-text">
+  <form method="dialog">
+    {/* The script names the Account in the title when the dialog opens. */}
+    <h2 class="confirm-title" id="identity-title" data-identity-title>{t('admin.show-identity')}</h2>
+    <p class="confirm-text" id="identity-text">{t('admin.identity-text')}</p>
+    <div class="form-item confirm-field">
+      <label class="form-label" for="identity-reason">{t('admin.reason')}</label>
+      <input class="field" id="identity-reason" name="reason" type="text" autocomplete="off" required minlength={reasonLimits.min} maxlength={reasonLimits.max} />
+    </div>
+    <p class="row-hint" data-dialog-message role="status">{t('admin.reason-hint')}</p>
+    <div class="confirm-actions">
+      <button class="button" type="button" data-dialog-cancel>{t('admin.cancel')}</button>
+      <button class="button button-main" value="confirm">{t('admin.show-identity')}</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="confirm" data-find-dialog aria-labelledby="find-title" aria-describedby="find-text">
+  <form method="dialog">
+    <h2 class="confirm-title" id="find-title">{t('admin.find')}</h2>
+    <p class="confirm-text" id="find-text">{t('admin.find-text')}</p>
+    <div class="form-item confirm-field">
+      <label class="form-label" for="find-email">{t('admin.email')}</label>
+      <input class="field" id="find-email" name="email" type="email" inputmode="email" autocomplete="off" required />
+    </div>
+    <div class="form-item">
+      <label class="form-label" for="find-reason">{t('admin.reason')}</label>
+      <input class="field" id="find-reason" name="reason" type="text" autocomplete="off" required minlength={reasonLimits.min} maxlength={reasonLimits.max} />
+    </div>
+    <p class="row-hint" data-dialog-message role="status">{t('admin.reason-hint')}</p>
+    <div class="confirm-actions">
+      <button class="button" type="button" data-dialog-cancel>{t('admin.cancel')}</button>
+      <button class="button button-main" value="confirm">{t('admin.find-submit')}</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- The identity of one Account, under its row. -->
+<template data-identity-row>
+  <tr class="identity">
+    <td colspan="11">
+      <div class="identity-box">
+        <dl class="identity-facts" data-identity-facts></dl>
+        <p class="row-hint">{t('admin.identity-shown')}</p>
+      </div>
+    </td>
+  </tr>
+</template>
+
+<script>
+  import { enable, postAdmin, say, showRow } from '../../lib/admin/client';
+  import { t } from '../../lib/i18n/i18n';
+  import { toast } from '../../lib/toast';
+
+  const list = document.querySelector<HTMLElement>('[data-accounts-list]')!;
+  const identityDialog = document.querySelector<HTMLDialogElement>('[data-identity-dialog]')!;
+  const findDialog = document.querySelector<HTMLDialogElement>('[data-find-dialog]')!;
+  const rowTemplate = document.querySelector<HTMLTemplateElement>('[data-identity-row]')!;
+
+  // Cancel is not a submit button: Enter in a field then submits the action, not Cancel.
+  for (const dialog of [identityDialog, findDialog]) {
+    dialog.querySelector('[data-dialog-cancel]')!.addEventListener('click', () => dialog.close('cancel'));
+  }
+
+  const refusals: Record<string, () => string> = {
+    BadReason: () => t('admin.bad-reason'),
+    ReasonHasAddress: () => t('admin.reason-address'),
+    BadAddress: () => t('admin.bad-address'),
+    NoAccount: () => t('admin.not-found'),
+  };
+
+  // Opens the dialog; `send` runs when the Admin confirms. The dialog stays
+  // open while the server refuses (a reason too short), and says why.
+  function ask(dialog: HTMLDialogElement, send: (data: FormData) => Promise<{ ok: boolean; error?: string }>) {
+    const form = dialog.querySelector('form')!;
+    const message = dialog.querySelector<HTMLElement>('[data-dialog-message]')!;
+    form.reset();
+    say(message, t('admin.reason-hint'));
+    form.onsubmit = (event) => {
+      const confirm = (event.submitter as HTMLButtonElement | null)?.value === 'confirm';
+      if (!confirm) return;
+      event.preventDefault();
+      const button = event.submitter as HTMLButtonElement;
+      button.disabled = true;
+      void send(new FormData(form)).then(({ ok, error }) => {
+        button.disabled = false;
+        if (ok) dialog.close();
+        else say(message, (refusals[error ?? ''] ?? (() => t('admin.failed')))(), true);
+      });
+    };
+    dialog.showModal();
+  }
+
+  list.addEventListener('click', (event) => {
+    const button = (event.target as Element).closest<HTMLButtonElement>('[data-show-identity]');
+    const row = button?.closest<HTMLElement>('[data-account]');
+    if (!button || !row) return;
+    identityDialog.querySelector('[data-identity-title]')!.textContent = t('admin.identity-title', row.dataset.reference ?? '');
+    ask(identityDialog, async (data) => {
+      const { ok, error, body } = await postAdmin('/api/admin/identity/show', { account: row.dataset.account, reason: data.get('reason') });
+      if (!ok) return { ok, error };
+      const shown = rowTemplate.content.cloneNode(true) as DocumentFragment;
+      const facts = shown.querySelector('[data-identity-facts]')!;
+      for (const [label, value] of [
+        [t('admin.email'), body.email],
+        [t('admin.atproto-account'), body.atproto],
+      ] as const) {
+        if (typeof value !== 'string') continue;
+        const fact = document.createElement('div');
+        fact.append(Object.assign(document.createElement('dt'), { textContent: label }), Object.assign(document.createElement('dd'), { textContent: value }));
+        facts.append(fact);
+      }
+      row.querySelector('.identity')?.remove();
+      row.append(shown);
+      button.hidden = true;
+      return { ok };
+    });
+  });
+
+  document.querySelector('[data-find-open]')!.addEventListener('click', () => {
+    ask(findDialog, async (data) => {
+      const { ok, error, body } = await postAdmin('/api/admin/identity/find', { email: data.get('email'), reason: data.get('reason') });
+      if (!ok) return { ok, error };
+      const reference = body.reference;
+      if (typeof reference !== 'string') {
+        toast(t('admin.not-found'));
+        return { ok };
+      }
+      toast(t('admin.found', reference));
+      showRow(reference);
+      return { ok };
+    });
+  });
+
+  enable('[data-show-identity], [data-find-open]');
+</script>

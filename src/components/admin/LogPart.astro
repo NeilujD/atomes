@@ -1,0 +1,82 @@
+---
+// The Log part of the admin panel (ADR 0020, CORE-168): the Admin Log, newest
+// first. An Admin by identity, the script as "script", any other Account by its
+// Account Reference. The page script writes each time in the browser's zone.
+import { formatTime } from '../../lib/admin/format';
+import { translator, type Language } from '../../lib/i18n/i18n';
+import type { LogRow } from '../../lib/server/admin';
+
+interface Props {
+  language: Language;
+  lines: LogRow[];
+}
+
+const { language, lines } = Astro.props;
+const t = translator(language);
+const actions = {
+  'role.grant': t('admin.action-role-grant'),
+  'role.revoke': t('admin.action-role-revoke'),
+  'role.grant-no-account': t('admin.action-role-grant-no-account'),
+  'invite.make': t('admin.action-invite-make'),
+  'invite.revoke': t('admin.action-invite-revoke'),
+  'account.add': t('admin.action-account-add'),
+  'account.add-exists': t('admin.action-account-add-exists'),
+  'account.delete': t('admin.action-account-delete'),
+  'identity.show': t('admin.action-identity-show'),
+  'identity.find': t('admin.action-identity-find'),
+} satisfies Record<LogRow['action'], string>;
+---
+
+<section class="group" aria-labelledby="log-title" data-log>
+  <div>
+    <h2 class="small-heading" id="log-title">{t('admin.log-title')}</h2>
+    <p class="row-hint">{t('admin.log-hint')}</p>
+  </div>
+  {lines.length === 0 && <p class="row-hint">{t('admin.log-empty')}</p>}
+  {
+    lines.length > 0 && (
+      <div class="table-scroll">
+        <table class="rows log">
+          <thead>
+            <tr>
+              <th scope="col">{t('admin.time')}</th>
+              <th scope="col">{t('admin.admin')}</th>
+              <th scope="col">{t('admin.action')}</th>
+              <th scope="col">{t('admin.target')}</th>
+              <th scope="col">{t('admin.detail')}</th>
+            </tr>
+          </thead>
+          {lines.map((line) => (
+            <tbody>
+              <tr>
+                <td class="time" data-label={t('admin.time')}>
+                  <time datetime={new Date(line.at).toISOString()} data-local>
+                    {formatTime(language, line.at, Date.now(), 'UTC')}
+                  </time>
+                </td>
+                <td data-label={t('admin.admin')}>{line.admin ?? t('admin.script')}</td>
+                <th scope="row" class="main">
+                  <span>{actions[line.action]}</span>
+                </th>
+                <td data-label={t('admin.target')} class:list={{ blank: !line.target }}>
+                  {/* An Account Reference, or the name of an Admin of now. */}
+                  {line.target ? <span class:list={{ reference: line.target.startsWith('A-') }}>{line.target}</span> : <span class="none">—</span>}
+                </td>
+                <td data-label={t('admin.detail')} class:list={['detail', { blank: !line.detail }]}>
+                  {line.detail ?? <span class="none">—</span>}
+                </td>
+              </tr>
+            </tbody>
+          ))}
+        </table>
+      </div>
+    )
+  }
+</section>
+
+<script>
+  import { localTimes } from '../../lib/admin/format';
+  import { pageLanguage } from '../../lib/i18n/i18n';
+
+  localTimes(document.querySelector('[data-log]')!, pageLanguage());
+</script>

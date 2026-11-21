@@ -14,16 +14,21 @@ import type { AuthStore } from './auth-store';
 import type { LibraryStore } from './library-store';
 import type { Sharing } from './sharing';
 
-export interface AccountDataDeps {
-  account: AccountId;
+// What the delete of an Account needs: every store that keeps a row of it.
+export interface DeleteDeps {
   accounts: Pick<Accounts, 'identitiesOf' | 'forget'>;
-  library: Pick<LibraryStore, 'changesSince' | 'forget'>;
+  library: Pick<LibraryStore, 'forget'>;
   sharing: Pick<Sharing, 'forget'>;
   auth: Pick<AuthStore, 'forget'>;
   // Ends the OAuth session of the DID on its PDS and here (OAuthPort.revoke).
   revoke: (did: Did) => Promise<void>;
   // The Catalog keeps a Series Correction for every reader, without its author.
   catalog: { forgetAuthor(account: AccountId): void };
+}
+
+export interface AccountDataDeps extends DeleteDeps {
+  account: AccountId;
+  library: Pick<LibraryStore, 'changesSince' | 'forget'>;
 }
 
 // Every record type of the lexicons (ADR 0010).
@@ -56,9 +61,13 @@ function exportLibrary({ account, accounts, library }: AccountDataDeps): Respons
   });
 }
 
-// The PDS first, while the OAuth session can still reach it; then every row of
-// the instance, whatever the PDS answered.
-async function deleteAccount({ account, accounts, library, sharing, auth, revoke, catalog }: AccountDataDeps): Promise<Response> {
+// The full delete of an Account (CORE-55), for "Delete my account" and for the
+// delete by an Admin (ADR 0020): the Shared records on the PDS first, while the
+// OAuth session can still reach it; then every row of the instance, whatever
+// the PDS answered: the Library, the author of its Series Corrections, its
+// sessions, its open Invites, its role, its identities and the Account.
+// `sharedLeft`: the Shared records stay on the PDS, which could not be reached.
+export async function forgetAccount(account: AccountId, { accounts, library, sharing, auth, revoke, catalog }: DeleteDeps): Promise<{ sharedLeft: boolean }> {
   const { did } = accounts.identitiesOf(account);
   const { sharedLeft } = await sharing.forget(account);
   if (did) await revoke(did).catch(() => undefined);
@@ -66,5 +75,10 @@ async function deleteAccount({ account, accounts, library, sharing, auth, revoke
   catalog.forgetAuthor(account);
   auth.forget(account, did);
   accounts.forget(account);
+  return { sharedLeft };
+}
+
+async function deleteAccount(deps: AccountDataDeps): Promise<Response> {
+  const { sharedLeft } = await forgetAccount(deps.account, deps);
   return Response.json({ sharedLeft }, { headers: { ...noStore, 'set-cookie': sessionCookieHeader('', 0) } });
 }

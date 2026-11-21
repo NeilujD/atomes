@@ -145,6 +145,20 @@ const pickers: { name: string; label: string; checked: string; options: { value:
       </div>
     </section>
 
+    <!-- The admin panel (ADR 0020): for an Admin only (the `admin` flag of the session). The panel checks the role itself. -->
+    <section class="group" aria-labelledby="admin-title" data-admin-link hidden>
+      <h2 class="small-heading" id="admin-title">{t('settings.admin')}</h2>
+      <div class="card group-card">
+        <div class="row">
+          <div>
+            <p class="row-label">{t('admin.title')}</p>
+            <p class="row-hint">{t('settings.admin-hint')}</p>
+          </div>
+          <a class="button" href="/admin">{t('admin.title')}</a>
+        </div>
+      </div>
+    </section>
+
     <!-- Appearance, contrast and language, kept on this device (src/lib/appearance.ts, src/lib/i18n). -->
     <section class="group" aria-labelledby="display-title">
       <h2 class="small-heading" id="display-title">{t('settings.display')}</h2>
@@ -274,6 +288,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
   const label = auth.querySelector<HTMLElement>('[data-auth-label]')!;
   const addEmailRow = auth.querySelector<HTMLElement>('[data-add-email]')!;
   const linkRow = auth.querySelector<HTMLElement>('[data-link-atproto]')!;
+  const adminLink = document.querySelector<HTMLElement>('[data-admin-link]')!;
 
   let state: AuthState = { status: 'signed-out' };
 
@@ -287,6 +302,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
     addEmailRow.hidden = !signedIn || next.account.email !== undefined;
     linkRow.hidden = !signedIn || next.account.atproto !== false;
     signOutButton.hidden = !signedIn;
+    adminLink.hidden = !signedIn || next.account.admin !== true;
     error.textContent = signedIn ? '' : (next.message ?? '');
     error.hidden = !error.textContent;
   }

@@ -1,0 +1,86 @@
+---
+// "Add an Account" in the Accounts part (ADR 0020, CORE-171): an email address
+// and the language of the one mail the person gets. The Account exists at
+// once, with no Invite. The button that opens this form is in the toolbar of
+// the part (`data-add-open`); it steps back while the form is open.
+import { translator, type Language } from '../../lib/i18n/i18n';
+
+interface Props {
+  language: Language;
+}
+
+const { language } = Astro.props;
+const t = translator(language);
+---
+
+<form class="card group-card add-form" data-add-form aria-labelledby="add-title" hidden>
+  <p class="row-label" id="add-title">{t('admin.add')}</p>
+  <div class="form-line">
+    <div class="form-item form-wide">
+      <label class="form-label" for="add-email">{t('admin.email')}</label>
+      <input class="field" id="add-email" name="email" type="email" inputmode="email" autocomplete="off" required />
+    </div>
+    <div class="form-item">
+      <label class="form-label" for="add-language">{t('admin.mail-language')}</label>
+      <select class="field" id="add-language" name="language">
+        <option value="en" selected={language === 'en'}>{t('language.en')}</option>
+        <option value="fr" selected={language === 'fr'}>{t('language.fr')}</option>
+      </select>
+    </div>
+  </div>
+  <p class="row-hint" data-add-message role="status">{t('admin.add-hint')}</p>
+  <div class="form-actions">
+    <button class="button button-main" type="submit">{t('admin.add-submit')}</button>
+    <button class="button button-quiet" type="button" data-add-cancel>{t('admin.cancel')}</button>
+  </div>
+</form>
+
+<script>
+  import { postAdmin, redraw, say, showRow } from '../../lib/admin/client';
+  import { t } from '../../lib/i18n/i18n';
+  import { toast } from '../../lib/toast';
+
+  const open = document.querySelector<HTMLButtonElement>('[data-add-open]')!;
+  const form = document.querySelector<HTMLFormElement>('[data-add-form]')!;
+  const message = form.querySelector<HTMLElement>('[data-add-message]')!;
+  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const email = form.querySelector<HTMLInputElement>('[name="email"]')!;
+
+  // One main action at a time: the button steps back while its form is open.
+  function show(on: boolean) {
+    form.hidden = !on;
+    open.hidden = on;
+    say(message, t('admin.add-hint'));
+    if (on) email.focus();
+    else form.reset();
+  }
+
+  const refusals: Record<string, () => string> = {
+    BadAddress: () => t('admin.bad-address'),
+    Exists: () => t('admin.exists'),
+    TooMany: () => t('admin.too-many'),
+    NoContact: () => t('admin.no-contact'),
+  };
+
+  open.addEventListener('click', () => show(true));
+  form.querySelector('[data-add-cancel]')!.addEventListener('click', () => show(false));
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    submit.disabled = true;
+    void postAdmin('/api/admin/accounts', { email: data.get('email'), language: data.get('language') }).then(async ({ ok, error, body }) => {
+      submit.disabled = false;
+      if (!ok) {
+        say(message, (refusals[error ?? ''] ?? (() => t('admin.failed')))(), true);
+        return;
+      }
+      show(false);
+      const reference = String(body.reference);
+      if (body.mailSent) toast(t('admin.added', reference));
+      else toast(t('admin.added-no-mail', reference), { error: true });
+      await redraw('[data-totals]', '[data-accounts-list]');
+      showRow(reference);
+    });
+  });
+  open.disabled = false;
+</script>

@@ -1,6 +1,6 @@
 # A reader has an Atomes Account; the AT Protocol account is optional
 
-Status: accepted (2026-11-13). Supersedes ADR 0001. Amends ADR 0003, ADR 0011, ADR 0012 and ADR 0013. Not built yet: milestone "M9 · Accounts". Until then the code follows ADR 0013 with the DID allow-list.
+Status: accepted (2026-11-13). Supersedes ADR 0001. Amends ADR 0003, ADR 0011, ADR 0012 and ADR 0013. Amended by ADR 0020 (2026-11-20). Built in milestone "M9 · Accounts".
 
 Atomes must serve readers who are not technical. A code audit on 2026-11-13 showed what the PDS does today: it is the only way to sign in, and it receives an optional public copy of the **Shared** records. Every record already lives on the instance (ADR 0012), nothing is read back from a PDS, and a person with no AT Protocol account, or whose DID is not on the allow-list, cannot enter. So the requirement costs the target reader an account they do not have and gives them nothing. Decision: the instance is the permanent home of the Library, a reader signs in to an Atomes **Account**, and an **AT Protocol Account** is an optional link that gives a second way to sign in and the right to share.
 
@@ -49,3 +49,11 @@ Atomes must serve readers who are not technical. A code audit on 2026-11-13 show
 - Passkeys, or sign-in with Google or Apple: not now. A passkey can be added later as one more identity.
 - An auth library (Better Auth): rejected. It owns its user and session tables, and the code flow is small.
 - An email server on the Coolify host: rejected as first sender. Delivery from a new VPS address is not reliable, and a late code blocks sign-in. SMTP keeps this option open.
+
+## Amendment 2026-11-20: Admins, the origin of an Invite, an Account with no Invite
+
+ADR 0020 changes three points of this ADR, when milestone "M13 · Admin panel" is built:
+
+- **Who makes Invites with no limit**: an Admin, in the admin panel, and the operator with `scripts/invite.ts`. An Invite keeps its origin (reader, Admin or script), and the limit of one invited Account for each reader counts reader Invites only.
+- **An Account with no Invite**: an Admin adds an Account by its email address. The person then signs in with a Sign-in Code, as every reader does. Sign-in still never says whether an Account exists.
+- **Delete**: an Admin can delete the Account of a reader, with the same sequence as "Delete my account".

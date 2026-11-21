@@ -98,7 +98,7 @@ describe('add an email address', () => {
     );
     expect(signedIn.status).toBe(204);
     const newCookie = /atomes_session=([^;]*)/.exec(signedIn.headers.get('set-cookie') ?? '')![1];
-    const who = (await session(new Request(`${app}/api/session`, { headers: { cookie: `${sessionCookie}=${newCookie}` } }), deps).json()) as {
+    const who = (await session(new Request(`${app}/api/session`, { headers: { cookie: `${sessionCookie}=${newCookie}` } }), { ...deps, roles: { rolesOf: () => [] } }).json()) as {
       id: string;
     };
     expect(who.id).toBe(account);

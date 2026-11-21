@@ -175,6 +175,9 @@ export interface Catalog {
   // A deleted Account (CORE-55): its Series Corrections stay, for every
   // reader, with no author.
   forgetAuthor(account: string): void;
+  // The Series Corrections of each author, and those made since `since`
+  // (admin panel, ADR 0020): counts only.
+  correctionCounts(since: Date): Map<string, { total: number; recent: number }>;
   // The Series of this Catalog whose title holds `text` (case, accents and
   // spaces ignored), each with its Edition Lines; at most `maxFound`.
   findSeries(text: string): SeriesFound[];
@@ -833,6 +836,13 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     db.prepare('update series_correction set account = null where account = ?').run(account);
   }
 
+  function correctionCounts(since: Date) {
+    const rows = db
+      .prepare('select account, count(*) as total, sum(created_at >= ?) as recent from series_correction where account is not null group by account')
+      .all(since.toISOString()) as { account: string; total: number; recent: number }[];
+    return new Map(rows.map(({ account, total, recent }) => [account, { total, recent }]));
+  }
+
   function uncorrect(isbn: string): Edition | undefined {
     inTransaction(db, () => {
       db.prepare('delete from series_correction where isbn = ?').run(isbn);
@@ -877,6 +887,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     uncorrect,
     correctionAccount,
     forgetAuthor,
+    correctionCounts,
     findSeries,
     link,
     series: (id) => {

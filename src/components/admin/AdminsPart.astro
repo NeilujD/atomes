@@ -1,0 +1,106 @@
+---
+// The Admins part of the admin panel (ADR 0020, CORE-168): each Admin by
+// identity (an Admin is not pseudonymous to the other Admins), a grant by email
+// address or by Account Reference, a revoke. The server refuses the revoke of the own role; the panel
+// shows why. Revoke is in ink (O2): the role can be granted again.
+import { formatDay } from '../../lib/admin/format';
+import { translator, type Language } from '../../lib/i18n/i18n';
+import type { AdminRow } from '../../lib/server/admin';
+
+interface Props {
+  language: Language;
+  admins: AdminRow[];
+}
+
+const { language, admins } = Astro.props;
+const t = translator(language);
+---
+
+<section class="group" aria-labelledby="admins-title">
+  <h2 class="small-heading" id="admins-title">{t('admin.part-admins')}</h2>
+  <div class="table-scroll table-narrow">
+    <table class="rows">
+      <thead>
+        <tr>
+          <th scope="col">{t('admin.admin')}</th>
+          <th scope="col">{t('admin.granted')}</th>
+          <th scope="col">{t('admin.granted-by')}</th>
+          <th scope="col"><span class="visually-hidden">{t('admin.actions')}</span></th>
+        </tr>
+      </thead>
+      {
+        admins.map((admin) => (
+          <tbody>
+            <tr>
+              <th scope="row" class="main">
+                <span>{admin.name}</span>
+                {admin.you && <span class="chip state">{t('admin.you')}</span>}
+              </th>
+              <td data-label={t('admin.granted')}>{formatDay(language, admin.grantedAt)}</td>
+              <td data-label={t('admin.granted-by')}>{admin.grantedBy ?? t('admin.script')}</td>
+              <td class="actions">
+                {admin.you && <span class="reason">{t('admin.own-role')}</span>}
+                <button class="button button-quiet" type="button" data-revoke-role={admin.account} aria-label={t('admin.revoke-role-label', admin.name)} disabled>
+                  {t('admin.revoke')}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        ))
+      }
+    </table>
+  </div>
+</section>
+
+<section class="group" aria-labelledby="grant-title">
+  <h2 class="small-heading" id="grant-title">{t('admin.grant-title')}</h2>
+  <form class="card group-card" data-grant-form>
+    <div class="form-line">
+      <div class="form-item form-wide">
+        <label class="form-label" for="grant-who">{t('admin.grant-field')}</label>
+        <input class="field" id="grant-who" name="who" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" required />
+      </div>
+      <button class="button button-main" type="submit" disabled>{t('admin.grant')}</button>
+    </div>
+    <p class="row-hint" data-grant-message role="status">{t('admin.grant-hint')}</p>
+  </form>
+</section>
+
+<script>
+  import { postAdmin, say } from '../../lib/admin/client';
+  import { t } from '../../lib/i18n/i18n';
+  import { toast } from '../../lib/toast';
+
+  const form = document.querySelector<HTMLFormElement>('[data-grant-form]')!;
+  const message = form.querySelector<HTMLElement>('[data-grant-message]')!;
+  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    submit.disabled = true;
+    // An email address has an @; anything else is an Account Reference.
+    const who = String(new FormData(form).get('who') ?? '').trim();
+    const byEmail = who.includes('@');
+    void postAdmin('/api/admin/roles/grant', byEmail ? { email: who } : { reference: who }).then(({ ok, error }) => {
+      if (ok) return location.reload();
+      const refusal = error === 'NoAccount' ? (byEmail ? t('admin.no-account') : t('admin.no-reference')) : error === 'BadAddress' ? t('admin.bad-address') : t('admin.failed');
+      say(message, refusal, true);
+      submit.disabled = false;
+    });
+  });
+  submit.disabled = false;
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-revoke-role]')) {
+    // The own role: the server refuses it, so the button stays disabled.
+    if (button.closest('tr')?.querySelector('.reason')) continue;
+    button.addEventListener('click', () => {
+      button.disabled = true;
+      void postAdmin('/api/admin/roles/revoke', { account: button.dataset.revokeRole }).then(({ ok }) => {
+        if (ok) return location.reload();
+        toast(t('admin.failed'), { error: true });
+        button.disabled = false;
+      });
+    });
+    button.disabled = false;
+  }
+</script>

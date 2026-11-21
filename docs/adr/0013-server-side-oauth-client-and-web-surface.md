@@ -1,6 +1,6 @@
 # The server signs readers in as an OAuth confidential client
 
-Status: accepted (2026-11-09). Supersedes ADR 0009. Amended by ADR 0016 (2026-11-13).
+Status: accepted (2026-11-09). Supersedes ADR 0009. Amended by ADR 0016 (2026-11-13) and ADR 0020 (2026-11-20).
 
 ADR 0009 kept tokens out of the server because the server held no Library data. Since ADR 0012 the instance stores Private records, so that reason is gone, and the server must know which reader calls it. The server is now an AT Protocol OAuth **confidential client** (backend-for-frontend) with `@atproto/oauth-client-node`, the library's recommended design. It holds each reader's OAuth session and gives the browser its own session cookie. The browser calls only the Atomes server: the server stores Private records (ADR 0012) and writes Shared records to the reader's PDS for them.
 
@@ -42,3 +42,12 @@ ADR 0016 changes two points of this ADR, when milestone "M9 · Accounts" is buil
 - **The session**: the browser session belongs to an Account, not to a DID. It opens after an email Sign-in Code or after the OAuth flow of this ADR, which becomes the second sign-in method.
 
 The confidential client, the cookie, the CSRF check, the security headers and the scopes are unchanged. Sign-in is still required on every screen.
+
+## Amendment 2026-11-20: the admin panel is checked on the server
+
+ADR 0020 adds an admin panel at `/admin`, when milestone "M13 · Admin panel" is built. Every other screen is still gated in the browser, because the service worker keeps app screens. The admin panel is the exception:
+
+- **Each admin page and each admin API route reads the session and the Admin role on the server**, and answers 404 to anyone else.
+- **The service worker keeps no admin page and no admin answer**, and admin answers are `no-store`.
+
+The cookie, the CSRF check and the security headers are unchanged.
