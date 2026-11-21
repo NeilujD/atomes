@@ -22,8 +22,11 @@ const t = translator(requestLanguage(Astro.request));
      The one look (ADR 0018): the look comes from theme.css tokens and shared
      parts; the sizes of the Library's own boxes are named once, here. */
   .library {
-    /* A cover in a List row. */
+    /* A cover in a List row; on desktop, the widest its title, author and status columns grow. */
     --library-row-cover: 40px;
+    --library-row-title: 480px;
+    --library-row-author: 280px;
+    --library-row-status: 120px;
     /* Desktop toolbar: the search field, and each select of the controls. */
     --library-search: 200px;
     --library-search-max: 420px;
@@ -770,8 +773,10 @@ const t = translator(requestLanguage(Astro.request));
     }
 
     .library-row {
-      grid-template-columns: var(--library-row-cover) minmax(0, 2.4fr) minmax(0, 1.4fr) minmax(0, 1fr);
+      /* Packed at the left: on a wide panel the free room is at the end of the row, not between the columns. */
+      grid-template-columns: var(--library-row-cover) minmax(0, var(--library-row-title)) minmax(0, var(--library-row-author)) minmax(var(--library-row-status), max-content);
       grid-template-areas: 'cover main author status';
+      justify-content: start;
       align-items: center;
       column-gap: var(--space-16);
     }
