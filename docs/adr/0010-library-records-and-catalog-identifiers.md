@@ -186,3 +186,16 @@ Statistics (ADR 0019) count reads and Copies by day, and the records held no rel
 - **`acquiredAt` on `app.atomes.copy` gets its rules.** Quick Add of one Copy and "I bought it" (To Buy, and one Volume in the Volume sheet of the Series page) write today; the Book page lets the reader correct it. Series Onboarding writes none. The field does not change.
 - **No backfill.** `updatedAt` and `createdAt` are the time of a tap; no script copies them into `startedAt`, `finishedAt` or `acquiredAt`.
 - **Sharing.** A reader who shares Reading Statuses publishes `startedAt` with them, as `finishedAt` today. No new collection, so no new OAuth scope and no new sign-in.
+
+## Amendment 2026-11-21: the server runs the repair of shared Works, and opens its data files at the first health check
+
+On production, the owner ran `scripts/repair-shared-works.ts --dry-run` after the deploy, and it stopped: `catalog.sqlite` had not run the one-Work-per-Volume step. The server opened each SQLite file, and ran its migration steps, only at the first request that needed it: the Catalog at the first Catalog request. The health check opened no file, so a migration step that fails would also have passed it.
+
+Decisions of the owner, 2026-11-21:
+
+- **The first health check after a start opens `library.sqlite`, `auth.sqlite` and `catalog.sqlite`,** so every migration step runs before readers need it. It answers 503 when a file cannot open or a step fails, and tries again at its next call. Docker and Coolify call it about 30 s after the start.
+- **Then the server runs the repair of shared Works** (amendment 2026-11-14) itself, after each start, in place of the owner with a script. The repair writes nothing when nothing is left to change, so it needs no "done" mark and no new migration step. It also repairs records on a Work the Catalog drops later. A failed repair is logged; the server still serves readers, and the repair runs again at the next start.
+- The log names the Account and the counts, and the record keys of the Labels to check, never a Label name. `scripts/repair-shared-works.ts --dry-run` stays, to show the names.
+- The safety net is the hourly backup of production (`docs/backups.md`), no longer a backup taken by the owner just before the repair.
+- Rejected: a separate migration command in the Docker `CMD`. Node cannot load the Catalog modules from `src/` with type stripping alone, so it would need its own bundle, as `dist/backup.mjs` has.
+- Rejected: opening the files when the server module loads. The Astro Node adapter has no server-start hook, and the middleware can load lazily.
