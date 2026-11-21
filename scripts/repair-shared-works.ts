@@ -1,8 +1,9 @@
 // Repairs, once, the reader records that name a Work the Catalog dropped
 // because a source gave it to several Volume numbers (ADR 0010, amendment
 // 2026-11-14; src/lib/server/repair-shared-works.ts). Run it after the server
-// with this change has started once (it runs the Catalog step), after a backup
-// of the Library and the Catalog, with --dry-run first. Runs again with no
+// with this change has answered one Catalog request (the Catalog runs its steps
+// then, not at start), after a backup of the Library and the Catalog, with
+// --dry-run first. Runs again with no
 // change. `node scripts/repair-shared-works.ts` in the Docker image, which has
 // Node and no Bun; `bun scripts/repair-shared-works.ts` on a laptop.
 //
