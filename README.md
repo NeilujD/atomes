@@ -76,6 +76,6 @@ Put an HTTPS reverse proxy in front of it (Coolify, Caddy, Traefik): sign-in nee
 | `HOST` | `0.0.0.0` | Address the server listens on. |
 | `DATA_DIR` | `/data` | Folder for all saved state: `catalog.sqlite`, `library.sqlite` (readers' Private records) and `auth.sqlite` (sign-in sessions). Mount a persistent volume here. |
 
-- Health check: `GET /health` answers `200`. The image has a Docker `HEALTHCHECK` that calls it with `wget`.
+- Health check: `GET /health` opens `library.sqlite`, `auth.sqlite` and `catalog.sqlite`, so their migration steps run, then answers `200`; `503` when a file cannot open, a step fails or a setting is wrong (the log says why). The first one after a start also repairs reader records that name a Work the Catalog dropped ([ADR 0010](docs/adr/0010-library-records-and-catalog-identifiers.md), amendment 2026-11-21). The image has a Docker `HEALTHCHECK` that calls it with `wget`.
 - The server runs as user `node` (uid 1000). A named volume works as is; a host folder must be writable by uid 1000.
 - The image holds no secrets: give every setting at run time.
