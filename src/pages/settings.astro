@@ -3,6 +3,7 @@ import Icon from '../components/Icon.astro';
 import type { IconName } from '../components/icons';
 import Sharing from '../islands/Sharing';
 import AppShell from '../layouts/AppShell.astro';
+import { version } from '../../package.json';
 import { languageCookie, parseLanguage, requestLanguage, translator } from '../lib/i18n/i18n';
 
 const t = translator(requestLanguage(Astro.request));
@@ -256,6 +257,8 @@ const pickers: { name: string; label: string; checked: string; options: { value:
         </form>
       </dialog>
     </section>
+    <!-- The version of this server (package.json): set by each release (README, "Releasing"). -->
+    <p class="version">{t('settings.version', version)}</p>
   </div>
 </AppShell>
 
@@ -534,6 +537,12 @@ const pickers: { name: string; label: string; checked: string; options: { value:
     display: flex;
     flex-direction: column;
     gap: var(--space-28);
+  }
+
+  .version {
+    margin: 0;
+    color: var(--text-quiet);
+    font-size: var(--type-small);
   }
 
   .group {
