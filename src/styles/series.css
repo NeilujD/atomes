@@ -15,7 +15,8 @@
   /* The halo and the blobs spread past the page into the panel's padding, never past the panel. */
   overflow: clip;
   overflow-clip-margin: var(--space-20);
-  max-width: var(--page-width);
+  max-width: var(--page-wide);
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-24);
@@ -527,6 +528,82 @@ li.series-label-chip {
 
   .series-sheet-body {
     padding: var(--space-24);
+  }
+}
+
+/*
+ * A wide panel: the cover at the left; beside it the text, with "Where you
+ * stand" and "Missing Volumes" side by side; under them the Volumes as wide as
+ * the page. The head and its text give their parts to this grid, so the order
+ * of the markup (and of the phone) stays. The last head row takes the rest of
+ * the cover's height, so the text rows keep their own. The loaded page only:
+ * the skeleton has no tone.
+ */
+@media (min-width: 1280px) {
+  .series[data-tone] {
+    display: grid;
+    grid-template-columns: var(--series-cover) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: repeat(6, auto) 1fr;
+    grid-template-areas:
+      'cover tags tags'
+      'cover title title'
+      'cover authors authors'
+      'cover standing missing'
+      'cover actions actions'
+      'cover labels labels'
+      'cover . .';
+    gap: var(--space-10) var(--space-24);
+  }
+
+  .series[data-tone] > * {
+    grid-column: 1 / -1;
+  }
+
+  .series[data-tone] :is(.series-head, .series-text) {
+    display: contents;
+  }
+
+  .series[data-tone] .series-stage {
+    grid-area: cover;
+  }
+
+  .series[data-tone] .series-tags {
+    grid-area: tags;
+  }
+
+  .series[data-tone] .series-title {
+    grid-area: title;
+  }
+
+  .series[data-tone] .series-authors {
+    grid-area: authors;
+  }
+
+  .series[data-tone] .series-standing {
+    grid-area: standing;
+  }
+
+  .series[data-tone] > .series-missing {
+    grid-area: missing;
+    margin-top: var(--space-6);
+  }
+
+  /* Nothing missing: "Where you stand" takes both columns. */
+  .series[data-tone]:not(:has(> .series-missing)) .series-standing {
+    grid-column: standing-start / missing-end;
+  }
+
+  .series[data-tone] .series-actions {
+    grid-area: actions;
+  }
+
+  .series[data-tone] .series-labels {
+    grid-area: labels;
+  }
+
+  /* The flex gap of the page between its parts, over the row gap of the grid. */
+  .series[data-tone] > :is(.series-switch, .series-volumes) {
+    margin-top: var(--space-14);
   }
 }
 

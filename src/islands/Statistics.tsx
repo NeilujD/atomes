@@ -131,7 +131,7 @@ export function Statistics({ sources }: { sources: Sources }) {
         />
       )}
 
-      <div class="stats-pair">
+      <div class="stats-parts">
         {ranked && <MostRead numbers={numbers} dimension={dimension} onDimension={setDimension} />}
         <RankedBars
           title={t('stats.library-today')}
@@ -141,27 +141,27 @@ export function Statistics({ sources }: { sources: Sources }) {
           note={t('stats.owned-line', numbers.owned.copies, numbers.owned.series, numbers.owned.readNotOwned)}
           format={format}
         />
-      </div>
 
-      <section class="stats-loans" aria-labelledby="stats-loans">
-        <h2 class="small-heading" id="stats-loans">
-          {t('stats.loans')}
-        </h2>
-        <dl class="card stats-numbers">
-          <div>
-            <dt>{t('stats.lent-now')}</dt>
-            <dd>{format(numbers.loans.lentNow)}</dd>
-          </div>
-          <div>
-            <dt>{year ? t('stats.loans-in', year) : t('stats.loans-all')}</dt>
-            <dd>{format(numbers.loans.started)}</dd>
-          </div>
-          <div>
-            <dt>{t('stats.average-days')}</dt>
-            <dd>{numbers.loans.averageDays === null ? t('stats.no-average') : format(numbers.loans.averageDays)}</dd>
-          </div>
-        </dl>
-      </section>
+        <section class="stats-loans" aria-labelledby="stats-loans">
+          <h2 class="small-heading" id="stats-loans">
+            {t('stats.loans')}
+          </h2>
+          <dl class="card stats-numbers">
+            <div>
+              <dt>{t('stats.lent-now')}</dt>
+              <dd>{format(numbers.loans.lentNow)}</dd>
+            </div>
+            <div>
+              <dt>{year ? t('stats.loans-in', year) : t('stats.loans-all')}</dt>
+              <dd>{format(numbers.loans.started)}</dd>
+            </div>
+            <div>
+              <dt>{t('stats.average-days')}</dt>
+              <dd>{numbers.loans.averageDays === null ? t('stats.no-average') : format(numbers.loans.averageDays)}</dd>
+            </div>
+          </dl>
+        </section>
+      </div>
 
       {numbers.undated.reads + numbers.undated.copies > 0 && (
         <p class="stats-undated">
