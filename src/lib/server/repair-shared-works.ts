@@ -124,7 +124,7 @@ export function repairSharedWorks(dataDir: string, options: { dryRun: boolean })
   let dropped: Set<string>;
   let workOf: (isbn: string) => string | undefined;
   try {
-    if (!hasTable(catalog, 'dropped_work')) throw new Error(`${catalogFile} has not run the one-Work-per-Volume step: start the new server once first.`);
+    if (!hasTable(catalog, 'dropped_work')) throw new Error(`${catalogFile} has not run the one-Work-per-Volume step. The server runs the Catalog steps at the first Catalog request, not at start: open a book in the app, or run "wget -q -O /dev/null http://127.0.0.1:4321/api/catalog/editions/9782723478991", then run this again.`);
     dropped = new Set((catalog.prepare('select work_id from dropped_work').all() as { work_id: string }[]).map((row) => row.work_id));
     const works = new Map(
       (catalog.prepare('select isbn, work_id from edition').all() as { isbn: string; work_id: string }[]).map((row) => [row.isbn, row.work_id]),

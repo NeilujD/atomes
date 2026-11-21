@@ -215,7 +215,7 @@ The command refuses production without `--production`, and refuses an image with
 
 ## Repair records on shared Works (once, CORE-93)
 
-Inventaire gave one Work to 19 Volumes of Dragon Ball, so one Copy owned them all and one Reading Status changed them all (ADR 0010, amendment 2026-11-14). The server now drops such a Work: when it starts, the Catalog step does it for the Editions it holds. Reader records saved before still name the dropped Work. `scripts/repair-shared-works.ts` repairs them once:
+Inventaire gave one Work to 19 Volumes of Dragon Ball, so one Copy owned them all and one Reading Status changed them all (ADR 0010, amendment 2026-11-14). The server now drops such a Work: a Catalog step does it for the Editions it holds. The server runs the Catalog steps when it opens `catalog.sqlite`, at the first Catalog request after a start, not at the start itself. Reader records saved before still name the dropped Work. `scripts/repair-shared-works.ts` repairs them once:
 
 - A Reading Status moves to the Work of the Edition read (`isbn:<isbn>`): the new record is put, the old one deleted. If a newer Reading Status is already there, it stays.
 - A Copy's dropped Work becomes the Work of the Copy's Edition.
@@ -224,7 +224,13 @@ Inventaire gave one Work to 19 Volumes of Dragon Ball, so one Copy owned them al
 
 Devices get the changes at their next sync. A reader with a Shared category is marked pending: the public repo follows at their next record change, Settings visit or sign-in, and the old Reading Status is deleted there.
 
-1. Deploy the version with the rule, and wait for the health check: the Catalog step runs when the server starts.
+1. Deploy the version with the rule, and wait for the health check. The health check does not open the Catalog: open a book in the app, or run this in the app **Terminal**:
+
+   ```sh
+   wget -q -O /dev/null http://127.0.0.1:4321/api/catalog/editions/9782723478991
+   ```
+
+   Any ISBN works, signed out too. Without this step, the repair stops with "has not run the one-Work-per-Volume step".
 2. Take a backup first: `node dist/backup.mjs backup` (`docs/backups.md`).
 3. In the app, open **Terminal**, pick the app container, and run:
 
