@@ -14,14 +14,16 @@ Needs Node 22.23.4+ (exact version in `.nvmrc`; Astro 7 needs at least 22.23.4) 
 - `bun scripts/invite.ts` — print one Invite link (works once, 14 days; ADR 0016). A new Account needs one (`SIGN_UP=invite`, the default). The server must have started once. On Coolify: `node scripts/invite.ts` in the app Terminal.
 - `bun scripts/role.ts grant|revoke <email address or DID>`, `bun scripts/role.ts list` — the Admin role (ADR 0020): the first Admin comes from here. Grants only to an Account that exists, makes none; can revoke the last Admin, with a warning. The server must have started once. On Coolify: `node scripts/role.ts …` in the app Terminal. An Admin opens the admin panel at `/admin` (a link in Settings); anyone else gets a 404.
 - `bun scripts/record-catalog-answers.ts <isbn>…` — ask the real book sources and save their answers in `src/lib/catalog/fixtures/` for the Catalog tests
+- `node scripts/release.ts prepare --dry-run` — print the release PR the bot would make now (title, Before you deploy steps, notes); needs `gh` signed in. The Release workflow runs `prepare` after each merge to `main` and `publish-notes` when the release PR merges (README, "Releasing").
+- `scripts/setup-release-token.sh` — interactive wizard: make the `RELEASE_TOKEN` fine-grained token and save it as a GitHub secret. Run it again to renew the token.
 - `bun run landing-shots` — remake the app screenshots of the Landing page in `public/landing/<en|fr>/` (Home, Library, Series, Shelf Check owned and not owned, To Buy, Statistics; 390 and 1440 px, light and dark, English and French; WebP), then the share preview `preview.jpg` of each language (1200 × 630, the top of `/welcome`; `--preview` makes only these two, in about 30 s). It starts its own dev server on port 4330 (`LANDING_PORT`) on the real book sources with an empty `data-landing/`, fills a demo Library of manga, comic books and novels with their real covers (a book whose cover does not load is left out; `--probe` only lists which books have one), and fails when the browser asks another host. About 12 minutes, with network. Run it again when a screen it shows changes.
 - `CATALOG_SOURCES=recorded DATA_DIR=data-e2e bun run dev` — dev server whose Catalog answers from these recorded answers, with no network (E2E and agent tests). Recorded ISBNs: `src/lib/catalog/fixtures/README.md` (9782723478991 is One Piece 56; 9791099999993 is unknown to every source). Any other ISBN is unknown, and there is no cover. Keep the separate `DATA_DIR`: a `catalog.sqlite` filled from recorded answers must not mix with the real local Catalog. A built server ignores the setting.
 
 `jean.json`: in each new worktree, Jean copies the `.env*` files of the base project (`$JEAN_ROOT_PATH`, top level only) and runs `bun install --frozen-lockfile`. Its Run command is `bun run dev`.
 
-CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Its `e2e` job runs `bun run test:e2e`, then, on a pull request, each new or changed `e2e/*.spec.ts` once more with `E2E_SLOW_SCRIPTS=300`; it keeps the traces of failed tests as the `playwright-traces` artifact. It is a required check of `protect-main`. Its `image` job builds the `Dockerfile` and waits for the container health check. Tests must never call a real PDS or a real book source (the Catalog tests use recorded answers). The Catalog stores its SQLite file in `DATA_DIR` (`data/` in development).
+CI (`.github/workflows/ci.yml`) runs install, check, lint, test and build on every pull request, with no secrets. Its `e2e` job runs `bun run test:e2e`, then, on a pull request, each new or changed `e2e/*.spec.ts` once more with `E2E_SLOW_SCRIPTS=300`; it keeps the traces of failed tests as the `playwright-traces` artifact. It is a required check of `protect-main`, as is `pr-title` (`.github/workflows/pr-title.yml`). Its `image` job builds the `Dockerfile` and waits for the container health check. Tests must never call a real PDS or a real book source (the Catalog tests use recorded answers). The Catalog stores its SQLite file in `DATA_DIR` (`data/` in development).
 
-`main` is protected by the GitHub ruleset `protect-main`: direct pushes, force pushes and deletion are refused, and a pull request merges only when the CI `check` and `e2e` jobs are green. Never merge without the owner's review.
+`main` is protected by the GitHub ruleset `protect-main`: direct pushes, force pushes and deletion are refused, and a pull request merges only when the CI `check` and `e2e` jobs and the `pr-title` check are green, by squash only. `production` (the branch production deploys from) refuses deletion and force pushes. Never merge without the owner's review.
 
 ## Agent skills
 
@@ -44,6 +46,13 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 ### Pull requests
 
 Write every pull request body with the `mattpocock-skills:pr` skill: sections Summary, Evidence, Merge Danger, in the words of `GLOSSARY.md`. Use it for new pull requests and when you rewrite a pull request body.
+
+Releases come from PR titles and bodies (README "Releasing", `scripts/release.ts`):
+
+- **Title:** Conventional Commit with the milestone or ticket as scope: `feat(M14): …` (minor), `fix(CORE-123): …` (patch), `perf:` / `refactor:` (patch), `!` after the type (major). `docs:`, `ci:`, `chore:`, `test:`, `build:`, `style:`, `revert:` stay out of the notes. The required `pr-title` check refuses any other title.
+- **Body:** after Summary, Evidence, Merge Danger, always end with `## Release notes`: text for readers, in the words of `GLOSSARY.md`; `none` when readers see no change. A breaking change needs `### Migration`. A step on production before the deploy (a Coolify setting, a script) goes in `### Before you deploy`.
+- **Check before opening:** `PR_TITLE='…' PR_BODY="$(cat body.md)" PR_HEAD=<branch> node scripts/release.ts check-pr`.
+- **Merge:** squash only. Never change the bot's `chore(release): vX.Y.Z` PR by hand, except its highlights block. Merging it deploys production.
 
 ### UI
 

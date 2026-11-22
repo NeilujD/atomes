@@ -218,6 +218,7 @@ Ce que cette instance garde : ${privacy}`,
   'settings.export-hint': 'Un fichier JSON avec chaque enregistrement de votre bibliothèque, prêts compris.',
   'settings.delete': 'Supprimer mon compte',
   'settings.delete-hint': 'Efface votre bibliothèque et votre compte de cette instance. C’est définitif.',
+  'settings.version': (version: string) => `Version ${version}`,
   'settings.delete-failed': 'Votre compte n’a pas pu être supprimé. Vérifiez le réseau, puis réessayez.',
   'delete.title': 'Supprimer votre compte ?',
   'delete.text':
