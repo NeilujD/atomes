@@ -220,6 +220,7 @@ What this instance keeps: ${privacy}`,
   'settings.export-hint': 'One JSON file with every record of your Library, Loans included.',
   'settings.delete': 'Delete my account',
   'settings.delete-hint': 'Removes your Library and your Account from this instance. It cannot be undone.',
+  'settings.version': (version: string) => `Version ${version}`,
   'settings.delete-failed': 'Your account could not be deleted. Check the network, then try again.',
   'delete.title': 'Delete your account?',
   'delete.text':

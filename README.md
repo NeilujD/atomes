@@ -79,3 +79,16 @@ Put an HTTPS reverse proxy in front of it (Coolify, Caddy, Traefik): sign-in nee
 - Health check: `GET /health` opens `library.sqlite`, `auth.sqlite` and `catalog.sqlite`, so their migration steps run, then answers `200`; `503` when a file cannot open, a step fails or a setting is wrong (the log says why). The first one after a start also repairs reader records that name a Work the Catalog dropped ([ADR 0010](docs/adr/0010-library-records-and-catalog-identifiers.md), amendment 2026-11-21). The image has a Docker `HEALTHCHECK` that calls it with `wget`.
 - The server runs as user `node` (uid 1000). A named volume works as is; a host folder must be writable by uid 1000.
 - The image holds no secrets: give every setting at run time.
+
+## Releasing
+
+Releases are automated (`.github/workflows/release.yml`, `scripts/release.ts`). A release deploys production.
+
+1. **PR title** is a Conventional Commit, with the milestone or the Linear ticket as scope. It sets the version bump: `feat(M14): …` gives New (minor), `fix(CORE-123): …` gives Fix (patch), `perf:` and `refactor:` give Improvement (patch), `!` after the type or a `BREAKING CHANGE:` line gives Breaking change (major). `docs:`, `ci:`, `chore:`, `test:`, `build:`, `style:` and `revert:` stay out of the notes. The `pr-title` check enforces it.
+2. **`## Release notes`** at the end of the PR body is the text for readers (`.github/pull_request_template.md`). Write `none` to keep the PR out of the notes; leave it empty to use the title only. A breaking change needs a `### Migration` part. A step on production before the deploy (a Coolify setting, a script) goes in a `### Before you deploy` part: it goes to the release PR, not to the notes.
+3. PRs are **squash merged**. After each merge to `main`, a bot opens or updates the release PR `chore(release): vX.Y.Z` (branch `release/next`): the next version in `package.json`, the **Before you deploy** steps of the merged PRs, and the notes. Write an optional intro between its highlights markers; do not change the rest by hand.
+4. **Merging the release PR** tags the commit `vX.Y.Z`, publishes the GitHub Release, then pushes the commit to the `production` branch, which the production Coolify app follows (`docs/staging-coolify.md`, step 12). Do the **Before you deploy** steps first. Settings and the start log show the version.
+
+Set-up, once: a fine-grained token (this repository only; Contents and Pull requests: read and write) in the `RELEASE_TOKEN` secret, so CI runs on the release PR. Run `scripts/setup-release-token.sh`: it walks you through it, checks the token and saves the secret. Run it again to renew the token before it expires.
+
+The first release, v1.0.0, is a release PR made by hand: before it, there is no tag and no release commit, and the bot says "No release yet".

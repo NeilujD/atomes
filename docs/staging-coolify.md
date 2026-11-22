@@ -154,6 +154,23 @@ There is no health check to set: Coolify uses the image's `HEALTHCHECK` (`GET /h
 
 Coolify builds on the push, not on the CI result. `protect-main` only merges a pull request whose CI `check` job is green, so what Coolify builds has passed CI.
 
+## 12. Production follows the `production` branch
+
+The production app is a second Coolify app on the same repository, set up with these steps (its own hostname, settings and volume, no previews). It does not follow `main`: it follows the `production` branch, and only a release moves that branch (README, "Releasing"). Merging the release PR `chore(release): vX.Y.Z` tags the commit, publishes the GitHub Release, then pushes the commit to `production` with a fast-forward push. Coolify gets the push from the GitHub App and deploys it, as staging does for `main` ([auto deploy](https://coolify.io/docs/applications/sources/github/auto-deploy)).
+
+Set it up once, before the first release PR is merged:
+
+1. Make the branch at the commit production runs now: in the production app's **Deployments**, copy the commit of the last good deployment, then run `git push origin <commit>:refs/heads/production` on your laptop. The commit must be on `main`, or the release push fails: with no other commit, use the current `main`.
+2. In the production app, **Configuration > Git Source**: set the branch to `production`, then **Save** ([Git source](https://coolify.io/docs/applications/sources/github/switch-apps)).
+3. **Advanced > Deployment > Auto deploy** stays **Deploy on push (webhooks)**.
+4. Select **Redeploy** once and check in **Deployments** that Coolify clones `production` at that commit.
+
+After each release, the start log in **Logs** names the version: `Atomes settings are fine: production, version X.Y.Z, …`; Settings shows it at the bottom of the page.
+
+Before you merge a release PR, do the steps of its **Before you deploy** section on production (a new setting, a backup, a script): the merge deploys at once.
+
+Never push to `production` by hand after the set-up: the next release push then fails. To deploy an older version, open a PR on `main` that reverts the change: it goes out with the next release.
+
 ## Check the acceptance criteria
 
 1. **HTTPS and settings.** From your Mac:
