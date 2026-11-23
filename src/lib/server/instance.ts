@@ -15,6 +15,7 @@ import { devOutbox, smtpSender, type SendMail } from './mail';
 import { openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
 import { createOAuthClient, oauthPort, repoAccess } from './oauth';
+import { createRoles, type Roles } from './roles';
 import { secretBox } from './secret-box';
 import { settings } from './settings';
 import { createSharing, logFailure, type Sharing } from './sharing';
@@ -22,6 +23,7 @@ import { createSignInCodes } from './sign-in-codes';
 
 let library: LibraryStore | undefined;
 let accounts: Accounts | undefined;
+let roles: Roles | undefined;
 let sharing: Promise<Sharing> | undefined;
 let auth: Promise<AuthDeps & { client: NodeOAuthClient }> | undefined;
 let migrated: string | undefined;
@@ -63,10 +65,19 @@ export function accountStore(): Accounts {
   return accounts;
 }
 
+// The Admin role (ADR 0020), in `library.sqlite`.
+export function roleStore(): Roles {
+  roles ??= createRoles(open('library.sqlite'));
+  return roles;
+}
+
+// A new connection to `library.sqlite`, for a store of another module (admin-instance.ts).
+export const libraryDatabase = () => open('library.sqlite');
+
 export function authDeps(): Promise<AuthDeps & { client: NodeOAuthClient }> {
   auth ??= (async () => {
     const { appOrigin, sessionKey } = settings();
-    const store = createAuthStore({ db: open('auth.sqlite'), box: secretBox(sessionKey) });
+    const store = createAuthStore({ db: open('auth.sqlite'), box: secretBox(sessionKey), seen: (account) => accountStore().seen(account) });
     const client = await createOAuthClient(settings(), store);
     // Signed in again: send what waited for the session (sharing.ts).
     const onSignedIn = (account: AccountId) =>

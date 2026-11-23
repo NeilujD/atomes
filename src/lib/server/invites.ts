@@ -1,8 +1,9 @@
 // Invites (ADR 0016, "Who may sign up"): with SIGN_UP=invite, a new Account
 // needs one. An Invite works once and for 14 days. `library.sqlite` keeps only
 // the SHA-256 hash of its token; a lookup by hash compares no secret in code.
-// The owner makes them with `scripts/invite.ts`, with no limit; a reader makes
-// them in Settings, with a limit (CORE-134).
+// The operator makes them with `scripts/invite.ts` and an Admin in the admin
+// panel (admin-store.ts), with no limit; a reader makes them in Settings,
+// with a limit (CORE-134). An Invite keeps its origin (ADR 0020).
 // `scripts/invite.ts` runs this file with Node alone (type stripping), so no
 // import outside `node:`.
 import { createHash, randomBytes } from 'node:crypto';
@@ -12,14 +13,32 @@ export const inviteLifetimeMs = 14 * 24 * 3600 * 1000;
 
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 
+// Who made an Invite (ADR 0020): a reader in Settings, an Admin in the admin
+// panel, or the script. The limit of a reader counts reader Invites only.
+export type InviteOrigin = 'reader' | 'admin' | 'script';
+
 // `db` is a library.sqlite that has run librarySteps (migrations.ts). Gives the
-// token, which only the Invite link holds. `madeBy`: the Account of the reader
-// who made it; none for the owner script.
-export function makeInvite(db: DatabaseSync, now = Date.now(), madeBy: string | null = null): { token: string; expiresAt: number } {
+// token, which only the Invite link holds. `madeBy`: the Account that made it;
+// none for the script. `panel`: an Admin made it in the admin panel, with an
+// optional label; else an Invite with a maker is a reader Invite.
+export function makeInvite(
+  db: DatabaseSync,
+  now = Date.now(),
+  madeBy: string | null = null,
+  panel?: { label: string | null },
+): { token: string; id: string; expiresAt: number } {
   const token = randomBytes(32).toString('base64url');
+  const id = hash(token);
   const expiresAt = now + inviteLifetimeMs;
-  db.prepare('insert into invite (token_hash, expires_at, made_by) values (?, ?, ?)').run(hash(token), expiresAt, madeBy);
-  return { token, expiresAt };
+  const origin: InviteOrigin = panel ? 'admin' : madeBy === null ? 'script' : 'reader';
+  db.prepare('insert into invite (token_hash, expires_at, made_by, origin, label) values (?, ?, ?, ?, ?)').run(
+    id,
+    expiresAt,
+    madeBy,
+    origin,
+    panel?.label ?? null,
+  );
+  return { token, id, expiresAt };
 }
 
 // The Invite of a reader, as Settings shows it. `used` once a person made an
@@ -28,8 +47,10 @@ export function makeInvite(db: DatabaseSync, now = Date.now(), madeBy: string | 
 export type ReaderInvite = { state: 'none' } | { state: 'open'; expiresAt: number } | { state: 'used' };
 
 export function readerInvite(db: DatabaseSync, account: string, now = Date.now()): ReaderInvite {
-  if (db.prepare('select 1 from invite where made_by = ? and used_at is not null').get(account)) return { state: 'used' };
-  const { expiresAt } = db.prepare('select max(expires_at) as expiresAt from invite where made_by = ? and used_at is null and expires_at > ?').get(account, now) as {
+  if (db.prepare("select 1 from invite where made_by = ? and origin = 'reader' and used_at is not null").get(account)) return { state: 'used' };
+  const { expiresAt } = db
+    .prepare("select max(expires_at) as expiresAt from invite where made_by = ? and origin = 'reader' and used_at is null and expires_at > ?")
+    .get(account, now) as {
     expiresAt: number | null;
   };
   return expiresAt === null ? { state: 'none' } : { state: 'open', expiresAt };
@@ -44,7 +65,7 @@ export function makeReaderInvite(db: DatabaseSync, account: string, now = Date.n
   try {
     let made: { token: string; expiresAt: number } | undefined;
     if (readerInvite(db, account, now).state !== 'used') {
-      db.prepare('delete from invite where made_by = ? and used_at is null').run(account);
+      db.prepare("delete from invite where made_by = ? and origin = 'reader' and used_at is null").run(account);
       made = makeInvite(db, now, account);
     }
     db.exec('commit');

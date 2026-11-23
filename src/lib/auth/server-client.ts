@@ -61,8 +61,8 @@ export function serverAuthClient(deps: ServerClientDeps): AuthClient {
         return undefined;
       }
       if (!response.ok) throw new Error(`HTTP ${response.status} for /api/session`);
-      const { id, handle, email, atproto } = (await response.json()) as Account;
-      const account: Account = { id, handle, email, atproto };
+      const { id, handle, email, atproto, admin } = (await response.json()) as Account;
+      const account: Account = { id, handle, email, atproto, admin };
       // First answer with an Account on a device of before Accounts: the local
       // copy, the write queue and the sync state move from the DID key, once,
       // before any store opens, then the new shape is saved (ADR 0016).

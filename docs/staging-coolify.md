@@ -154,6 +154,23 @@ There is no health check to set: Coolify uses the image's `HEALTHCHECK` (`GET /h
 
 Coolify builds on the push, not on the CI result. `protect-main` only merges a pull request whose CI `check` job is green, so what Coolify builds has passed CI.
 
+## 12. Production follows the `production` branch
+
+The production app is a second Coolify app on the same repository, set up with these steps (its own hostname, settings and volume, no previews). It does not follow `main`: it follows the `production` branch, and only a release moves that branch (README, "Releasing"). Merging the release PR `chore(release): vX.Y.Z` tags the commit, publishes the GitHub Release, then pushes the commit to `production` with a fast-forward push. Coolify gets the push from the GitHub App and deploys it, as staging does for `main` ([auto deploy](https://coolify.io/docs/applications/sources/github/auto-deploy)).
+
+Set it up once, before the first release PR is merged:
+
+1. Make the branch at the commit production runs now: in the production app's **Deployments**, copy the commit of the last good deployment, then run `git push origin <commit>:refs/heads/production` on your laptop. The commit must be on `main`, or the release push fails: with no other commit, use the current `main`.
+2. In the production app, **Configuration > Git Source**: set the branch to `production`, then **Save** ([Git source](https://coolify.io/docs/applications/sources/github/switch-apps)).
+3. **Advanced > Deployment > Auto deploy** stays **Deploy on push (webhooks)**.
+4. Select **Redeploy** once and check in **Deployments** that Coolify clones `production` at that commit.
+
+After each release, the start log in **Logs** names the version: `Atomes settings are fine: production, version X.Y.Z, …`; Settings shows it at the bottom of the page.
+
+Before you merge a release PR, do the steps of its **Before you deploy** section on production (a new setting, a backup, a script): the merge deploys at once.
+
+Never push to `production` by hand after the set-up: the next release push then fails. To deploy an older version, open a PR on `main` that reverts the change: it goes out with the next release.
+
 ## Check the acceptance criteria
 
 1. **HTTPS and settings.** From your Mac:
@@ -213,35 +230,25 @@ To reset: open the staging app, **Scheduled Tasks**, **Reset the data**, then **
 
 The command refuses production without `--production`, and refuses an image with no `APP_ENV`: such an instance may be production with a missing setting.
 
-## Repair records on shared Works (once, CORE-93)
+## Repair records on shared Works (CORE-93)
 
-Inventaire gave one Work to 19 Volumes of Dragon Ball, so one Copy owned them all and one Reading Status changed them all (ADR 0010, amendment 2026-11-14). The server now drops such a Work: a Catalog step does it for the Editions it holds. The server runs the Catalog steps when it opens `catalog.sqlite`, at the first Catalog request after a start, not at the start itself. Reader records saved before still name the dropped Work. `scripts/repair-shared-works.ts` repairs them once:
+Inventaire gave one Work to 19 Volumes of Dragon Ball, so one Copy owned them all and one Reading Status changed them all (ADR 0010, amendment 2026-11-14). The Catalog now drops such a Work. Reader records saved before still name the dropped Work, and the server repairs them by itself (ADR 0010, amendment 2026-11-21):
 
+- After each start, the first health check (`GET /health`, about 30 s after the start) opens the three data files, so every migration step runs, then runs the repair (`src/lib/server/start-up.ts`).
 - A Reading Status moves to the Work of the Edition read (`isbn:<isbn>`): the new record is put, the old one deleted. If a newer Reading Status is already there, it stays.
 - A Copy's dropped Work becomes the Work of the Copy's Edition.
-- A Label that names a dropped Work is **listed, not changed**: change it by hand in the app.
-- A Work kept Private that was dropped is listed too. Each Reading Status moved from it stays Private on its new Work.
+- A Label that names a dropped Work is **listed, not changed**. A Work kept Private that was dropped is listed too; each Reading Status moved from it stays Private on its new Work.
+- When nothing is left to repair, it writes nothing and logs nothing.
 
 Devices get the changes at their next sync. A reader with a Shared category is marked pending: the public repo follows at their next record change, Settings visit or sign-in, and the old Reading Status is deleted there.
 
-1. Deploy the version with the rule, and wait for the health check. The health check does not open the Catalog: open a book in the app, or run this in the app **Terminal**:
+What you do:
 
-   ```sh
-   wget -q -O /dev/null http://127.0.0.1:4321/api/catalog/editions/9782723478991
-   ```
+1. Deploy. Production has a backup every hour (`docs/backups.md`); take one more before the deploy if you want: open the backup **Scheduled Task** and select **Execute now**.
+2. In the app's **Logs**, look for `Repair of shared Works, Account …` lines: the counts per record type, and the record keys of the Labels to check. The log holds no Label name. A `Repair of shared Works failed` line means the repair stopped; the app still works and the repair runs again at the next start.
+3. To see the names of the listed Labels, run `node scripts/repair-shared-works.ts --dry-run` in the app **Terminal**. It writes nothing. Each reader fixes their own Labels in the app.
 
-   Any ISBN works, signed out too. Without this step, the repair stops with "has not run the one-Work-per-Volume step".
-2. Take a backup first: `node dist/backup.mjs backup` (`docs/backups.md`).
-3. In the app, open **Terminal**, pick the app container, and run:
-
-   ```sh
-   node scripts/repair-shared-works.ts --dry-run   # prints what it would do, writes nothing
-   node scripts/repair-shared-works.ts             # writes
-   ```
-
-4. Read the output: for each reader (DID), the counts per record type, then each Label and Private Work listed. Fix the listed Labels in the app.
-
-Run it when nobody is using the app: it writes `library.sqlite` beside the running server. It is safe to run again: a second run changes nothing and lists the same Labels.
+If the health check answers 503, the deployment log says why (`Start-up failed: …`): a data file did not open or a migration step failed. Nothing was repaired then.
 
 Devices keep Catalog answers offline (`src/lib/catalog/device.ts`): Shelf Check offline may show the old Work until the device keeps fresh answers, which it does online.
 

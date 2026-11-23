@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { runInThisContext } from 'node:vm';
 import { describe, expect, test } from 'vitest';
-import { fliesHome, pageTransitionScript, transitionDirection, type Trip } from './page-transition';
+import { fliesHome, pageTransitionScript, sameScreen, transitionDirection, type Trip } from './page-transition';
 
 describe('transitionDirection', () => {
   test.each([
@@ -38,6 +38,20 @@ describe('fliesHome', () => {
 
   test('not with no trip', () => {
     expect(fliesHome(null, trip.book, '/library')).toBe(false);
+  });
+});
+
+describe('sameScreen', () => {
+  test('two parts of the admin panel, or its filter, are one screen: no transition between them', () => {
+    expect(sameScreen('/admin', '/admin?part=invites')).toBe(true);
+    expect(sameScreen('/admin?part=log', '/admin?part=accounts&flagged=1')).toBe(true);
+  });
+
+  test('two screens, and a Book or a Series to another one, keep their transition', () => {
+    expect(sameScreen('/settings', '/admin')).toBe(false);
+    expect(sameScreen('/admin?part=log', '/library')).toBe(false);
+    expect(sameScreen('/book?work=wd%3AQ1', '/book?work=wd%3AQ2')).toBe(false);
+    expect(sameScreen('/series?isbn=9782723478991', '/series?isbn=9782723488525')).toBe(false);
   });
 });
 

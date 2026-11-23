@@ -56,7 +56,7 @@ docker run -d --name atomes -p 4321:4321 -v atomes-data:/data \
   -e MAIL_FROM='Atomes <atomes@example.org>' atomes
 ```
 
-The container stops at start, with a message that names each problem, when a required setting is missing or wrong. How to make the two keys: [docs/staging-coolify.md](docs/staging-coolify.md), step 8. Then make an Invite for each reader: `docker exec atomes node scripts/invite.ts` prints a link that works once and for 14 days.
+The container stops at start, with a message that names each problem, when a required setting is missing or wrong. How to make the two keys: [docs/staging-coolify.md](docs/staging-coolify.md), step 8. Then make an Invite for each reader: `docker exec atomes node scripts/invite.ts` prints a link that works once and for 14 days. To manage Invites and Accounts in the app, give your Account the Admin role once it exists: `docker exec atomes node scripts/role.ts grant <your email address or DID>` (also `revoke` and `list`; [ADR 0020](docs/adr/0020-admin-role-and-admin-panel.md)). The admin panel is then at `/admin`, linked from Settings.
 
 Put an HTTPS reverse proxy in front of it (Coolify, Caddy, Traefik): sign-in needs the app on its https origin. The project's own staging runs on Coolify ([ADR 0011](docs/adr/0011-project-instances-run-on-self-hosted-coolify.md)): [docs/staging-coolify.md](docs/staging-coolify.md).
 
@@ -66,7 +66,7 @@ Put an HTTPS reverse proxy in front of it (Coolify, Caddy, Traefik): sign-in nee
 | `SIGN_UP` | `invite` | Who may make an Account. `invite`: only with an Invite (`node scripts/invite.ts`); a reader who has an Account signs in with no Invite, others see "You need an Invite" and the instance keeps nothing for them. `open` is not built yet: the server refuses to start with it. |
 | `PREVIEW_ACCOUNT_EMAIL` | not set | On a Coolify pull request preview only: one email address. At start, the server makes an Account with it if none has it, so the owner signs in there with a Sign-in Code and no Invite. Staging and production ignore it, but a preview gets the staging variables: set it on staging. |
 | `LANDING_PAGE` | `off` | `on`: a visitor with no session who opens the instance sees the Landing page at `/welcome` (what Atomes is, the AT Protocol, self-hosting, credits). `off`: `/welcome` answers 404 and the instance opens on sign-in. A reader with a saved Account always opens Home. Any other value stops the start. |
-| `LEGAL_PUBLISHER`, `LEGAL_CONTACT`, `LEGAL_HOST` | not set | The Legal notice at `/legal`, which French law asks of a public site: who publishes the instance (a name), how to reach them (an email address), and the host's company name, postal address and phone. `LEGAL_PUBLISHER` and `LEGAL_CONTACT` also name the operator and the contact in the Privacy notice at `/privacy`. Shown as given, in both languages. A missing one shows as "not given yet" on the page; the start does not stop. |
+| `LEGAL_PUBLISHER`, `LEGAL_CONTACT`, `LEGAL_HOST` | not set | The Legal notice at `/legal`, which French law asks of a public site: who publishes the instance (a name), how to reach them (an email address), and the host's company name, postal address and phone. `LEGAL_PUBLISHER` and `LEGAL_CONTACT` also name the operator and the contact in the Privacy notice at `/privacy`. Shown as given, in both languages. A missing one shows as "not given yet" on the page; the start does not stop. With no `LEGAL_CONTACT`, an Admin cannot add an Account: the mail to the person must say who to write to. |
 | `PRIVACY_MAIL_PROCESSOR`, `PRIVACY_BACKUP_PROCESSOR` | not set | The providers the Privacy notice at `/privacy` names: who sends the Sign-in Codes (the SMTP provider), and where the backups go. The backup one shows only on an instance with backups (`BACKUP_S3_ENDPOINT`, [docs/backups.md](docs/backups.md)); with none, the notice says no copy of the Library leaves the server. Free text, shown as given in both languages: write names and places only, for example `Scaleway (Transactional Email, Paris, France)`. A missing one shows as "not given yet". |
 | `SESSION_ENCRYPTION_KEY` | required | 32 random bytes in base64. Encrypts OAuth tokens and DPoP keys in `auth.sqlite`. A new key signs every reader out. |
 | `OAUTH_PRIVATE_KEY` | required with `PUBLIC_APP_ORIGIN` | The confidential client's ES256 private key, a JWK with a `kid`, as one line of JSON. Its public part is served at `/oauth/jwks.json`. |
@@ -76,6 +76,19 @@ Put an HTTPS reverse proxy in front of it (Coolify, Caddy, Traefik): sign-in nee
 | `HOST` | `0.0.0.0` | Address the server listens on. |
 | `DATA_DIR` | `/data` | Folder for all saved state: `catalog.sqlite`, `library.sqlite` (readers' Private records) and `auth.sqlite` (sign-in sessions). Mount a persistent volume here. |
 
-- Health check: `GET /health` answers `200`. The image has a Docker `HEALTHCHECK` that calls it with `wget`.
+- Health check: `GET /health` opens `library.sqlite`, `auth.sqlite` and `catalog.sqlite`, so their migration steps run, then answers `200`; `503` when a file cannot open, a step fails or a setting is wrong (the log says why). The first one after a start also repairs reader records that name a Work the Catalog dropped ([ADR 0010](docs/adr/0010-library-records-and-catalog-identifiers.md), amendment 2026-11-21). The image has a Docker `HEALTHCHECK` that calls it with `wget`.
 - The server runs as user `node` (uid 1000). A named volume works as is; a host folder must be writable by uid 1000.
 - The image holds no secrets: give every setting at run time.
+
+## Releasing
+
+Releases are automated (`.github/workflows/release.yml`, `scripts/release.ts`). A release deploys production.
+
+1. **PR title** is a Conventional Commit, with the milestone or the Linear ticket as scope. It sets the version bump: `feat(M14): …` gives New (minor), `fix(CORE-123): …` gives Fix (patch), `perf:` and `refactor:` give Improvement (patch), `!` after the type or a `BREAKING CHANGE:` line gives Breaking change (major). `docs:`, `ci:`, `chore:`, `test:`, `build:`, `style:` and `revert:` stay out of the notes. The `pr-title` check enforces it.
+2. **`## Release notes`** at the end of the PR body is the text for readers (`.github/pull_request_template.md`). Write `none` to keep the PR out of the notes; leave it empty to use the title only. A breaking change needs a `### Migration` part. A step on production before the deploy (a Coolify setting, a script) goes in a `### Before you deploy` part: it goes to the release PR, not to the notes.
+3. PRs are **squash merged**. After each merge to `main`, a bot opens or updates the release PR `chore(release): vX.Y.Z` (branch `release/next`): the next version in `package.json`, the **Before you deploy** steps of the merged PRs, and the notes. Write an optional intro between its highlights markers; do not change the rest by hand.
+4. **Merging the release PR** tags the commit `vX.Y.Z`, publishes the GitHub Release, then pushes the commit to the `production` branch, which the production Coolify app follows (`docs/staging-coolify.md`, step 12). Do the **Before you deploy** steps first. Settings and the start log show the version.
+
+Set-up, once: a fine-grained token (this repository only; Contents and Pull requests: read and write) in the `RELEASE_TOKEN` secret, so CI runs on the release PR. Run `scripts/setup-release-token.sh`: it walks you through it, checks the token and saves the secret. Run it again to renew the token before it expires.
+
+The first release, v1.0.0, is a release PR made by hand: before it, there is no tag and no release commit, and the bot says "No release yet".

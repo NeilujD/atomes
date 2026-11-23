@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # After each merge: open or update the release PR (branch release/next).
+  # Uses the RELEASE_TOKEN PAT so CI runs on the release PR (GITHUB_TOKEN pushes start no workflow).
+  release-pr:
+    if: "${{ !startsWith(github.event.head_commit.message, 'chore(release): v') }}"
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-pr
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Update release PR
+        run: node scripts/release.ts prepare
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
+  # The release PR was merged: tag the commit, publish the GitHub Release, then deploy
+  # production by pushing the commit to the `production` branch, which the production
+  # Coolify app follows (docs/staging-coolify.md, "Production").
+  publish:
+    if: "${{ startsWith(github.event.head_commit.message, 'chore(release): v') }}"
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Release notes
+        id: notes
+        run: echo "tag=v$(node scripts/release.ts publish-notes "$GITHUB_SHA" notes.md)" >> "$GITHUB_OUTPUT"
+      - name: Tag and publish
+        run: |
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "$TAG"
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" --title "Atomes $TAG" --notes-file notes.md --verify-tag
+          fi
+        env:
+          TAG: ${{ steps.notes.outputs.tag }}
+      # A fast-forward push, never a force push: it fails if `production` holds a commit
+      # that is not on main.
+      - name: Deploy production
+        run: git push origin "$GITHUB_SHA:refs/heads/production"

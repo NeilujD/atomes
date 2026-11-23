@@ -1,8 +1,9 @@
 // The one repair of reader records after the Catalog drops the Works a source
 // gave to several Volume numbers (ADR 0010, amendment 2026-11-14; Catalog
 // side in src/lib/catalog/shared-works.ts). The only exception to "reader
-// records are never rewritten": run once by the owner, after a backup, with
-// `scripts/repair-shared-works.ts --dry-run` first.
+// records are never rewritten". The server runs it at its first health check
+// after each start (start-up.ts, ADR 0010, amendment 2026-11-21);
+// `scripts/repair-shared-works.ts --dry-run` shows what it would change.
 //
 // For each reader, a record whose Work the Catalog dropped, and no longer
 // gives to the record's Edition:
@@ -124,7 +125,7 @@ export function repairSharedWorks(dataDir: string, options: { dryRun: boolean })
   let dropped: Set<string>;
   let workOf: (isbn: string) => string | undefined;
   try {
-    if (!hasTable(catalog, 'dropped_work')) throw new Error(`${catalogFile} has not run the one-Work-per-Volume step. The server runs the Catalog steps at the first Catalog request, not at start: open a book in the app, or run "wget -q -O /dev/null http://127.0.0.1:4321/api/catalog/editions/9782723478991", then run this again.`);
+    if (!hasTable(catalog, 'dropped_work')) throw new Error(`${catalogFile} has not run the one-Work-per-Volume step: start the new server and wait for its first health check (GET /health), which runs the steps, then run this again.`);
     dropped = new Set((catalog.prepare('select work_id from dropped_work').all() as { work_id: string }[]).map((row) => row.work_id));
     const works = new Map(
       (catalog.prepare('select isbn, work_id from edition').all() as { isbn: string; work_id: string }[]).map((row) => [row.isbn, row.work_id]),

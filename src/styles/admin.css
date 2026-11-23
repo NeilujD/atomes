@@ -1,0 +1,589 @@
+/* The admin panel (ADR 0020, src/pages/admin.astro): only that page imports
+   this file. Made only of the tokens of theme.css (ui-direction). Phone first:
+   a card for each row; from 960 px, a dense table. */
+.admin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+/* The parts, as wide as the screen on the phone (the Books / Series switch of the Library). */
+.parts {
+  display: flex;
+}
+
+/* One line at 360 px in French too ("Administrateurs"): a segment is as wide as its word. */
+.segmented.parts {
+  flex-wrap: nowrap;
+}
+
+.parts .segment {
+  flex: 1 1 auto;
+  justify-content: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 959px) {
+  .parts .segment {
+    padding-inline: var(--space-6);
+    font-size: var(--type-small);
+  }
+}
+
+.parts .segment[aria-current='page'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 var(--hairline) var(--line);
+}
+
+/* Groups, rows and hints: the patterns of Settings. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.group-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  max-width: var(--page-width);
+}
+
+.row-label {
+  font-weight: 600;
+}
+
+.row-hint {
+  color: var(--text-quiet);
+  font-size: var(--type-small);
+  text-wrap: pretty;
+}
+
+.row-hint.refused {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* An Account Reference: the technical font, so it reads as a code. */
+.reference {
+  font-family: var(--font-tech);
+  font-size: var(--type-chip);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.confirm-title .reference {
+  font-size: var(--type-button-large);
+  font-weight: 700;
+}
+
+.confirm-text .reference {
+  color: var(--ink);
+}
+
+.none,
+.quiet {
+  color: var(--text-quiet);
+}
+
+/* The totals: a number over its label (the tile of Statistics). */
+.totals {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.total {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-24);
+  padding: var(--space-12) var(--space-16);
+}
+
+.total-invites {
+  justify-content: space-between;
+}
+
+.total-invites .figure {
+  flex: 1;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.figure dt {
+  color: var(--text-quiet);
+  font-size: var(--type-chip);
+  line-height: 1.3;
+}
+
+.figure dd {
+  margin: 0;
+  font-size: var(--type-title);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+}
+
+/* New and active, by period. */
+.periods {
+  margin-left: auto;
+  border-collapse: collapse;
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.periods th {
+  color: var(--text-quiet);
+  font-size: var(--type-chip);
+  font-weight: 500;
+}
+
+.periods th[scope='row'] {
+  padding-right: var(--space-16);
+  text-align: left;
+}
+
+.periods th[scope='col'],
+.periods td {
+  padding-left: var(--space-16);
+  text-align: right;
+}
+
+.periods tbody td {
+  font-weight: 600;
+}
+
+/* The heading of the list, then, on the phone, its main action as wide as
+   the screen, and under it the two ways to narrow the list, on one line. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-10) var(--space-12);
+}
+
+.toolbar .small-heading,
+.toolbar .button-main {
+  flex-basis: 100%;
+}
+
+.toolbar-actions {
+  display: contents;
+}
+
+.toolbar .chip {
+  order: 1;
+}
+
+/* "Flagged only" is a link: on, it fills as a pressed chip. */
+.toolbar .chip {
+  text-decoration: none;
+}
+
+.toolbar .chip[aria-current='true'] {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.toolbar .button-quiet {
+  order: 2;
+  margin-left: auto;
+  padding-inline: 0;
+}
+
+/* Forms: a label over its field, the field as tall as its button (Settings). */
+.form-line,
+.form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.form-label {
+  color: var(--text-heading);
+  font-size: var(--type-small);
+  font-weight: 500;
+}
+
+.form-item .field,
+.made-links .field {
+  min-height: var(--button-height);
+}
+
+select.field {
+  font: inherit;
+}
+
+/* A list on hairlines, dense rows (ui-direction). Phone first: a card for each row. */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  width: 100%;
+  font-size: var(--type-small);
+}
+
+/* Counts take tabular figures, so a column of them lines up. */
+.rows .num {
+  font-variant-numeric: tabular-nums;
+}
+
+.rows thead {
+  position: absolute;
+  width: var(--hairline);
+  height: var(--hairline);
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.rows tbody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-12) var(--space-16);
+  border: var(--hairline) solid var(--line-card);
+  border-radius: var(--radius-card);
+  background: var(--fill-card);
+}
+
+/* The cells of a card are one list, so the identity goes under the name and the actions stay last. */
+.rows tr {
+  display: contents;
+}
+
+.rows th,
+.rows td {
+  padding: 0;
+  font-weight: 400;
+  text-align: left;
+}
+
+.rows td {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-16);
+  text-align: right;
+}
+
+.rows td[data-label]::before {
+  content: attr(data-label);
+  flex: none;
+  color: var(--text-quiet);
+}
+
+.rows td > * {
+  text-align: right;
+}
+
+/* The name of the row: on top of its card. */
+.rows .main {
+  order: -2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6) var(--space-8);
+  padding-bottom: var(--space-4);
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+
+.rows .main .reference {
+  font-size: var(--type-count);
+  font-weight: 600;
+}
+
+.rows .main .state {
+  margin-left: auto;
+}
+
+/* The phone leaves out a fact with no value; the desktop column shows a dash. */
+.rows .only-desktop,
+.rows .blank,
+.rows .actions.empty {
+  display: none;
+}
+
+.rows .main .only-phone:not(.chip) {
+  font-weight: 400;
+}
+
+/* A card that ends with its actions: they are a row high, so less room under them. */
+.rows tbody:has(.actions:not(.empty)) {
+  padding-bottom: var(--space-6);
+}
+
+/* The actions: at the bottom of the card, over a hairline. */
+.rows .actions {
+  order: 1;
+  align-items: center;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--hairline) solid var(--line-card);
+}
+
+.rows .actions .button {
+  margin-inline: calc(var(--space-12) * -1);
+  font-size: var(--type-small);
+}
+
+.rows .actions > :only-child {
+  margin-left: auto;
+}
+
+.reason {
+  color: var(--text-quiet);
+  text-align: left;
+}
+
+/* A flag and a state: a small chip, in ink levels. Green, orange and yellow answer other questions (ui-direction: colour roles). */
+.flag,
+.state {
+  min-height: var(--badge-height);
+  padding: 0 var(--space-8);
+  font-size: var(--type-badge);
+}
+
+.flag {
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.flag::before {
+  content: '';
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+}
+
+/* Used or expired: over, so quieter than open. */
+.state-over {
+  background: transparent;
+  color: var(--text-quiet);
+  box-shadow: inset 0 0 0 var(--hairline) var(--line-control);
+}
+
+/* The identity of one Account, shown for one page view. */
+.rows .identity td {
+  order: -1;
+  padding-bottom: var(--space-6);
+}
+
+.rows td .identity-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-10) var(--space-12);
+  border-radius: var(--radius-control);
+  background: var(--fill-chip);
+  text-align: left;
+}
+
+.identity-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6) var(--space-24);
+  margin: 0;
+}
+
+.identity-facts div {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.identity-facts dt {
+  color: var(--text-quiet);
+}
+
+.identity-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* The dialogs: the confirm dialog of theme.css, with a field. */
+.confirm-field {
+  margin-top: var(--space-16);
+  margin-bottom: var(--space-8);
+}
+
+.confirm-list {
+  margin: var(--space-4) 0 0;
+  padding-left: var(--space-20);
+  color: var(--text-quiet);
+}
+
+/* The Invites just made: their links show once. */
+.made-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.note {
+  padding: var(--space-10) var(--space-12);
+  border-radius: var(--radius-control);
+  background: var(--fill-chip);
+  font-size: var(--type-small);
+  font-weight: 600;
+  text-wrap: pretty;
+}
+
+.made-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.made-links li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* A link revoked since it was made: struck, and no Copy. */
+.made-links .revoked .link {
+  color: var(--text-quiet);
+  text-decoration: line-through;
+}
+
+.link {
+  flex: 1;
+  font-family: var(--font-tech);
+  font-size: var(--type-chip);
+}
+
+/* Desktop: one row of columns under a header line. */
+/* The way to a row that "Find by email address" or "Add an Account" leads to: smooth, unless the reader asks for less motion. The phone scrolls the page, the desktop the panel (AppShell). */
+@media (prefers-reduced-motion: no-preference) {
+  :root:has(.admin),
+  .panel:has(.admin) {
+    scroll-behavior: smooth;
+  }
+}
+
+/* The row that "Find by email address" or "Add an Account" leads to. */
+.rows tbody:target {
+  outline: var(--stroke) solid var(--accent);
+  outline-offset: var(--stroke);
+  scroll-margin-top: var(--space-24);
+}
+
+/* A second field in a dialog. */
+.confirm .form-item + .form-item {
+  margin-bottom: var(--space-8);
+}
+
+/* An Invite on the phone: two lines (O5). Its name, state and Revoke, then its days and Accounts. */
+@media (max-width: 959px) {
+  .rows.invites tbody {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-4) var(--space-8);
+    padding-block: var(--space-10);
+  }
+
+  .rows.invites .main {
+    padding-bottom: 0;
+  }
+
+  .rows.invites .main .state {
+    margin-left: 0;
+  }
+
+  .rows.invites .summary {
+    grid-column: 1 / -1;
+    display: block;
+    color: var(--text-quiet);
+    text-align: left;
+  }
+
+  .rows.invites .actions {
+    grid-area: 1 / 2;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .rows.invites .actions .button {
+    margin-block: calc(var(--space-8) * -1);
+  }
+}
+
+@media (min-width: 960px) {
+  .parts {
+    display: inline-flex;
+    align-self: flex-start;
+  }
+
+  .parts .segment {
+    flex: none;
+  }
+
+  .totals {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 3fr) minmax(0, 2fr);
+  }
+
+  /* Desktop: one line, the actions at its end. */
+  .toolbar .small-heading,
+  .toolbar .button-main {
+    flex-basis: auto;
+  }
+
+  .toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    margin-left: auto;
+  }
+
+  .toolbar .chip,
+  .toolbar .button-quiet {
+    order: 0;
+  }
+
+  .toolbar .button-quiet {
+    margin-left: 0;
+    padding-inline: var(--space-12);
+  }
+
+  .form-line {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+
+  .form-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .form-wide {
+    flex: 1;
+  }
+
+  .form-short {
+    width: calc(var(--series-thumb) + var(--space-24));
+  }
+}

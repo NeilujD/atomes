@@ -31,6 +31,15 @@ export function transitionDirection(from: string, to: string): 'forward' | 'back
   return step > 0 ? 'forward' : step < 0 ? 'back' : null;
 }
 
+// Two views of one top screen (the parts of the admin panel, its "Flagged
+// only" filter): the same path, another query. No transition between them: a
+// fade of the whole panel, with its title and its switch, reads as a blink.
+// A Book to another Book and a Series to another Series keep their fade.
+export function sameScreen(from: string, to: string): boolean {
+  const path = (page: string) => page.split(/[?#]/)[0];
+  return path(from) === path(to) && pageDepth(to) === 0;
+}
+
 // The cover flies home only from the Book of the trip to the page it was opened
 // from. Anywhere else there is no slot to land in, and it would hang over the page.
 export function fliesHome(trip: Trip | null, from: string, to: string): boolean {
@@ -157,6 +166,7 @@ function installPageTransitions(): void {
     // A trip ends on the first page that is not a Book: the cover flies home once.
     if (pageDepth(to) < 2) write(tripKey, null);
     if (!transition || !from) return;
+    if (sameScreen(from, to)) return transition.skipTransition();
     const direction = transitionDirection(from, to);
     if (direction) transition.types.add(direction);
     let landed = () => {};
@@ -182,5 +192,5 @@ function installPageTransitions(): void {
   });
 }
 
-const scope = [pageDepth, transitionDirection, fliesHome].map((rule) => rule.toString()).join('');
+const scope = [pageDepth, transitionDirection, sameScreen, fliesHome].map((rule) => rule.toString()).join('');
 export const pageTransitionScript = `(()=>{${scope}(${installPageTransitions.toString()})()})();`;

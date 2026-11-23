@@ -6,10 +6,11 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createAccounts, type AccountId } from './accounts';
 import { createAuthStore } from './auth-store';
-import { inviteIsOpen } from './invites';
+import { inviteIsOpen, readerInvite } from './invites';
 import { createLibraryStore } from './library-store';
 import { migrate, openDatabase } from './migrate';
 import { authSteps, librarySteps } from './migrations';
+import { createRoles } from './roles';
 import { secretBox } from './secret-box';
 import { createSharing } from './sharing';
 
@@ -152,6 +153,69 @@ describe('library.sqlite made before readers made Invites', () => {
     expect(version(after)).toBe(librarySteps.length);
     expect(inviteIsOpen(after, token)).toBe(true);
     expect(after.prepare('select made_by as madeBy from invite').all()).toEqual([{ madeBy: null }]);
+    after.close();
+  });
+});
+
+describe('library.sqlite made before the Admin role', () => {
+  test('its Accounts stay, with no role, and a role can be granted', () => {
+    const file = join(dir, 'library.sqlite');
+    const before = openDatabase(file, librarySteps.slice(0, 4));
+    const account = createAccounts(before).ofDid(did);
+
+    const after = openDatabase(file, librarySteps);
+    expect(version(after)).toBe(librarySteps.length);
+    const roles = createRoles(after);
+    expect(roles.admins()).toEqual([]);
+    expect(roles.grant(account, null)).toBe(true);
+    expect(roles.rolesOf(account)).toEqual(['admin']);
+    after.close();
+  });
+});
+
+describe('library.sqlite made before an Invite kept its origin', () => {
+  test('an Invite with a maker becomes a reader Invite, the others script Invites, and each keeps working', () => {
+    const file = join(dir, 'library.sqlite');
+    const before = openDatabase(file, librarySteps.slice(0, 7));
+    const reader = createAccounts(before).ofDid(did);
+    // As the code of before made them: no origin column yet.
+    const insert = before.prepare('insert into invite (token_hash, expires_at, made_by) values (?, ?, ?)');
+    const ofScript = 'A'.repeat(43);
+    const ofReader = 'B'.repeat(43);
+    insert.run(createHash('sha256').update(ofScript).digest('hex'), Date.now() + 3600_000, null);
+    insert.run(createHash('sha256').update(ofReader).digest('hex'), Date.now() + 3600_000, reader);
+    before.close();
+
+    const after = openDatabase(file, librarySteps);
+    expect(version(after)).toBe(librarySteps.length);
+    expect(after.prepare('select origin, label from invite order by origin').all()).toEqual([
+      { origin: 'reader', label: null },
+      { origin: 'script', label: null },
+    ]);
+    expect(inviteIsOpen(after, ofReader)).toBe(true);
+    expect(inviteIsOpen(after, ofScript)).toBe(true);
+    expect(readerInvite(after, reader).state).toBe('open');
+    after.close();
+  });
+});
+
+describe('library.sqlite made before the last active day', () => {
+  test('each Account gets the day of its last Library write, and none with no write', () => {
+    const file = join(dir, 'library.sqlite');
+    const before = openDatabase(file, librarySteps.slice(0, 6));
+    const accounts = createAccounts(before);
+    const writer = accounts.ofDid(did);
+    const idle = accounts.ofDid(second);
+    const insert = before.prepare("insert into record (account, collection, rkey, value, rev, updated_at, deleted) values (?, 'app.atomes.toBuy', ?, '{}', ?, ?, 0)");
+    insert.run(writer, 'a', 1, '2026-10-02T23:30:00.000Z');
+    insert.run(writer, 'b', 2, '2026-11-05T08:00:00.000Z');
+    before.close();
+
+    const after = openDatabase(file, librarySteps);
+    const day = (account: string) => (after.prepare('select last_active_day as day from account where id = ?').get(account) as { day: string | null }).day;
+    expect(version(after)).toBe(librarySteps.length);
+    expect(day(writer)).toBe('2026-11-05');
+    expect(day(idle)).toBeNull();
     after.close();
   });
 });

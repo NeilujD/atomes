@@ -15,6 +15,8 @@ export interface Account {
   email?: string;
   // An AT Protocol Account is linked (Settings offers to link one when not).
   atproto?: boolean;
+  // An Admin (ADR 0020): Settings shows the link to the admin panel.
+  admin?: boolean;
 }
 
 export interface AuthClient {

@@ -62,6 +62,8 @@ export default defineConfig({
       DEV_TOOLBAR: 'off',
       DATA_DIR: 'data-e2e',
       LANDING_PAGE: 'on',
+      // An Admin adds an Account only on an instance that gives a contact: the mail names it (ADR 0020).
+      LEGAL_CONTACT: 'operator@atomes.test',
       PORT: String(port),
       SESSION_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
       ...(process.env.CI ? { DEBUG: 'vite:hmr' } : {}),

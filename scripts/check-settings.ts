@@ -3,6 +3,7 @@
 // stripping), in the Docker image and in `bun run phone`.
 //
 // Usage: node scripts/check-settings.ts
+import packageJson from '../package.json' with { type: 'json' };
 import { appEnvironment, readSettings, SettingsError } from '../src/lib/server/settings.ts';
 
 try {
@@ -11,7 +12,7 @@ try {
   // The host only: SMTP_URL holds a password.
   const mail = smtpUrl ? `Sign-in Codes sent through ${new URL(smtpUrl).host}` : 'Sign-in Codes kept in the dev outbox';
   const landing = landingPage ? 'Landing page on /welcome' : 'no Landing page';
-  console.log(`Atomes settings are fine: ${appEnvironment(process.env)}, ${client}, sign-up by Invite, ${mail}, ${landing}.`);
+  console.log(`Atomes settings are fine: ${appEnvironment(process.env)}, version ${packageJson.version}, ${client}, sign-up by Invite, ${mail}, ${landing}.`);
 } catch (error) {
   if (!(error instanceof SettingsError)) throw error;
   console.error(error.message);

@@ -17,6 +17,8 @@ import { secretBox } from './secret-box';
 import { createSharing } from './sharing';
 
 const owner: Did = 'did:plc:owner';
+// No Account of these tests is an Admin.
+const noRoles = { rolesOf: () => [] };
 const stranger: Did = 'did:plc:stranger';
 const accessToken = 'access-token-only-on-the-server';
 const refreshToken = 'refresh-token-only-on-the-server';
@@ -115,7 +117,7 @@ describe('sign-in', () => {
     // The cookie is the only thing the browser gets: no token in the answer.
     expect(JSON.stringify([...response.headers])).not.toContain(accessToken);
 
-    const who = session(withCookie('/api/session', cookieOf(response)), deps);
+    const who = session(withCookie('/api/session', cookieOf(response)), { ...deps, roles: noRoles });
     // The Account, never the DID.
     expect(await who.json()).toEqual({ id: accounts.ofDid(owner), handle: 'owner.test', atproto: true });
     expect(accounts.ofDid(owner)).not.toContain('did:');
@@ -216,7 +218,7 @@ describe('Invites', () => {
     const first = await back(friend, invited(token));
     expect(first.headers.get('location')).toBe('/');
     const cookies = first.headers.getSetCookie();
-    expect(session(withCookie('/api/session', cookieOf(first)), deps).status).toBe(200);
+    expect(session(withCookie('/api/session', cookieOf(first)), { ...deps, roles: noRoles }).status).toBe(200);
     // The Invite is used up: the browser forgets it.
     expect(cookies).toContainEqual(expect.stringMatching(/^atomes_invite=; .*Max-Age=0/));
     expect(accountCount()).toBe(2);
@@ -276,7 +278,7 @@ describe('Invites', () => {
 
   test('the Accounts made by the migration of the allow-list sign in with no Invite', async () => {
     const before: Did = 'did:plc:before';
-    library.exec(`insert into account values ('acc-before', '2026-11-16T10:00:00.000Z');
+    library.exec(`insert into account (id, created_at) values ('acc-before', '2026-11-16T10:00:00.000Z');
       insert into identity (account, kind, value) values ('acc-before', 'did', '${before}');`);
 
     expect((await signInForm({ handle: 'before.test' })).headers.get('location')).toMatch(/^https:\/\/pds\.test\//);
@@ -319,7 +321,7 @@ describe('sign-out', () => {
 
     expect(response.headers.get('set-cookie')).toMatch(/^atomes_session=; .*Max-Age=0/);
     expect(await response.json()).toEqual({ pdsReached: true });
-    expect(session(withCookie('/api/session', cookie), deps).status).toBe(401);
+    expect(session(withCookie('/api/session', cookie), { ...deps, roles: noRoles }).status).toBe(401);
     expect(revoked).toEqual([owner]);
     expect(await store.sessions().get(owner)).toBeUndefined();
   });
@@ -331,7 +333,7 @@ describe('sign-out', () => {
     await signOut(withCookie('/oauth/sign-out', phone, { method: 'POST' }), deps);
 
     expect(revoked).toEqual([]);
-    expect(session(withCookie('/api/session', laptop), deps).status).toBe(200);
+    expect(session(withCookie('/api/session', laptop), { ...deps, roles: noRoles }).status).toBe(200);
   });
 
   test('with no session, still removes the cookie', async () => {
@@ -391,7 +393,7 @@ describe('link an AT Protocol Account from Settings', () => {
   const finish = (did: string, cookie = browser) => back(did, { cookie: `${sessionCookie}=${cookie}` });
   const settingsResult = (response: Response) => new URL(response.headers.get('location')!, app).searchParams.get('link');
   const sessionOf = async (cookie = browser) =>
-    (await session(withCookie('/api/session', cookie), deps).json()) as { id: string; handle?: string; email?: string; atproto: boolean };
+    (await session(withCookie('/api/session', cookie), { ...deps, roles: noRoles }).json()) as { id: string; handle?: string; email?: string; atproto: boolean };
 
   test('an email Account links an AT Protocol Account, then turns a category Shared (fake PDS)', async () => {
     const started = await link('reader.test');
