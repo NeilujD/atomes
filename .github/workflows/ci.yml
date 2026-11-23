@@ -17,6 +17,7 @@ jobs:
       matrix:
         task: [check, lint, test, build]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
@@ -40,6 +41,8 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: ubuntu-latest
+    # A slow apt mirror once held a shard for 11 min in the browser install.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
@@ -60,6 +63,7 @@ jobs:
   e2e-slow:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
