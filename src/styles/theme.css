@@ -515,6 +515,23 @@ button.chip {
   background: var(--fill-card);
 }
 
+/* Empty list (Home, Library, To Buy): one card in the middle of the page, its text and one main button. */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-16);
+  width: 100%;
+  max-width: var(--page-width);
+  margin-inline: auto;
+  text-align: center;
+}
+
+.empty-state p {
+  margin: 0;
+  color: var(--text-quiet);
+}
+
 /* A card that floats over content (a dialog, the selection bar): the same fill on the panel colour. */
 .card-raised {
   background: linear-gradient(var(--fill-card), var(--fill-card)), var(--surface);

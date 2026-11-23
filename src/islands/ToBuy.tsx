@@ -19,6 +19,7 @@ import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
 import { toast } from '../lib/toast';
 import { Cover } from './Cover';
+import { EmptyState } from './EmptyState';
 import { NotOwnedChip } from './NotOwnedChip';
 
 // Where the screen reads from: the reader's Library store and the Catalog.
@@ -170,7 +171,7 @@ export function ToBuy({ sources }: { sources: Sources }) {
   const empty = list.followed.length === 0 && list.byHand.length === 0;
   return (
     <div class="to-buy">
-      {empty && <p class="to-buy-empty">{t('tobuy.empty')}</p>}
+      {empty && <EmptyState text={t('tobuy.empty')} action={t('tobuy.find')} href="/search" />}
 
       {list.followed.length > 0 && (
         <section class="to-buy-group" aria-labelledby="to-buy-followed">

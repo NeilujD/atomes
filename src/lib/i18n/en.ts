@@ -477,6 +477,7 @@ What this instance keeps: ${privacy}`,
   'tobuy.title': 'To Buy',
   'tobuy.empty':
     'Nothing to buy: the Volumes you do not own in the Series you follow, and the books you add with +, show here, and only you see them.',
+  'tobuy.find': 'Find a book',
   'tobuy.add-open': 'Add a book',
   'tobuy.add-label': 'Add a book by its ISBN',
   'tobuy.add': 'Add',

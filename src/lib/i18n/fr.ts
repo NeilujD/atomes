@@ -473,6 +473,7 @@ Ce que cette instance garde : ${privacy}`,
   // À acheter (src/islands/ToBuy.tsx)
   'tobuy.title': 'À acheter',
   'tobuy.empty': 'Rien à acheter : les tomes que vous n’avez pas dans les séries que vous suivez, et les livres ajoutés avec +, s’affichent ici, et vous seul les voyez.',
+  'tobuy.find': 'Trouver un livre',
   'tobuy.add-open': 'Ajouter un livre',
   'tobuy.add-label': 'Ajouter un livre par son ISBN',
   'tobuy.add': 'Ajouter',

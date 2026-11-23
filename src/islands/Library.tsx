@@ -19,6 +19,7 @@ import { bookHref, bookIsbns, workEdition } from '../lib/library/model';
 import { seriesHref } from '../lib/library/series';
 import { librarySeries, seriesCards, type LibrarySeries } from '../lib/library/series-mode';
 import { Cover } from './Cover';
+import { EmptyState } from './EmptyState';
 import { LibraryCoverFlow } from './LibraryCoverFlow';
 import { useLibraryListing, type ListingSources } from './library-listing';
 import { LetterIndex, LibraryList } from './LibraryList';
@@ -128,10 +129,7 @@ export function Library({ sources }: { sources: Sources }) {
   if (books.length === 0) {
     return (
       <div class="library">
-        <p class="library-message">{t('library.empty')}</p>
-        <a class="button button-main library-add" href="/check">
-          {t('book.add-a-book')}
-        </a>
+        <EmptyState text={t('library.empty')} action={t('book.add-a-book')} href="/check" />
       </div>
     );
   }
