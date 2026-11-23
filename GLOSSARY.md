@@ -178,6 +178,16 @@ _Avoid_: Lookup, search, in-store mode
 _French_: Vérification en rayon
 
 **Series Onboarding**:
-The step after Quick Add of a Volume whose Series the reader neither follows nor dropped, when the app asks which of its Volumes the reader already owns. Volumes already in the Library show as kept.
+The step after Quick Add of a Volume (or "I have it" in Search) whose Series the reader neither follows nor dropped, when the app asks which of its Volumes the reader already owns. Volumes already in the Library show as kept.
 _Avoid_: Series import, bulk add
 _French_: Ajout d'une série
+
+**Search**:
+Finding a Work, a Series or an Author by title or author words, when the reader has no ISBN. A Work shows once, under any of its titles, old or new, in any language ("Dix petits nègres" finds "Ils étaient dix"). The reader opens it, picks one of its Editions, and adds it to To Buy or, when they have it, as a Copy, the same way Quick Add does. It needs a connection.
+_Avoid_: Lookup, browse
+_French_: Recherche
+
+**Preferred Language**:
+The language of the Editions that Search shows to the reader. It follows the app language until the reader changes it, and can be "All languages". When the words searched are a title in another language, Search also shows the Editions in that language, apart.
+_Avoid_: Book language, reading language, locale
+_French_: Langue préférée
