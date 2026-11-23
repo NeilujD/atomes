@@ -79,17 +79,9 @@ const t = translator(requestLanguage(Astro.request));
     color: var(--text-quiet);
   }
 
-  /* The cards of a few words stop at the page width: the shelves alone fill a wide panel. */
-  .home-empty,
+  /* The card of the year stops at the page width: the shelves alone fill a wide panel. */
   .home-year {
     max-width: var(--page-width);
-  }
-
-  .home-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-16);
   }
 
   .home-group {

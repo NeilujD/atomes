@@ -12,6 +12,7 @@ import { libraryBooks, volumeLine, type LibraryBook } from '../lib/library/brows
 import { ownedUnread, readingNow, yearCard, type YearCard } from '../lib/library/home';
 import { bookHref } from '../lib/library/model';
 import { Cover } from './Cover';
+import { EmptyState } from './EmptyState';
 import { useLibraryListing, type ListingSources } from './library-listing';
 
 // Where the screen reads from: the reader's Library store and the Catalog.
@@ -56,12 +57,7 @@ export function Home({ sources }: { sources: Sources }) {
   if (sections.length === 0 && !year) {
     return (
       <div class="home">
-        <div class="card home-empty">
-          <p class="home-message">{t('home.empty')}</p>
-          <a class="button button-main" href="/check">
-            {t('nav.check-book')}
-          </a>
-        </div>
+        <EmptyState text={t('home.empty')} action={t('nav.check-book')} href="/check" />
       </div>
     );
   }

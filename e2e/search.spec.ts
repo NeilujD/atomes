@@ -6,8 +6,9 @@ test('To Buy → Search an old title → add the 2020 and 1977 Editions to To Bu
   await signIn();
   await page.goto('/to-buy');
 
-  // The "+" of To Buy opens Search.
-  await page.getByRole('link', { name: 'Add a book' }).click();
+  // The empty To Buy offers a first book: its button opens Search (CORE-189).
+  // The "+" of the view header opens it too (to-buy.spec.ts).
+  await page.getByRole('link', { name: 'Find a book' }).click();
   await expect(page).toHaveURL(/\/search$/);
 
   await page.getByLabel('Title of the book').fill('Dix petits nègres');

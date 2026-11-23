@@ -30,12 +30,12 @@ const line = [1, 2, 3, 4, 5].map(volume);
 const dune = '9782266320481';
 
 // The reader follows Blacksad and owns Volumes `owned`: by default 1 and 3, so
-// 2, 4 and 5 are to buy. Dune was added by hand.
-async function screenWithLibrary(owned = [1, 3]) {
+// 2, 4 and 5 are to buy. Dune was added by hand, unless `byHand` is false.
+async function screenWithLibrary(owned = [1, 3], byHand = true) {
   const { space, stored } = memorySpace();
   await saveFollow(space, { series: series.id, anchorIsbn: isbns[0], status: 'following', updatedAt: '2026-11-06T11:00:00.000Z' });
   for (const n of owned) await saveCopy(space, { isbn: isbns[n - 1], works: [volume(n).work.id], createdAt: '2026-11-06T11:00:00.000Z' });
-  await saveToBuy(space, { isbn: dune, createdAt: '2026-11-07T10:00:00.000Z' });
+  if (byHand) await saveToBuy(space, { isbn: dune, createdAt: '2026-11-07T10:00:00.000Z' });
   const sources: Sources = {
     open: () => Promise.resolve(space),
     volumes: (isbn) => Promise.resolve(isbn === isbns[0] ? line : undefined),
@@ -125,6 +125,15 @@ describe('To Buy screen', () => {
 
     expect(await screen.findByText(/^Nothing to buy: .* and only you see them\.$/)).toBeTruthy();
     expect(screen.queryByRole('region')).toBeNull();
+    // The way to a first book: a link to Search, as the "+" of the view header.
+    expect(screen.getByRole('link', { name: 'Find a book' }).getAttribute('href')).toBe('/search');
+  });
+
+  test('a list with only Volumes of a Followed Series has no "Find a book" button', async () => {
+    await screenWithLibrary([1, 3], false);
+
+    expect(await screen.findByRole('region', { name: followed })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Find a book' })).toBeNull();
   });
 
   test('Remove takes an Edition added by hand off the list', async () => {
