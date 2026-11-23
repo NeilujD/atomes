@@ -9,74 +9,111 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  # Each task on its own runner, at the same time. The `check` job below gives
+  # their result under the name `protect-main` requires.
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [check, lint, test, build]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile
-      - run: bun run check
-      - run: bun run lint
-      - run: bun run test
-      - run: bun run build
+      - uses: ./.github/actions/setup
+      - run: bun run ${{ matrix.task }}
 
-  # E2E journeys in Chromium and WebKit (CORE-73). Required by `protect-main`.
-  # Playwright starts the dev server with throwaway settings made at run time
-  # (playwright.config.ts): no secret.
-  e2e:
+  check:
+    needs: verify
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    steps:
+      - env:
+          VERIFY: ${{ needs.verify.result }}
+        run: test "$VERIFY" = success
+
+  # E2E journeys in Chromium and WebKit (CORE-73), on 8 runners at the same time:
+  # one dev server serves 2 workers well, not more. Playwright starts the dev
+  # server with throwaway settings made at run time (playwright.config.ts): no secret.
+  e2e-shard:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    runs-on: ubuntu-latest
+    # Browsers and their system packages are in the image: no apt step, which a
+    # slow Ubuntu mirror once held for up to 11 min. The tag follows the exact
+    # @playwright/test version in package.json: change both together.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          bun-from-npm: true
+      - run: bunx playwright test --shard=${{ matrix.shard }}/8
+      - name: Keep the Playwright traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-traces-${{ matrix.shard }}
+          path: test-results/
+          retention-days: 14
+
+  # A new or changed spec runs once more with each page script 300 ms late,
+  # so a tap before a script has run fails here, before the merge (CLAUDE.md,
+  # `bun run test:e2e`). Not --repeat-each: the copies of a test share one
+  # reader (e2e/readers.ts) and change each other's Library.
+  e2e-slow:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
           # The merge commit and its first parent (the base): the changed specs.
           fetch-depth: 2
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile
-      - name: Playwright version
-        id: playwright
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Cache the Playwright browsers
-        id: browsers
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      - name: Install the browsers and their system packages
-        if: steps.browsers.outputs.cache-hit != 'true'
-        run: bunx playwright install --with-deps chromium webkit
-      # The cache holds the browsers, not the system packages they need.
-      - name: Install the system packages of the browsers
-        if: steps.browsers.outputs.cache-hit == 'true'
-        run: bunx playwright install-deps chromium webkit
-      - run: bun run test:e2e
-      # A new or changed spec runs once more with each page script 300 ms late,
-      # so a tap before a script has run fails here, before the merge (CLAUDE.md,
-      # `bun run test:e2e`). Not --repeat-each: the copies of a test share one
-      # reader (e2e/readers.ts) and change each other's Library.
-      - name: Run the changed specs again with slow scripts
-        if: github.event_name == 'pull_request'
+      - name: Find the changed specs
+        id: specs
         run: |
-          specs=$(git diff --name-only --diff-filter=AMR HEAD^1 HEAD -- 'e2e/*.spec.ts')
-          if [ -z "$specs" ]; then echo "No changed spec"; exit 0; fi
-          echo "$specs"
-          E2E_SLOW_SCRIPTS=300 bunx playwright test $specs
+          specs=$(git diff --name-only --diff-filter=AMR HEAD^1 HEAD -- 'e2e/*.spec.ts' | tr '\n' ' ')
+          echo "${specs:-No changed spec}"
+          echo "specs=$specs" >> "$GITHUB_OUTPUT"
+      - if: steps.specs.outputs.specs != ''
+        uses: ./.github/actions/setup
+        with:
+          bun-from-npm: true
+      - name: Run the changed specs again with slow scripts
+        if: steps.specs.outputs.specs != ''
+        env:
+          SPECS: ${{ steps.specs.outputs.specs }}
+        # One argument for each spec: $SPECS is split on purpose.
+        run: |
+          # shellcheck disable=SC2086
+          E2E_SLOW_SCRIPTS=300 bunx playwright test $SPECS
       - name: Keep the Playwright traces of failed tests
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-traces
+          name: playwright-traces-slow
           path: test-results/
           retention-days: 14
+
+  # The result of the E2E jobs under the name `protect-main` requires.
+  e2e:
+    needs: [e2e-shard, e2e-slow]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          SHARDS: ${{ needs.e2e-shard.result }}
+          SLOW: ${{ needs.e2e-slow.result }}
+        run: |
+          test "$SHARDS" = success
+          [ "$SLOW" = success ] || [ "$SLOW" = skipped ]
 
   image:
     runs-on: ubuntu-latest
