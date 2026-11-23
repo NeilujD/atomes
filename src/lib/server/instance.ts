@@ -2,7 +2,6 @@
 // settings: `auth.sqlite` and `library.sqlite` in DATA_DIR (ADR 0012, ADR 0013).
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import type { NodeOAuthClient } from '@atproto/oauth-client-node';
 import { createTransport } from 'nodemailer';
 import { createAccounts, type AccountId, type Accounts } from './accounts';
@@ -12,7 +11,7 @@ import type { EmailSignInDeps } from './email-sign-in';
 import type { LinkEmailDeps } from './link-email';
 import { createLibraryStore, type LibraryStore } from './library-store';
 import { devOutbox, smtpSender, type SendMail } from './mail';
-import { openDatabase } from './migrate';
+import { openDatabase, openFile } from './migrate';
 import { authSteps, librarySteps } from './migrations';
 import { createOAuthClient, oauthPort, repoAccess } from './oauth';
 import { createRoles, type Roles } from './roles';
@@ -52,7 +51,7 @@ function dataDir() {
   return migrated;
 }
 
-const open = (name: string) => new DatabaseSync(join(dataDir(), name));
+const open = (name: string) => openFile(join(dataDir(), name));
 
 export function libraryStore(): LibraryStore {
   library ??= createLibraryStore(open('library.sqlite'));
