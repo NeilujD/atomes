@@ -20,11 +20,11 @@ test('To Buy lists a Missing Volume of a followed Series', async ({ page, signIn
   await series.click();
   await expect(page.getByText(/Spy x Family.*3/i).last()).toBeVisible();
 
-  // The "+" of the view header opens the sheet that adds a book by its ISBN (One Piece 56).
-  await page.getByRole('button', { name: 'Add a book' }).click();
-  const sheet = page.getByRole('dialog', { name: 'Add a book by its ISBN' });
-  await sheet.getByLabel('Add a book by its ISBN').fill('9782723478991');
-  await sheet.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(sheet).toBeHidden();
+  // The "+" of the view header opens Search, where a book is added by its ISBN (One Piece 56).
+  await page.getByRole('link', { name: 'Add a book' }).click();
+  await page.getByLabel('Add a book by its ISBN').fill('9782723478991');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.getByLabel('Add a book by its ISBN')).toHaveValue('');
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'To Buy' }).click();
   await expect(page.getByRole('region', { name: 'Added by hand' }).getByRole('listitem').filter({ hasText: 'ISBN 9782723478991' })).toBeVisible();
 });

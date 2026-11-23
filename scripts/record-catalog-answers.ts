@@ -5,9 +5,12 @@
 // Usage: bun scripts/record-catalog-answers.ts 9782723478991 9791042021030
 //        bun scripts/record-catalog-answers.ts --fill 9791042021030
 //        bun scripts/record-catalog-answers.ts --search "Kaamelott" "Casterman"
+//        bun scripts/record-catalog-answers.ts --find "Dix petits nègres"
 // `--fill` also records the BnF search and Inventaire answers that list the
 // whole Edition Line of each ISBN (Catalog `volumes`). `--search` records the
 // BnF search by a typed title and an optional publisher (Catalog `search`).
+// `--find` records a Search by title words (ADR 0021, Catalog `find`) and the
+// Editions of its first Work (Catalog `editions`).
 // Review the diff before committing: answers change when the sources fix data.
 import { writeFile } from 'node:fs/promises';
 import { createCatalog } from '../src/lib/catalog/catalog';
@@ -15,7 +18,7 @@ import { fixtureDir, fixtureName } from '../src/lib/catalog/recorded.fake';
 import type { SourceFetch } from '../src/lib/catalog/sources';
 import { bnfSearch, fetchFacts, politeFetch } from '../src/lib/catalog/sources';
 
-const real = politeFetch('Atomes/record (+https://github.com/NeilujD/atomes)');
+const real = politeFetch('Atomes/record (+https://github.com/NeilujD/atomes)', 1100, 60_000);
 const recording: SourceFetch = async (url) => {
   const response = await real(url);
   const body = await response.text();
@@ -28,6 +31,21 @@ if (process.argv[2] === '--search') {
   const [title, publisher] = process.argv.slice(3);
   const { listed } = await bnfSearch(recording, title, publisher, 50);
   console.log(listed.map(({ isbn, facts, year }) => `${isbn} ${year} ${facts.series?.title} ${facts.volumes?.join('-')} | ${facts.title} | ${facts.publisher}`).join('\n'));
+  process.exit(0);
+}
+
+if (process.argv[2] === '--find') {
+  const catalog = createCatalog({ file: ':memory:', fetch: recording, host: 'record.local', accounts: { findDid: () => undefined } });
+  const found = await catalog.find(process.argv[3]);
+  if ('unavailable' in found) throw new Error('A source failed');
+  console.log(found.works.map(({ id, also, title, authors, year }) => `${id} ${also.join(',')} | ${title} | ${authors.join(', ')} | ${year}`).join('\n'));
+  const first = found.works[0];
+  const editions = first && (await catalog.editions([first.id, ...first.also]));
+  if (editions && !('unavailable' in editions)) {
+    console.log(editions.editions.map(({ isbn, year, title, publisher, collection, language }) => `${isbn} ${year} ${language} | ${title} | ${publisher} | ${collection}`).join('\n'));
+    console.log('No ISBN:', editions.noIsbn);
+  }
+  catalog.close();
   process.exit(0);
 }
 

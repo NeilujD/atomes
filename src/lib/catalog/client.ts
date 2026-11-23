@@ -1,9 +1,10 @@
 // The browser side of the Catalog API (api.ts). Sends the ISBN and nothing
 // else (ADR 0001), except for an ISBN no source knows: then the title and
 // publisher the reader typed, and the book they picked (ADR 0010, CORE-40),
-// and for a Series Correction (ADR 0017).
+// for a Series Correction (ADR 0017), and the words of a Search (ADR 0021).
 // Rejects like fetch when the Atomes server cannot be reached.
 import type { Choice, Correction, Edition, LineSummary, Lookup, SearchFound, SeriesFound } from './catalog';
+import type { EditionsFound, WorkResult } from './search';
 
 // The cover of an Edition, served by the Atomes server (api.ts): the browser
 // never asks a book source, which would learn who looks at which book.
@@ -62,6 +63,25 @@ export async function searchCatalog(title: string, publisher: string): Promise<S
   const response = await fetch(`/api/catalog/search?${query}`);
   if (response.ok) return { found: (await response.json()) as SearchFound };
   return response.status === 401 ? { signedOut: true } : { unavailable: true };
+}
+
+export type FoundAnswer<T> = { found: T } | { signedOut: true } | { unavailable: true };
+
+async function foundAnswer<T>(response: Response): Promise<FoundAnswer<T>> {
+  if (response.ok) return { found: (await response.json()) as T };
+  return response.status === 401 ? { signedOut: true } : { unavailable: true };
+}
+
+// Search (ADR 0021): the Works the sources find under the typed words.
+export async function findWorks(words: string): Promise<FoundAnswer<WorkResult[]>> {
+  const answer = await foundAnswer<{ works: WorkResult[] }>(await fetch(`/api/catalog/find?${new URLSearchParams({ words })}`));
+  return 'found' in answer ? { found: answer.found.works } : answer;
+}
+
+// The Editions of a Search row: its Work, then its other identifiers.
+export async function findEditions(work: Pick<WorkResult, 'id' | 'also'>): Promise<FoundAnswer<EditionsFound>> {
+  const query = new URLSearchParams([work.id, ...work.also].map((id) => ['work', id]));
+  return foundAnswer<EditionsFound>(await fetch(`/api/catalog/find/editions?${query}`));
 }
 
 export type ChooseAnswer =

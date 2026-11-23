@@ -19,6 +19,10 @@ export function fixtureName(url: string): string {
   if (host === 'www.sudoc.fr' && pathname.startsWith('/services/isbn2ppn/'))
     return `sudoc-isbn2ppn-${pathname.split('/')[3].split('&')[0]}.json`;
   if (host === 'www.sudoc.fr') return `sudoc-${pathname.slice(1)}`;
+  // Search (ADR 0021): one file per Work search and per reverse claim.
+  if (host === 'inventaire.io' && pathname === '/api/search') return `inventaire-search-${hash(searchParams.toString())}.json`;
+  if (host === 'inventaire.io' && pathname.endsWith('/reverse-claims'))
+    return `inventaire-reverse-${hash(`${searchParams.get('property')}=${searchParams.get('value')}`)}.json`;
   const uris = searchParams.get('uris') ?? '';
   if (host === 'inventaire.io' && uris.includes('|')) return `inventaire-batch-${hash(uris)}.json`;
   if (host === 'inventaire.io') return `inventaire-${uris.replace(':', '-')}.json`;

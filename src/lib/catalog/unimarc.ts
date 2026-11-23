@@ -37,7 +37,7 @@ function text(value: string): string {
     .trim();
 }
 
-function subfield(record: UnimarcRecord, tag: string, code: string): string | undefined {
+export function subfield(record: UnimarcRecord, tag: string, code: string): string | undefined {
   for (const field of record.filter((f) => f.tag === tag)) {
     const value = field.subfields.find(([c, v]) => c === code && v)?.[1];
     if (value) return value;
@@ -53,7 +53,7 @@ export function isbns(record: UnimarcRecord): string[] {
     .map((isbn) => (/^\d{9}[\dX]$/.test(isbn) ? isbn10To13(isbn) : isbn));
 }
 
-function isbn10To13(isbn10: string): string {
+export function isbn10To13(isbn10: string): string {
   const body = `978${isbn10.slice(0, 9)}`;
   const sum = [...body].reduce((total, digit, i) => total + Number(digit) * (i % 2 === 0 ? 1 : 3), 0);
   return `${body}${(10 - (sum % 10)) % 10}`;
