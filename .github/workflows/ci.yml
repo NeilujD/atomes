@@ -41,12 +41,17 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: ubuntu-latest
-    # A slow apt mirror once held a shard for 11 min in the browser install.
+    # Browsers and their system packages are in the image: no apt step, which a
+    # slow Ubuntu mirror once held for up to 11 min. The tag follows the exact
+    # @playwright/test version in package.json: change both together.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - uses: ./.github/actions/browsers
+        with:
+          bun-from-npm: true
       - run: bunx playwright test --shard=${{ matrix.shard }}/8
       - name: Keep the Playwright traces of failed tests
         if: failure()
@@ -63,6 +68,8 @@ jobs:
   e2e-slow:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -77,8 +84,8 @@ jobs:
           echo "specs=$specs" >> "$GITHUB_OUTPUT"
       - if: steps.specs.outputs.specs != ''
         uses: ./.github/actions/setup
-      - if: steps.specs.outputs.specs != ''
-        uses: ./.github/actions/browsers
+        with:
+          bun-from-npm: true
       - name: Run the changed specs again with slow scripts
         if: steps.specs.outputs.specs != ''
         env:
