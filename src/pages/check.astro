@@ -1,5 +1,7 @@
 ---
-// Check a book: scan the barcode or type the ISBN, see the Shelf Check answer
+// Check a book, in two modes (CORE-190): Scan (scan the barcode or type the
+// ISBN) and Search (title words, then a Work, then an Edition: ADR 0021,
+// src/islands/Search.tsx). Both end in the same Shelf Check answer
 // (owned, read, missing from a Followed Series, or not in the Library) on the
 // result screen (CORE-120), then Quick Add from it. The barcode is read on the
 // device (ADR 0003). Offline (CORE-37), the answer comes from this device
@@ -12,9 +14,16 @@ import Icon from '../components/Icon.astro';
 import AppShell from '../layouts/AppShell.astro';
 import '../styles/glow.css';
 import '../styles/shelf-check-result.css';
+import '../styles/search.css';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 
 const t = translator(requestLanguage(Astro.request));
+// The mode is in the address (`mode=search`), never remembered: with none, Scan.
+const mode = Astro.url.searchParams.get('mode') === 'search' ? 'search' : 'scan';
+const modes = [
+  { value: 'scan', label: t('check.mode-scan') },
+  { value: 'search', label: t('check.mode-search') },
+];
 
 const answers = [
   { value: 'unread', label: t('status.unread') },
@@ -25,12 +34,21 @@ const answers = [
 
 <AppShell title={t('check.title')} current="check">
   <div class="quick-add">
-    <!-- Shown only where the browser can open a camera (HTTPS or loopback).
-         Secondary: Look up is the one main action of the page (Q7). -->
-    <button class="button scan" type="button" data-scan hidden>
-      <Icon name="scan-barcode" />
-      <span>{t('add.scan')}</span>
-    </button>
+    <!-- Scan | Search: radios, so the switch works before the scripts run (the
+         CSS shows the mode checked); the page script keeps the address in step. -->
+    <div class="segmented check-modes" role="radiogroup" aria-label={t('check.mode')}>
+      {
+        modes.map((each) => (
+          <label class="segment">
+            <input type="radio" name="mode" value={each.value} checked={each.value === mode} data-mode />
+            <span>{each.label}</span>
+          </label>
+        ))
+      }
+    </div>
+
+    <!-- Search mode (src/islands/Search.tsx), drawn by the page script. -->
+    <div class="search-mode" data-search-root></div>
 
     <!-- data-state: starting | looking | wrong | found (set by the script, styled below). -->
     <dialog class="camera" data-camera data-state="starting" aria-label={t('add.scan')}>
@@ -58,106 +76,116 @@ const answers = [
       <div class="result-root" data-result-root></div>
     </dialog>
 
-    <form class="isbn-form" data-isbn-form>
-      <label class="label" for="isbn">{t('add.isbn')}</label>
-      <div class="isbn-row">
-        <input
-          class="field"
-          id="isbn"
-          name="isbn"
-          type="text"
-          inputmode="numeric"
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="978 2 7234 7899 1"
-          aria-describedby="isbn-hint"
-        />
-        <!-- The main action of the page; it steps back while Add to Library shows (mainAction). -->
-        <button class="button button-main" type="submit">{t('add.look-up')}</button>
-      </div>
-      <!-- The hint line also says what is wrong with the ISBN: the page does not move. -->
-      <p class="hint" id="isbn-hint" data-hint aria-live="polite">{t('add.isbn-hint')}</p>
-      <!-- Shown once the Catalog data for Shelf Check offline is on this device. -->
-      <p class="hint" data-kept hidden>{t('check.kept')}</p>
-    </form>
-
-    <!-- While the book and the Library are read: the result screen opens after. -->
-    <div class="book" data-skeleton hidden aria-hidden="true">
-      <div class="cover book-cover skeleton"></div>
-      <div class="book-text skeleton-text">
-        <div class="skeleton skeleton-title"></div>
-        <div class="skeleton skeleton-line"></div>
-        <div class="skeleton skeleton-line short"></div>
-      </div>
-    </div>
-
-    <!-- A book the Catalog does not know: the reader types it. -->
-    <form class="preview" data-add-form hidden>
-      <!-- The Shelf Check answer (src/islands/ShelfCheckAnswer.tsx), first: a
-           placeholder holds its place until the Library is read. -->
-      <div class="answer card" data-answer hidden></div>
-
-      <!-- maxlength keeps each field inside the Copy lexicon (bookDetails). -->
-      <fieldset class="details" data-details>
-        <legend class="details-title">{t('add.type-book')}</legend>
-        <p class="hint" data-details-isbn></p>
-        <label class="details-field">
-          <span class="label">{t('add.field-title')}</span>
-          <input class="field" name="title" type="text" maxlength="300" autocomplete="off" required />
-        </label>
-        <label class="details-field">
-          <span class="label">{t('add.field-authors')}</span>
-          <input class="field" name="authors" type="text" maxlength="1300" autocomplete="off" aria-describedby="authors-hint" />
-          <span class="hint" id="authors-hint">{t('add.authors-hint')}</span>
-        </label>
-        <div class="details-row">
-          <label class="details-field">
-            <span class="label">{t('add.field-series')}</span>
-            <input class="field" name="series" type="text" maxlength="300" autocomplete="off" />
-          </label>
-          <label class="details-field volume">
-            <span class="label">{t('add.field-volume')}</span>
-            <input class="field" name="volume" type="text" maxlength="16" autocomplete="off" />
-          </label>
-        </div>
-        <p class="hint" data-details-problem data-error aria-live="polite"></p>
-        <!-- Find the Series or Work in BnF by the typed title (src/islands/FindInBnf.tsx). -->
-        <div data-find></div>
-      </fieldset>
-
-      <div class="question">
-        <label class="label" for="read-status">{t('add.read-question')}</label>
-        <span class="status-chip">
-          <select id="read-status" name="status">
-            {answers.map((answer) => <option value={answer.value}>{answer.label}</option>)}
-          </select>
-          <Icon name="chevron-down" />
-        </span>
-      </div>
-
-      <!-- Main action when the reader does not own the book; Add another Copy when they do. -->
-      <button class="button button-main add" type="submit">
-        <Icon name="book-plus" />
-        <span data-add-label>{t('add.submit')}</span>
+    <div class="scan-mode">
+      <!-- Shown only where the browser can open a camera (HTTPS or loopback).
+           Secondary: Look up is the one main action of the page (Q7). -->
+      <button class="button scan" type="button" data-scan hidden>
+        <Icon name="scan-barcode" />
+        <span>{t('add.scan')}</span>
       </button>
 
-      <!-- One quiet line: a Copy is never Shared, so there is nothing to change yet. -->
-      <p class="private-line">
-        <Icon name="lock" />
-        <span>{t('add.private')}</span>
-      </p>
-    </form>
+      <form class="isbn-form" data-isbn-form>
+        <label class="label" for="isbn">{t('add.isbn')}</label>
+        <div class="isbn-row">
+          <input
+            class="field"
+            id="isbn"
+            name="isbn"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="978 2 7234 7899 1"
+            aria-describedby="isbn-hint"
+          />
+          <!-- The main action of the page; it steps back while Add to Library shows (mainAction). -->
+          <button class="button button-main" type="submit">{t('add.look-up')}</button>
+        </div>
+        <!-- The hint line also says what is wrong with the ISBN: the page does not move. -->
+        <p class="hint" id="isbn-hint" data-hint aria-live="polite">{t('add.isbn-hint')}</p>
+        <!-- Shown once the Catalog data for Shelf Check offline is on this device. -->
+        <p class="hint" data-kept hidden>{t('check.kept')}</p>
+      </form>
+
+      <!-- While the book and the Library are read: the result screen opens after. -->
+      <div class="book" data-skeleton hidden aria-hidden="true">
+        <div class="cover book-cover skeleton"></div>
+        <div class="book-text skeleton-text">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-line"></div>
+          <div class="skeleton skeleton-line short"></div>
+        </div>
+      </div>
+
+      <!-- A book the Catalog does not know: the reader types it. -->
+      <form class="preview" data-add-form hidden>
+        <!-- The Shelf Check answer (src/islands/ShelfCheckAnswer.tsx), first: a
+             placeholder holds its place until the Library is read. -->
+        <div class="answer card" data-answer hidden></div>
+
+        <!-- maxlength keeps each field inside the Copy lexicon (bookDetails). -->
+        <fieldset class="details" data-details>
+          <legend class="details-title">{t('add.type-book')}</legend>
+          <p class="hint" data-details-isbn></p>
+          <label class="details-field">
+            <span class="label">{t('add.field-title')}</span>
+            <input class="field" name="title" type="text" maxlength="300" autocomplete="off" required />
+          </label>
+          <label class="details-field">
+            <span class="label">{t('add.field-authors')}</span>
+            <input class="field" name="authors" type="text" maxlength="1300" autocomplete="off" aria-describedby="authors-hint" />
+            <span class="hint" id="authors-hint">{t('add.authors-hint')}</span>
+          </label>
+          <div class="details-row">
+            <label class="details-field">
+              <span class="label">{t('add.field-series')}</span>
+              <input class="field" name="series" type="text" maxlength="300" autocomplete="off" />
+            </label>
+            <label class="details-field volume">
+              <span class="label">{t('add.field-volume')}</span>
+              <input class="field" name="volume" type="text" maxlength="16" autocomplete="off" />
+            </label>
+          </div>
+          <p class="hint" data-details-problem data-error aria-live="polite"></p>
+          <!-- Find the Series or Work in BnF by the typed title (src/islands/FindInBnf.tsx). -->
+          <div data-find></div>
+        </fieldset>
+
+        <div class="question">
+          <label class="label" for="read-status">{t('add.read-question')}</label>
+          <span class="status-chip">
+            <select id="read-status" name="status">
+              {answers.map((answer) => <option value={answer.value}>{answer.label}</option>)}
+            </select>
+            <Icon name="chevron-down" />
+          </span>
+        </div>
+
+        <!-- Main action when the reader does not own the book; Add another Copy when they do. -->
+        <button class="button button-main add" type="submit">
+          <Icon name="book-plus" />
+          <span data-add-label>{t('add.submit')}</span>
+        </button>
+
+        <!-- One quiet line: a Copy is never Shared, so there is nothing to change yet. -->
+        <p class="private-line">
+          <Icon name="lock" />
+          <span>{t('add.private')}</span>
+        </p>
+      </form>
+    </div>
   </div>
 </AppShell>
 
 <script>
   import { h, render } from 'preact';
   import { FindInBnf } from '../islands/FindInBnf';
+  import { Search } from '../islands/Search';
   import { ShelfCheckAnswer } from '../islands/ShelfCheckAnswer';
   import { ShelfCheckResult } from '../islands/ShelfCheckResult';
   import { openOwnSpace } from '../lib/auth/server-client';
   import type { Edition } from '../lib/catalog/catalog';
-  import { coverUrl, lookupEdition, lookupVolumes } from '../lib/catalog/client';
+  import { coverUrl, findEditions, findWorks, lookupEdition, lookupVolumes } from '../lib/catalog/client';
   import { deviceCatalog } from '../lib/catalog/device';
   import { quickAddCopy, saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
   import { editionWork, readIsbn } from '../lib/library/ids';
@@ -171,6 +199,7 @@ const answers = [
   import { saveReadingStatus, statuses, type Status } from '../lib/library/reading-status';
   import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, readerLine, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
   import { followSeries } from '../lib/library/series';
+  import { handAdd, saveToBuy } from '../lib/library/to-buy';
   import { latestOnly } from '../lib/latest';
   import { lockWhileSaving } from '../lib/save-lock';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
@@ -202,6 +231,10 @@ const answers = [
   const cameraText = camera.querySelector<HTMLElement>('[data-camera-text]')!;
   const resultDialog = document.querySelector<HTMLDialogElement>('[data-result]')!;
   const resultRoot = resultDialog.querySelector<HTMLElement>('[data-result-root]')!;
+  const searchRoot = document.querySelector<HTMLElement>('[data-search-root]')!;
+  const modeChoices = [...document.querySelectorAll<HTMLInputElement>('input[data-mode]')];
+  // Where Check a book was opened from (`from=to-buy`): it picks the main action of the answer.
+  const entry = new URLSearchParams(location.search).get('from') === 'to-buy' ? 'to-buy' : 'check';
 
   // The Space opens once; undefined when signed out.
   const own = openOwnSpace();
@@ -210,7 +243,7 @@ const answers = [
   // Lookups can answer out of order (offline ones too): only the latest shows.
   const startLookUp = latestOnly();
   // Where a lookup came from: after Add, the reader goes back there.
-  type Origin = 'scan' | 'typed';
+  type Origin = 'scan' | 'typed' | 'search';
   // The book looked up: a Catalog Edition, or an ISBN the Catalog does not
   // know, which the reader types (its Work is then `isbn:<isbn>`, ADR 0010).
   interface Book {
@@ -235,7 +268,7 @@ const answers = [
     cover: string | null;
     seriesLoading: boolean;
     following: boolean;
-    saving?: 'add' | 'read';
+    saving?: 'add' | 'read' | 'to-buy';
   }
   let result: Result | undefined;
   const noLibrary = (): Library => ({ copies: [], readingStatuses: [], follows: [], loans: [], toBuy: [] });
@@ -256,40 +289,61 @@ const answers = [
     else button.removeAttribute('aria-busy');
   }
 
-  async function lookUp(from: Origin) {
+  async function lookUp(from: 'scan' | 'typed') {
     const current = startLookUp();
     const read = readIsbn(isbnInput.value);
     showForm(false);
     book = undefined;
     if ('problem' in read) return problem(t(`isbn.${read.problem}`));
-    const { isbn } = read;
     problem();
     busy(lookUpButton, true);
     skeleton.hidden = false;
-    let asked: Awaited<ReturnType<typeof catalogAnswer>>;
-    try {
-      // Offline, the Catalog is not asked: the ISBN stays on this device.
-      asked = await catalogAnswer(isbn, navigator.onLine, lookupEdition);
-    } catch {
-      return problem(t('add.lookup-failed'));
-    } finally {
+    const why = await checkIsbn(read.isbn, from, current, () => {
       busy(lookUpButton, false);
       skeleton.hidden = true;
+    });
+    if (why) problem(why);
+  }
+
+  // An Edition picked in Search: the same lookup and answer as a scan.
+  function pick(isbn: string): Promise<string | undefined> {
+    showForm(false);
+    book = undefined;
+    return checkIsbn(isbn, 'search', startLookUp());
+  }
+
+  // Looks `isbn` up and shows its Shelf Check answer; gives why it could not.
+  // `asked` runs once the Catalog has answered.
+  async function checkIsbn(isbn: string, from: Origin, current: () => boolean, asked = () => {}): Promise<string | undefined> {
+    let answer: Awaited<ReturnType<typeof catalogAnswer>>;
+    try {
+      // Offline, the Catalog is not asked: the ISBN stays on this device.
+      answer = await catalogAnswer(isbn, navigator.onLine, lookupEdition);
+    } catch {
+      return t('add.lookup-failed');
+    } finally {
+      asked();
     }
     // Another ISBN was looked up meanwhile: its answer is the one to show.
     if (!current()) return;
-    if ('offline' in asked) {
+    if ('offline' in answer) {
       reportNetwork(false);
       return lookUpOnDevice(isbn, from, current);
     }
-    if ('unavailable' in asked) return problem(t('add.sources-down'));
+    if ('unavailable' in answer) return t('add.sources-down');
     reportNetwork(true);
-    // notFound: no book source knows this ISBN, so the reader types the book.
-    await ('found' in asked ? show(asked.found, from) : showUnknown(isbn));
+    if ('found' in answer) {
+      await show(answer.found, from);
+      return;
+    }
+    // notFound: no book source knows this ISBN, so the reader types the book, in Scan mode.
+    showMode('scan');
+    isbnInput.value = isbn;
+    await showUnknown(isbn);
   }
 
   // The Shelf Check with no network, from this device only (shelf-check.ts).
-  async function lookUpOnDevice(isbn: string, from: Origin, current: () => boolean) {
+  async function lookUpOnDevice(isbn: string, from: Origin, current: () => boolean): Promise<string | undefined> {
     const space = await ownSpaceOrSay();
     if (!space) return;
     let onDevice: Library;
@@ -297,13 +351,15 @@ const answers = [
       onDevice = (await loadLibrary(space)).library;
     } catch {
       // No copy of the Library on this device: nothing to answer from.
-      if (current()) problem(t('check.no-library'));
-      return;
+      return current() ? t('check.no-library') : undefined;
     }
     const { check, edition } = await deviceShelfCheck(isbn, onDevice, device);
     if (!current()) return;
     const given = { check, library: onDevice };
-    if (edition) return show(edition, from, given, current);
+    if (edition) {
+      await show(edition, from, given, current);
+      return;
+    }
     // No Catalog data for this ISBN here: the answer only, with what the reader typed on a Copy, if any.
     const title = onDevice.copies.find(({ value }) => value.isbn === isbn && value.details)?.value.details?.title ?? t('book.isbn', isbn);
     await showResult({ isbn, work: editionWork(isbn) }, from, { title, cover: null, onDevice: given });
@@ -362,6 +418,7 @@ const answers = [
         seriesLoading: shown.seriesLoading,
         following: shown.following,
         saving: shown.saving,
+        entry,
         canScan: !scanButton.hidden,
         onClose: () => resultDialog.close(),
         onScan: () => {
@@ -369,6 +426,7 @@ const answers = [
           void scan();
         },
         onAdd: (read: boolean) => void addFromResult(shown, read),
+        onToBuy: () => void addToBuyFromResult(shown),
         onFollow: () => void follow(shown),
       }),
       resultRoot,
@@ -660,11 +718,48 @@ const answers = [
       if (result?.book === shown.book) showResultScreen({ saving: undefined });
       return;
     }
+    backFrom(shown);
+  }
+
+  // Add to To Buy: To Buy's rule of the hand add (src/lib/library/to-buy.ts),
+  // refused when the reader owns the Work or has it on To Buy already.
+  async function addToBuyFromResult(shown: Result) {
+    if (result?.book !== shown.book || result.saving) return;
+    const { isbn, edition } = shown.book;
+    showResultScreen({ saving: 'to-buy' });
+    const still = () => result?.book === shown.book;
+    const space = await ownSpaceOrSay();
+    const added = handAdd(isbn, library, new Map(edition ? [[isbn, edition]] : []), new Date());
+    if (!space || 'problem' in added) {
+      if ('problem' in added) {
+        const { problem: why } = added;
+        toast(why === 'owned' ? t('tobuy.owned') : why === 'listed' ? t('tobuy.listed') : t(`isbn.${why}`), { error: true });
+      }
+      if (still()) showResultScreen({ saving: undefined });
+      return;
+    }
+    try {
+      const state = await saveToBuy(space, added.toBuy);
+      if (state !== 'refused') reportNetwork(state === 'sent');
+      reportWaiting(await waitingCount(space));
+      const title = edition?.title ?? shown.title;
+      toast(`${t('check.added-to-buy', title)} ${await savedText(space, state)}`, { link: { href: '/to-buy', label: t('link.to-buy') }, error: state === 'refused' });
+      if (state === 'waiting') sendLater(space);
+      backFrom(shown);
+    } catch (error) {
+      toast(spaceErrorMessage(error), { error: true });
+      if (still()) showResultScreen({ saving: undefined });
+    }
+  }
+
+  // Once saved, the screen closes and the reader goes back to where the
+  // lookup came from: the camera, the ISBN field, or the Search results.
+  function backFrom(shown: Result) {
     book = undefined;
     isbnInput.value = '';
     resultDialog.close();
     if (shown.from === 'scan' && !scanButton.hidden) void scan();
-    else isbnInput.focus();
+    else if (shown.from === 'typed') isbnInput.focus();
   }
 
   // Aborted when the camera view closes, for any reason (Close, Escape, a book found).
@@ -822,6 +917,40 @@ const answers = [
   }
   void keepForOffline();
 
+  // Scan | Search. The address holds the mode and the words (`mode`, `q`), so a
+  // reload or a Back keeps them; it is replaced, not pushed: Back leaves the page.
+  function keepInAddress(change: Record<string, string | undefined>) {
+    const address = new URL(location.href);
+    for (const [name, value] of Object.entries(change)) {
+      if (value) address.searchParams.set(name, value);
+      else address.searchParams.delete(name);
+    }
+    history.replaceState(history.state, '', address);
+  }
+
+  function showMode(mode: 'scan' | 'search') {
+    for (const choice of modeChoices) choice.checked = choice.value === mode;
+    keepInAddress({ mode: mode === 'search' ? mode : undefined });
+  }
+
+  for (const choice of modeChoices) choice.addEventListener('change', () => showMode(choice.value === 'search' ? 'search' : 'scan'));
+
+  render(
+    h(Search, {
+      sources: { find: findWorks, editions: findEditions },
+      words: new URLSearchParams(location.search).get('q') ?? '',
+      onWords: (words: string) => keepInAddress({ q: words }),
+      onPick: pick,
+      // Search needs a connection; a scan, or a typed ISBN, does not.
+      onScan: () => {
+        showMode('scan');
+        if (scanButton.hidden) typeInstead();
+        else void scan();
+      },
+    }),
+    searchRoot,
+  );
+
   // From the Book page ("Add another Copy") or an old Quick Add link (/add): the ISBN is already known.
   const given = new URLSearchParams(location.search).get('isbn');
   if (given) {
@@ -850,6 +979,22 @@ const answers = [
     display: flex;
     flex-direction: column;
     gap: var(--space-20);
+  }
+
+  .scan-mode {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-20);
+  }
+
+  .check-modes {
+    align-self: flex-start;
+  }
+
+  /* One mode shows: the one checked in the switch (CSS, so before the scripts run too). */
+  .quick-add:has(input[data-mode][value='search']:checked) .scan-mode,
+  .quick-add:has(input[data-mode][value='scan']:checked) .search-mode {
+    display: none;
   }
 
   .scan {

@@ -126,7 +126,7 @@ describe('To Buy screen', () => {
     expect(await screen.findByText(/^Nothing to buy: .* and only you see them\.$/)).toBeTruthy();
     expect(screen.queryByRole('region')).toBeNull();
     // The way to a first book: a link to Search, as the "+" of the view header.
-    expect(screen.getByRole('link', { name: 'Find a book' }).getAttribute('href')).toBe('/search');
+    expect(screen.getByRole('link', { name: 'Find a book' }).getAttribute('href')).toBe('/check?mode=search&from=to-buy');
   });
 
   test('a list with only Volumes of a Followed Series has no "Find a book" button', async () => {

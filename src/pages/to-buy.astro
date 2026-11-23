@@ -12,9 +12,9 @@ const t = translator(requestLanguage(Astro.request));
 ---
 
 <AppShell title={t('tobuy.title')} current="to-buy">
-  <!-- The "+" opens Search, where the reader finds a book by its title or
-       types its ISBN: a link, so it works before the scripts run. -->
-  <a slot="actions" class="icon-button" href="/search" aria-label={t('tobuy.add-open')}>
+  <!-- The "+" opens Check a book in Search mode, where Add to To Buy is the
+       main action: a link, so it works before the scripts run. -->
+  <a slot="actions" class="icon-button" href="/check?mode=search&from=to-buy" aria-label={t('tobuy.add-open')}>
     <Icon name="plus" />
   </a>
   <!-- Green blobs behind the top of the screen (Q9): nothing on To Buy is owned. -->

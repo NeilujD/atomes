@@ -86,12 +86,11 @@ test('Cobalt fills the main action of each screen, green and orange the Shelf Ch
   await expectRole(page.getByRole('dialog', { name: 'Shelf Check' }).getByRole('button', { name: 'Add another Copy' }), '--ink');
 
   // To Buy: the "+" that adds a book is a round icon button in ink; it opens
-  // Search, whose main action is Search, and Add by ISBN is secondary.
+  // the Search mode of Check a book, whose main action is Search.
   await page.goto('/to-buy');
   await expectRole(page.getByRole('link', { name: 'Add a book' }), '--ink');
   await page.getByRole('link', { name: 'Add a book' }).click();
   await expectMainAction(page.getByRole('button', { name: 'Search', exact: true }));
-  await expectSecondary(page.getByRole('button', { name: 'Add', exact: true }));
 
   // Settings has no main action at rest: Export is a secondary button. The
   // confirm of Delete my account: Cancel secondary, Delete in the muted red.

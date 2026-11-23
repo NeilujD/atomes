@@ -1,77 +1,69 @@
-// Search (glossary; ADR 0021), a Preact island (ADR 0014): the reader types
-// title words, opens a Work, and picks one of its Editions to add to To Buy,
-// or types the ISBN when they know it (the "+" of To Buy opens this screen).
-// The rules of the add are To Buy's (src/lib/library/to-buy.ts). Only the
-// words leave the device, to the Atomes server; the results are not kept.
-import { useState } from 'preact/hooks';
-import { openOwnSpace } from '../lib/auth/server-client';
-import type { Lookup } from '../lib/catalog/catalog';
-import { findEditions, findWorks, lookupEdition, type FoundAnswer } from '../lib/catalog/client';
+// Search (glossary; ADR 0021), the Search mode of Check a book
+// (src/pages/check.astro, which renders it): the reader types title words,
+// opens a Work, and picks one of its Editions. The page then looks the ISBN
+// up and shows the Shelf Check answer, as after a scan. Only the words leave
+// the device, to the Atomes server; the results are not kept.
+import { useEffect, useState } from 'preact/hooks';
+import type { FoundAnswer } from '../lib/catalog/client';
 import type { EditionResult, EditionsFound, WorkResult } from '../lib/catalog/search';
 import { reportNetwork } from '../lib/connection';
 import { t } from '../lib/i18n/i18n';
-import { loadLibrary, savedText, sendWhenOnline } from '../lib/library/library';
 import { languageName } from '../lib/library/model';
-import { handAdd, saveToBuy } from '../lib/library/to-buy';
 import { isNetworkFailure } from '../lib/network';
-import { spaceErrorMessage, type Space } from '../lib/space/queued-store';
-import { toast } from '../lib/toast';
 
 export interface Sources {
   find(words: string): Promise<FoundAnswer<WorkResult[]>>;
   editions(work: WorkResult): Promise<FoundAnswer<EditionsFound>>;
-  // The normal lookup of the picked ISBN: the Catalog stores the Edition.
-  lookup(isbn: string): Promise<Lookup>;
-  // Undefined when signed out.
-  open(): Promise<Space | undefined>;
 }
 
-const live: Sources = {
-  find: findWorks,
-  editions: findEditions,
-  lookup: lookupEdition,
-  open: async () => (await openOwnSpace())?.space,
-};
-
-export default function SearchIsland() {
-  return <Search sources={live} />;
+export interface SearchProps {
+  sources: Sources;
+  // The words of the address (`q`): searched at once, so a reload keeps the results.
+  words?: string;
+  // The words of each search, for the address.
+  onWords: (words: string) => void;
+  // Looks the Edition up and opens its Shelf Check answer; gives why it could not.
+  onPick: (isbn: string) => Promise<string | undefined>;
+  // To Scan mode: Search needs a connection, a scan does not.
+  onScan: () => void;
 }
 
-export function Search({ sources }: { sources: Sources }) {
-  const [words, setWords] = useState('');
+export function Search({ sources, words: given = '', onWords, onPick, onScan }: SearchProps) {
+  const [words, setWords] = useState(given);
   const [works, setWorks] = useState<WorkResult[]>();
   const [work, setWork] = useState<WorkResult>();
   const [found, setFound] = useState<EditionsFound>();
-  const [picked, setPicked] = useState<string>();
-  // Why the last search or add did not work; the words stay in the box.
-  const [problem, setProblem] = useState<string>();
-  const [refused, setRefused] = useState<string>();
+  // Why the last search or pick did not work; the words stay in the box.
+  const [problem, setProblem] = useState<{ text: string; offline: boolean }>();
   const [busy, setBusy] = useState(false);
-  const [isbn, setIsbn] = useState('');
-  const [isbnProblem, setIsbnProblem] = useState<string>();
+  // The Edition whose answer is coming.
+  const [picking, setPicking] = useState<string>();
+
+  const say = (key: 'search.offline' | 'add.sources-down' | 'auth.session-ended') => setProblem({ text: t(key), offline: key === 'search.offline' });
 
   // A source answer, or undefined with the problem shown.
   async function ask<T>(question: () => Promise<FoundAnswer<T>>): Promise<T | undefined> {
-    setProblem(navigator.onLine ? undefined : t('search.offline'));
-    if (!navigator.onLine) return undefined;
+    setProblem(undefined);
+    if (!navigator.onLine) {
+      say('search.offline');
+      return undefined;
+    }
     setBusy(true);
     try {
       const answer = await question();
       if ('found' in answer) return answer.found;
-      setProblem(t('signedOut' in answer ? 'auth.session-ended' : 'add.sources-down'));
+      say('signedOut' in answer ? 'auth.session-ended' : 'add.sources-down');
     } catch (error) {
       const offline = isNetworkFailure(error);
       if (offline) reportNetwork(false);
-      setProblem(t(offline ? 'search.offline' : 'add.sources-down'));
+      say(offline ? 'search.offline' : 'add.sources-down');
     } finally {
       setBusy(false);
     }
     return undefined;
   }
 
-  async function search(event: Event) {
-    event.preventDefault();
-    const typed = words.trim();
+  async function search(typed: string) {
     if (!typed) return;
     const answer = await ask(() => sources.find(typed));
     if (!answer) return;
@@ -80,59 +72,44 @@ export function Search({ sources }: { sources: Sources }) {
     setFound(undefined);
   }
 
+  // The words of the address, once.
+  useEffect(() => {
+    void search(given.trim());
+  }, []);
+
   async function open(row: WorkResult) {
     const answer = await ask(() => sources.editions(row));
     if (!answer) return;
     setWork(row);
     setFound(answer);
-    setPicked(undefined);
-    setRefused(undefined);
   }
 
-  // The rule of the To Buy hand add: refused when the Edition is owned or
-  // listed. Gives why it is refused, or undefined once it is saved (or waits
-  // for the network). The lookup stores the Edition in the Catalog and gives
-  // its Work; with no answer (offline, sources down, an ISBN no source knows)
-  // the ISBN is added alone, as before Search.
-  async function addToBuy(typed: string): Promise<string | undefined> {
+  async function pick(isbn: string) {
+    setProblem(undefined);
     setBusy(true);
+    setPicking(isbn);
     try {
-      const own = await sources.open();
-      if (!own) return t('auth.session-ended');
-      const looked = await sources.lookup(typed).catch(() => ({ unavailable: true }) as const);
-      const editions = new Map('found' in looked ? [[looked.found.isbn, looked.found]] : []);
-      const { library } = await loadLibrary(own);
-      const result = handAdd(typed, library, editions, new Date());
-      if ('problem' in result) {
-        const { problem: why } = result;
-        return why === 'owned' ? t('tobuy.owned') : why === 'listed' ? t('tobuy.listed') : t(`isbn.${why}`);
-      }
-      const state = await saveToBuy(own, result.toBuy);
-      toast(await savedText(own, state), { error: state === 'refused' });
-      if (state === 'waiting') sendWhenOnline(own, () => toast(t('saved.sent')), (error) => toast(spaceErrorMessage(error), { error: true }));
-      return undefined;
-    } catch (error) {
-      toast(spaceErrorMessage(error), { error: true });
-      return undefined;
+      const why = await onPick(isbn);
+      if (why) setProblem({ text: why, offline: false });
     } finally {
       setBusy(false);
+      setPicking(undefined);
     }
-  }
-
-  async function addPicked(picked: string) {
-    setRefused(await addToBuy(picked));
-  }
-
-  async function addTyped(event: Event) {
-    event.preventDefault();
-    const why = await addToBuy(isbn);
-    setIsbnProblem(why);
-    if (!why) setIsbn('');
   }
 
   return (
     <div class="search">
-      <form class="search-form" role="search" onSubmit={(event) => void search(event)} noValidate>
+      <form
+        class="search-form"
+        role="search"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const typed = words.trim();
+          onWords(typed);
+          void search(typed);
+        }}
+        noValidate
+      >
         <label class="search-label" for="search-words">
           {t('search.label')}
         </label>
@@ -148,14 +125,18 @@ export function Search({ sources }: { sources: Sources }) {
             aria-describedby="search-problem"
             onInput={(event) => setWords(event.currentTarget.value)}
           />
-          {/* The main action, until an Edition is picked: then "Add to To Buy" is. */}
-          <button class={picked && work ? 'button' : 'button button-main'} type="submit" disabled={busy} aria-busy={busy && !work ? 'true' : undefined}>
+          <button class="button button-main" type="submit" disabled={busy} aria-busy={busy && !work ? 'true' : undefined}>
             {t('search.submit')}
           </button>
         </div>
         <p class="search-hint" id="search-problem" data-error={problem ? '' : undefined} aria-live="polite">
-          {problem ?? t('search.hint')}
+          {problem?.text ?? t('search.hint')}
         </p>
+        {problem?.offline && (
+          <button class="button search-scan" type="button" onClick={onScan}>
+            {t('add.scan')}
+          </button>
+        )}
       </form>
 
       {work && found ? (
@@ -172,18 +153,7 @@ export function Search({ sources }: { sources: Sources }) {
           ) : (
             <ul class="card search-list" aria-label={t('search.editions')}>
               {found.editions.map((each) => (
-                <EditionRow
-                  key={each.isbn}
-                  edition={each}
-                  picked={picked === each.isbn}
-                  busy={busy}
-                  refused={picked === each.isbn ? refused : undefined}
-                  onPick={() => {
-                    setPicked(picked === each.isbn ? undefined : each.isbn);
-                    setRefused(undefined);
-                  }}
-                  onAdd={() => void addPicked(each.isbn)}
-                />
+                <EditionRow key={each.isbn} edition={each} busy={busy} picking={picking === each.isbn} onPick={() => void pick(each.isbn)} />
               ))}
             </ul>
           )}
@@ -209,68 +179,20 @@ export function Search({ sources }: { sources: Sources }) {
           </section>
         )
       )}
-
-      {/* A book whose ISBN the reader knows: To Buy's add by ISBN. A problem stays next to the field. */}
-      <form class="card search-form" onSubmit={(event) => void addTyped(event)} noValidate>
-        <label class="search-label" for="search-isbn">
-          {t('tobuy.add-label')}
-        </label>
-        <div class="search-row">
-          <input
-            class="field"
-            id="search-isbn"
-            inputMode="numeric"
-            autoComplete="off"
-            value={isbn}
-            aria-invalid={isbnProblem ? 'true' : undefined}
-            aria-describedby="search-isbn-hint"
-            onInput={(event) => setIsbn(event.currentTarget.value)}
-          />
-          <button class="button" type="submit" disabled={busy}>
-            {t('tobuy.add')}
-          </button>
-        </div>
-        <p class="search-hint" id="search-isbn-hint" data-error={isbnProblem ? '' : undefined}>
-          {isbnProblem ?? t('tobuy.add-hint')}
-        </p>
-      </form>
     </div>
   );
 }
 
-// One Edition, as printed; a tap picks it and shows what to do with it.
-function EditionRow(props: {
-  edition: EditionResult;
-  picked: boolean;
-  busy: boolean;
-  refused: string | undefined;
-  onPick: () => void;
-  onAdd: () => void;
-}) {
-  const { edition, picked, busy, refused } = props;
-  const id = `search-edition-${edition.isbn}`;
+// One Edition, as printed; a tap shows its Shelf Check answer.
+function EditionRow({ edition, busy, picking, onPick }: { edition: EditionResult; busy: boolean; picking: boolean; onPick: () => void }) {
   const line = [edition.year, edition.publisher, edition.collection, languageName(edition)].filter(Boolean).join(' · ');
   return (
     <li class="search-item">
-      <button class="search-pick" type="button" aria-expanded={picked} aria-controls={`${id}-actions`} onClick={props.onPick}>
-        <span class="search-title" id={id}>
-          {edition.title}
-        </span>
+      <button class="search-pick" type="button" disabled={busy} aria-busy={picking ? 'true' : undefined} onClick={onPick}>
+        <span class="search-title">{edition.title}</span>
         <span class="search-line">{line}</span>
         <span class="search-hint">{t('book.isbn', edition.isbn)}</span>
       </button>
-      {picked && (
-        <div class="search-actions" id={`${id}-actions`}>
-          <button class="button button-main" type="button" aria-describedby={id} disabled={busy} aria-busy={busy ? 'true' : undefined} onClick={props.onAdd}>
-            {t('search.add-to-buy')}
-          </button>
-          {refused && (
-            <p class="search-hint" data-error="" role="status">
-              {refused}
-            </p>
-          )}
-        </div>
-      )}
     </li>
   );
 }
