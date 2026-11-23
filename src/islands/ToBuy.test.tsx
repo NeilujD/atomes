@@ -54,19 +54,6 @@ const row = (name: string, text: string) => group(name).getAllByText(text)[0].cl
 async function openSeries(name: string) {
   fireEvent.click(await screen.findByRole('button', { name }));
 }
-// The "+" of the view header (to-buy.astro) opens this sheet; checked in e2e/to-buy.spec.ts.
-function openAddSheet() {
-  const sheet = screen.getByRole<HTMLDialogElement>('dialog', { hidden: true });
-  sheet.showModal();
-  return sheet;
-}
-function addByIsbn(typed: string) {
-  const sheet = openAddSheet();
-  fireEvent.input(within(sheet).getByLabelText('Add a book by its ISBN'), { target: { value: typed } });
-  fireEvent.submit(within(sheet).getByRole('button', { name: 'Add' }).closest('form')!);
-  return sheet;
-}
-
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -140,33 +127,15 @@ describe('To Buy screen', () => {
     expect(screen.queryByRole('region')).toBeNull();
   });
 
-  test('an Edition added by hand appears, and Remove takes it off', async () => {
+  test('Remove takes an Edition added by hand off the list', async () => {
     const { stored } = await screenWithLibrary();
     await screen.findByRole('button', { name: /^Blacksad/ });
-
-    // A book of no Followed Series.
-    const other = '9782505000013';
-    const sheet = addByIsbn('978-2-505-00001-3');
-    expect(await group('Added by hand').findAllByText(`ISBN ${other}`)).not.toHaveLength(0);
-    expect(sheet.open).toBe(false);
-    expect(within(sheet).getByLabelText('Add a book by its ISBN')).toHaveProperty('value', '');
 
     fireEvent.click(within(row('Added by hand', `ISBN ${dune}`)).getByRole('button', { name: 'Remove' }));
 
-    await waitFor(() => expect(group('Added by hand').queryAllByText(`ISBN ${dune}`)).toHaveLength(0));
-    expect(stored(toBuyCollection).map(({ rkey }) => rkey)).toEqual([other]);
-  });
-
-  test('a book the reader owns is refused next to the field, and nothing is saved', async () => {
-    const { stored } = await screenWithLibrary();
-    await screen.findByRole('button', { name: /^Blacksad/ });
-
-    const sheet = addByIsbn(isbns[0]);
-
-    expect(sheet.open).toBe(true);
-    expect(within(sheet).getByText('You already have this book.')).toBeTruthy();
-    expect(within(sheet).getByLabelText('Add a book by its ISBN').getAttribute('aria-invalid')).toBe('true');
-    expect(stored(toBuyCollection).map(({ rkey }) => rkey)).toEqual([dune]);
+    // It was the only one: the group goes too.
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Added by hand' })).toBeNull());
+    expect(stored(toBuyCollection)).toEqual([]);
   });
 
   test('a long Series shows 10 Volumes, then the next ones on demand', async () => {

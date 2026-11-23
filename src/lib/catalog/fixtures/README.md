@@ -134,3 +134,25 @@ bun scripts/record-catalog-answers.ts --fill 9782876952065 9782723434621 9782723
 `catalog-v0.sqlite` is not a source answer: it is a Catalog file made on 2026-11-11 by the Catalog of `main` before `same_as` (commit a3f8d6c), from the recorded answers: One Piece 112, then 56, then the Spy x Family Edition Line with a fill. The migration tests open a copy of it. Never make it again: it stands for the files that real instances hold.
 
 Review the diff before committing: answers change when the sources fix their data.
+
+Search (ADR 0021, CORE-184), for `search.test.ts` and `e2e/search.spec.ts`, recorded on 2026-11-23 (BnF answered in about 15 s that day: the record script waits 60 s):
+
+```sh
+bun scripts/record-catalog-answers.ts --find "Dix petits nègres"
+bun scripts/record-catalog-answers.ts --find "Ils étaient dix"
+bun scripts/record-catalog-answers.ts --find "And Then There Were None"
+bun scripts/record-catalog-answers.ts 9782253241782 9782253017097
+```
+
+| File | Answer |
+|---|---|
+| `inventaire-search-*.json` (3) | Inventaire Work search of each title (`/api/search?types=works`): `wd:Q214132` first for all three |
+| `inventaire-batch-*.json` | The Works and Authors of each search; the 41 Editions of `wd:Q214132` (32 with an ISBN, 9 with none) and their publishers and collections; the 2 Editions of `inv:9cc51ef9d8cd911a9eac07523f69232f` (same title and Author, no ISBN) |
+| `inventaire-reverse-*.json` (2) | `wdt:P629` reverse claims of `wd:Q214132` and of `inv:9cc51ef9…` |
+| `inventaire-wd-Q214132.json`, `inventaire-wd-Q35064.json` | The Work (BnF Work authority `wdt:P268` 17796845t) and Agatha Christie |
+| `bnf-search-6cbd2c11433b-1.xml` | BnF `bib.work2bib any "17796845"`: 37 records, Editions to 2017, many with an ISBN-10 only |
+| `bnf-search-fab986c2474c-1.xml` | BnF `bib.title adj "Ils étaient dix" and bib.author all "Agatha Christie" and bib.doctype any "a"`: 39 records, with the "Ils étaient dix" Editions of 2020 on (no Work link) |
+| 9782253241782 | Ils étaient dix, Le Livre de poche, 2020: the Edition the E2E journey adds to To Buy |
+| 9782253017097 | Dix petits nègres, Le Livre de poche, 1977: BnF holds only its ISBN-10 (2-253-01709-4) and finds it by the ISBN-10 only; unknown to Inventaire. Open Library did not answer (connection reset), so it has no file: "unknown" |
+
+Merged by ISBN-13: 45 Editions (BnF 22, Inventaire 32, both 9), 23 with no ISBN (14 BnF records, 9 Inventaire Editions).

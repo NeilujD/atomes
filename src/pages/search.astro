@@ -1,0 +1,121 @@
+---
+// Search (ADR 0021): find a Work by title words and add one of its Editions to
+// To Buy (src/islands/Search.tsx). Rendered on the device: it reads the Library.
+import AppShell from '../layouts/AppShell.astro';
+import Search from '../islands/Search';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+
+const t = translator(requestLanguage(Astro.request));
+---
+
+<AppShell title={t('search.title')}>
+  <Search client:only="preact" />
+</AppShell>
+
+<style is:global>
+  /* Global: the island renders on the device, outside this page's scoped styles. */
+  .search {
+    max-width: var(--page-width);
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-20);
+  }
+
+  .search-form,
+  .search-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+  }
+
+  .search-label {
+    font-size: var(--type-small);
+    font-weight: 500;
+    color: var(--text-heading);
+  }
+
+  .search-row {
+    display: flex;
+    gap: var(--space-8);
+  }
+
+  .search-row .field {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .search-hint {
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+  }
+
+  .search-hint[data-error] {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .search-back {
+    align-self: flex-start;
+  }
+
+  .search-work-title {
+    font-size: var(--type-heading);
+    font-weight: 700;
+    letter-spacing: var(--tracking-tight);
+  }
+
+  /* Rows on hairlines in one card (ui-direction: lists stay dense). */
+  .search-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: var(--space-4) var(--space-16);
+    list-style: none;
+  }
+
+  .search-item + .search-item {
+    border-top: var(--hairline) solid var(--line-card);
+  }
+
+  .search-pick {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+    width: calc(100% + 2 * var(--space-8));
+    min-height: var(--row);
+    margin: var(--space-4) calc(var(--space-8) * -1);
+    padding: var(--space-8);
+    border: 0;
+    border-radius: var(--radius-control);
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .search-pick:hover,
+  .search-pick[aria-expanded='true'] {
+    background: var(--fill-chip);
+  }
+
+  .search-title {
+    font-size: var(--type-body);
+    font-weight: 600;
+  }
+
+  .search-line {
+    font-size: var(--type-small);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .search-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-8);
+    padding: var(--space-4) 0 var(--space-12);
+  }
+</style>

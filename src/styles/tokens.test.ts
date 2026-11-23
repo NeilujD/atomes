@@ -56,6 +56,7 @@ const checked: Record<string, string[]> = {
   '../pages/book.astro': [],
   '../pages/settings.astro': [],
   '../pages/check.astro': [],
+  '../pages/search.astro': [],
   '../components/Mark.astro': [],
   '../pages/welcome.astro': ['../layouts/Landing.astro'],
   '../layouts/Landing.astro': [],

@@ -18,15 +18,21 @@
 //   429: "Back to the sources".
 // GET /api/catalog/series?title=            → 200 { series: SeriesFound[] },
 //   400, 401: the Series of this Catalog by title, for a Series Correction.
+// GET /api/catalog/find?words=               → 200 { works: WorkResult[] },
+//   400, 401, 503: Search (ADR 0021), a signed-in reader's title words.
+// GET /api/catalog/find/editions?work=…      → 200 EditionsFound, 400, 401,
+//   503: the Editions of a Search row, its Work and the identifiers of `also`.
 // A Correction is the only request that sends who asks (the session cookie):
 // the routes check it and a write limit per Account (access.ts).
 import { isIsbn13 } from '../library/ids';
 import type { Catalog, Choice, Correction, Edition } from './catalog';
+import { isWorkResultId } from './search';
 
 const json = (status: number, body: unknown) => Response.json(body, { status });
 
 export const parseIsbn = (raw: string | undefined) => (raw ?? '').replace(/[\s-]/g, '');
 const invalidIsbn = () => json(400, { error: 'InvalidIsbn', message: 'Send an ISBN-13: 13 digits starting with 978 or 979.' });
+const sourcesDown = () => json(503, { error: 'SourcesUnavailable', message: 'The book sources do not answer. Try again later.' });
 const unavailable = (isbn: string) =>
   json(503, { error: 'SourcesUnavailable', isbn, message: 'The book sources do not answer. Try again later.' });
 
@@ -80,9 +86,28 @@ export async function answerSearch(catalog: Catalog, url: URL, { signedIn }: { s
   const publisher = typedText(url.searchParams.get('publisher'));
   if (!title || publisher === undefined) return json(400, { error: 'InvalidSearch', message: 'Send a title (and a publisher), 300 characters at most.' });
   const found = await catalog.search(title, publisher || undefined);
-  return 'unavailable' in found
-    ? json(503, { error: 'SourcesUnavailable', message: 'The book sources do not answer. Try again later.' })
-    : json(200, found);
+  return 'unavailable' in found ? sourcesDown() : json(200, found);
+}
+
+// Search (ADR 0021): only the words leave the server, for a signed-in reader.
+export async function answerFind(catalog: Catalog, url: URL, { signedIn }: { signedIn: boolean }) {
+  if (!signedIn) return signedOut();
+  const words = typedText(url.searchParams.get('words'));
+  if (!words) return json(400, { error: 'InvalidSearch', message: 'Send title or author words, 300 characters at most.' });
+  const found = await catalog.find(words);
+  return 'unavailable' in found ? sourcesDown() : json(200, found);
+}
+
+// A Search row names its Work and at most a few other identifiers of it.
+const maxWorkIds = 5;
+
+export async function answerWorkEditions(catalog: Catalog, url: URL, { signedIn }: { signedIn: boolean }) {
+  if (!signedIn) return signedOut();
+  const ids = url.searchParams.getAll('work');
+  if (ids.length === 0 || ids.length > maxWorkIds || !ids.every(isWorkResultId))
+    return json(400, { error: 'InvalidWork', message: `Send 1 to ${maxWorkIds} Work identifiers (wd: or inv:).` });
+  const found = await catalog.editions(ids);
+  return 'unavailable' in found ? sourcesDown() : json(200, found);
 }
 
 // A Choice from the body, or undefined when it is not one.

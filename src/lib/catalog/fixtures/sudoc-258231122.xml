@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record>
+  <leader>     cam0 22        450 </leader>
+  <controlfield tag="001">258231122</controlfield>
+  <controlfield tag="003">https://www.sudoc.fr/258231122</controlfield>
+  <controlfield tag="004">20211102</controlfield>
+  <controlfield tag="005">20231201044234.000</controlfield>
+  <controlfield tag="006">4994</controlfield>
+  <controlfield tag="007">1999</controlfield>
+  <controlfield tag="008">Aax3</controlfield>
+  <datafield tag="010" ind1="#" ind2="#">
+    <subfield code="a">2-253-01709-4</subfield>
+    <subfield code="b">Rel.</subfield>
+    <subfield code="d">10 F</subfield>
+  </datafield>
+  <datafield tag="020" ind1="#" ind2="#">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">07806957</subfield>
+  </datafield>
+  <datafield tag="033" ind1="#" ind2="#">
+    <subfield code="a">http://catalogue.bnf.fr/ark:/12148/cb34593434s</subfield>
+    <subfield code="2">BNF</subfield>
+    <subfield code="d">20211102</subfield>
+  </datafield>
+  <datafield tag="035" ind1="#" ind2="#">
+    <subfield code="a">FRBNF345934340000000</subfield>
+    <subfield code="z">FRBNF34593434</subfield>
+    <subfield code="d">20211102</subfield>
+  </datafield>
+  <datafield tag="035" ind1="#" ind2="#">
+    <subfield code="a">frBN00049607X</subfield>
+  </datafield>
+  <datafield tag="100" ind1="#" ind2="#">
+    <subfield code="a">20211102d1977    m  y0frey50      ba</subfield>
+  </datafield>
+  <datafield tag="101" ind1="1" ind2="#">
+    <subfield code="a">fre</subfield>
+    <subfield code="c">eng</subfield>
+    <subfield code="2">639-2</subfield>
+  </datafield>
+  <datafield tag="102" ind1="#" ind2="#">
+    <subfield code="a">FR</subfield>
+  </datafield>
+  <datafield tag="104" ind1="#" ind2="#">
+    <subfield code="a">m</subfield>
+    <subfield code="b">y</subfield>
+    <subfield code="c">y</subfield>
+    <subfield code="d">ba</subfield>
+    <subfield code="e">0</subfield>
+    <subfield code="f">fre</subfield>
+  </datafield>
+  <datafield tag="105" ind1="#" ind2="#">
+    <subfield code="a">||||z   00|a|</subfield>
+  </datafield>
+  <datafield tag="106" ind1="#" ind2="#">
+    <subfield code="a">r</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="c">txt</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="181" ind1="#" ind2="1">
+    <subfield code="6">z01</subfield>
+    <subfield code="a">i#</subfield>
+    <subfield code="b">xxxe##</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="#">
+    <subfield code="6">z01</subfield>
+    <subfield code="c">n</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="182" ind1="#" ind2="1">
+    <subfield code="6">z01</subfield>
+    <subfield code="a">n</subfield>
+  </datafield>
+  <datafield tag="200" ind1="1" ind2="#">
+    <subfield code="a">Dix petits nègres</subfield>
+    <subfield code="f">Agatha Christie</subfield>
+    <subfield code="g">traduit de l&apos;anglais par Louis Postif</subfield>
+  </datafield>
+  <datafield tag="214" ind1="#" ind2="0">
+    <subfield code="a">[Paris]</subfield>
+    <subfield code="c">[Librairie générale française]</subfield>
+    <subfield code="d">1977</subfield>
+  </datafield>
+  <datafield tag="214" ind1="#" ind2="3">
+    <subfield code="a">Paris</subfield>
+    <subfield code="c">Union parisienne d&apos;impr.</subfield>
+  </datafield>
+  <datafield tag="215" ind1="#" ind2="#">
+    <subfield code="a">317 p.</subfield>
+    <subfield code="d">22 cm</subfield>
+  </datafield>
+  <datafield tag="225" ind1="1" ind2="#">
+    <subfield code="a">Collection Prestige du livre</subfield>
+    <subfield code="x">0395-7985</subfield>
+  </datafield>
+  <datafield tag="410" ind1="#" ind2="#">
+    <subfield code="0">039574555</subfield>
+    <subfield code="t">Collection Prestige du livre</subfield>
+    <subfield code="x">0395-7985</subfield>
+    <subfield code="v">34</subfield>
+  </datafield>
+  <datafield tag="454" ind1="#" ind2="#">
+    <subfield code="t">Ten little niggers</subfield>
+  </datafield>
+  <datafield tag="500" ind1="#" ind2="#">
+    <subfield code="a">Ten little niggers</subfield>
+    <subfield code="m">français</subfield>
+  </datafield>
+  <datafield tag="686" ind1="#" ind2="#">
+    <subfield code="a">83 </subfield>
+    <subfield code="2">Cadre de classement de la Bibliographie nationale française</subfield>
+  </datafield>
+  <datafield tag="700" ind1="#" ind2="1">
+    <subfield code="3">026788861</subfield>
+    <subfield code="a">Christie</subfield>
+    <subfield code="b">Agatha</subfield>
+    <subfield code="f">1890-1976</subfield>
+    <subfield code="4">070</subfield>
+  </datafield>
+  <datafield tag="701" ind1="#" ind2="1">
+    <subfield code="3">027080242</subfield>
+    <subfield code="a">Postif</subfield>
+    <subfield code="b">Louis</subfield>
+    <subfield code="f">1887-1942</subfield>
+    <subfield code="4">730</subfield>
+  </datafield>
+  <datafield tag="801" ind1="#" ind2="3">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">Abes</subfield>
+    <subfield code="c">20231201</subfield>
+    <subfield code="g">AFNOR</subfield>
+  </datafield>
+  <datafield tag="801" ind1="#" ind2="0">
+    <subfield code="a">FR</subfield>
+    <subfield code="b">FR-751131015</subfield>
+    <subfield code="c">19780324</subfield>
+    <subfield code="g">AFNOR</subfield>
+    <subfield code="2">intermrc</subfield>
+  </datafield>
+</record>

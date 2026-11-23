@@ -11,21 +11,45 @@ import { isbns, publishedYear, recordFor, unimarcFacts, unimarcRecords } from '.
 export type SourceFetch = (url: string) => Promise<Response>;
 
 export const sourceUrls = {
+  // An old BnF record holds only the ISBN-10 of a 978 ISBN, and BnF does not
+  // find it by its ISBN-13 ("Dix petits nègres", 1977: 2-253-01709-4).
   bnf: (isbn: string) =>
-    `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(`bib.isbn adj "${isbn}"`)}&recordSchema=unimarcxchange&maximumRecords=10`,
+    `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(bnfIsbnQuery(isbn))}&recordSchema=unimarcxchange&maximumRecords=10`,
   // The Editions BnF lists under a title and a publisher, 50 at a time.
   bnfSearch: (title: string, publisher: Publisher, start: number) =>
     `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(bnfTitleQuery(title, publisher))}&recordSchema=unimarcxchange&maximumRecords=50&startRecord=${start}`,
   sudocPpns: (isbn: string) => `https://www.sudoc.fr/services/isbn2ppn/${isbn}&format=text/json`,
   sudocRecord: (ppn: string) => `https://www.sudoc.fr/${ppn}.xml`,
   inventaire: (uri: string) => `https://inventaire.io/api/entities?action=by-uris&uris=${encodeURIComponent(uri)}`,
+  // Search (ADR 0021): the Works Inventaire finds under the words, the
+  // entities that claim a value (the Editions of a Work), and one BnF query of
+  // 100 records at most (BnF does not sort).
+  inventaireSearch: (words: string) =>
+    `https://inventaire.io/api/search?types=works&search=${encodeURIComponent(words)}&lang=fr&limit=10`,
+  inventaireReverse: (property: string, value: string) =>
+    `https://inventaire.io/api/entities/reverse-claims?property=${encodeURIComponent(property)}&value=${encodeURIComponent(value)}`,
+  bnfQuery: (query: string) =>
+    `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${encodeURIComponent(query)}&recordSchema=unimarcxchange&maximumRecords=100&startRecord=1`,
   openLibrary: (isbn: string) =>
     `https://openlibrary.org/search.json?isbn=${isbn}&fields=key,title,cover_i,series_key,series_name,series_position,number_of_pages_median`,
 };
 
+function bnfIsbnQuery(isbn: string): string {
+  const byIsbn = `bib.isbn adj "${isbn}"`;
+  return isbn.startsWith('978') ? `${byIsbn} or bib.isbn adj "${isbn13To10(isbn)}"` : byIsbn;
+}
+
+// The ISBN-10 of a 978 ISBN-13: its 9 digits after 978, and their check digit.
+export function isbn13To10(isbn13: string): string {
+  const body = isbn13.slice(3, 12);
+  const sum = [...body].reduce((total, digit, i) => total + Number(digit) * (10 - i), 0);
+  const check = (11 - (sum % 11)) % 11;
+  return `${body}${check === 10 ? 'X' : check}`;
+}
+
 // 404 means "not known here"; any other failure is an error, so the Catalog
 // does not store an incomplete answer.
-async function read(fetch: SourceFetch, url: string): Promise<Response | undefined> {
+export async function read(fetch: SourceFetch, url: string): Promise<Response | undefined> {
   const response = await fetch(url);
   if (response.status === 404) return undefined;
   if (!response.ok) throw new Error(`${new URL(url).host} answered HTTP ${response.status}`);
@@ -206,7 +230,8 @@ export async function fetchFacts(fetch: SourceFetch, isbn: string): Promise<{ fa
 
 // One request per second per host: BnF, SUDOC and Inventaire publish no rate
 // limit, Open Library allows 1/s without an email (spike 0002).
-export function politeFetch(userAgent: string, gapMs = 1100): SourceFetch {
+// `timeoutMs`: the record script waits longer, for a slow day of BnF.
+export function politeFetch(userAgent: string, gapMs = 1100, timeoutMs = 10_000): SourceFetch {
   const nextSlot = new Map<string, number>();
   return async (url) => {
     const host = new URL(url).host;
@@ -214,7 +239,7 @@ export function politeFetch(userAgent: string, gapMs = 1100): SourceFetch {
     const slot = Math.max(now, nextSlot.get(host) ?? 0);
     nextSlot.set(host, slot + gapMs);
     if (slot > now) await new Promise((resolve) => setTimeout(resolve, slot - now));
-    return fetch(url, { headers: { 'user-agent': userAgent }, signal: AbortSignal.timeout(10_000) });
+    return fetch(url, { headers: { 'user-agent': userAgent }, signal: AbortSignal.timeout(timeoutMs) });
   };
 }
 

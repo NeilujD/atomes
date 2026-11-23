@@ -12,21 +12,11 @@ const t = translator(requestLanguage(Astro.request));
 ---
 
 <AppShell title={t('tobuy.title')} current="to-buy">
-  <!-- The "+" opens the island's "Add by ISBN" sheet. Disabled until the list
-       has loaded and the island has drawn the sheet; the island also wires the
-       tap (ToBuy.tsx), so a tap before the scripts run is never lost. -->
-  <button
-    slot="actions"
-    class="icon-button"
-    type="button"
-    disabled
-    aria-label={t('tobuy.add-open')}
-    aria-haspopup="dialog"
-    aria-controls="to-buy-add-sheet"
-    data-to-buy-open
-  >
+  <!-- The "+" opens Search, where the reader finds a book by its title or
+       types its ISBN: a link, so it works before the scripts run. -->
+  <a slot="actions" class="icon-button" href="/search" aria-label={t('tobuy.add-open')}>
     <Icon name="plus" />
-  </button>
+  </a>
   <!-- Green blobs behind the top of the screen (Q9): nothing on To Buy is owned. -->
   <div class="glow to-buy-glow" aria-hidden="true">
     <span class="glow-blob glow-b1 to-buy-b1"></span>
@@ -253,56 +243,6 @@ const t = translator(requestLanguage(Astro.request));
     .to-buy-actions {
       width: 100%;
       padding-left: calc(var(--to-buy-cover) + var(--space-12));
-    }
-  }
-
-  /* The "Add by ISBN" sheet: a raised card from the bottom on the phone, in the middle on desktop. */
-  .to-buy-sheet {
-    inset: auto 0 0;
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    padding: var(--space-24) var(--space-20) max(var(--space-20), env(safe-area-inset-bottom));
-    border: var(--hairline) solid var(--line-card);
-    border-bottom: 0;
-    border-radius: var(--radius-card) var(--radius-card) 0 0;
-    background: linear-gradient(var(--fill-card), var(--fill-card)), var(--surface);
-    color: var(--ink);
-  }
-
-  .to-buy-sheet::backdrop {
-    background: var(--scrim);
-  }
-
-  .to-buy-add {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-12);
-  }
-
-  .to-buy-label {
-    font-size: var(--type-heading);
-    font-weight: 700;
-    letter-spacing: var(--tracking-tight);
-  }
-
-  .to-buy-add-row {
-    display: flex;
-    gap: var(--space-8);
-  }
-
-  .to-buy-add-row .field {
-    flex: 1;
-  }
-
-  @media (min-width: 960px) {
-    .to-buy-sheet {
-      inset: 0;
-      width: min(100% - 2 * var(--space-16), var(--confirm-width));
-      margin: auto;
-      padding: var(--space-24);
-      border-bottom: var(--hairline) solid var(--line-card);
-      border-radius: var(--radius-card);
     }
   }
 </style>

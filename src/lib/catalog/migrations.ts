@@ -276,6 +276,18 @@ const pageCounts: Step = (db) => {
   if (!columns.some(({ name }) => name === 'pages')) db.exec('alter table edition add column pages integer');
 };
 
+// Search (ADR 0021): the source answers of a Search, kept 24 hours and keyed
+// by the URL asked. A cache, not Catalog data: a later step may drop it.
+const sourceAnswers: Step = (db) =>
+  db.exec(`
+    create table if not exists source_answer (
+      url text primary key,
+      status integer not null,
+      body text not null,
+      fetched_at text not null
+    );
+  `);
+
 // What the Catalog steps read of `library.sqlite`, after its own steps ran.
 export type DidAccounts = { findDid(did: Did): AccountId | undefined };
 
@@ -292,4 +304,5 @@ export const catalogSteps = (accounts: DidAccounts): readonly Step[] => [
   seriesCorrections,
   correctionAuthors(accounts),
   pageCounts,
+  sourceAnswers,
 ];

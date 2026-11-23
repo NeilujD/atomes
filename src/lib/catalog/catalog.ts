@@ -24,6 +24,7 @@ import {
 import { inTransaction, migrate } from '../server/migrate';
 import { catalogSteps, type DidAccounts } from './migrations';
 import { dropSharedWorks, losesWork } from './shared-works';
+import { answerCache, findWorks, workEditions, type EditionsFound, type WorkResult } from './search';
 import { shownEditions } from './shown';
 import type { Publisher, SourceFetch } from './sources';
 import { bnfSearch, fetchFacts, inventaireEditions, isCoverUrl, type Listed } from './sources';
@@ -159,6 +160,12 @@ export interface Catalog {
   // The Edition Lines and books BnF lists under a title (and publisher): one
   // page of 50 records. Only the typed words leave the server.
   search(title: string, publisher?: string): Promise<SearchFound | { unavailable: true }>;
+  // Search (ADR 0021): the Works Inventaire finds under title words, one row
+  // per Work. Only the words leave the server; answers are kept 24 hours.
+  find(words: string): Promise<{ works: WorkResult[] } | { unavailable: true }>;
+  // The Editions of the Work of a Search row (its identifier, then `also`),
+  // from Inventaire and BnF, merged by ISBN-13, newest first.
+  editions(work: string[]): Promise<EditionsFound | { unavailable: true }>;
   // Keeps the reader's choice for an ISBN no source knows. Every reader of the
   // instance gets it; a later choice replaces it, and so does a source that
   // learns the ISBN, whole (no merge).
@@ -756,6 +763,19 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     };
   }
 
+  // A Search call stores its source answers only when every source answered.
+  async function searched<T>(ask: (fetch: SourceFetch) => Promise<T>): Promise<T | { unavailable: true }> {
+    const cache = answerCache(db, options.fetch, now);
+    try {
+      const found = await ask(cache.fetch);
+      cache.keep();
+      return found;
+    } catch (error) {
+      console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
+      return { unavailable: true };
+    }
+  }
+
   async function choose(isbn: string, choice: Choice): Promise<Chosen> {
     const known = await lookup(isbn);
     if ('unavailable' in known) return known;
@@ -882,6 +902,8 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     lookup,
     cover,
     search,
+    find: (words) => searched(async (fetch) => ({ works: await findWorks(fetch, words) })),
+    editions: (work) => searched((fetch) => workEditions(fetch, work)),
     choose,
     correct,
     uncorrect,

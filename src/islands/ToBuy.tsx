@@ -1,7 +1,7 @@
 // The To Buy screen (glossary: To Buy), a Preact island (ADR 0014): the
 // Volumes of the Followed Series the reader does not own, one row per Series,
-// and the Editions added by hand. The rules are in src/lib/library/to-buy.ts;
-// this file only renders and saves.
+// and the Editions added by hand (from Search, src/islands/Search.tsx). The
+// rules are in src/lib/library/to-buy.ts; this file only renders and saves.
 import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { openOwnSpace } from '../lib/auth/server-client';
@@ -13,7 +13,7 @@ import { saveCopy } from '../lib/library/copy';
 import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
 import type { Library } from '../lib/library/model';
 import { askCollected, seriesHref, type CatalogAsk } from '../lib/library/series';
-import { bought, bySeries, deleteToBuy, handAdd, saveToBuy, toBuyList, type SeriesGroup, type ToBuyItem } from '../lib/library/to-buy';
+import { bought, bySeries, deleteToBuy, toBuyList, type SeriesGroup, type ToBuyItem } from '../lib/library/to-buy';
 import { isNetworkFailure } from '../lib/network';
 import { freshListing } from '../lib/space/fresh-listing';
 import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
@@ -41,13 +41,10 @@ export function ToBuy({ sources }: { sources: Sources }) {
   const [library, setLibrary] = useState<Library>();
   // In place of the list when there is none to show (signed out, or the first read failed).
   const [message, setMessage] = useState<string>();
-  // The ISBN whose change is saving, or 'add'.
+  // The ISBN whose change is saving.
   const [saving, setSaving] = useState<string>();
-  const [typed, setTyped] = useState('');
-  const [problem, setProblem] = useState<string>();
 
   const space = useRef<Space | undefined>(undefined);
-  const sheet = useRef<HTMLDialogElement>(null);
   const listing = useRef<{ refresh: () => Promise<void> } | undefined>(undefined);
   // Catalog answers kept for this visit, so an offline reload keeps the titles.
   // Edition Lines by anchor ISBN.
@@ -104,16 +101,6 @@ export function ToBuy({ sources }: { sources: Sources }) {
     start().catch(fail);
   }, [sources]);
 
-  // The "+" of the view header (to-buy.astro) opens the sheet: it works only
-  // once the sheet is drawn, and the island that enables it also wires it, so
-  // a tap while the list loads is not lost.
-  useEffect(() => {
-    const open = document.querySelector<HTMLButtonElement>('[data-to-buy-open]');
-    if (!open) return;
-    open.disabled = !sheet.current;
-    open.onclick = () => sheet.current?.showModal();
-  });
-
   // One change at a time; the list shows what is saved once it is done.
   async function save(key: string, change: (own: Space) => Promise<WriteState>) {
     const own = space.current;
@@ -165,20 +152,6 @@ export function ToBuy({ sources }: { sources: Sources }) {
     void save(item.isbn, (own) => deleteToBuy(own, item.isbn));
   }
 
-  function add(event: Event) {
-    event.preventDefault();
-    if (!library) return;
-    const result = handAdd(typed, library, editions.current, new Date());
-    if ('problem' in result) {
-      const { problem: why } = result;
-      return setProblem(why === 'owned' ? t('tobuy.owned') : why === 'listed' ? t('tobuy.listed') : t(`isbn.${why}`));
-    }
-    setProblem(undefined);
-    setTyped('');
-    sheet.current?.close();
-    void save('add', (own) => saveToBuy(own, result.toBuy));
-  }
-
   if (message) {
     return (
       <div class="to-buy">
@@ -221,40 +194,6 @@ export function ToBuy({ sources }: { sources: Sources }) {
         </section>
       )}
 
-      {/* Opened by the "+" of the view header (to-buy.astro). A tap on the
-          backdrop closes it, as Escape does. A problem stays next to the field. */}
-      <dialog
-        ref={sheet}
-        id="to-buy-add-sheet"
-        class="to-buy-sheet"
-        aria-label={t('tobuy.add-label')}
-        onClose={() => setProblem(undefined)}
-        onClick={(event) => event.target === event.currentTarget && event.currentTarget.close()}
-      >
-        <form class="to-buy-add" onSubmit={add} noValidate>
-          <label class="to-buy-label" for="to-buy-isbn">
-            {t('tobuy.add-label')}
-          </label>
-          <div class="to-buy-add-row">
-            <input
-              class="field"
-              id="to-buy-isbn"
-              inputMode="numeric"
-              autoComplete="off"
-              value={typed}
-              aria-invalid={problem ? 'true' : undefined}
-              aria-describedby="to-buy-isbn-hint"
-              onInput={(event) => setTyped(event.currentTarget.value)}
-            />
-            <button class="button button-main" type="submit" disabled={saving !== undefined} aria-busy={saving === 'add' ? 'true' : undefined}>
-              {t('tobuy.add')}
-            </button>
-          </div>
-          <p class="to-buy-hint" id="to-buy-isbn-hint" data-error={problem ? '' : undefined}>
-            {problem ?? t('tobuy.add-hint')}
-          </p>
-        </form>
-      </dialog>
     </div>
   );
 }
