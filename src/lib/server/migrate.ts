@@ -16,9 +16,19 @@ export function migrate(db: DatabaseSync, steps: readonly Step[]): void {
   }
 }
 
+// How long a write waits while another process holds the file's lock (a
+// script in the app Terminal, a backup, an E2E helper), before it fails with
+// "database is locked". The default is not to wait at all.
+const lockWaitMs = 5_000;
+
+// Opens a SQLite file of this server.
+export function openFile(file: string): DatabaseSync {
+  return new DatabaseSync(file, { timeout: lockWaitMs });
+}
+
 // Opens the file and runs the steps it has not run yet.
 export function openDatabase(file: string, steps: readonly Step[]): DatabaseSync {
-  const db = new DatabaseSync(file);
+  const db = openFile(file);
   try {
     migrate(db, steps);
   } catch (error) {
