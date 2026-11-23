@@ -1,6 +1,6 @@
 # Library records: five record types, Catalog identifiers and record keys
 
-Status: accepted. Amended by ADR 0017 (2026-11-14) and ADR 0019 (2026-11-18).
+Status: accepted. Amended by ADR 0017 (2026-11-14), ADR 0019 (2026-11-18) and ADR 0021 (2026-11-23).
 
 The Library is stored as five record types, published as lexicons in `lexicons/app/atomes/` and listed in the Library Space (`app.atomes.library`). They follow ADR 0004 (own namespace, Editions by ISBN, Series by Catalog identifier) and ADR 0008 (an indexer can read them later without migration): records hold only ISBNs, Catalog identifiers and what the reader said, never data copied from the Catalog and never anything the app can compute.
 
@@ -199,3 +199,11 @@ Decisions of the owner, 2026-11-21:
 - The safety net is the hourly backup of production (`docs/backups.md`), no longer a backup taken by the owner just before the repair.
 - Rejected: a separate migration command in the Docker `CMD`. Node cannot load the Catalog modules from `src/` with type stripping alone, so it would need its own bundle, as `dist/backup.mjs` has.
 - Rejected: opening the files when the server module loads. The Astro Node adapter has no server-start hook, and the middleware can load lazily.
+
+## Amendment 2026-11-23: Search by title or author (ADR 0021)
+
+ADR 0021 adds Search: a signed-in reader finds a Work, a Series or an Author by title or author words, then picks one of its Editions.
+
+- What leaves the server now also includes the words of a Search, sent to Inventaire and BnF. They say nothing about who asked (ADR 0001), and no ISBN of the Library leaves with them.
+- The pick runs the normal lookup of its ISBN and adds a To Buy record or a Copy. Search adds no record type and changes no lexicon. An Edition with no ISBN cannot be picked.
+- The answers of Search stay 24 hours in a cache table of `catalog.sqlite`. It is a cache, not Catalog data: it holds no identifier that a reader record uses.
