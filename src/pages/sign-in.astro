@@ -13,8 +13,11 @@ import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
+import { landingPage } from '../lib/server/settings';
 
 const t = translator(requestLanguage(Astro.request));
+// The Landing page (M12) exists only when the instance has it.
+const landing = landingPage(process.env);
 ---
 
 <AppShell title={t('signin.title')} flow>
@@ -90,6 +93,7 @@ const t = translator(requestLanguage(Astro.request));
     </div>
     <p class="error" data-error role="alert" hidden></p>
     <p class="notices">
+      {landing && <a href="/welcome">{t('signin.about')}</a>}
       <a href="/privacy">{t('signin.privacy')}</a>
       <a href="/legal">{t('signin.legal')}</a>
     </p>

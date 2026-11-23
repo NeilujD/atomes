@@ -5,8 +5,11 @@ import Sharing from '../islands/Sharing';
 import AppShell from '../layouts/AppShell.astro';
 import { version } from '../../package.json';
 import { languageCookie, parseLanguage, requestLanguage, translator } from '../lib/i18n/i18n';
+import { landingPage } from '../lib/server/settings';
 
 const t = translator(requestLanguage(Astro.request));
+// The Landing page (M12) exists only when the instance has it.
+const landing = landingPage(process.env);
 
 // The choices of the Display group, each a radio group of chips. The page
 // script checks the kept Appearance and contrast; the server knows the language.
@@ -257,6 +260,23 @@ const pickers: { name: string; label: string; checked: string; options: { value:
         </form>
       </dialog>
     </section>
+    <!-- The Landing page (M12): what Atomes does, for a reader who wants to tell a friend. -->
+    {
+      landing && (
+        <section class="group" aria-labelledby="about-title">
+          <h2 class="small-heading" id="about-title">{t('settings.about')}</h2>
+          <div class="card group-card">
+            <div class="row">
+              <div>
+                <p class="row-label">{t('settings.about-atomes')}</p>
+                <p class="row-hint">{t('settings.about-hint')}</p>
+              </div>
+              <a class="button" href="/welcome">{t('settings.about-atomes')}</a>
+            </div>
+          </div>
+        </section>
+      )
+    }
     <!-- The version of this server (package.json): set by each release (README, "Releasing"). -->
     <p class="version">{t('settings.version', version)}</p>
   </div>
