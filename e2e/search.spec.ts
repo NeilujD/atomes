@@ -1,42 +1,99 @@
-import { expect, test } from './test';
+import type { Page } from '@playwright/test';
+import { expect, quickAdd, test } from './test';
 
-// Search (ADR 0021, CORE-184) on the recorded Catalog: an old title finds the
-// Work, whose Editions come newest first under the title printed on each.
-test('To Buy → Search an old title → add the 2020 and 1977 Editions to To Buy, each with its title', async ({ page, signIn }) => {
-  await signIn();
-  await page.goto('/to-buy');
+// Search mode of Check a book (ADR 0021, CORE-184, CORE-190) on the recorded
+// Catalog: an old title finds the Work, whose Editions come newest first under
+// the title printed on each. A picked Edition gets the Shelf Check answer of a scan.
 
-  // The empty To Buy offers a first book: its button opens Search (CORE-189).
-  // The "+" of the view header opens it too (to-buy.spec.ts).
-  await page.getByRole('link', { name: 'Find a book' }).click();
-  await expect(page).toHaveURL(/\/search$/);
-
+// Searches the words and opens the Christie Work.
+async function openChristie(page: Page) {
   await page.getByLabel('Title of the book').fill('Dix petits nègres');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: /^Dix Petits Nègres Agatha Christie · 1939/ }).click();
+}
 
-  const editions = page.getByRole('list', { name: 'Editions' }).getByRole('listitem');
+const editions = (page: Page) => page.getByRole('list', { name: 'Editions' }).getByRole('listitem');
+
+test('Check → Search → an old title → Work → Edition → the Shelf Check answer → Add to To Buy', async ({ page, signIn }) => {
+  await signIn();
+  // With no mode in the address, Check a book opens on Scan.
+  await page.goto('/check');
+  await expect(page.getByRole('radio', { name: 'Scan' })).toBeChecked();
+  await expect(page.getByLabel('ISBN', { exact: true })).toBeVisible();
+
+  await page.getByRole('radio', { name: 'Search' }).check();
+  await expect(page).toHaveURL(/\/check\?mode=search$/);
+  // One typed-ISBN field, in Scan mode only.
+  await expect(page.getByLabel('ISBN', { exact: true })).toBeHidden();
+  await openChristie(page);
+  await expect(page).toHaveURL(/\/check\?mode=search&q=Dix\+petits\+n%C3%A8gres$/);
+
   // Newest first: the 2025 Editions, then 2021, then 2020, all titled "Ils étaient dix".
-  await expect(editions.first().locator('.search-title')).toHaveText('Ils étaient dix');
+  await expect(editions(page).first().locator('.search-title')).toHaveText('Ils étaient dix');
   await expect(page.getByText('23 Editions with no ISBN are not shown.')).toBeVisible();
-
-  const livreDePoche2020 = editions.filter({ hasText: 'ISBN 9782253241782' });
+  const livreDePoche2020 = editions(page).filter({ hasText: 'ISBN 9782253241782' });
   await expect(livreDePoche2020).toContainText('2020 · le Livre de poche');
   await livreDePoche2020.getByRole('button', { name: /^Ils étaient dix/ }).click();
-  await livreDePoche2020.getByRole('button', { name: 'Add to To Buy' }).click();
-  await expect(page.getByRole('status').filter({ hasText: /Saved/ }).first()).toBeVisible();
 
-  // The 1977 Edition, which BnF knows only by its ISBN-10 (2-253-01709-4).
-  const poche1977 = editions.filter({ hasText: 'ISBN 9782253017097' });
-  await poche1977.getByRole('button', { name: /^Dix petits nègres/ }).click();
-  const add1977 = poche1977.getByRole('button', { name: 'Add to To Buy' });
-  await add1977.click();
-  await expect(add1977).toBeEnabled();
-  await expect(add1977).not.toHaveAttribute('aria-busy', 'true');
+  // The answer of a scan; from Check, Add to Library is the main action.
+  const answer = page.getByRole('dialog', { name: 'Shelf Check' });
+  await expect(answer.getByText('Not in your Library', { exact: true })).toBeVisible();
+  await expect(answer.getByRole('button', { name: 'Add to Library' })).toHaveClass(/result-primary/);
+  await answer.getByRole('button', { name: 'Add to To Buy' }).click();
+  await expect(answer).toBeHidden();
+  await expect(page.getByRole('status').filter({ hasText: 'Ils étaient dix is on your To Buy list.' }).first()).toBeVisible();
 
-  // Each shows on To Buy with its title, not only its ISBN.
+  // Back on the Editions; a reload keeps the words and the results.
+  await expect(livreDePoche2020).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('Title of the book')).toHaveValue('Dix petits nègres');
+  await expect(page.getByRole('button', { name: /^Dix Petits Nègres Agatha Christie · 1939/ })).toBeVisible();
+
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'To Buy' }).click();
   const byHand = page.getByRole('region', { name: 'Added by hand' }).getByRole('listitem');
   await expect(byHand.filter({ hasText: 'ISBN 9782253241782' })).toContainText('Ils étaient dix');
+});
+
+test('To Buy → Search mode, where Add to To Buy is the main action of the answer', async ({ page, signIn }) => {
+  await signIn();
+  // The "+" of To Buy opens Search mode (its empty-list button too: ToBuy.test.tsx).
+  await page.goto('/to-buy');
+  await page.getByRole('link', { name: 'Add a book' }).click();
+  await expect(page).toHaveURL(/\/check\?mode=search&from=to-buy$/);
+  await expect(page.getByRole('radio', { name: 'Search' })).toBeChecked();
+  await openChristie(page);
+
+  // The 1977 Edition, which BnF knows only by its ISBN-10 (2-253-01709-4).
+  await editions(page).filter({ hasText: 'ISBN 9782253017097' }).getByRole('button', { name: /^Dix petits nègres/ }).click();
+  const answer = page.getByRole('dialog', { name: 'Shelf Check' });
+  await expect(answer.getByText('Not in your Library', { exact: true })).toBeVisible();
+  const add = answer.getByRole('button', { name: 'Add to To Buy' });
+  await expect(add).toHaveClass(/result-primary/);
+  await add.click();
+  await expect(page.getByRole('status').filter({ hasText: 'Dix petits nègres is on your To Buy list.' }).first()).toBeVisible();
+
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'To Buy' }).click();
+  const byHand = page.getByRole('region', { name: 'Added by hand' }).getByRole('listitem');
   await expect(byHand.filter({ hasText: 'ISBN 9782253017097' })).toContainText('Dix petits nègres');
+});
+
+test('Search: an owned Edition gets the owned answer of a scan, with nothing to buy', async ({ page, signIn }) => {
+  await signIn();
+  // A Copy of the 2020 Edition, added by its ISBN.
+  await quickAdd(page, '9782253241782');
+  await expect(page.getByRole('status').filter({ hasText: 'Ils étaient dix is in your Library.' }).first()).toBeVisible();
+
+  // An old Search link opens Search mode.
+  await page.goto('/search');
+  await expect(page).toHaveURL(/\/check\?mode=search$/);
+  await openChristie(page);
+  await editions(page).filter({ hasText: 'ISBN 9782253241782' }).getByRole('button', { name: /^Ils étaient dix/ }).click();
+
+  const answer = page.getByRole('dialog', { name: 'Shelf Check' });
+  await expect(answer.getByText('Already in your Library', { exact: true })).toBeVisible();
+  await expect(answer.getByRole('button', { name: 'Add to To Buy' })).toHaveCount(0);
+  // Back closes the answer, not the page: the Editions stay.
+  await page.goBack();
+  await expect(answer).toBeHidden();
+  await expect(editions(page).first()).toBeVisible();
 });

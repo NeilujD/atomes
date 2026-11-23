@@ -33,10 +33,12 @@ function screenFor(check: ShelfCheck, change: Partial<ResultProps> = {}) {
     book: { isbn: onePiece56.isbn, work: onePiece56.work.id, edition: onePiece56, title: onePiece56.title },
     check,
     cover: null,
+    entry: 'check',
     canScan: true,
     onClose: () => calls.push('close'),
     onScan: () => calls.push('scan'),
     onAdd: (read) => calls.push(read ? 'add read' : 'add'),
+    onToBuy: () => calls.push('to buy'),
     onFollow: () => calls.push('follow'),
     ...change,
   };
@@ -45,7 +47,7 @@ function screenFor(check: ShelfCheck, change: Partial<ResultProps> = {}) {
 }
 
 describe('the Shelf Check result screen', () => {
-  test('not in the Library: green, the Series title and Volume, authors and publisher, chips, Add to Library and Add and mark as read', () => {
+  test('not in the Library: green, the Series title and Volume, authors and publisher, chips, Add to Library, Add and mark as read, Add to To Buy', () => {
     const { calls, screen: shown } = screenFor({ kind: 'new', status: 'unread', followed: null });
 
     expect(shown.dataset.tone).toBe('go');
@@ -56,9 +58,38 @@ describe('the Shelf Check result screen', () => {
     expect([...shown.querySelectorAll('.result-chip')].map((chip) => chip.textContent)).toEqual(['French', '18 cm', 'ISBN 9782723478991', 'Private']);
     fireEvent.click(screen.getByRole('button', { name: 'Add to Library' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add and mark as read' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to To Buy' }));
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     fireEvent.click(screen.getByRole('button', { name: 'Scan the barcode' }));
-    expect(calls).toEqual(['add', 'add read', 'close', 'scan']);
+    expect(calls).toEqual(['add', 'add read', 'to buy', 'close', 'scan']);
+  });
+
+  // The main (filled) button is the first action, by the entry of Check a book.
+  const actions = (shown: HTMLElement) =>
+    [...shown.querySelectorAll<HTMLButtonElement>('.result-action')].map((each) => `${each.classList.contains('result-primary') ? 'main' : 'other'}: ${each.textContent}`);
+
+  test('from Check: Add to Library is the main action, Add to To Buy another', () => {
+    const { screen: shown } = screenFor({ kind: 'new', status: 'unread', followed: null });
+
+    expect(actions(shown)).toEqual(['main: Add to Library', 'other: Add and mark as read', 'other: Add to To Buy']);
+  });
+
+  test('from To Buy: Add to To Buy is the main action', () => {
+    const { screen: shown } = screenFor({ kind: 'missing', status: 'unread', followed: onePiece }, { entry: 'to-buy' });
+
+    expect(actions(shown)).toEqual(['main: Add to To Buy', 'other: Add to Library', 'other: Add and mark as read']);
+  });
+
+  test('read, not owned, from To Buy: Add to To Buy, then Add to Library', () => {
+    const { screen: shown } = screenFor({ kind: 'read', status: 'read', followed: null }, { entry: 'to-buy' });
+
+    expect(actions(shown)).toEqual(['main: Add to To Buy', 'other: Add to Library']);
+  });
+
+  test('owned, from To Buy too: no Add to To Buy (To Buy refuses a book the reader owns)', () => {
+    const { screen: shown } = screenFor({ kind: 'owned', status: 'unread', followed: null }, { entry: 'to-buy' });
+
+    expect(actions(shown)).toEqual(['main: Scan another book', 'other: Add another Copy']);
   });
 
   test('a book of no Series: its title; chips with no data are left out', () => {
@@ -141,5 +172,12 @@ describe('the Shelf Check result screen', () => {
     expect(screen.getByRole('button', { name: 'Add and mark as read' }).getAttribute('aria-busy')).toBe('true');
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add to Library' }).disabled).toBe(true);
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Close' }).disabled).toBe(true);
+  });
+
+  test('while the To Buy record saves: Add to To Buy is busy, no other button works', () => {
+    screenFor({ kind: 'new', status: 'unread', followed: null }, { saving: 'to-buy' });
+
+    expect(screen.getByRole('button', { name: 'Add to To Buy' }).getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add to Library' }).disabled).toBe(true);
   });
 });

@@ -171,7 +171,7 @@ export function ToBuy({ sources }: { sources: Sources }) {
   const empty = list.followed.length === 0 && list.byHand.length === 0;
   return (
     <div class="to-buy">
-      {empty && <EmptyState text={t('tobuy.empty')} action={t('tobuy.find')} href="/search" />}
+      {empty && <EmptyState text={t('tobuy.empty')} action={t('tobuy.find')} href="/check?mode=search&from=to-buy" />}
 
       {list.followed.length > 0 && (
         <section class="to-buy-group" aria-labelledby="to-buy-followed">

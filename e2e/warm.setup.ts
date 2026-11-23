@@ -5,7 +5,7 @@
 // builds them before any journey runs. Pages render with no session.
 import { expect, test } from './test';
 
-const pages = ['/', '/library', '/book', '/series', '/to-buy', '/statistics', '/check', '/onboarding', '/settings', '/sign-in', '/search'];
+const pages = ['/', '/library', '/book', '/series', '/to-buy', '/statistics', '/check', '/onboarding', '/settings', '/sign-in'];
 
 test('build every page once', async ({ request }) => {
   test.setTimeout(120_000);

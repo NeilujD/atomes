@@ -1,6 +1,6 @@
 # Search by title or author, from Inventaire then BnF, merged by ISBN
 
-Status: accepted (2026-11-23). Amends ADR 0010 (what leaves the server) and the source order of spike 0002 (`docs/spikes/0002-catalog-sources-barcode-and-space-records.md`) for Search only. Built in milestone "M14 · Search". Spec: Linear document "Spec: M14 · Search".
+Status: accepted (2026-11-23); amended 2026-11-23 (Search is a mode of Check a book). Amends ADR 0010 (what leaves the server) and the source order of spike 0002 (`docs/spikes/0002-catalog-sources-barcode-and-space-records.md`) for Search only. Built in milestone "M14 · Search". Spec: Linear document "Spec: M14 · Search".
 
 A reader can add a book only with its barcode (Quick Add) or by typing its ISBN (To Buy). A reader who heard of a book and does not have it in their hands knows neither. The only search by words today is the BnF search by title and publisher of the amendment of 2026-11-11 to ADR 0010. Quick Add uses it for an ISBN that no source knows. It cannot find a Work under another title: "Dix petits nègres" (the old French title of Agatha Christie's novel) is "Ils étaient dix" in French since 2020, and "And Then There Were None" in English. It cannot search by author either. Decision (grilling of 2026-11-23, Q1 to Q25): **Search finds Works, Series and Authors by title or author words in one box. Inventaire finds the Work under any of its titles. The Editions of the Work come from Inventaire and BnF, merged by ISBN-13.**
 
@@ -52,7 +52,20 @@ A live spike of 2026-11-23 (User-Agent `Atomes-spike/0.1`, about 1 request/s per
 - ADR 0010: what leaves the server now also includes the title or author words of Search. They say nothing about who asked, as for the BnF search of 2026-11-11.
 - Spike 0002: its source order stays for the lookup of an ISBN. Search uses Inventaire first.
 - The current BnF search of Quick Add, for an ISBN that no source knows, stays as it is.
-- `GLOSSARY.md` gets Search and Preferred Language. Shelf Check keeps "search" as a word to avoid: a Shelf Check is not a Search.
+- `GLOSSARY.md` gets Search and Preferred Language. Shelf Check keeps "search" as a word to avoid: a Shelf Check is not a Search. Changed by the 2026-11-23 amendment below.
 - The recorded source answers and the record script need the new Inventaire query shapes (search, reverse claims) and the BnF `bib.work2bib` query.
 - The Privacy notice says nothing about book sources today, and Search sends no personal data, so it does not change.
 - When Inventaire is down, Search still works from BnF, but finds fewer title variants and no other languages.
+
+## Amendment 2026-11-23: Search is a mode of Check a book, and ends in the Shelf Check answer
+
+Owner feedback (CORE-190): sometimes the barcode and the ISBN cannot be read (a gift, a price sticker over the code). The reader must still get a Shelf Check. Decision (grilling of 2026-11-23, Q3, Q4, Q9–Q15, Q19): **Search and Shelf Check are one feature. Check a book has two modes, Scan and Search, and an Edition picked in Search gets the same Shelf Check answer as a scan.**
+
+- **One screen, two modes.** A switch at the top of `/check`: Scan | Search. The address holds the mode and the words (`/check?mode=search&q=dix+petits`), so Back from the answer and a reload keep the results. No mode is remembered: with no `mode`, the screen opens on Scan. `/search` sends to `/check?mode=search`, with its words.
+- **One answer.** The pick runs the normal lookup of the ISBN, as a scan does, and shows the Shelf Check result screen: in your Library, read, missing from a Series, or not in your Library.
+- **The main action follows the entry.** The answer of a book the reader does not own always has Add to To Buy. From To Buy (its "+" and its empty-list button, `from=to-buy`), Add to To Buy is the main action; from anywhere else, Add to Library is. The rule of the add is To Buy's (refused when the reader owns the Work or has it on To Buy). An owned answer has no Add to To Buy.
+- **One typed-ISBN field**, in Scan mode only. The typed-ISBN field of the Search screen is removed: a known ISBN goes through Scan mode and its answer.
+- **Offline.** Search mode says it needs a connection, keeps the words, and offers Scan. Scan mode keeps its offline answer from the device. Only the scan and the typed ISBN must work offline; Search offline from the device data is a follow-up (CORE-191).
+- **No fuzzy matching of our own.** Inventaire already accepts "10" for "Dix", no accents, and the singular for the plural (live test of 2026-11-23: "10 petits negres" gives "Ils étaient dix" at rank 1). When nothing is found, the screen asks to check the spelling, or to try the author's name.
+- Rejected: two screens, Search apart from Check a book. The reader would get two answers for one question, and Search would not tell what they own.
+- `GLOSSARY.md`: Shelf Check is the answer (owned, read, missing); it starts from a scan, a typed ISBN or Search. "Search" leaves its words to avoid.

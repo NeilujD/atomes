@@ -1,12 +1,8 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/preact';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { Edition } from '../lib/catalog/catalog';
 import type { EditionsFound, WorkResult } from '../lib/catalog/search';
-import { saveCopy } from '../lib/library/copy';
-import { memorySpace } from '../lib/library/memory-space.fake';
-import { saveToBuy, toBuyCollection } from '../lib/library/to-buy';
-import { Search, type Sources } from './Search';
+import { Search, type SearchProps, type Sources } from './Search';
 
 const work: WorkResult = { id: 'wd:Q214132', also: [], title: 'Dix Petits Nègres', authors: ['Agatha Christie'], year: 1939 };
 const ilsEtaientDix = '9782253241782';
@@ -17,35 +13,22 @@ const found: EditionsFound = {
   ],
   noIsbn: 23,
 };
-// What the normal lookup gives for the picked ISBN: the Edition of the Work.
-const edition = (isbn: string): Edition => ({
-  isbn,
-  title: 'Ils étaient dix',
-  volumeTitle: null,
-  authors: ['Agatha Christie'],
-  publisher: 'le Livre de poche',
-  language: 'fre',
-  format: null,
-  cover: null,
-  work: { id: work.id, title: 'Ils étaient dix' },
-  series: null,
-  volumes: [],
-  volume: null,
-  sources: ['BnF', 'Inventaire'],
-  fetchedAt: '2026-11-23T10:00:00.000Z',
-});
 
-function screenWith(overrides: Partial<Sources> = {}) {
-  const { space, stored } = memorySpace();
-  const sources: Sources = {
-    find: () => Promise.resolve({ found: [work] }),
-    editions: () => Promise.resolve({ found }),
-    lookup: (isbn) => Promise.resolve({ found: edition(isbn) }),
-    open: () => Promise.resolve(space),
-    ...overrides,
-  };
-  render(<Search sources={sources} />);
-  return { space, stored };
+function screenWith(sources: Partial<Sources> = {}, props: Partial<SearchProps> = {}) {
+  const calls = { words: [] as string[], picked: [] as string[], scans: 0 };
+  render(
+    <Search
+      sources={{ find: () => Promise.resolve({ found: [work] }), editions: () => Promise.resolve({ found }), ...sources }}
+      onWords={(words) => calls.words.push(words)}
+      onPick={(isbn) => {
+        calls.picked.push(isbn);
+        return Promise.resolve(undefined);
+      }}
+      onScan={() => calls.scans++}
+      {...props}
+    />,
+  );
+  return calls;
 }
 
 const box = () => screen.getByLabelText<HTMLInputElement>('Title of the book');
@@ -53,15 +36,9 @@ function searchFor(words: string) {
   fireEvent.input(box(), { target: { value: words } });
   fireEvent.click(screen.getByRole('button', { name: 'Search' }));
 }
-const isbnBox = () => screen.getByLabelText<HTMLInputElement>('Add a book by its ISBN');
-function addByIsbn(typed: string) {
-  fireEvent.input(isbnBox(), { target: { value: typed } });
-  fireEvent.click(screen.getByRole('button', { name: 'Add' }));
-}
-async function pick(title: string) {
+async function openWork() {
   searchFor('Dix petits nègres');
   fireEvent.click(await screen.findByRole('button', { name: /^Dix Petits Nègres/ }));
-  fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }));
 }
 
 afterEach(() => {
@@ -69,12 +46,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('Search screen', () => {
+describe('Search mode', () => {
   test('opens a Work: its Editions, and how many have no ISBN', async () => {
     screenWith();
 
-    searchFor('Dix petits nègres');
-    fireEvent.click(await screen.findByRole('button', { name: /^Dix Petits Nègres/ }));
+    await openWork();
 
     const list = await screen.findByRole('list', { name: 'Editions' });
     expect(within(list).getAllByRole('listitem').map((row) => row.querySelector('.search-title')?.textContent)).toEqual([
@@ -84,45 +60,60 @@ describe('Search screen', () => {
     expect(screen.getByText('23 Editions with no ISBN are not shown.')).toBeTruthy();
   });
 
-  test('a picked Edition added to To Buy is a To Buy record', async () => {
-    const { stored } = screenWith();
+  test('each search gives its words, for the address', async () => {
+    const calls = screenWith();
 
-    await pick('Ils étaient dix');
-    fireEvent.click(screen.getByRole('button', { name: 'Add to To Buy' }));
+    searchFor('  Dix petits nègres ');
 
-    await vi.waitFor(() => expect(stored(toBuyCollection).map(({ rkey }) => rkey)).toEqual([ilsEtaientDix]));
+    expect(await screen.findByRole('button', { name: /^Dix Petits Nègres/ })).toBeTruthy();
+    expect(calls.words).toEqual(['Dix petits nègres']);
   });
 
-  test('an Edition of a Work the reader owns is refused, with the To Buy message', async () => {
-    const { space, stored } = screenWith();
-    // A Copy of another Edition of the same Work.
-    await saveCopy(space, { isbn: '9782702449547', works: [work.id], createdAt: '2026-11-01T10:00:00.000Z' });
+  test('the words of the address are searched at once: a reload keeps the results', async () => {
+    const find = vi.fn<Sources['find']>(() => Promise.resolve({ found: [work] }));
+    screenWith({ find }, { words: 'dix petits' });
 
-    await pick('Ils étaient dix');
-    fireEvent.click(screen.getByRole('button', { name: 'Add to To Buy' }));
-
-    expect(await screen.findByText('You already have this book.')).toBeTruthy();
-    expect(stored(toBuyCollection)).toEqual([]);
+    expect(await screen.findByRole('button', { name: /^Dix Petits Nègres/ })).toBeTruthy();
+    expect(box().value).toBe('dix petits');
+    expect(find).toHaveBeenCalledWith('dix petits');
   });
 
-  test('an Edition already on To Buy is refused, with the To Buy message', async () => {
-    const { space, stored } = screenWith();
-    await saveToBuy(space, { isbn: ilsEtaientDix, createdAt: '2026-11-01T10:00:00.000Z' });
+  test('a picked Edition goes to the page, which shows its Shelf Check answer', async () => {
+    const calls = screenWith();
 
-    await pick('Ils étaient dix');
-    fireEvent.click(screen.getByRole('button', { name: 'Add to To Buy' }));
+    await openWork();
+    fireEvent.click(await screen.findByRole('button', { name: /^Ils étaient dix/ }));
 
-    expect(await screen.findByText('This book is already on your To Buy list.')).toBeTruthy();
-    expect(stored(toBuyCollection)).toHaveLength(1);
+    expect(calls.picked).toEqual([ilsEtaientDix]);
   });
 
-  test('with no network, says Search needs a connection and keeps the words', async () => {
-    screenWith({ find: () => Promise.reject(new TypeError('Failed to fetch')) });
+  test('a pick the page cannot answer says why, and the Editions stay', async () => {
+    screenWith({}, { onPick: () => Promise.resolve('The book sources do not answer now.') });
+
+    await openWork();
+    fireEvent.click(await screen.findByRole('button', { name: /^Ils étaient dix/ }));
+
+    expect(await screen.findByText('The book sources do not answer now.')).toBeTruthy();
+    expect(screen.getByRole('list', { name: 'Editions' })).toBeTruthy();
+  });
+
+  test('nothing found: says to check the spelling or try the author', async () => {
+    screenWith({ find: () => Promise.resolve({ found: [] }) });
+
+    searchFor('Dix petis negres');
+
+    expect(await screen.findByText('No Work found. Check the spelling, or try the author’s name.')).toBeTruthy();
+  });
+
+  test('with no network: Search needs a connection, the words stay, and Scan is offered', async () => {
+    const calls = screenWith({ find: () => Promise.reject(new TypeError('Failed to fetch')) });
 
     searchFor('Dix petits nègres');
 
     expect(await screen.findByText(/^Search needs a connection/)).toBeTruthy();
     expect(box().value).toBe('Dix petits nègres');
+    fireEvent.click(screen.getByRole('button', { name: 'Scan the barcode' }));
+    expect(calls.scans).toBe(1);
   });
 
   test('offline before it asks: no request, the same message', async () => {
@@ -135,35 +126,15 @@ describe('Search screen', () => {
     expect(await screen.findByText(/^Search needs a connection/)).toBeTruthy();
     expect(find).not.toHaveBeenCalled();
     expect(box().value).toBe('Dix petits nègres');
+    expect(screen.getByRole('button', { name: 'Scan the barcode' })).toBeTruthy();
   });
 
-  test('a typed ISBN is added to To Buy, and the field empties', async () => {
-    const { stored } = screenWith({ lookup: () => Promise.resolve({ notFound: true }) });
+  test('sources down: no Scan button, a scan would not help', async () => {
+    screenWith({ find: () => Promise.resolve({ unavailable: true }) });
 
-    addByIsbn('978-2-505-00001-3');
+    searchFor('Dix petits nègres');
 
-    await vi.waitFor(() => expect(stored(toBuyCollection).map(({ rkey }) => rkey)).toEqual(['9782505000013']));
-    await vi.waitFor(() => expect(isbnBox().value).toBe(''));
-  });
-
-  test('a typed ISBN is added with no network too: the record waits on the device', async () => {
-    const { stored } = screenWith({ lookup: () => Promise.reject(new TypeError('Failed to fetch')) });
-
-    addByIsbn('9782505000013');
-
-    await vi.waitFor(() => expect(stored(toBuyCollection).map(({ rkey }) => rkey)).toEqual(['9782505000013']));
-  });
-
-  test('a typed ISBN of a book the reader owns, or a wrong ISBN, is refused next to the field', async () => {
-    const { space, stored } = screenWith();
-    await saveCopy(space, { isbn: ilsEtaientDix, works: [work.id], createdAt: '2026-11-01T10:00:00.000Z' });
-
-    addByIsbn(ilsEtaientDix);
-    expect(await screen.findByText('You already have this book.')).toBeTruthy();
-    expect(isbnBox().getAttribute('aria-invalid')).toBe('true');
-
-    addByIsbn('9782505000014');
-    expect(await screen.findByText(/^One digit is wrong/)).toBeTruthy();
-    expect(stored(toBuyCollection)).toEqual([]);
+    expect(await screen.findByText(/book sources/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Scan the barcode' })).toBeNull();
   });
 });

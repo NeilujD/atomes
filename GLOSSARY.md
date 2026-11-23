@@ -173,8 +173,8 @@ _Avoid_: Import, scan-in
 _French_: Ajout rapide
 
 **Shelf Check**:
-Pointing the phone at a book (usually in a shop) to learn whether the reader already owns it, has read it, or is missing it from a Series. It must work offline. When the reader buys the book, a Shelf Check ends in a Quick Add.
-_Avoid_: Lookup, search, in-store mode
+The answer to "do I have this book?" (usually in a shop): whether the reader already owns it, has read it, or is missing it from a Series. It starts from a scan of the barcode, a typed ISBN, or an Edition picked in Search (the two modes of Check a book, Scan and Search). The scan and the typed ISBN must work offline. When the reader buys the book, a Shelf Check ends in a Quick Add; when they want it, in To Buy.
+_Avoid_: Lookup, in-store mode
 _French_: Vérification en rayon
 
 **Series Onboarding**:
@@ -183,7 +183,7 @@ _Avoid_: Series import, bulk add
 _French_: Ajout d'une série
 
 **Search**:
-Finding a Work, a Series or an Author by title or author words, when the reader has no ISBN. A Work shows once, under any of its titles, old or new, in any language ("Dix petits nègres" finds "Ils étaient dix"). The reader opens it, picks one of its Editions, and adds it to To Buy or, when they have it, as a Copy, the same way Quick Add does. It needs a connection.
+The step from words to a Work to an Edition, when the reader has no ISBN: finding a Work, a Series or an Author by title or author words. A Work shows once, under any of its titles, old or new, in any language ("Dix petits nègres" finds "Ils étaient dix"). The reader opens it and picks one of its Editions, which gets the Shelf Check answer; from there it goes to To Buy or, when they have it, becomes a Copy, the same way Quick Add does. It is the Search mode of Check a book, and needs a connection.
 _Avoid_: Lookup, browse
 _French_: Recherche
 

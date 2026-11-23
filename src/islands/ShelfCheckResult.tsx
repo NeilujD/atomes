@@ -38,14 +38,18 @@ export interface ResultProps {
   seriesLoading?: boolean;
   // While the follow saves: a second tap cannot save twice.
   following?: boolean;
-  // While a Copy saves: which button shows it.
-  saving?: 'add' | 'read';
+  // While a Copy or a To Buy record saves: which button shows it.
+  saving?: 'add' | 'read' | 'to-buy';
+  // Where Check a book was opened from: from To Buy, Add to To Buy is the
+  // main action; from anywhere else, Add to Library is.
+  entry: 'check' | 'to-buy';
   // The browser can open a camera.
   canScan: boolean;
   onClose: () => void;
   onScan: () => void;
   // Saves a Copy; `read`: with the Reading Status read.
   onAdd: (read: boolean) => void;
+  onToBuy: () => void;
   onFollow?: () => void;
 }
 
@@ -163,10 +167,12 @@ export function ShelfCheckResult(props: ResultProps) {
   );
 }
 
-// Not owned: Add to Library, and Add and mark as read. Owned: Scan another
-// book, and Add another Copy. No Catalog data offline: nothing to add.
-function Actions({ book, check, saving, canScan, onScan, onAdd }: ResultProps) {
-  const busy = (which: 'add' | 'read') => ({ disabled: saving !== undefined, 'aria-busy': saving === which || undefined });
+// Not owned: Add to Library, Add and mark as read, and Add to To Buy, whose
+// first is the main action of the entry. Owned: Scan another book, and Add
+// another Copy (To Buy refuses a book the reader owns). No Catalog data
+// offline: nothing to add.
+function Actions({ book, check, saving, entry, canScan, onScan, onAdd, onToBuy }: ResultProps) {
+  const busy = (which: 'add' | 'read' | 'to-buy') => ({ disabled: saving !== undefined, 'aria-busy': saving === which || undefined });
   const scan = canScan && (
     <button class="result-action result-primary" type="button" disabled={saving !== undefined} onClick={onScan}>
       {t('check.scan-another')}
@@ -183,9 +189,16 @@ function Actions({ book, check, saving, canScan, onScan, onAdd }: ResultProps) {
       </div>
     );
   }
+  const toBuyFirst = entry === 'to-buy';
+  const toBuy = (
+    <button class={`result-action ${toBuyFirst ? 'result-primary' : 'result-secondary'}`} type="button" {...busy('to-buy')} onClick={onToBuy}>
+      {t('check.add-to-buy')}
+    </button>
+  );
   return (
     <div class="result-actions">
-      <button class="result-action result-primary" type="button" {...busy('add')} onClick={() => onAdd(false)}>
+      {toBuyFirst && toBuy}
+      <button class={`result-action ${toBuyFirst ? 'result-secondary' : 'result-primary'}`} type="button" {...busy('add')} onClick={() => onAdd(false)}>
         {t('add.submit')}
       </button>
       {check.status !== 'read' && (
@@ -193,6 +206,7 @@ function Actions({ book, check, saving, canScan, onScan, onAdd }: ResultProps) {
           {t('check.add-read')}
         </button>
       )}
+      {!toBuyFirst && toBuy}
     </div>
   );
 }
