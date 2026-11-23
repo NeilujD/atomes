@@ -94,6 +94,8 @@ describe('a reader makes an Invite', () => {
 
   test('a make while a sign-up holds the file writes nothing beside it', () => {
     const { token } = makeReaderInvite(db, alice, now)!;
+    // The lock is held in this process, so a wait (openFile) cannot end it: fail at once.
+    db.exec('pragma busy_timeout = 0');
     // Another connection is using the Invite up, not committed yet.
     const other = new DatabaseSync(join(dir, 'library.sqlite'), { timeout: 0 });
     other.exec('begin immediate');
