@@ -3,6 +3,7 @@
 import type { Edition } from '../catalog/catalog';
 import type { LineName } from '../catalog/lines';
 import { coverUrl } from '../catalog/client';
+import { bcp47 } from '../catalog/languages';
 import { pageLanguage, translator, type Language } from '../i18n/i18n';
 import type { Copy } from './copy';
 import { dayOf, storedDay } from './day';
@@ -240,9 +241,6 @@ function currentReadingStatus(work: string, library: Library): ReadingStatus | u
   const value = library.readingStatuses.find(({ rkey }) => rkey === work)?.value;
   return value && statuses.includes(value.status) ? value : undefined;
 }
-
-// UNIMARC 101 $a and Open Library give ISO 639-2/B codes; Intl names BCP 47 ones.
-const bcp47: Record<string, string> = { fre: 'fr', eng: 'en', jpn: 'ja', ger: 'de', spa: 'es', ita: 'it', kor: 'ko' };
 
 // The name of an Edition Line (glossary): its publisher and the years of its
 // Editions, "Glénat · 1993–2000" (ADR 0010, amendment 2026-11-14).

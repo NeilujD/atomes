@@ -54,12 +54,12 @@ test('Cobalt fills the main action of each screen, green and orange the Shelf Ch
   await expectMainAction(page.getByRole('button', { name: 'Add to Library' }));
   await expectSecondary(page.getByRole('button', { name: 'Look up' }));
 
-  // The Shelf Check result, for a book the reader does not own: Add to Library is filled green, in dark text.
+  // The Shelf Check result, for a book the reader does not own: "I have it" is filled green, in dark text.
   // One Piece 56, Glénat: a recorded Catalog answer.
   await page.goto('/check');
   await page.getByLabel('ISBN', { exact: true }).fill('9782723478991');
   await page.getByRole('button', { name: 'Look up' }).click();
-  const add = page.getByRole('dialog', { name: 'Shelf Check' }).getByRole('button', { name: 'Add to Library' });
+  const add = page.getByRole('dialog', { name: 'Shelf Check' }).getByRole('button', { name: 'I have it' });
   await expectRole(add, '--not-owned', 'backgroundColor');
   await expectRole(add, '--on-ownership');
   await add.click();

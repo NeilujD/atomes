@@ -4,7 +4,8 @@
 // for a Series Correction (ADR 0017), and the words of a Search (ADR 0021).
 // Rejects like fetch when the Atomes server cannot be reached.
 import type { Choice, Correction, Edition, LineSummary, Lookup, SearchFound, SeriesFound } from './catalog';
-import type { EditionsFound, WorkResult } from './search';
+import type { PreferredLanguage } from './languages';
+import type { AuthorResult, AuthorWorks, EditionsFound, Found, SeriesResult, VolumeResult, WorkResult } from './search';
 
 // The cover of an Edition, served by the Atomes server (api.ts): the browser
 // never asks a book source, which would learn who looks at which book.
@@ -72,16 +73,35 @@ async function foundAnswer<T>(response: Response): Promise<FoundAnswer<T>> {
   return response.status === 401 ? { signedOut: true } : { unavailable: true };
 }
 
-// Search (ADR 0021): the Works the sources find under the typed words.
-export async function findWorks(words: string): Promise<FoundAnswer<WorkResult[]>> {
-  const answer = await foundAnswer<{ works: WorkResult[] }>(await fetch(`/api/catalog/find?${new URLSearchParams({ words })}`));
-  return 'found' in answer ? { found: answer.found.works } : answer;
+// Search (ADR 0021): the Works and Authors the sources find under the typed words.
+export async function findWorks(words: string): Promise<FoundAnswer<Found>> {
+  return foundAnswer<Found>(await fetch(`/api/catalog/find?${new URLSearchParams({ words })}`));
 }
 
-// The Editions of a Search row: its Work, then its other identifiers.
-export async function findEditions(work: Pick<WorkResult, 'id' | 'also'>): Promise<FoundAnswer<EditionsFound>> {
-  const query = new URLSearchParams([work.id, ...work.also].map((id) => ['work', id]));
+// The Editions of a Search row: its Work, then its other identifiers; in the
+// Preferred Language, and apart in the language of the words (CORE-186). A
+// BnF row also sends the words of its search.
+export async function findEditions(
+  work: Pick<WorkResult, 'id' | 'also' | 'language' | 'words'>,
+  language: PreferredLanguage,
+): Promise<FoundAnswer<EditionsFound>> {
+  const query = new URLSearchParams([
+    ...[work.id, ...work.also].map((id) => ['work', id]),
+    ['language', language],
+    ...(work.language ? [['matched', work.language]] : []),
+    ...(work.words ? [['words', work.words]] : []),
+  ]);
   return foundAnswer<EditionsFound>(await fetch(`/api/catalog/find/editions?${query}`));
+}
+
+// The Volumes of a Series row of Search, by number (CORE-187).
+export async function findSeriesVolumes(series: Pick<SeriesResult, 'id'>): Promise<FoundAnswer<{ volumes: VolumeResult[] }>> {
+  return foundAnswer<{ volumes: VolumeResult[] }>(await fetch(`/api/catalog/find/series?${new URLSearchParams({ series: series.id })}`));
+}
+
+// One page (from 1) of 20 Works of an Author of Search, newest first.
+export async function findAuthorWorks(author: Pick<AuthorResult, 'id'>, page: number): Promise<FoundAnswer<AuthorWorks>> {
+  return foundAnswer<AuthorWorks>(await fetch(`/api/catalog/find/author?${new URLSearchParams({ author: author.id, page: String(page) })}`));
 }
 
 export type ChooseAnswer =

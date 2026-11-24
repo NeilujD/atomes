@@ -48,7 +48,7 @@ test('Shelf Check: the answer, the cover and Add fit in one phone screen, Privat
 
   await expect(screen.getByText('Not in your Library', { exact: true })).toBeInViewport({ ratio: 1 });
   await expect(screen.locator('.result-cover')).toBeInViewport({ ratio: 1 });
-  await expect(screen.getByRole('button', { name: 'Add to Library' })).toBeInViewport({ ratio: 1 });
+  await expect(screen.getByRole('button', { name: 'I have it' })).toBeInViewport({ ratio: 1 });
   await expect(screen.getByRole('button', { name: 'Add and mark as read' })).toBeInViewport({ ratio: 1 });
   // Copies are never Shared: nothing to explain or change, one word says it.
   await expect(screen.getByText('Private', { exact: true })).toBeAttached();
@@ -81,7 +81,7 @@ test('Shelf Check: Back and Close leave the result screen, not the page; after A
 
   // Add: no Series, so no Series Onboarding. The screen closes, the reader is back where they typed.
   await check(page, horde);
-  await screen.getByRole('button', { name: 'Add to Library' }).click();
+  await screen.getByRole('button', { name: 'I have it' }).click();
   await expect(screen).toBeHidden();
   await expect(page.getByText(/is in your Library/)).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open its Book page' })).toBeVisible();
@@ -143,14 +143,14 @@ test('Shelf Check offline: owned, missing and unknown books, and no ISBN leaves 
   await expect(page.getByText('Cannot tell on this device', { exact: true })).toBeVisible();
   await expect(page.getByText('This device does not know this book yet. Check online later.')).toBeVisible();
   await expect(page.locator('.result-screen')).toHaveAttribute('data-tone', 'unknown');
-  await expect(page.getByRole('button', { name: 'Add to Library' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'I have it' })).toBeHidden();
 
   const checked = [volume(1), volume(3), unknown];
   expect(asked.filter((url) => url.includes('/api/catalog/') || checked.some((isbn) => url.includes(isbn)))).toEqual([]);
 
   // I bought it: the Copy waits on the device.
   await check(page, volume(3));
-  await page.getByRole('button', { name: 'Add to Library' }).click();
+  await page.getByRole('button', { name: 'I have it' }).click();
   await expect(page.getByText(/Waiting: saved on this device/)).toBeVisible();
 });
 

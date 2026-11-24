@@ -25,7 +25,7 @@ test('To Buy lists a Missing Volume of a followed Series', async ({ page, signIn
   // answer (One Piece 56), the main action from To Buy.
   await page.getByRole('link', { name: 'Add a book' }).click();
   await expect(page).toHaveURL(/\/check\?mode=search&from=to-buy$/);
-  await expect(page.getByLabel('Title of the book')).toBeVisible();
+  await expect(page.getByLabel('Title or author')).toBeVisible();
   await page.getByRole('radio', { name: 'Scan' }).check();
   await page.getByLabel('ISBN', { exact: true }).fill('9782723478991');
   await page.getByRole('button', { name: 'Look up' }).click();

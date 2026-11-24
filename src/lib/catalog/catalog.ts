@@ -4,6 +4,7 @@
 // books only, no Library data; the one reader identity is the Account kept
 // with each Series Correction (ADR 0017), which no answer holds.
 import { DatabaseSync } from 'node:sqlite';
+import type { Language } from '../i18n/i18n';
 import { editionWork, seriesIdRank } from '../library/ids';
 import { key, seriesKey, type Facts, type SourceName } from './facts';
 import {
@@ -24,7 +25,18 @@ import {
 import { inTransaction, migrate } from '../server/migrate';
 import { catalogSteps, type DidAccounts } from './migrations';
 import { dropSharedWorks, losesWork } from './shared-works';
-import { answerCache, findWorks, workEditions, type EditionsFound, type WorkResult } from './search';
+import {
+  answerCache,
+  authorWorks,
+  find,
+  seriesVolumes,
+  workEditions,
+  type AuthorWorks,
+  type EditionsAsked,
+  type EditionsFound,
+  type Found,
+  type VolumeResult,
+} from './search';
 import { shownEditions } from './shown';
 import type { Publisher, SourceFetch } from './sources';
 import { bnfSearch, fetchFacts, inventaireEditions, isCoverUrl, type Listed } from './sources';
@@ -160,12 +172,19 @@ export interface Catalog {
   // The Edition Lines and books BnF lists under a title (and publisher): one
   // page of 50 records. Only the typed words leave the server.
   search(title: string, publisher?: string): Promise<SearchFound | { unavailable: true }>;
-  // Search (ADR 0021): the Works Inventaire finds under title words, one row
-  // per Work. Only the words leave the server; answers are kept 24 hours.
-  find(words: string): Promise<{ works: WorkResult[] } | { unavailable: true }>;
+  // Search (ADR 0021): the Works and Authors Inventaire finds under title or
+  // author words, one row per Work; BnF Works when Inventaire finds nothing.
+  // Only the words leave the server; answers are kept 24 hours.
+  find(words: string, language: Language): Promise<Found | { unavailable: true }>;
   // The Editions of the Work of a Search row (its identifier, then `also`),
   // from Inventaire and BnF, merged by ISBN-13, newest first.
-  editions(work: string[]): Promise<EditionsFound | { unavailable: true }>;
+  // `asked`: the Preferred Language and the language of the words, for its
+  // sections; `words`: those of a BnF row.
+  editions(work: string[], asked?: EditionsAsked, words?: string): Promise<EditionsFound | { unavailable: true }>;
+  // One page of 20 Works of an Author of Search, newest first (CORE-188).
+  authorWorks(author: string, page: number): Promise<AuthorWorks | { unavailable: true }>;
+  // The Volumes of a Series row of Search, by number (CORE-187).
+  seriesVolumes(series: string, language: Language): Promise<{ volumes: VolumeResult[] } | { unavailable: true }>;
   // Keeps the reader's choice for an ISBN no source knows. Every reader of the
   // instance gets it; a later choice replaces it, and so does a source that
   // learns the ISBN, whole (no merge).
@@ -902,8 +921,19 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     lookup,
     cover,
     search,
-    find: (words) => searched(async (fetch) => ({ works: await findWorks(fetch, words) })),
-    editions: (work) => searched((fetch) => workEditions(fetch, work)),
+    find: async (words, language) => {
+      const found = await searched((fetch) => find(fetch, words, language));
+      if ('unavailable' in found) return found;
+      // A Series row answers to every identifier this Catalog knows for it.
+      const sameAs = (id: string) => {
+        const row = byIdentifier(id);
+        return row ? [row.id, ...toSeries(row).sameAs].filter((each) => each !== id) : [];
+      };
+      return { ...found, series: found.series.map((row) => ({ ...row, sameAs: sameAs(row.id) })) };
+    },
+    editions: (work, asked, words) => searched((fetch) => workEditions(fetch, work, asked, words)),
+    authorWorks: (author, page) => searched((fetch) => authorWorks(fetch, author, page)),
+    seriesVolumes: (series, language) => searched(async (fetch) => ({ volumes: await seriesVolumes(fetch, series, language) })),
     choose,
     correct,
     uncorrect,

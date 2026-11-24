@@ -1,6 +1,6 @@
 # Search by title or author, from Inventaire then BnF, merged by ISBN
 
-Status: accepted (2026-11-23); amended 2026-11-23 (Search is a mode of Check a book). Amends ADR 0010 (what leaves the server) and the source order of spike 0002 (`docs/spikes/0002-catalog-sources-barcode-and-space-records.md`) for Search only. Built in milestone "M14 · Search". Spec: Linear document "Spec: M14 · Search".
+Status: accepted (2026-11-23); amended 2026-11-23 (Search is a mode of Check a book) and 2026-11-24 (a short story shows the book it is printed in). Amends ADR 0010 (what leaves the server) and the source order of spike 0002 (`docs/spikes/0002-catalog-sources-barcode-and-space-records.md`) for Search only. Built in milestone "M14 · Search". Spec: Linear document "Spec: M14 · Search".
 
 A reader can add a book only with its barcode (Quick Add) or by typing its ISBN (To Buy). A reader who heard of a book and does not have it in their hands knows neither. The only search by words today is the BnF search by title and publisher of the amendment of 2026-11-11 to ADR 0010. Quick Add uses it for an ISBN that no source knows. It cannot find a Work under another title: "Dix petits nègres" (the old French title of Agatha Christie's novel) is "Ils étaient dix" in French since 2020, and "And Then There Were None" in English. It cannot search by author either. Decision (grilling of 2026-11-23, Q1 to Q25): **Search finds Works, Series and Authors by title or author words in one box. Inventaire finds the Work under any of its titles. The Editions of the Work come from Inventaire and BnF, merged by ISBN-13.**
 
@@ -69,3 +69,15 @@ Owner feedback (CORE-190): sometimes the barcode and the ISBN cannot be read (a 
 - **No fuzzy matching of our own.** Inventaire already accepts "10" for "Dix", no accents, and the singular for the plural (live test of 2026-11-23: "10 petits negres" gives "Ils étaient dix" at rank 1). When nothing is found, the screen asks to check the spelling, or to try the author's name.
 - Rejected: two screens, Search apart from Check a book. The reader would get two answers for one question, and Search would not tell what they own.
 - `GLOSSARY.md`: Shelf Check is the answer (owned, read, missing); it starts from a scan, a typed ISBN or Search. "Search" leaves its words to avoid.
+
+## Amendment 2026-11-24: a short story shows the book it is printed in
+
+Owner test (CORE-193): Search "Agatha Christie" → her Author row → "Le Dieu solitaire" stopped on "no Edition with an ISBN". It is a short story (Inventaire `wdt:P7937` = `wd:Q49084`), never printed as a book of its own, so no source gives it an Edition. Inventaire says where it is printed: `wdt:P1433` (published in) = `wd:Q656127`, "Tant que brillera le jour", which has Editions with an ISBN. Decision: **when a Work has no Edition with an ISBN, Search reads its `wdt:P1433` and shows those books under "Printed in", as Work rows that open on their own Editions.**
+
+- **Only on that path.** The Catalog reads `wdt:P1433` from the Work entity it already fetched for the Editions. The books cost one Inventaire batch call for their entities and one for their Authors, only for a Work with no Edition; the normal path asks nothing more. Each book identifier passes `isInventaireId` before it goes into a source URL. The 24-hour answer cache keeps these calls too.
+- **A deeper step.** A book of "Printed in" opens its Editions as one more Search step; Back returns to the short story (the Search steps of `docs/design/ui-direction.md`).
+- **Never stuck.** With no Edition and no book, the step keeps its message and offers Back and Scan the barcode.
+- **The row says so.** A Work row of a short story (`wdt:P7937` holds `wd:Q49084`) shows a "Short story" tag, in the results and on an Author page; this reads the entity already fetched, with no request.
+- Rejected: list the Editions of the book in place of the short story's. The reader would see Editions under a title they did not tap, with no word of why.
+- ADR 0010: nothing new leaves the server. The only new identifiers sent are Inventaire Work identifiers that Inventaire itself gave.
+- The record script gets `--editions <Work>`, which records the Editions of a Work and of each book it is printed in.

@@ -21,6 +21,7 @@ import {
 } from './onboarding';
 import { readingStatusCollection, type ReadingStatus } from './reading-status';
 import { lexicons, type Saved } from './records';
+import { followedLine } from './shelf-check';
 
 const series = { id: 'wd:Q1000001', title: 'Blacksad', sameAs: [] };
 const isbns = ['9791099999016', '9791099999023', '9791099999030', '9791099999047', '9791099999054'];
@@ -89,6 +90,21 @@ describe('When Series Onboarding starts', () => {
     ['a Reading Status', { readingStatuses: [readOf(2)] }],
   ])('followed, and another Volume of the Edition Line has %s: no flow', (_, before) => {
     expect(noOnboarding(volume(1), library({ follows: [followOf('following')], ...before }), volumes)).toBe('followed');
+  });
+
+  // Check a book (CORE-185): after "I have it" saves the Copy, check.astro asks
+  // the Catalog for the followed Edition Line (followedLine), then noOnboarding.
+  const afterHaveIt = (added: Edition, before: Library) => {
+    // The Catalog's Edition Line of the anchor is `volumes`.
+    return noOnboarding(added, before, followedLine(added, before) ? volumes : undefined);
+  };
+
+  test('"I have it" on a Volume of a new Series opens Series Onboarding', () => {
+    expect(afterHaveIt(volume(3), library())).toBeUndefined();
+  });
+
+  test('"I have it" on a Volume of a followed Series does not open Series Onboarding', () => {
+    expect(afterHaveIt(volume(3), library({ follows: [followOf('following')], copies: [copyOf(1)] }))).toBe('followed');
   });
 
   test('dropped with no Volume in the Library: still no flow, the reader said no', () => {
