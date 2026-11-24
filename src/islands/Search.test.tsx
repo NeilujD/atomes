@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/preact';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { EditionsFound, WorkResult } from '../lib/catalog/search';
+import type { AuthorResult, AuthorWorks, EditionsFound, WorkResult } from '../lib/catalog/search';
 import { Search, type SearchProps, type Sources } from './Search';
 
 const work: WorkResult = { id: 'wd:Q214132', also: [], title: 'Dix Petits Nègres', authors: ['Agatha Christie'], year: 1939 };
@@ -18,7 +18,12 @@ function screenWith(sources: Partial<Sources> = {}, props: Partial<SearchProps> 
   const calls = { words: [] as string[], picked: [] as string[], scans: 0 };
   render(
     <Search
-      sources={{ find: () => Promise.resolve({ found: [work] }), editions: () => Promise.resolve({ found }), ...sources }}
+      sources={{
+        find: () => Promise.resolve({ found: { works: [work], authors: [] } }),
+        editions: () => Promise.resolve({ found }),
+        authorWorks: () => Promise.resolve({ found: { works: [], total: 0 } }),
+        ...sources,
+      }}
       onWords={(words) => calls.words.push(words)}
       onPick={(isbn) => {
         calls.picked.push(isbn);
@@ -70,7 +75,7 @@ describe('Search mode', () => {
   });
 
   test('the words of the address are searched at once: a reload keeps the results', async () => {
-    const find = vi.fn<Sources['find']>(() => Promise.resolve({ found: [work] }));
+    const find = vi.fn<Sources['find']>(() => Promise.resolve({ found: { works: [work], authors: [] } }));
     screenWith({ find }, { words: 'dix petits' });
 
     expect(await screen.findByRole('button', { name: /^Dix Petits Nègres/ })).toBeTruthy();
@@ -98,7 +103,7 @@ describe('Search mode', () => {
   });
 
   test('nothing found: says to check the spelling or try the author', async () => {
-    screenWith({ find: () => Promise.resolve({ found: [] }) });
+    screenWith({ find: () => Promise.resolve({ found: { works: [], authors: [] } }) });
 
     searchFor('Dix petis negres');
 
@@ -136,5 +141,69 @@ describe('Search mode', () => {
 
     expect(await screen.findByText(/book sources/i)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Scan the barcode' })).toBeNull();
+  });
+});
+
+const agatha: AuthorResult = { id: 'wd:Q35064', name: 'Agatha Christie', birthYear: 1890, works: 45 };
+// Page `page` of her 45 Works: 20, 20, then 5.
+const worksPage = (page: number): AuthorWorks => ({
+  works: Array.from({ length: Math.min(20, 45 - (page - 1) * 20) }, (_, i) => ({
+    id: `wd:Q${1000 + (page - 1) * 20 + i}`,
+    also: [],
+    title: `Work ${(page - 1) * 20 + i + 1}`,
+    authors: ['Agatha Christie'],
+    year: 2000 - (page - 1) * 20 - i,
+  })),
+  total: 45,
+});
+
+describe('Search mode: Authors (CORE-188)', () => {
+  test('an Author row opens their Works, 20 at a time; Show more adds 20, until all show', async () => {
+    const authorWorks = vi.fn<Sources['authorWorks']>((_, page) => Promise.resolve({ found: worksPage(page) }));
+    screenWith({ find: () => Promise.resolve({ found: { works: [work], authors: [agatha] } }), authorWorks });
+
+    searchFor('Agatha Christie');
+    fireEvent.click(await screen.findByRole('button', { name: 'Agatha Christie · 45 Works' }));
+
+    const list = await screen.findByRole('list', { name: 'Works' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(20);
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    await vi.waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(40));
+    expect(within(list).getAllByRole('listitem')[20].textContent).toContain('Work 21');
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    await vi.waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(45));
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+    expect(authorWorks.mock.calls.map(([author, page]) => [author.id, page])).toEqual([
+      ['wd:Q35064', 1],
+      ['wd:Q35064', 2],
+      ['wd:Q35064', 3],
+    ]);
+  });
+
+  test('a Work of an Author opens its Editions; Back goes to the Author, then to all results', async () => {
+    const editions = vi.fn<Sources['editions']>(() => Promise.resolve({ found }));
+    screenWith({ find: () => Promise.resolve({ found: { works: [], authors: [agatha] } }), editions, authorWorks: (_, page) => Promise.resolve({ found: worksPage(page) }) });
+
+    searchFor('Agatha Christie');
+    fireEvent.click(await screen.findByRole('button', { name: 'Agatha Christie · 45 Works' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Work 1(?!\d)/ }));
+
+    expect(await screen.findByRole('list', { name: 'Editions' })).toBeTruthy();
+    expect(editions.mock.calls[0][0].id).toBe('wd:Q1000');
+    fireEvent.click(screen.getByRole('button', { name: 'Agatha Christie' }));
+    expect(await screen.findByRole('list', { name: 'Works' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'All results' }));
+    expect(await screen.findByRole('button', { name: 'Agatha Christie · 45 Works' })).toBeTruthy();
+  });
+
+  test('two Authors with the same name show their birth years', async () => {
+    const dumas = (id: string, birthYear: number | null, works: number): AuthorResult => ({ id, name: 'Alexandre Dumas', birthYear, works });
+    screenWith({ find: () => Promise.resolve({ found: { works: [], authors: [dumas('wd:Q38337', 1802, 309), dumas('wd:Q169150', 1824, 11), dumas('inv:2c0e', null, 1)] } }) });
+
+    searchFor('Alexandre Dumas');
+
+    expect(await screen.findByRole('button', { name: 'Alexandre Dumas (1802) · 309 Works' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Alexandre Dumas (1824) · 11 Works' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Alexandre Dumas · 1 Work' })).toBeTruthy();
   });
 });

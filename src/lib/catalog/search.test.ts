@@ -4,11 +4,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { answerEdition, answerFind, answerWorkEditions } from './api';
+import { answerAuthorWorks, answerEdition, answerFind, answerWorkEditions } from './api';
 import type { Catalog } from './catalog';
 import { createCatalog } from './catalog';
 import { recordedFetch } from './recorded.fake';
-import type { EditionsFound, WorkResult } from './search';
+import type { AuthorResult, AuthorWorks, EditionsFound, WorkResult } from './search';
 import { sourceUrls, type SourceFetch } from './sources';
 
 const christie = 'wd:Q214132'; // "Ils étaient dix", once "Dix petits nègres", "And Then There Were None" in English
@@ -41,6 +41,13 @@ const find = (catalog: Catalog, words: string, access = reader) =>
 const editionsOf = (catalog: Catalog, works: string[], access = reader) =>
   answerWorkEditions(catalog, new URL(`http://atomes.test/api/catalog/find/editions?${new URLSearchParams(works.map((work) => ['work', work]))}`), access);
 const works = async (response: Response) => ((await response.json()) as { works: WorkResult[] }).works;
+const authors = async (response: Response) => ((await response.json()) as { authors: AuthorResult[] }).authors;
+const worksOf = (catalog: Catalog, author: string, page?: string, access = reader) =>
+  answerAuthorWorks(
+    catalog,
+    new URL(`http://atomes.test/api/catalog/find/author?${new URLSearchParams({ author, ...(page !== undefined && { page }) })}`),
+    access,
+  );
 const editions = async (response: Response) => (await response.json()) as EditionsFound;
 
 describe('Search: find a Work by title words (GET /api/catalog/find)', () => {
@@ -201,5 +208,120 @@ describe('Search: the Editions of a Work (GET /api/catalog/find/editions)', () =
     // BnF finds no record by the ISBN-13 of an ISBN-10 record: the lookup asks both forms.
     const bnf = calls.find((url) => url.startsWith('https://catalogue.bnf.fr/'));
     expect(new URL(bnf!).searchParams.get('query')).toBe('bib.isbn adj "9782253017097" or bib.isbn adj "2253017094"');
+  });
+});
+
+const agatha = 'wd:Q35064';
+
+describe('Search: Authors (CORE-188)', () => {
+  test('"Agatha Christie" gives her Author row, with her number of Works', async () => {
+    const { catalog } = setup();
+
+    const rows = await authors(await find(catalog, 'Agatha Christie'));
+
+    expect(rows[0]).toEqual({ id: agatha, name: 'Agatha Christie', birthYear: 1890, works: 385 });
+  });
+
+  test('the Works of an Author: 20 per page, newest first; page 2 goes on with no repeat', async () => {
+    const { catalog } = setup();
+
+    const first = (await (await worksOf(catalog, agatha)).json()) as AuthorWorks;
+    const second = (await (await worksOf(catalog, agatha, '2')).json()) as AuthorWorks;
+
+    expect(first.total).toBe(385);
+    expect(first.works).toHaveLength(20);
+    expect(second.works).toHaveLength(20);
+    const years = [...first.works, ...second.works].map(({ year }) => year ?? 0);
+    expect(years).toEqual([...years].sort((a, b) => b - a));
+    const ids = [...first.works, ...second.works].map(({ id }) => id);
+    expect(new Set(ids).size).toBe(40);
+    expect(first.works.every(({ authors }) => authors.includes('Agatha Christie'))).toBe(true);
+  });
+
+  test('two Authors with the same name both show, with their birth years', async () => {
+    const { catalog } = setup();
+
+    const rows = await authors(await find(catalog, 'Alexandre Dumas'));
+
+    expect(rows.filter(({ name }) => name === 'Alexandre Dumas').map(({ id, birthYear }) => [id, birthYear])).toEqual(
+      expect.arrayContaining([
+        ['wd:Q38337', 1802],
+        ['wd:Q169150', 1824],
+      ]),
+    );
+  });
+
+  test('an Author row needs every typed word in the name', async () => {
+    const { catalog } = setup();
+
+    expect(await authors(await find(catalog, 'christie dix'))).toEqual([]);
+  });
+
+  test('signed out: 401, and no source is asked', async () => {
+    const { catalog, calls } = setup();
+
+    expect((await worksOf(catalog, agatha, '1', { signedIn: false })).status).toBe(401);
+    expect(calls).toEqual([]);
+  });
+
+  test.each([
+    ['isbn:9782253241782', '1'],
+    ['wd:Q35064', '0'],
+    ['wd:Q35064', '1.5'],
+    ['wd:Q35064', '101'],
+    ['wd:Q35064', 'x'],
+  ])('bad Author or page (%s, %s) gives 400', async (author, page) => {
+    const { catalog } = setup();
+    expect((await worksOf(catalog, author, page)).status).toBe(400);
+  });
+
+  test('Inventaire down: the Works of an Author give 503', async () => {
+    const { catalog } = setup({ down: ['inventaire.io'] });
+    expect((await worksOf(catalog, agatha)).status).toBe(503);
+  });
+});
+
+describe('Search: mixed words and the BnF fallback (CORE-188)', () => {
+  test('"christie dix", author and title words, finds the Work', async () => {
+    const { catalog } = setup();
+
+    const rows = await works(await find(catalog, 'christie dix'));
+
+    expect(rows.map(({ id }) => id)).toContain(christie);
+  });
+
+  test('a word Inventaire does not know goes to BnF, printed text only, as Work rows grouped by Work authority', async () => {
+    const { catalog, calls } = setup();
+
+    const rows = await works(await find(catalog, 'Plouguerneau'));
+
+    const bnf = calls.find((url) => url.startsWith('https://catalogue.bnf.fr/'));
+    expect(new URL(bnf!).searchParams.get('query')).toBe(
+      '(bib.title all "Plouguerneau" or bib.author all "Plouguerneau") and bib.doctype any "a"',
+    );
+    expect(rows.find(({ id }) => id === 'bnf:87198521')).toMatchObject({ title: 'Des Lotrian du Léon, de 1600 à 1994', words: 'Plouguerneau' });
+    expect(rows.find(({ id }) => id === 'bnf:87198539')).toBeDefined();
+    expect(new Set(rows.map(({ id }) => id)).size).toBe(rows.length);
+    expect(rows.every(({ id }) => /^bnf:/.test(id))).toBe(true);
+  });
+
+  test('a BnF Work row opens on its Editions', async () => {
+    const { catalog } = setup();
+    const rows = await works(await find(catalog, 'Plouguerneau'));
+    const row = rows.find(({ id }) => id === 'bnf:87198521')!;
+
+    const response = await answerWorkEditions(
+      catalog,
+      new URL(`http://atomes.test/api/catalog/find/editions?${new URLSearchParams({ work: row.id, words: row.words! })}`),
+      reader,
+    );
+
+    expect(response.status).toBe(200);
+    expect((await editions(response)).editions.length).toBeGreaterThan(0);
+  });
+
+  test('a BnF Work row with no words gives 400', async () => {
+    const { catalog } = setup();
+    expect((await editionsOf(catalog, ['bnf:87198521'])).status).toBe(400);
   });
 });

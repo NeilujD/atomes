@@ -146,7 +146,7 @@ bun scripts/record-catalog-answers.ts 9782253241782 9782253017097
 
 | File | Answer |
 |---|---|
-| `inventaire-search-*.json` (3) | Inventaire Work search of each title (`/api/search?types=works`): `wd:Q214132` first for all three |
+| `inventaire-search-*.json` (3) | Inventaire search of Works and Authors for each title (`/api/search?types=works\|humans`, recorded again on 2026-11-24 for CORE-188): `wd:Q214132` first for all three |
 | `inventaire-batch-*.json` | The Works and Authors of each search; the 41 Editions of `wd:Q214132` (32 with an ISBN, 9 with none) and their publishers and collections; the 2 Editions of `inv:9cc51ef9d8cd911a9eac07523f69232f` (same title and Author, no ISBN) |
 | `inventaire-reverse-*.json` (2) | `wdt:P629` reverse claims of `wd:Q214132` and of `inv:9cc51ef9…` |
 | `inventaire-wd-Q214132.json`, `inventaire-wd-Q35064.json` | The Work (BnF Work authority `wdt:P268` 17796845t) and Agatha Christie |
@@ -156,3 +156,20 @@ bun scripts/record-catalog-answers.ts 9782253241782 9782253017097
 | 9782253017097 | Dix petits nègres, Le Livre de poche, 1977: BnF holds only its ISBN-10 (2-253-01709-4) and finds it by the ISBN-10 only; unknown to Inventaire. Open Library did not answer (connection reset), so it has no file: "unknown" |
 
 Merged by ISBN-13: 45 Editions (BnF 22, Inventaire 32, both 9), 23 with no ISBN (14 BnF records, 9 Inventaire Editions).
+
+Search by Author, mixed words and the BnF fallback (CORE-188), for `search.test.ts` and `e2e/search-author.spec.ts`, recorded on 2026-11-24. The files of the 3 searches above stayed as recorded on 2026-11-23:
+
+```sh
+bun scripts/record-catalog-answers.ts --find "Agatha Christie"
+bun scripts/record-catalog-answers.ts --find "christie dix"
+bun scripts/record-catalog-answers.ts --find "Alexandre Dumas"
+bun scripts/record-catalog-answers.ts --find "Plouguerneau"
+```
+
+| File | Answer |
+|---|---|
+| `inventaire-search-*.json` (4) | "Agatha Christie": Works, `wd:Q35064` and 2 `inv:` Authors of the same name with no birth year. "christie dix": `wd:Q214132` first, Authors without "dix" in their name. "Alexandre Dumas": `wd:Q38337` (1802) and `wd:Q169150` (1824), both named "Alexandre Dumas". "Plouguerneau": no result |
+| `inventaire-author-works-*.json` (9) | `action=author-works` of each Author: 385 Works for `wd:Q35064`, 309 for `wd:Q38337`, 11 for `wd:Q169150`, 1 for the `inv:` Authors, none for Authors with no Work |
+| `inventaire-batch-*.json` | The Works and Authors of each search; pages 1 and 2 of the Works of Agatha Christie and of `wd:Q38337`; the Editions of `wd:Q141526821` (And Then There Were None, 2025, first of page 1) and of `inv:7bc1d7a89950b1f391aeb99029439e63` |
+| `inventaire-reverse-*.json` (2), `inventaire-wd-Q141526821.json`, `inventaire-inv-*.json`, `inventaire-wd-Q38337.json` | The Editions and the Work of the first Work of page 1 of each Author |
+| `bnf-search-*.xml` (4) | BnF `(bib.title all "Plouguerneau" or bib.author all "Plouguerneau") and bib.doctype any "a"`: 52 records, 2 with a Work authority (500 `$3` 87198521, 87198539); `bib.work2bib any "87198521"`; the BnF title and author queries of the first Works of page 1 |

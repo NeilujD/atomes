@@ -1,19 +1,22 @@
 // Search (glossary; ADR 0021), the Search mode of Check a book
-// (src/pages/check.astro, which renders it): the reader types title words,
-// opens a Work, and picks one of its Editions. The page then looks the ISBN
+// (src/pages/check.astro, which renders it): the reader types title or author
+// words, opens a Work (or an Author, then one of their Works), and picks one
+// of its Editions. The page then looks the ISBN
 // up and shows the Shelf Check answer, as after a scan. Only the words leave
 // the device, to the Atomes server; the results are not kept.
 import { useEffect, useState } from 'preact/hooks';
 import type { FoundAnswer } from '../lib/catalog/client';
-import type { EditionResult, EditionsFound, WorkResult } from '../lib/catalog/search';
+import type { AuthorResult, AuthorWorks, EditionResult, EditionsFound, Found, WorkResult } from '../lib/catalog/search';
 import { reportNetwork } from '../lib/connection';
 import { t } from '../lib/i18n/i18n';
 import { languageName } from '../lib/library/model';
 import { isNetworkFailure } from '../lib/network';
 
 export interface Sources {
-  find(words: string): Promise<FoundAnswer<WorkResult[]>>;
+  find(words: string): Promise<FoundAnswer<Found>>;
   editions(work: WorkResult): Promise<FoundAnswer<EditionsFound>>;
+  // One page (from 1) of 20 Works of an Author, newest first.
+  authorWorks(author: AuthorResult, page: number): Promise<FoundAnswer<AuthorWorks>>;
 }
 
 export interface SearchProps {
@@ -30,7 +33,9 @@ export interface SearchProps {
 
 export function Search({ sources, words: given = '', onWords, onPick, onScan }: SearchProps) {
   const [words, setWords] = useState(given);
-  const [works, setWorks] = useState<WorkResult[]>();
+  const [results, setResults] = useState<Found>();
+  // The open Author: the pages of their Works shown so far.
+  const [author, setAuthor] = useState<{ row: AuthorResult; works: WorkResult[]; total: number; page: number }>();
   const [work, setWork] = useState<WorkResult>();
   const [found, setFound] = useState<EditionsFound>();
   // Why the last search or pick did not work; the words stay in the box.
@@ -67,7 +72,8 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan }: 
     if (!typed) return;
     const answer = await ask(() => sources.find(typed));
     if (!answer) return;
-    setWorks(answer);
+    setResults(answer);
+    setAuthor(undefined);
     setWork(undefined);
     setFound(undefined);
   }
@@ -82,6 +88,20 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan }: 
     if (!answer) return;
     setWork(row);
     setFound(answer);
+  }
+
+  async function openAuthor(row: AuthorResult) {
+    const answer = await ask(() => sources.authorWorks(row, 1));
+    if (!answer) return;
+    setAuthor({ row, works: answer.works, total: answer.total, page: 1 });
+  }
+
+  async function showMore() {
+    if (!author) return;
+    const answer = await ask(() => sources.authorWorks(author.row, author.page + 1));
+    if (!answer) return;
+    const shown = new Set(author.works.map(({ id }) => id));
+    setAuthor({ ...author, works: [...author.works, ...answer.works.filter(({ id }) => !shown.has(id))], page: author.page + 1 });
   }
 
   async function pick(isbn: string) {
@@ -142,7 +162,7 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan }: 
       {work && found ? (
         <section class="search-group" aria-labelledby="search-work">
           <button class="button button-quiet search-back" type="button" onClick={() => setWork(undefined)}>
-            {t('search.back')}
+            {author ? author.row.name : t('search.back')}
           </button>
           <h2 class="search-work-title" id="search-work">
             {work.title}
@@ -159,27 +179,75 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan }: 
           )}
           {found.noIsbn > 0 && <p class="search-hint">{t('search.no-isbn', found.noIsbn)}</p>}
         </section>
+      ) : author ? (
+        <section class="search-group" aria-labelledby="search-author">
+          <button class="button button-quiet search-back" type="button" onClick={() => setAuthor(undefined)}>
+            {t('search.back')}
+          </button>
+          <h2 class="search-work-title" id="search-author">
+            {author.row.name}
+          </h2>
+          <p class="search-hint">{t('search.author-works', author.total)}</p>
+          <ul class="card search-list" aria-label={t('search.works')}>
+            {author.works.map((row) => (
+              <WorkRow key={row.id} work={row} busy={busy} onOpen={() => void open(row)} />
+            ))}
+          </ul>
+          {author.works.length < author.total && (
+            <button class="button search-more" type="button" disabled={busy} aria-busy={busy ? 'true' : undefined} onClick={() => void showMore()}>
+              {t('search.show-more')}
+            </button>
+          )}
+        </section>
       ) : (
-        works && (
+        results && (
           <section class="search-group" aria-label={t('search.works')}>
-            {works.length === 0 ? (
+            {results.works.length === 0 && results.authors.length === 0 ? (
               <p class="search-hint">{t('search.nothing')}</p>
             ) : (
-              <ul class="card search-list">
-                {works.map((row) => (
-                  <li class="search-item" key={row.id}>
-                    <button class="search-pick" type="button" disabled={busy} onClick={() => void open(row)}>
-                      <span class="search-title">{row.title}</span>
-                      <span class="search-line">{[row.authors.join(', '), row.year].filter(Boolean).join(' · ')}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <>
+                {results.authors.length > 0 && (
+                  <ul class="card search-list" aria-label={t('search.authors')}>
+                    {results.authors.map((row) => (
+                      <li class="search-item" key={row.id}>
+                        <button class="search-pick" type="button" disabled={busy} onClick={() => void openAuthor(row)}>
+                          <span class="search-title">{authorLine(row, results.authors)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {results.works.length > 0 && (
+                  <ul class="card search-list">
+                    {results.works.map((row) => (
+                      <WorkRow key={row.id} work={row} busy={busy} onOpen={() => void open(row)} />
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
           </section>
         )
       )}
     </div>
+  );
+}
+
+// "Agatha Christie · 489 Works"; with the birth year when another Author of
+// the results has the same name.
+function authorLine(row: AuthorResult, all: AuthorResult[]): string {
+  const homonym = row.birthYear !== null && all.some((other) => other !== row && other.name === row.name);
+  return `${row.name}${homonym ? ` (${row.birthYear})` : ''} · ${t('search.author-works', row.works)}`;
+}
+
+function WorkRow({ work, busy, onOpen }: { work: WorkResult; busy: boolean; onOpen: () => void }) {
+  return (
+    <li class="search-item">
+      <button class="search-pick" type="button" disabled={busy} onClick={onOpen}>
+        <span class="search-title">{work.title}</span>
+        <span class="search-line">{[work.authors.join(', '), work.year].filter(Boolean).join(' · ')}</span>
+      </button>
+    </li>
   );
 }
 

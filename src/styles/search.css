@@ -101,3 +101,8 @@
 .search-scan {
   align-self: flex-start;
 }
+
+/* "Show more" under the Works of an Author (CORE-188). */
+.search-more {
+  align-self: center;
+}
