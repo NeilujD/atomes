@@ -4,7 +4,7 @@
 // then an Edition Line, then a Volume), and picks one of its Editions. The page then looks the ISBN
 // up and shows the Shelf Check answer, as after a scan. Only the words leave
 // the device, to the Atomes server; the results are not kept.
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { Edition } from '../lib/catalog/catalog';
 import type { FoundAnswer } from '../lib/catalog/client';
 import { nativeLanguageName, type PreferredLanguage } from '../lib/catalog/languages';
@@ -58,104 +58,183 @@ export interface SearchProps {
   marks?: SearchMarks;
 }
 
+// One step of Search, as the reader goes deeper: the results, an Author, a
+// Series, an Edition Line, a Work. The steps open form a stack; the last shows.
+type Step =
+  | { kind: 'results'; found: Found }
+  | { kind: 'author'; row: AuthorResult; works: WorkResult[]; total: number; page: number }
+  | { kind: 'series'; row: SeriesResult; volumes: VolumeResult[] }
+  | { kind: 'line'; row: SeriesResult; volumes: VolumeResult[]; line: SeriesLine }
+  | { kind: 'work'; row: WorkResult; found: EditionsFound };
+
+// How the next step comes in (src/styles/search.css): a deeper step slides in
+// from the right, Back slides it out, new results fade in.
+type Motion = 'forward' | 'back' | 'fade' | 'none';
+
 export function Search({ sources, preferred, words: given = '', onWords, onPick, onScan, marks }: SearchProps) {
   const [words, setWords] = useState(given);
-  const [results, setResults] = useState<Found>();
-  // The open Author: the pages of their Works shown so far.
-  const [author, setAuthor] = useState<{ row: AuthorResult; works: WorkResult[]; total: number; page: number }>();
-  // The open Series: its Volumes, and the Edition Line picked.
-  const [series, setSeries] = useState<{ row: SeriesResult; volumes: VolumeResult[]; line?: SeriesLine }>();
-  const [work, setWork] = useState<WorkResult>();
-  const [found, setFound] = useState<EditionsFound>();
+  const [steps, setSteps] = useState<Step[]>([]);
+  // The steps as they will be once the step coming in shows.
+  const shown = useRef<Step[]>([]);
   // Why the last search or pick did not work; the words stay in the box.
   const [problem, setProblem] = useState<{ text: string; offline: boolean }>();
-  const [busy, setBusy] = useState(false);
-  // The Edition whose answer is coming.
-  const [picking, setPicking] = useState<string>();
+  // One request at a time: the row (or "search") whose answer is coming. The
+  // ref takes a second tap before the next render disables the rows.
+  const [pending, setPending] = useState<string>();
+  const running = useRef<object>(undefined);
+  // Ends the view transition once the new step is on the page.
+  const drawn = useRef<() => void>(undefined);
 
   const say = (key: 'search.offline' | 'add.sources-down' | 'auth.session-ended') => setProblem({ text: t(key), offline: key === 'search.offline' });
 
-  // A source answer, or undefined with the problem shown.
-  async function ask<T>(question: () => Promise<FoundAnswer<T>>): Promise<T | undefined> {
+  function stop() {
+    running.current = undefined;
+    setPending(undefined);
+  }
+
+  // A source answer, or undefined with the problem shown. On an answer the
+  // request still runs (the current step stays, dimmed) until `show`.
+  async function ask<T>(key: string, question: () => Promise<FoundAnswer<T>>): Promise<T | undefined> {
+    if (running.current) return undefined;
     setProblem(undefined);
     if (!navigator.onLine) {
       say('search.offline');
       return undefined;
     }
-    setBusy(true);
+    const request = {};
+    running.current = request;
+    setPending(key);
     try {
       const answer = await question();
+      // Back came first: the answer is for a step no longer shown.
+      if (running.current !== request) return undefined;
       if ('found' in answer) return answer.found;
       say('signedOut' in answer ? 'auth.session-ended' : 'add.sources-down');
     } catch (error) {
+      if (running.current !== request) return undefined;
       const offline = isNetworkFailure(error);
       if (offline) reportNetwork(false);
       say(offline ? 'search.offline' : 'add.sources-down');
-    } finally {
-      setBusy(false);
     }
+    stop();
     return undefined;
+  }
+
+  useLayoutEffect(() => {
+    drawn.current?.();
+    drawn.current = undefined;
+  }, [steps]);
+
+  // The next steps, in a view transition of the step (no motion with reduced motion).
+  function show(next: Step[], motion: Motion) {
+    shown.current = next;
+    const update = () => {
+      stop();
+      setSteps(next);
+    };
+    if (motion === 'none' || !document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) return update();
+    try {
+      document.startViewTransition({
+        types: [`search-${motion}`],
+        update: () =>
+          new Promise<void>((resolve) => {
+            drawn.current = resolve;
+            update();
+          }),
+      });
+    } catch {
+      // A browser with no transition types.
+      update();
+    }
+  }
+
+  // A deeper step, with its own history entry: the browser Back and the phone
+  // back gesture go up one step, not out of Check.
+  function deeper(step: Step) {
+    const next = [...shown.current, step];
+    history.pushState({ searchStep: next.length - 1 }, '');
+    show(next, 'forward');
   }
 
   async function search(typed: string) {
     if (!typed) return;
-    const answer = await ask(() => sources.find(typed));
+    const answer = await ask('search', () => sources.find(typed));
     if (!answer) return;
-    setResults(answer);
-    setAuthor(undefined);
-    setSeries(undefined);
-    setWork(undefined);
-    setFound(undefined);
+    const depth = shown.current.length - 1;
+    show([{ kind: 'results', found: answer }], 'fade');
+    // The history entries of the steps before go.
+    if (depth > 0) history.go(-depth);
   }
 
-  // The words of the address, once.
   useEffect(() => {
+    // An entry left by a step before a reload is the first step now.
+    history.replaceState({ ...(history.state as object | null), searchStep: 0 }, '');
+    const back = (event: PopStateEvent) => {
+      const depth = (event.state as { searchStep?: number } | null)?.searchStep ?? 0;
+      if (depth >= shown.current.length - 1) return;
+      show(shown.current.slice(0, depth + 1), 'back');
+    };
+    addEventListener('popstate', back);
+    // The words of the address, once.
     void search(given.trim());
+    return () => removeEventListener('popstate', back);
   }, []);
 
-  async function open(row: WorkResult) {
-    const answer = await ask(() => sources.editions(row, preferred));
-    if (!answer) return;
-    setWork(row);
-    setFound(answer);
+  async function open(row: WorkResult, key = row.id) {
+    const answer = await ask(key, () => sources.editions(row, preferred));
+    if (answer) deeper({ kind: 'work', row, found: answer });
   }
 
   async function openAuthor(row: AuthorResult) {
-    const answer = await ask(() => sources.authorWorks(row, 1));
-    if (!answer) return;
-    setAuthor({ row, works: answer.works, total: answer.total, page: 1 });
+    const answer = await ask(row.id, () => sources.authorWorks(row, 1));
+    if (answer) deeper({ kind: 'author', row, works: answer.works, total: answer.total, page: 1 });
   }
 
   async function openSeries(row: SeriesResult) {
-    const answer = await ask(() => sources.seriesVolumes(row));
-    if (!answer) return;
-    setSeries({ row, volumes: answer.volumes });
+    const answer = await ask(row.id, () => sources.seriesVolumes(row));
+    if (answer) deeper({ kind: 'series', row, volumes: answer.volumes });
+  }
+
+  // An Edition Line needs no request.
+  function openLine(series: Step & { kind: 'series' }, line: SeriesLine) {
+    if (!running.current) deeper({ kind: 'line', row: series.row, volumes: series.volumes, line });
   }
 
   // A Volume opens as the Work it is.
   const openVolume = (volume: VolumeResult) =>
     open({ id: volume.id, also: [], title: volumeLabel(volume.number, volume.title), authors: [], year: null, language: null });
 
-  async function showMore() {
-    if (!author) return;
-    const answer = await ask(() => sources.authorWorks(author.row, author.page + 1));
+  async function showMore(author: Step & { kind: 'author' }) {
+    const answer = await ask('more', () => sources.authorWorks(author.row, author.page + 1));
     if (!answer) return;
-    const shown = new Set(author.works.map(({ id }) => id));
-    setAuthor({ ...author, works: [...author.works, ...answer.works.filter(({ id }) => !shown.has(id))], page: author.page + 1 });
+    const known = new Set(author.works.map(({ id }) => id));
+    const works = [...author.works, ...answer.works.filter(({ id }) => !known.has(id))];
+    show([...shown.current.slice(0, -1), { ...author, works, page: author.page + 1 }], 'none');
   }
 
   async function pick(isbn: string) {
+    if (running.current) return;
+    const request = {};
+    running.current = request;
+    setPending(isbn);
     setProblem(undefined);
-    setBusy(true);
-    setPicking(isbn);
     try {
       const why = await onPick(isbn);
-      if (why) setProblem({ text: why, offline: false });
+      if (why && running.current === request) setProblem({ text: why, offline: false });
     } finally {
-      setBusy(false);
-      setPicking(undefined);
+      if (running.current === request) stop();
     }
   }
+
+  const busy = pending !== undefined;
+  const step = steps.at(-1);
+  const before = steps.at(-2);
+  // Back, named with the step it returns to; it goes back in the history too.
+  const back = before && (
+    <button class="button button-quiet search-back" type="button" disabled={busy} onClick={() => history.back()}>
+      {stepName(before)}
+    </button>
+  );
 
   return (
     <div class="search">
@@ -164,6 +243,7 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
         role="search"
         onSubmit={(event) => {
           event.preventDefault();
+          if (running.current) return;
           const typed = words.trim();
           onWords(typed);
           void search(typed);
@@ -185,7 +265,7 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
             aria-describedby="search-problem"
             onInput={(event) => setWords(event.currentTarget.value)}
           />
-          <button class="button button-main" type="submit" disabled={busy} aria-busy={busy && !work ? 'true' : undefined}>
+          <button class="button button-main" type="submit" disabled={busy} aria-busy={pending === 'search' ? 'true' : undefined}>
             {t('search.submit')}
           </button>
         </div>
@@ -199,135 +279,173 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
         )}
       </form>
 
-      {work && found ? (
-        <section class="search-group" aria-labelledby="search-work">
-          <button class="button button-quiet search-back" type="button" onClick={() => setWork(undefined)}>
-            {author ? author.row.name : series?.line ? lineLabel(series.line) : t('search.back')}
-          </button>
-          <h2 class="search-work-title" id="search-work">
-            {work.title}
-          </h2>
-          <p class="search-hint">{[work.authors.join(', '), work.year].filter(Boolean).join(' · ')}</p>
-          <WorkMarkLine work={work} marks={marks} />
-          {found.editions.length === 0 ? (
-            <p class="search-hint">{t('search.no-editions')}</p>
-          ) : (
-            inLine(found, series?.line).map((section) => (
-              <EditionList
-                key={section.language}
-                section={section}
-                marks={marks}
-                busy={busy}
-                picking={picking}
-                onPick={(isbn) => void pick(isbn)}
-              />
-            ))
-          )}
-          {found.noIsbn > 0 && <p class="search-hint">{t('search.no-isbn', found.noIsbn)}</p>}
-        </section>
-      ) : series?.line ? (
-        <section class="search-group" aria-labelledby="search-line">
-          <button class="button button-quiet search-back" type="button" onClick={() => setSeries({ ...series, line: undefined })}>
-            {series.row.title}
-          </button>
-          <h2 class="search-work-title" id="search-line">
-            {lineLabel(series.line)}
-          </h2>
-          <ul class="card search-list" aria-label={t('search.volumes')}>
-            {series.volumes.map((volume) => (
-              <li class="search-item" key={volume.id}>
-                <button class="search-pick" type="button" disabled={busy} onClick={() => void openVolume(volume)}>
-                  <span class="search-title">{volumeLabel(volume.number, volume.title)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : series ? (
-        <section class="search-group" aria-labelledby="search-series">
-          <button class="button button-quiet search-back" type="button" onClick={() => setSeries(undefined)}>
-            {t('search.back')}
-          </button>
-          <h2 class="search-work-title" id="search-series">
-            {series.row.title}
-          </h2>
-          <ul class="card search-list" aria-label={t('search.edition-lines')}>
-            {series.row.lines.map((line) => (
-              <li class="search-item" key={`${lineLabel(line)}|${line.language}`}>
-                <button class="search-pick" type="button" onClick={() => setSeries({ ...series, line })}>
-                  <span class="search-title">{lineLabel(line)}</span>
-                  {line.language && <span class="chip search-tag">{languageName(line)}</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : author ? (
-        <section class="search-group" aria-labelledby="search-author">
-          <button class="button button-quiet search-back" type="button" onClick={() => setAuthor(undefined)}>
-            {t('search.back')}
-          </button>
-          <h2 class="search-work-title" id="search-author">
-            {author.row.name}
-          </h2>
-          <p class="search-hint">{t('search.author-works', author.total)}</p>
-          <ul class="card search-list" aria-label={t('search.works')}>
-            {author.works.map((row) => (
-              <WorkRow key={row.id} work={row} marks={marks} busy={busy} onOpen={() => void open(row)} />
-            ))}
-          </ul>
-          {author.works.length < author.total && (
-            <button class="button search-more" type="button" disabled={busy} aria-busy={busy ? 'true' : undefined} onClick={() => void showMore()}>
-              {t('search.show-more')}
-            </button>
-          )}
-        </section>
-      ) : (
-        results && (
-          <section class="search-group" aria-label={t('search.works')}>
-            {results.works.length === 0 && results.authors.length === 0 && results.series.length === 0 ? (
-              <p class="search-hint">{t('search.nothing')}</p>
+      <div class="search-step" data-busy={busy ? '' : undefined}>
+        {step?.kind === 'work' ? (
+          <section class="search-group" aria-labelledby="search-work">
+            {back}
+            <h2 class="search-work-title" id="search-work">
+              {step.row.title}
+            </h2>
+            <p class="search-hint">{[step.row.authors.join(', '), step.row.year].filter(Boolean).join(' · ')}</p>
+            <WorkMarkLine work={step.row} marks={marks} />
+            {step.found.editions.length === 0 ? (
+              <p class="search-hint">{t('search.no-editions')}</p>
             ) : (
-              <>
-                {results.series.length > 0 && (
-                  <ul class="card search-list" aria-label={t('search.series')}>
-                    {results.series.map((row) => (
-                      <li class="search-item" key={row.id}>
-                        <button class="search-pick" type="button" disabled={busy} onClick={() => void openSeries(row)}>
-                          <span class="search-title">{row.title}</span>
-                          <span class="search-line">{t('search.series-lines', row.lines.length)}</span>
-                          <SeriesMarkLine series={row} marks={marks} sources={sources} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {results.authors.length > 0 && (
-                  <ul class="card search-list" aria-label={t('search.authors')}>
-                    {results.authors.map((row) => (
-                      <li class="search-item" key={row.id}>
-                        <button class="search-pick" type="button" disabled={busy} onClick={() => void openAuthor(row)}>
-                          <span class="search-title">{authorLine(row, results.authors)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {results.works.length > 0 && (
-                  <ul class="card search-list">
-                    {results.works.map((row) => (
-                      <WorkRow key={row.id} work={row} marks={marks} busy={busy} onOpen={() => void open(row)} />
-                    ))}
-                  </ul>
-                )}
-              </>
+              inLine(step.found, before?.kind === 'line' ? before.line : undefined).map((section) => (
+                <EditionList
+                  key={section.language}
+                  section={section}
+                  marks={marks}
+                  busy={busy}
+                  picking={pending}
+                  onPick={(isbn) => void pick(isbn)}
+                />
+              ))
+            )}
+            {step.found.noIsbn > 0 && <p class="search-hint">{t('search.no-isbn', step.found.noIsbn)}</p>}
+          </section>
+        ) : step?.kind === 'line' ? (
+          <section class="search-group" aria-labelledby="search-line">
+            {back}
+            <h2 class="search-work-title" id="search-line">
+              {lineLabel(step.line)}
+            </h2>
+            <ul class="card search-list" aria-label={t('search.volumes')}>
+              {step.volumes.map((volume) => (
+                <li class="search-item" key={volume.id}>
+                  <button
+                    class="search-pick"
+                    type="button"
+                    disabled={busy}
+                    aria-busy={pending === volume.id ? 'true' : undefined}
+                    onClick={() => void openVolume(volume)}
+                  >
+                    <span class="search-title">{volumeLabel(volume.number, volume.title)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : step?.kind === 'series' ? (
+          <section class="search-group" aria-labelledby="search-series">
+            {back}
+            <h2 class="search-work-title" id="search-series">
+              {step.row.title}
+            </h2>
+            <ul class="card search-list" aria-label={t('search.edition-lines')}>
+              {step.row.lines.map((line) => (
+                <li class="search-item" key={`${lineLabel(line)}|${line.language}`}>
+                  <button class="search-pick" type="button" disabled={busy} onClick={() => openLine(step, line)}>
+                    <span class="search-title">{lineLabel(line)}</span>
+                    {line.language && <span class="chip search-tag">{languageName(line)}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : step?.kind === 'author' ? (
+          <section class="search-group" aria-labelledby="search-author">
+            {back}
+            <h2 class="search-work-title" id="search-author">
+              {step.row.name}
+            </h2>
+            <p class="search-hint">{t('search.author-works', step.total)}</p>
+            <ul class="card search-list" aria-label={t('search.works')}>
+              {step.works.map((row) => (
+                <WorkRow key={row.id} work={row} marks={marks} busy={busy} loading={pending === row.id} onOpen={() => void open(row)} />
+              ))}
+            </ul>
+            {step.works.length < step.total && (
+              <button
+                class="button search-more"
+                type="button"
+                disabled={busy}
+                aria-busy={pending === 'more' ? 'true' : undefined}
+                onClick={() => void showMore(step)}
+              >
+                {t('search.show-more')}
+              </button>
             )}
           </section>
-        )
-      )}
+        ) : (
+          step && <Results found={step.found} marks={marks} sources={sources} pending={pending} onWork={open} onAuthor={openAuthor} onSeries={openSeries} />
+        )}
+      </div>
     </div>
   );
 }
+
+// The name of a step, on the Back button that returns to it.
+function stepName(step: Step): string {
+  if (step.kind === 'results') return t('search.back');
+  if (step.kind === 'author') return step.row.name;
+  if (step.kind === 'line') return lineLabel(step.line);
+  return step.row.title;
+}
+
+// The results of a search: Series, then Authors, then Works.
+function Results({
+  found: results,
+  marks,
+  sources,
+  pending,
+  onWork,
+  onAuthor,
+  onSeries,
+}: {
+  found: Found;
+  marks?: SearchMarks;
+  sources: Sources;
+  pending: string | undefined;
+  onWork: (row: WorkResult) => Promise<void>;
+  onAuthor: (row: AuthorResult) => Promise<void>;
+  onSeries: (row: SeriesResult) => Promise<void>;
+}) {
+  const busy = pending !== undefined;
+  const loading = (id: string) => (pending === id ? 'true' : undefined);
+  return (
+    <section class="search-group" aria-label={t('search.works')}>
+      {results.works.length === 0 && results.authors.length === 0 && results.series.length === 0 ? (
+        <p class="search-hint">{t('search.nothing')}</p>
+      ) : (
+        <>
+          {results.series.length > 0 && (
+            <ul class="card search-list" aria-label={t('search.series')}>
+              {results.series.map((row) => (
+                <li class="search-item" key={row.id}>
+                  <button class="search-pick" type="button" disabled={busy} aria-busy={loading(row.id)} onClick={() => void onSeries(row)}>
+                    <span class="search-title">{row.title}</span>
+                    <span class="search-line">{t('search.series-lines', row.lines.length)}</span>
+                    <SeriesMarkLine series={row} marks={marks} sources={sources} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {results.authors.length > 0 && (
+            <ul class="card search-list" aria-label={t('search.authors')}>
+              {results.authors.map((row) => (
+                <li class="search-item" key={row.id}>
+                  <button class="search-pick" type="button" disabled={busy} aria-busy={loading(row.id)} onClick={() => void onAuthor(row)}>
+                    <span class="search-title">{authorLine(row, results.authors)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {results.works.length > 0 && (
+            <ul class="card search-list">
+              {results.works.map((row) => (
+                <WorkRow key={row.id} work={row} marks={marks} busy={busy} loading={pending === row.id} onOpen={() => void onWork(row)} />
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 
 // The Shelf Check answer of a Work, in the words of the result screen.
 function WorkMarkLine({ work, marks }: { work: WorkResult; marks?: SearchMarks }) {
@@ -424,10 +542,22 @@ function authorLine(row: AuthorResult, all: AuthorResult[]): string {
   return `${row.name}${homonym ? ` (${row.birthYear})` : ''} · ${t('search.author-works', row.works)}`;
 }
 
-function WorkRow({ work, marks, busy, onOpen }: { work: WorkResult; marks?: SearchMarks; busy: boolean; onOpen: () => void }) {
+function WorkRow({
+  work,
+  marks,
+  busy,
+  loading,
+  onOpen,
+}: {
+  work: WorkResult;
+  marks?: SearchMarks;
+  busy: boolean;
+  loading: boolean;
+  onOpen: () => void;
+}) {
   return (
     <li class="search-item">
-      <button class="search-pick" type="button" disabled={busy} onClick={onOpen}>
+      <button class="search-pick" type="button" disabled={busy} aria-busy={loading ? 'true' : undefined} onClick={onOpen}>
         <span class="search-title">{work.title}</span>
         <span class="search-line">{[work.authors.join(', '), work.year].filter(Boolean).join(' · ')}</span>
         <WorkMarkLine work={work} marks={marks} />

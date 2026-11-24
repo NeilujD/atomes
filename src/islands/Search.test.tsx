@@ -503,3 +503,128 @@ describe('Search mode: Series and Volumes (CORE-187)', () => {
     expect(lineOf).toHaveBeenCalledWith(anchor);
   });
 });
+
+// An answer the test gives when it wants: the request runs until then.
+function later<T>() {
+  let give!: (value: T) => void;
+  const promise = new Promise<T>((resolve) => (give = resolve));
+  return { promise, give };
+}
+
+describe('Search mode: one request at a time, Back and history (CORE-192)', () => {
+  const other: WorkResult = { ...work, id: 'wd:Q1', title: 'Le Crime de l’Orient-Express', year: 1934 };
+  const twoWorks = () => Promise.resolve({ found: { works: [work, other], authors: [], series: [] } });
+
+  test('while a request runs, a tap on another row and a new search do nothing; only the first answer shows', async () => {
+    const answer = later<{ found: EditionsFound }>();
+    const editions = vi.fn<Sources['editions']>(() => answer.promise);
+    const find = vi.fn<Sources['find']>(twoWorks);
+    screenWith({ find, editions });
+
+    searchFor('Agatha');
+    const first = await screen.findByRole('button', { name: /^Dix Petits Nègres/ });
+    fireEvent.click(first);
+    fireEvent.click(screen.getByRole('button', { name: /^Le Crime/ }));
+    searchFor('Poirot');
+    fireEvent.submit(screen.getByRole('search'));
+
+    expect(editions).toHaveBeenCalledTimes(1);
+    expect(find).toHaveBeenCalledTimes(1);
+    // The words stay in the field.
+    expect(box().value).toBe('Poirot');
+    answer.give({ found });
+    expect(await screen.findByRole('heading', { name: 'Dix Petits Nègres' })).toBeTruthy();
+  });
+
+  test('the current step stays on screen until the next one is ready; the tapped row shows that it loads', async () => {
+    const answer = later<{ found: EditionsFound }>();
+    screenWith({ find: twoWorks, editions: () => answer.promise });
+
+    searchFor('Agatha');
+    const tapped = await screen.findByRole('button', { name: /^Dix Petits Nègres/ });
+    fireEvent.click(tapped);
+
+    expect(tapped.getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole('button', { name: /^Le Crime/ }).hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByRole('heading', { name: 'Dix Petits Nègres' })).toBeNull();
+    answer.give({ found });
+    expect(await screen.findByRole('list', { name: 'Français' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Le Crime/ })).toBeNull();
+  });
+
+  test('the browser Back goes up one step: the Author’s Works, then the results, with the words in the field', async () => {
+    screenWith({
+      find: () => Promise.resolve({ found: { works: [], authors: [agatha], series: [] } }),
+      authorWorks: (_, page) => Promise.resolve({ found: worksPage(page) }),
+    });
+
+    searchFor('Agatha Christie');
+    fireEvent.click(await screen.findByRole('button', { name: 'Agatha Christie · 45 Works' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Show more' }));
+    await vi.waitFor(() => expect(within(screen.getByRole('list', { name: 'Works' })).getAllByRole('listitem')).toHaveLength(40));
+    fireEvent.click(screen.getByRole('button', { name: /^Work 1(?!\d)/ }));
+    await screen.findByRole('list', { name: 'Français' });
+
+    history.back();
+    // The Author's Works come back as they were: both pages.
+    await vi.waitFor(() => expect(within(screen.getByRole('list', { name: 'Works' })).getAllByRole('listitem')).toHaveLength(40));
+    history.back();
+    expect(await screen.findByRole('button', { name: 'Agatha Christie · 45 Works' })).toBeTruthy();
+    expect(box().value).toBe('Agatha Christie');
+  });
+
+  test('the Back button goes back in the browser history too, so the browser Back then leaves the Search steps', async () => {
+    screenWith();
+    const start = history.length;
+
+    await openWork();
+    await screen.findByRole('list', { name: 'Français' });
+    expect(history.length).toBe(start + 1);
+    fireEvent.click(screen.getByRole('button', { name: 'All results' }));
+
+    await vi.waitFor(() => expect((history.state as { searchStep?: number } | null)?.searchStep).toBe(0));
+    expect(await screen.findByRole('button', { name: /^Dix Petits Nègres/ })).toBeTruthy();
+  });
+
+  test('a deeper step comes in by a view transition of the step; with reduced motion, none', async () => {
+    const types: string[][] = [];
+    const startViewTransition = vi.fn((options: StartViewTransitionOptions) => {
+      types.push([...(options.types ?? [])]);
+      void options.update?.();
+    });
+    Object.assign(document, { startViewTransition });
+    const reduced = (matches: boolean) => vi.stubGlobal('matchMedia', (query: string) => ({ matches: matches && query.includes('reduce'), media: query }));
+    try {
+      reduced(false);
+      screenWith();
+      await openWork();
+      await screen.findByRole('list', { name: 'Français' });
+      expect(types).toEqual([['search-fade'], ['search-forward']]);
+
+      cleanup();
+      startViewTransition.mockClear();
+      reduced(true);
+      screenWith();
+      await openWork();
+      await screen.findByRole('list', { name: 'Français' });
+      expect(startViewTransition).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(document, 'startViewTransition');
+    }
+  });
+
+  test('a new search from a deeper step shows its results, and goes back to the first history entry of Search', async () => {
+    const find = vi.fn<Sources['find']>((words) =>
+      Promise.resolve({ found: { works: [words === 'Poirot' ? other : work], authors: [], series: [] } }),
+    );
+    screenWith({ find });
+
+    await openWork();
+    await screen.findByRole('list', { name: 'Français' });
+    searchFor('Poirot');
+
+    expect(await screen.findByRole('button', { name: /^Le Crime/ })).toBeTruthy();
+    await vi.waitFor(() => expect((history.state as { searchStep?: number } | null)?.searchStep).toBe(0));
+    expect(screen.getByRole('button', { name: /^Le Crime/ })).toBeTruthy();
+  });
+});

@@ -82,7 +82,7 @@
   cursor: pointer;
 }
 
-.search-pick:hover,
+.search-pick:hover:not(:disabled),
 .search-pick[aria-busy='true'] {
   background: var(--fill-chip);
 }
@@ -134,4 +134,55 @@
 /* "Show more" under the Works of an Author (CORE-188). */
 .search-more {
   align-self: center;
+}
+
+/* One request at a time (CORE-192): while an answer comes, every row is
+   disabled and dims, but the tapped row, which shows that it loads. */
+.search-pick:disabled {
+  cursor: default;
+}
+
+.search-pick:disabled:not([aria-busy='true']) {
+  opacity: var(--alpha-disabled);
+}
+
+/* The step comes in (Search.tsx, `show`): a deeper step slides in from the
+   right, Back slides it out to the right, new results fade in. A view
+   transition of the step only: the panel and the form stay still. The name
+   is given only during these transitions, so page transitions do not see it.
+   No motion with reduced motion (Search.tsx does not start one either). */
+@media (prefers-reduced-motion: no-preference) {
+  :root:active-view-transition-type(search-forward, search-back, search-fade) [data-frame='panel'] {
+    view-transition-name: none;
+  }
+
+  :root:active-view-transition-type(search-forward, search-back, search-fade) .search-step {
+    view-transition-name: search-step;
+  }
+
+  ::view-transition-group(search-step) {
+    animation-duration: var(--motion-slide);
+    animation-timing-function: var(--ease-arrive);
+  }
+
+  :root:active-view-transition-type(search-forward)::view-transition-new(search-step) {
+    animation: var(--motion-slide) var(--ease-arrive) both page-front-in;
+    mix-blend-mode: normal;
+  }
+
+  :root:active-view-transition-type(search-forward)::view-transition-old(search-step),
+  :root:active-view-transition-type(search-fade)::view-transition-old(search-step) {
+    animation: var(--motion-fade) ease-in both page-out;
+  }
+
+  :root:active-view-transition-type(search-back)::view-transition-old(search-step) {
+    z-index: 1;
+    animation: var(--motion-slide) var(--ease-arrive) both page-front-out;
+    mix-blend-mode: normal;
+  }
+
+  :root:active-view-transition-type(search-back)::view-transition-new(search-step),
+  :root:active-view-transition-type(search-fade)::view-transition-new(search-step) {
+    animation: var(--motion-fade) ease-out both page-in;
+  }
 }
