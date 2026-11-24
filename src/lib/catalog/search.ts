@@ -20,6 +20,8 @@ import { isbn10To13, isbns, publishedYear, subfield, unimarcFacts, unimarcRecord
 // language of its first record.
 // `words`: a BnF row (`bnf:`) only, the words of the search that found it,
 // which open it again.
+// `shortStory`: the Work is a short story (Inventaire `wdt:P7937`), often
+// printed only in a book of stories (CORE-193).
 export interface WorkResult {
   id: string;
   also: string[];
@@ -28,6 +30,7 @@ export interface WorkResult {
   year: number | null;
   language: string | null;
   words?: string;
+  shortStory?: true;
 }
 
 // An Author row of Search (CORE-188): `works` counts their Works in Inventaire.
@@ -102,10 +105,13 @@ export interface EditionSection {
 
 // Newest first; `noIsbn` counts the Editions left out for having no ISBN.
 // `sections`: the Editions the reader sees, by Preferred Language.
+// `printedIn`: for a Work with no Edition, the books it is printed in
+// (Inventaire `wdt:P1433`), as Work rows that open on their own Editions (CORE-193).
 export interface EditionsFound {
   editions: EditionResult[];
   noIsbn: number;
   sections: EditionSection[];
+  printedIn?: WorkResult[];
 }
 
 // The Editions to show: in the Preferred Language, or "all".
@@ -136,6 +142,8 @@ const claim = (entity: Entity | undefined, property: string) => claims(entity, p
 const label = (entity: Entity | undefined) => entity?.labels && (entity.labels.fr ?? entity.labels.en ?? Object.values(entity.labels)[0]);
 const yearOf = (date: string | undefined) => (date && /^\d{4}/.test(date) ? Number(date.slice(0, 4)) : null);
 const unique = <T>(values: T[]) => [...new Set(values)];
+// The form of a short story (Wikidata "short story", in `wdt:P7937`).
+const shortStoryForm = 'wd:Q49084';
 
 // Inventaire entities by URI, 50 per request; a requested URI that Inventaire
 // redirects gets the entity it now names.
@@ -308,7 +316,8 @@ async function workRows(
     const { title, language } = titleOf(entity, shown);
     if (!title) continue;
     const authors = claims(entity, 'wdt:P50').flatMap((author) => label(people.get(author)) ?? []);
-    rows.push({ id, also: [], title, authors, year: yearOf(claim(entity, 'wdt:P577')), language });
+    const shortStory = claims(entity, 'wdt:P7937').includes(shortStoryForm);
+    rows.push({ id, also: [], title, authors, year: yearOf(claim(entity, 'wdt:P577')), language, ...(shortStory && { shortStory }) });
     entityOf.set(id, entity);
   }
   return { rows, entityOf };
@@ -536,7 +545,18 @@ export async function workEditions(fetch: SourceFetch, ids: string[], asked: Edi
   const { inSeries, ...found } = mergeByIsbn([...fromBnf, ...fromInventaire]);
   const series = claim(work, 'wdt:P179');
   if (series) await asVolume(fetch, work, series, found.editions, inSeries);
-  return { ...found, sections: sections(found.editions, work, asked) };
+  const printedIn = found.editions.length === 0 ? await booksPrintedIn(fetch, work) : [];
+  return { ...found, sections: sections(found.editions, work, asked), ...(printedIn.length > 0 && { printedIn }) };
+}
+
+// The books a Work with no Edition is printed in (a short story in a book of
+// stories), as Work rows. Asked only for such a Work: no request on the
+// normal path.
+async function booksPrintedIn(fetch: SourceFetch, work: Entity): Promise<WorkResult[]> {
+  const books = unique(claims(work, 'wdt:P1433').filter(isInventaireId));
+  if (books.length === 0) return [];
+  const { rows } = await workRows(fetch, books.map((uri) => ({ uri })), (book) => ({ title: label(book), language: null }));
+  return rows;
 }
 
 // The Editions of a Volume: each with its Volume number, from its BnF record,

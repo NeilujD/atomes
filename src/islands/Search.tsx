@@ -291,8 +291,24 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
             </h2>
             <p class="search-hint">{[step.row.authors.join(', '), step.row.year].filter(Boolean).join(' · ')}</p>
             <WorkMarkLine work={step.row} marks={marks} />
-            {step.found.editions.length === 0 ? (
-              <p class="search-hint">{t('search.no-editions')}</p>
+            {step.found.editions.length === 0 && step.found.printedIn ? (
+              // A short story with no Edition: the books it is printed in (CORE-193).
+              <>
+                <h3 class="small-heading search-section">{t('search.printed-in')}</h3>
+                <ul class="card search-list" aria-label={t('search.printed-in')}>
+                  {step.found.printedIn.map((row) => (
+                    <WorkRow key={row.id} work={row} marks={marks} busy={busy} loading={pending === row.id} onOpen={() => void open(row)} />
+                  ))}
+                </ul>
+              </>
+            ) : step.found.editions.length === 0 ? (
+              // Never stuck: Back at the top, and the barcode of the book in hand.
+              <>
+                <p class="search-hint">{t('search.no-editions')}</p>
+                <button class="button search-scan" type="button" disabled={busy} onClick={onScan}>
+                  {t('add.scan')}
+                </button>
+              </>
             ) : (
               inLine(step.found, before?.kind === 'line' ? before.line : undefined).map((section) => (
                 <EditionList
@@ -562,6 +578,7 @@ function WorkRow({
     <li class="search-item">
       <button class="search-pick" type="button" disabled={busy} aria-busy={loading ? 'true' : undefined} onClick={onOpen}>
         <span class="search-title">{work.title}</span>
+        {work.shortStory && <span class="chip search-tag">{t('search.short-story')}</span>}
         <span class="search-line">{[work.authors.join(', '), work.year].filter(Boolean).join(' · ')}</span>
         <WorkMarkLine work={work} marks={marks} />
       </button>

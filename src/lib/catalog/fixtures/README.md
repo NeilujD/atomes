@@ -207,3 +207,16 @@ bun scripts/record-catalog-answers.ts --series wd:Q28667972 56
 | `inventaire-reverse-*.json`, `inventaire-batch-*.json`, `inventaire-inv-*.json`, `inventaire-wd-Q2010.json` | The Volumes of each Series (`wdt:P179`): Astérix 1 to 41 and 11 Works with no number ("Le Menhir d'or"), One Piece by number; the Editions of Volume 7 and of One Piece 56 and their publishers; Eiichirō Oda |
 
 Volume 7, merged by ISBN-13: the Hachette Editions of 2001 to 2025 named "Hachette · 2001–2004", the line BnF lists; Dargaud 1984 in "Dargaud · 1982–1984". One Piece 56, Glénat 2011 (9782723478991): number 56, no Volume title (BnF 200 `$a` is "One Piece").
+
+A short story printed in a book of stories (CORE-193), for `search.test.ts` and `e2e/search-story.spec.ts`, recorded on 2026-11-24:
+
+```sh
+bun scripts/record-catalog-answers.ts --editions wd:Q17177225
+bun scripts/record-catalog-answers.ts 9780002326438
+```
+
+| File | Answer |
+|---|---|
+| `inventaire-wd-Q17177225.json`, `inventaire-reverse-*.json`, `bnf-search-*.xml` | "Le Dieu solitaire" (short story, `wdt:P7937` `wd:Q49084`; printed in `wdt:P1433` `wd:Q656127`): no Inventaire Edition, BnF 0 records |
+| `inventaire-wd-Q656127.json`, `inventaire-reverse-*.json`, `inventaire-batch-*.json` (2), `bnf-search-*.xml` | "Tant que brillera le jour" (`wd:Q656127`): 4 Inventaire Editions and their Works, BnF records by title and Author; 10 Editions with an ISBN, merged. BnF also gives "Miss Marple tire sa révérence" (France Loisirs) under that title |
+| 9780002326438 | While the Light Lasts and Other Stories, HarperCollins, 1997: the Edition the E2E journey picks (English, the reader's Preferred Language); BnF, Inventaire (Work `wd:Q656127`) and Open Library know it, SUDOC does not |

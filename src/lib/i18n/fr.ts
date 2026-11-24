@@ -520,6 +520,9 @@ Ce que cette instance garde : ${privacy}`,
   'search.edition-lines': 'Éditions de la série',
   'search.volumes': 'Tomes',
   'search.volume': (label) => `Tome ${label}`,
+  // Recherche : une nouvelle publiée dans un livre (CORE-193)
+  'search.short-story': 'Nouvelle',
+  'search.printed-in': 'Publiée dans',
 
   // Page d’une série (src/islands/Series.tsx)
   'series.title': 'Série',

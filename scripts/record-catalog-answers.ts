@@ -7,6 +7,7 @@
 //        bun scripts/record-catalog-answers.ts --search "Kaamelott" "Casterman"
 //        bun scripts/record-catalog-answers.ts --find "Dix petits nègres"
 //        bun scripts/record-catalog-answers.ts --series wd:Q42490 7
+//        bun scripts/record-catalog-answers.ts --editions wd:Q17177225
 // `--fill` also records the BnF search and Inventaire answers that list the
 // whole Edition Line of each ISBN (Catalog `volumes`). `--search` records the
 // BnF search by a typed title and an optional publisher (Catalog `search`).
@@ -16,6 +17,8 @@
 // (Catalog `authorWorks`), and the Editions of the first Work of page 1
 // instead. A Series row prints its Edition Lines: record the Volumes of one
 // with `--fill <anchor>`.
+// `--editions` records the Editions of one Work (Catalog `editions`) and, for
+// a Work with none, of each book it is printed in (CORE-193).
 // Review the diff before committing: answers change when the sources fix data.
 import { writeFile } from 'node:fs/promises';
 import { createCatalog } from '../src/lib/catalog/catalog';
@@ -63,6 +66,23 @@ if (process.argv[2] === '--find') {
   if (editions && !('unavailable' in editions)) {
     console.log(editions.editions.map(({ isbn, year, title, publisher, collection, language }) => `${isbn} ${year} ${language} | ${title} | ${publisher} | ${collection}`).join('\n'));
     console.log('No ISBN:', editions.noIsbn);
+  }
+  catalog.close();
+  process.exit(0);
+}
+
+if (process.argv[2] === '--editions') {
+  const catalog = createCatalog({ file: ':memory:', fetch: recording, host: 'record.local', accounts: { findDid: () => undefined } });
+  for (let works = [process.argv[3]]; works.length > 0; ) {
+    const work = works.shift()!;
+    const found = await catalog.editions([work]);
+    if ('unavailable' in found) throw new Error('A source failed');
+    console.log(`${work}: ${found.editions.length} Editions, ${found.noIsbn} with no ISBN`);
+    console.log(found.editions.map(({ isbn, year, title, publisher }) => `  ${isbn} ${year} | ${title} | ${publisher}`).join('\n'));
+    for (const book of found.printedIn ?? []) {
+      console.log(`  printed in ${book.id} | ${book.title} | ${book.authors.join(', ')} | ${book.year}`);
+      works.push(book.id);
+    }
   }
   catalog.close();
   process.exit(0);

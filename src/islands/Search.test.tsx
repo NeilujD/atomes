@@ -628,3 +628,42 @@ describe('Search mode: one request at a time, Back and history (CORE-192)', () =
     expect(screen.getByRole('button', { name: /^Le Crime/ })).toBeTruthy();
   });
 });
+
+describe('Search mode: a short story printed in a book (CORE-193)', () => {
+  const story: WorkResult = { id: 'wd:Q17177225', also: [], title: 'Le Dieu solitaire', authors: ['Agatha Christie'], year: 1999, language: null, shortStory: true };
+  const book: WorkResult = { id: 'wd:Q656127', also: [], title: 'Tant que brillera le jour', authors: ['Agatha Christie'], year: 1997, language: null };
+  const none: EditionsFound = { editions: [], noIsbn: 0, sections: [{ language: 'fr', matches: false, editions: [] }] };
+  const findStory = () => Promise.resolve({ found: { works: [story], authors: [], series: [] } });
+
+  test('no Edition, printed in a book: the book shows; a tap opens its Editions; Back returns to the short story', async () => {
+    const editions = vi.fn<Sources['editions']>((work) => Promise.resolve({ found: work.id === story.id ? { ...none, printedIn: [book] } : found }));
+    screenWith({ find: findStory, editions });
+
+    searchFor('Le Dieu solitaire');
+    const row = await screen.findByRole('button', { name: /^Le Dieu solitaire/ });
+    expect(row.textContent).toContain('Short story');
+    fireEvent.click(row);
+
+    const printedIn = await screen.findByRole('list', { name: 'Printed in' });
+    expect(screen.queryByText('The book sources list no Edition with an ISBN for this Work.')).toBeNull();
+    fireEvent.click(within(printedIn).getByRole('button', { name: /^Tant que brillera le jour Agatha Christie · 1997/ }));
+
+    expect(await screen.findByRole('heading', { name: 'Tant que brillera le jour' })).toBeTruthy();
+    expect(screen.getByRole('list', { name: 'Français' })).toBeTruthy();
+    expect(editions.mock.calls.map(([work]) => work.id)).toEqual([story.id, book.id]);
+    fireEvent.click(screen.getByRole('button', { name: 'Le Dieu solitaire' }));
+    expect(await screen.findByRole('list', { name: 'Printed in' })).toBeTruthy();
+  });
+
+  test('no Edition and no book: the message, Back, and Scan the barcode', async () => {
+    const calls = screenWith({ find: findStory, editions: () => Promise.resolve({ found: none }) });
+
+    searchFor('Le Dieu solitaire');
+    fireEvent.click(await screen.findByRole('button', { name: /^Le Dieu solitaire/ }));
+
+    expect(await screen.findByText('The book sources list no Edition with an ISBN for this Work.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'All results' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Scan the barcode' }));
+    expect(calls.scans).toBe(1);
+  });
+});

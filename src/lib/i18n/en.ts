@@ -525,6 +525,9 @@ What this instance keeps: ${privacy}`,
   'search.edition-lines': 'Edition Lines',
   'search.volumes': 'Volumes',
   'search.volume': (label: string) => `Volume ${label}`,
+  // Search: a short story printed in a book (CORE-193)
+  'search.short-story': 'Short story',
+  'search.printed-in': 'Printed in',
 
   // Series page (src/islands/Series.tsx)
   'series.title': 'Series',

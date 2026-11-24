@@ -489,3 +489,43 @@ describe('Search: Series and Volumes (CORE-187)', () => {
     expect((await volumesOf(setup({ down: ['inventaire.io'] }).catalog, asterix)).status).toBe(503);
   });
 });
+
+describe('Search: a short story printed in a book (CORE-193)', () => {
+  // "Le Dieu solitaire", a short story of Agatha Christie, never printed as a book of its own.
+  const dieuSolitaire = 'wd:Q17177225';
+  // "Tant que brillera le jour" ("While the Light Lasts and Other Stories"), the book it is printed in.
+  const tantQueBrillera = 'wd:Q656127';
+
+  test('a short story with no Edition gives the book it is printed in, whose Editions have an ISBN', async () => {
+    const { catalog } = setup();
+
+    const story = await editions(await editionsOf(catalog, [dieuSolitaire]));
+    expect(story.editions).toEqual([]);
+    expect(story.printedIn).toEqual([
+      { id: tantQueBrillera, also: [], title: 'Tant que brillera le jour', authors: ['Agatha Christie'], year: 1997, language: null },
+    ]);
+
+    const book = await editions(await editionsOf(catalog, [tantQueBrillera]));
+    expect(book.editions.length).toBeGreaterThan(0);
+    expect(book.editions.every(({ isbn }) => /^97[89]\d{10}$/.test(isbn))).toBe(true);
+    expect(book.printedIn).toBeUndefined();
+  });
+
+  test('a Work row of a short story says so, on the Author page; a collection of stories does not', async () => {
+    const { catalog } = setup();
+
+    const { works: rows } = (await (await worksOf(catalog, agatha)).json()) as AuthorWorks;
+
+    expect(rows.find(({ id }) => id === dieuSolitaire)?.shortStory).toBe(true);
+    expect(rows.find(({ id }) => id === tantQueBrillera)?.shortStory).toBeUndefined();
+  });
+
+  test('a Work with no Edition and no book it is printed in gives none', async () => {
+    const { catalog } = setup();
+
+    const found = await editions(await editionsOf(catalog, [christieInventaire]));
+
+    expect(found.editions).toEqual([]);
+    expect(found.printedIn).toBeUndefined();
+  });
+});
