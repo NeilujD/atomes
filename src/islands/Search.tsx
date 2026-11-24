@@ -232,6 +232,9 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
   // Back, named with the step it returns to; it goes back in the history too.
   const back = before && (
     <button class="button button-quiet search-back" type="button" disabled={busy} onClick={() => history.back()}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m15 18-6-6 6-6" />
+      </svg>
       {stepName(before)}
     </button>
   );
