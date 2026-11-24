@@ -104,8 +104,11 @@ describe('entry', () => {
     expect(entry(pr('fix!: a'))?.kind).toBe('breaking');
   });
 
-  test('types readers do not see stay out', () => {
-    for (const title of ['docs: a', 'ci: a', 'chore: a', 'test: a', 'not conventional']) expect(entry(pr(title))).toBeNull();
+  test('types readers do not see go to Maintenance, by title only, even with "none"', () => {
+    for (const title of ['docs: a', 'ci: a', 'chore: a', 'test: a', 'build: a', 'style: a', 'revert: a']) {
+      expect(entry(pr(title, '## Release notes\nnone\n', 3))).toEqual({ kind: 'chore', markdown: '### A ([#3](https://github.com/o/r/pull/3))' });
+    }
+    expect(entry(pr('not conventional'))).toBeNull();
   });
 
   test('"none" keeps the PR out; an empty part keeps the title only', () => {
@@ -155,6 +158,8 @@ describe('versions', () => {
     expect(nextVersion('1.1.3', ['fix', 'improvement'])).toBe('1.1.4');
     expect(nextVersion('1.1.3', ['fix', 'new'])).toBe('1.2.0');
     expect(nextVersion('1.1.3', ['new', 'breaking'])).toBe('2.0.0');
+    expect(nextVersion('1.1.3', ['chore'])).toBeNull();
+    expect(nextVersion('1.1.3', ['chore', 'fix'])).toBe('1.1.4');
   });
 
   test('package.json version', () => {
@@ -169,11 +174,13 @@ describe('notes', () => {
     const entries = [
       { kind: 'fix' as const, markdown: '### F' },
       { kind: 'new' as const, markdown: '### N' },
+      { kind: 'chore' as const, markdown: '### C' },
       { kind: 'breaking' as const, markdown: '### B' },
     ];
     const notes = renderNotes('o/r', '1.1.0', '2.0.0', entries);
     expect(notes.indexOf('## Breaking changes')).toBeLessThan(notes.indexOf('## New'));
     expect(notes.indexOf('## New')).toBeLessThan(notes.indexOf('## Fixes'));
+    expect(notes.indexOf('## Fixes')).toBeLessThan(notes.indexOf('## Maintenance'));
     expect(notes).not.toContain('## Improvements');
     expect(notes.endsWith('**Full changelog:** https://github.com/o/r/compare/v1.1.0...v2.0.0')).toBe(true);
   });

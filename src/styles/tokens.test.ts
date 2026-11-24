@@ -49,6 +49,7 @@ const checked: Record<string, string[]> = {
   './admin-table.css': [],
   '../pages/sign-in.astro': [],
   '../components/Notice.astro': [],
+  '../pages/changelog.astro': [],
   '../pages/index.astro': [],
   '../pages/library.astro': ['../islands/LibraryCoverFlow.tsx', '../lib/cover.ts'],
   '../pages/to-buy.astro': [],

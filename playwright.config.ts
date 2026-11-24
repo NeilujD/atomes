@@ -59,6 +59,8 @@ export default defineConfig({
     // Made for this run only: no secret is stored, and these settings win over `.env.local`.
     env: {
       CATALOG_SOURCES: 'recorded',
+      // What's new answers from the recorded GitHub Releases (src/lib/server/changelog.fake.ts).
+      CHANGELOG_SOURCE: 'recorded',
       DEV_TOOLBAR: 'off',
       DATA_DIR: 'data-e2e',
       LANDING_PAGE: 'on',

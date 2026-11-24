@@ -1,0 +1,20 @@
+[
+  {
+    "body": "Search grows up: find Authors, Series and Volumes, even offline.\n\n## Breaking changes\n\n### Rename the setting ALLOWED_DIDS to SIGN_UP ([#90](https://github.com/NeilujD/atomes/pull/90))\n\nSign-up now takes an Invite by default.\n\n### Migration\n\nRemove `ALLOWED_DIDS` from the settings of your instance. Set `SIGN_UP=invite` (the default) or `SIGN_UP=open`.\n\n## New\n\n### Search finds Authors, Series and Volumes, with Preferred Language and \"I have it\" ([#101](https://github.com/NeilujD/atomes/pull/101))\n\nType a title, an author or a Series in **Check a book**: Search lists Authors, Series and Volumes, in your Preferred Language first.\n\n### Search offline finds the books this device keeps ([#102](https://github.com/NeilujD/atomes/pull/102))\n\nWith no signal, Search still finds the books you looked up on this device.\n\n### Audience measurement with Rybbit, set by the instance ([#104](https://github.com/NeilujD/atomes/pull/104))\n\nAn instance can count visits with Rybbit, with no cookie:\n\n- off by default;\n- named in the Privacy notice when on.\n\n## Improvements\n\n### Check a book has Scan and Search modes, with one Shelf Check answer ([#100](https://github.com/NeilujD/atomes/pull/100))\n\n## Fixes\n\n### Make the offline status quiet, with the Reconnect icon alone ([#103](https://github.com/NeilujD/atomes/pull/103))\n\nThe offline box no longer moves the sidebar.\n\n## Maintenance\n\n### Cut CI time from about 6 minutes to 2 ([#94](https://github.com/NeilujD/atomes/pull/94))\n\n### Docs for the app scripts ([#91](https://github.com/NeilujD/atomes/pull/91))\n\n**Full changelog:** https://github.com/NeilujD/atomes/compare/v1.0.0...v1.1.0\n",
+    "name": "Atomes v1.1.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-11-24T10:00:00Z",
+    "html_url": "https://github.com/NeilujD/atomes/releases/tag/v1.1.0",
+    "tag_name": "v1.1.0"
+  },
+  {
+    "body": "The first versioned release of Atomes: everything built from M0 to M13.\n\n## New\n\n### Your Library\n\nKeep every book you own: each Copy, the Edition you have, and who has it on Loan. Add a book with Quick Add (scan or type the ISBN), or start a whole Series at once with Series Onboarding. The Catalog finds the Work, the Edition and the cover from open book sources, and you can send a Series Correction when it is wrong.\n\n### Reading\n\nSet a Reading Status on each Work, sort your books with Labels and see what is Owned-Unread. Statistics show what you read, month by month, from your own dated records; share them as a picture.\n\n### Series\n\nFollow a Series to see its New Volumes, Upcoming Volumes and Missing Volumes. Drop a Series to stop following it. The To Buy list gathers the Volumes you miss.\n\n### Shelf Check\n\nIn a bookshop, scan a barcode to see at once if you own the book, even offline.\n\n### Accounts\n\nSign in with your email address and a Sign-in Code; an AT Protocol Account is optional. A new Account needs an Invite, and each reader can make one Invite for a friend. Choose what stays Private and what is Shared. In Settings, export all your data or delete your Account.\n\n### For the Operator\n\nAn Admin panel for Invites, Accounts, Admins and the Admin Log. A Landing page at `/welcome`, a Privacy notice and a Legal notice. The app works in English and French, on a phone or a desktop, in light and dark.\n\n**Full changelog:** https://github.com/NeilujD/atomes/commits/v1.0.0\n",
+    "draft": false,
+    "html_url": "https://github.com/NeilujD/atomes/releases/tag/v1.0.0",
+    "name": "Atomes v1.0.0",
+    "prerelease": false,
+    "published_at": "2026-11-23T09:14:30Z",
+    "tag_name": "v1.0.0"
+  }
+]

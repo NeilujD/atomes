@@ -9,15 +9,17 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const TYPES = new Set(['feat', 'fix', 'perf', 'refactor', 'docs', 'chore', 'ci', 'test', 'build', 'style', 'revert']);
 const TITLE = /^(?<type>[a-z]+)(?:\([^)]+\))?(?<bang>!)?: (?<desc>\S.*)$/;
-type Kind = 'breaking' | 'new' | 'improvement' | 'fix';
+type Kind = 'breaking' | 'new' | 'improvement' | 'fix' | 'chore';
+// Every other known type is Maintenance: listed by title, with no version bump of its own.
 const KIND_BY_TYPE: Partial<Record<string, Kind>> = { feat: 'new', fix: 'fix', perf: 'improvement', refactor: 'improvement' };
 const SECTIONS: [Kind, string][] = [
   ['breaking', 'Breaking changes'],
   ['new', 'New'],
   ['improvement', 'Improvements'],
   ['fix', 'Fixes'],
+  ['chore', 'Maintenance'],
 ];
-const BUMP_INDEX: Record<Kind, number> = { breaking: 0, new: 1, improvement: 2, fix: 2 }; // major, minor, patch
+const BUMP_INDEX: Record<Kind, number | null> = { breaking: 0, new: 1, improvement: 2, fix: 2, chore: null }; // major, minor, patch, none
 const SKIP_NOTES = new Set(['none', 'n/a', '-']);
 
 export const RELEASE_PREFIX = 'chore(release): v';
@@ -90,7 +92,7 @@ function kindOf(title: string, body: string): Kind | null {
   const parsed = parseTitle(title);
   if (!parsed) return null;
   if (parsed.bang || /^BREAKING[ -]CHANGE:/m.test(body)) return 'breaking';
-  return KIND_BY_TYPE[parsed.type] ?? null;
+  return KIND_BY_TYPE[parsed.type] ?? (TYPES.has(parsed.type) ? 'chore' : null);
 }
 
 /** Errors for a PR title and body. Empty = valid. */
@@ -121,7 +123,11 @@ export function entry(pr: Pr): Entry | null {
   const kind = kindOf(pr.title, pr.body);
   if (!kind) return null;
   const notes = splitSection(section(pr.body, 'Release notes') ?? '', 'Before you deploy', 3).outside;
-  if (SKIP_NOTES.has(notes.toLowerCase()) && kind !== 'breaking') return null;
+  if (SKIP_NOTES.has(notes.toLowerCase())) {
+    // Maintenance keeps its title: readers see no change, but the release lists it.
+    if (kind === 'chore') return { kind, markdown: heading(pr) };
+    if (kind !== 'breaking') return null;
+  }
   return { kind, markdown: `${heading(pr)}\n\n${notes}`.trim() };
 }
 
@@ -133,9 +139,10 @@ export function beforeDeploy(pr: Pr): string | null {
 }
 
 export function nextVersion(current: string, kinds: Kind[]): string | null {
-  if (kinds.length === 0) return null;
+  const bumps = kinds.map((kind) => BUMP_INDEX[kind]).filter((bump) => bump !== null);
+  if (bumps.length === 0) return null;
   const parts = current.split('.').map(Number);
-  const i = Math.min(...kinds.map((kind) => BUMP_INDEX[kind]));
+  const i = Math.min(...bumps);
   parts[i] += 1;
   parts.fill(0, i + 1);
   return parts.join('.');

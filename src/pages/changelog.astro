@@ -1,0 +1,220 @@
+---
+// What's new: the GitHub Releases of Atomes, newest first, each cut into
+// categories (src/lib/server/changelog.ts). A notice screen with no gate
+// (openPaths), linked from Settings and the Landing page footer. The version
+// this server runs (package.json) is marked.
+import { version } from '../../package.json';
+import Icon from '../components/Icon.astro';
+import type { IconName } from '../components/icons';
+import Notice from '../components/Notice.astro';
+import ReleaseNote from '../components/ReleaseNote.astro';
+import RichText from '../components/RichText.astro';
+import AppShell from '../layouts/AppShell.astro';
+import { requestLanguage, translator } from '../lib/i18n/i18n';
+import { type Category, changelog, releasesUrl } from '../lib/server/changelog';
+import { sourceCodeUrl } from '../lib/source-code';
+
+const language = requestLanguage(Astro.request);
+const t = translator(language);
+const releases = await changelog(`Atomes/${version} (+${sourceCodeUrl})`)();
+const day = new Intl.DateTimeFormat(language, { dateStyle: 'long', timeZone: 'UTC' });
+const icon: Record<Category, IconName> = {
+  breaking: 'circle-exclamation-point',
+  feature: 'sparkles',
+  improvement: 'trending-up',
+  fix: 'bug',
+  chore: 'wrench',
+};
+---
+
+<AppShell title={t('changelog.title')} flow>
+  <Notice title={t('changelog.title')} intro={t('changelog.intro')}>
+    <div class="releases">
+      {releases === null && <p class="quiet">{t('changelog.unavailable')}</p>}
+      {releases?.length === 0 && <p class="quiet">{t('changelog.empty')}</p>}
+      {
+        releases?.map((release) => (
+          <section class="release" aria-labelledby={`v${release.version}`}>
+            <header class="release-head">
+              <div class="release-title">
+                <h2 id={`v${release.version}`}>{t('changelog.version', release.version)}</h2>
+                {release.version === version && <span class="chip">{t('changelog.this-instance')}</span>}
+              </div>
+              <time datetime={release.date}>{day.format(new Date(release.date))}</time>
+            </header>
+            {release.intro.length > 0 && (
+              <div class="intro">
+                <ReleaseNote blocks={release.intro} />
+              </div>
+            )}
+            {release.groups.map((group) => (
+              <div class:list={['group', group.category]}>
+                <h3 class="small-heading">
+                  {group.category && <Icon name={icon[group.category]} />}
+                  {group.category ? t(`changelog.${group.category}`) : group.heading}
+                </h3>
+                <ul class="changes">
+                  {group.changes.map((change) => (
+                    <li class="change">
+                      {change.title.length > 0 && (
+                        <h4>
+                          <RichText parts={change.title} />
+                          {change.pr && (
+                            <a class="pr" href={change.pr.href} aria-label={t('changelog.pull-request', change.pr.number)}>
+                              #{change.pr.number}
+                            </a>
+                          )}
+                        </h4>
+                      )}
+                      <ReleaseNote blocks={change.blocks} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <a class="on-github" href={release.url}>
+              {t('changelog.on-github')}
+              <Icon name="arrow-right" />
+            </a>
+          </section>
+        ))
+      }
+      <a class="button" href={releasesUrl}><Icon name="code-xml" />{t('changelog.all')}</a>
+    </div>
+  </Notice>
+</AppShell>
+
+<style>
+  .releases {
+    align-self: stretch;
+    margin-top: var(--space-8);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-28);
+  }
+
+  .quiet,
+  time {
+    color: var(--text-quiet);
+  }
+
+  .release {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-20);
+  }
+
+  .release + .release {
+    padding-top: var(--space-28);
+    border-top: var(--hairline) solid var(--line-card);
+  }
+
+  .release-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .release-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-10);
+  }
+
+  h2 {
+    font-size: var(--type-heading);
+  }
+
+  time {
+    font-size: var(--type-small);
+  }
+
+  .group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-10);
+  }
+
+  .small-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+  }
+
+  .changes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-14);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .change {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+
+  h4 {
+    margin: 0;
+    font-size: var(--type-body);
+    font-weight: 600;
+  }
+
+  /* Maintenance: titles only, quieter and denser than the changes readers see. */
+  .chore .changes {
+    gap: var(--space-6);
+  }
+
+  .chore h4 {
+    color: var(--text-quiet);
+    font-weight: 400;
+  }
+
+  .pr {
+    margin-left: var(--space-6);
+    color: var(--text-quiet);
+    font-size: var(--type-small);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .on-github {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: var(--space-4);
+    font-size: var(--type-small);
+  }
+
+  /* The note text, drawn by ReleaseNote and RichText (other components): :global inside this page. */
+  .release :global(p) {
+    margin: 0;
+  }
+
+
+  .release :global(.note-heading) {
+    margin-top: var(--space-4);
+    font-weight: 600;
+  }
+
+  .release :global(.note-list) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin: 0;
+    padding-left: var(--space-20);
+  }
+
+  .release :global(code) {
+    padding: 0 var(--space-4);
+    border-radius: var(--radius-spine);
+    background: var(--fill-chip);
+    font-family: var(--font-tech);
+    font-size: var(--type-small);
+  }
+</style>

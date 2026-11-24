@@ -4,9 +4,11 @@ import ArrowRight from '@lucide/astro/icons/arrow-right';
 import Bell from '@lucide/astro/icons/bell';
 import BookOpen from '@lucide/astro/icons/book-open';
 import BookPlus from '@lucide/astro/icons/book-plus';
+import Bug from '@lucide/astro/icons/bug';
 import ChartColumn from '@lucide/astro/icons/chart-column';
 import Check from '@lucide/astro/icons/check';
 import ChevronDown from '@lucide/astro/icons/chevron-down';
+import CircleExclamationPoint from '@lucide/astro/icons/circle-exclamation-point';
 import ClipboardPaste from '@lucide/astro/icons/clipboard-paste';
 import CodeXml from '@lucide/astro/icons/code-xml';
 import Database from '@lucide/astro/icons/database';
@@ -34,11 +36,14 @@ import Server from '@lucide/astro/icons/server';
 import Settings from '@lucide/astro/icons/settings';
 import Share from '@lucide/astro/icons/share';
 import ShoppingBag from '@lucide/astro/icons/shopping-bag';
+import Sparkles from '@lucide/astro/icons/sparkles';
 import Sun from '@lucide/astro/icons/sun';
 import Tag from '@lucide/astro/icons/tag';
 import Trash from '@lucide/astro/icons/trash';
+import TrendingUp from '@lucide/astro/icons/trending-up';
 import User from '@lucide/astro/icons/user';
 import WifiOff from '@lucide/astro/icons/wifi-off';
+import Wrench from '@lucide/astro/icons/wrench';
 import X from '@lucide/astro/icons/x';
 
 export const icons = {
@@ -47,9 +52,11 @@ export const icons = {
   bell: Bell,
   'book-open': BookOpen,
   'book-plus': BookPlus,
+  bug: Bug,
   'chart-column': ChartColumn,
   check: Check,
   'chevron-down': ChevronDown,
+  'circle-exclamation-point': CircleExclamationPoint,
   'clipboard-paste': ClipboardPaste,
   'code-xml': CodeXml,
   database: Database,
@@ -77,11 +84,14 @@ export const icons = {
   settings: Settings,
   share: Share,
   'shopping-bag': ShoppingBag,
+  sparkles: Sparkles,
   sun: Sun,
   tag: Tag,
   trash: Trash,
+  'trending-up': TrendingUp,
   user: User,
   'wifi-off': WifiOff,
+  wrench: Wrench,
   x: X,
 };
 
