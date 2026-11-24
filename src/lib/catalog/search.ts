@@ -4,6 +4,7 @@
 // server. The answers are kept 24 hours (`answerCache`).
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
+import { compareText, type Language } from '../i18n/i18n';
 import { isIsbn13 } from '../library/ids';
 import { bcp47 } from './languages';
 import { inTransaction } from '../server/migrate';
@@ -187,7 +188,8 @@ const hasEveryWord = (words: string, names: string[]) => {
 const names = (entity: Entity | undefined) => [...Object.values(entity?.labels ?? {}), ...Object.values(entity?.aliases ?? {}).flat()];
 
 // Inventaire first (Works and Authors, one call; then Series); when it finds nothing, BnF.
-export async function find(fetch: SourceFetch, words: string): Promise<Found> {
+// `language`: the reader's, to sort the Edition Lines of a Series.
+export async function find(fetch: SourceFetch, words: string, language: Language): Promise<Found> {
   const response = await read(fetch, sourceUrls.inventaireSearch(words));
   const results = response ? (((await response.json()) as { results?: Hit[] }).results ?? []) : [];
   const hits = (type: string) => results.filter((each): each is Hit & { uri: string } => each.type === type && !!each.uri && isInventaireId(each.uri));
@@ -197,7 +199,7 @@ export async function find(fetch: SourceFetch, words: string): Promise<Found> {
   });
   await mergeShared(fetch, works.rows, works.entityOf);
   const authors = await authorRows(fetch, words, hits('humans'));
-  const series = await seriesRows(fetch, words);
+  const series = await seriesRows(fetch, words, language);
   if (works.rows.length > 0 || authors.length > 0 || series.length > 0) return { works: works.rows, authors, series };
   return { works: (await bnfGroups(fetch, words)).map(({ row }) => row), authors: [], series: [] };
 }
@@ -205,7 +207,7 @@ export async function find(fetch: SourceFetch, words: string): Promise<Found> {
 // The Series Inventaire finds under the words, whose name holds every word,
 // with the Edition Lines BnF lists under their title. A second Inventaire
 // call: the Work and Author search keeps its 10 results.
-async function seriesRows(fetch: SourceFetch, words: string): Promise<SeriesResult[]> {
+async function seriesRows(fetch: SourceFetch, words: string, language: Language): Promise<SeriesResult[]> {
   const response = await read(fetch, sourceUrls.inventaireSeriesSearch(words));
   const results = response ? (((await response.json()) as { results?: Hit[] }).results ?? []) : [];
   const found = await entities(
@@ -213,12 +215,15 @@ async function seriesRows(fetch: SourceFetch, words: string): Promise<SeriesResu
     unique(results.flatMap(({ uri, type }) => (type === 'series' && uri && isInventaireId(uri) ? [uri] : []))),
   );
   const rows: SeriesResult[] = [];
+  const compare = compareText(language);
   for (const [uri, entity] of found) {
     const id = entity.uri ?? uri;
     const title = label(entity);
     if (!title || !isInventaireId(id) || rows.some((row) => row.id === id) || !hasEveryWord(words, names(entity))) continue;
     // A Series with no Edition Line has no Edition to pick.
     const lines = await seriesLines(fetch, title);
+    // Lines that start the same year, by publisher.
+    lines.sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity) || compare(a.publisher ?? '', b.publisher ?? ''));
     if (lines.length > 0) rows.push({ id, title, lines });
   }
   return rows;
@@ -226,7 +231,8 @@ async function seriesRows(fetch: SourceFetch, words: string): Promise<SeriesResu
 
 // The Edition Lines of a Series in one BnF search of its title (100 records,
 // printed text): the records with a Series that holds every word of the title
-// and a Volume number, by Series, publisher (under either name) and language.
+// and a Volume number, by Series, publisher (under either name) and language;
+// the oldest line first.
 // BnF does not sort: a large Series may have lines past these 100 records.
 async function seriesLines(fetch: SourceFetch, title: string): Promise<SeriesLine[]> {
   const typed = cql(title);
@@ -249,10 +255,8 @@ async function seriesLines(fetch: SourceFetch, title: string): Promise<SeriesLin
     const line = { ...lineName(listed), language };
     if (!lines.some((each) => sameLine(each, line))) lines.push(line);
   }
-  return lines.sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity) || compareNames(a.publisher, b.publisher));
+  return lines.sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity));
 }
-
-const compareNames = (a: string | null, b: string | null) => (a ?? '').localeCompare(b ?? '');
 
 // The Volume title of a title: none when it says only the Series and the
 // number ("One Piece", "Spy x Family - Tome 16", "One Piece, Tome 56").
@@ -265,8 +269,9 @@ function volumeTitle(title: string | null | undefined, series: string): string |
   return rest.length > 0 ? title : null;
 }
 
-// The Volumes of a Series in Inventaire, by number; those with no number last.
-export async function seriesVolumes(fetch: SourceFetch, series: string): Promise<VolumeResult[]> {
+// The Volumes of a Series in Inventaire, by number; those with no number last,
+// by title in the reader's `language`.
+export async function seriesVolumes(fetch: SourceFetch, series: string, language: Language): Promise<VolumeResult[]> {
   const seriesTitle = label((await entities(fetch, [series])).get(series)) ?? '';
   const response = await read(fetch, sourceUrls.inventaireReverse('wdt:P179', series));
   const uris = response ? (((await response.json()) as { uris?: string[] }).uris ?? []).filter(isInventaireId) : [];
@@ -277,7 +282,8 @@ export async function seriesVolumes(fetch: SourceFetch, series: string): Promise
     const title = volumeTitle(label(work), seriesTitle);
     if (isInventaireId(id) && (number !== null || title) && !volumes.some((each) => each.id === id)) volumes.push({ id, number, title });
   }
-  return volumes.sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity) || compareNames(a.title, b.title));
+  const compare = compareText(language);
+  return volumes.sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity) || compare(a.title ?? '', b.title ?? ''));
 }
 
 type Hit = { uri?: string; type?: string; label?: string };

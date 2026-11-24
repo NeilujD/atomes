@@ -37,7 +37,7 @@ afterEach(() => {
 
 const reader = { signedIn: true };
 const find = (catalog: Catalog, words: string, access = reader) =>
-  answerFind(catalog, new URL(`http://atomes.test/api/catalog/find?${new URLSearchParams({ words })}`), access);
+  answerFind(catalog, new URL(`http://atomes.test/api/catalog/find?${new URLSearchParams({ words })}`), { language: 'en', ...access });
 // `language`: the Preferred Language; `matched`: the language of the label that matched the words.
 const editionsOf = (catalog: Catalog, works: string[], access = reader, { language, matched }: { language?: string; matched?: string } = {}) =>
   answerWorkEditions(
@@ -407,7 +407,7 @@ describe('Search: Series and Volumes (CORE-187)', () => {
   const combatDesChefs = 'wd:Q1194700'; // Astérix 7
   const series = async (response: Response) => ((await response.json()) as Found).series;
   const volumesOf = (catalog: Catalog, id: string, access = reader) =>
-    answerSeriesVolumes(catalog, new URL(`http://atomes.test/api/catalog/find/series?${new URLSearchParams({ series: id })}`), access);
+    answerSeriesVolumes(catalog, new URL(`http://atomes.test/api/catalog/find/series?${new URLSearchParams({ series: id })}`), { language: 'en', ...access });
   const volumes = async (response: Response) => ((await response.json()) as { volumes: VolumeResult[] }).volumes;
 
   test('"Astérix" gives a Series row with its Edition Lines, each named by its publisher and years', async () => {

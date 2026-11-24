@@ -29,6 +29,7 @@
 //   the Volumes of a Series row of Search, by number (CORE-187).
 // A Correction is the only request that sends who asks (the session cookie):
 // the routes check it and a write limit per Account (access.ts).
+import type { Language } from '../i18n/i18n';
 import { isIsbn13 } from '../library/ids';
 import type { Catalog, Choice, Correction, Edition } from './catalog';
 import { parsePreferredLanguage } from './languages';
@@ -96,11 +97,11 @@ export async function answerSearch(catalog: Catalog, url: URL, { signedIn }: { s
 }
 
 // Search (ADR 0021): only the words leave the server, for a signed-in reader.
-export async function answerFind(catalog: Catalog, url: URL, { signedIn }: { signedIn: boolean }) {
+export async function answerFind(catalog: Catalog, url: URL, { signedIn, language }: { signedIn: boolean; language: Language }) {
   if (!signedIn) return signedOut();
   const words = typedText(url.searchParams.get('words'));
   if (!words) return json(400, { error: 'InvalidSearch', message: 'Send title or author words, 300 characters at most.' });
-  const found = await catalog.find(words);
+  const found = await catalog.find(words, language);
   return 'unavailable' in found ? sourcesDown() : json(200, found);
 }
 
@@ -138,11 +139,11 @@ export async function answerAuthorWorks(catalog: Catalog, url: URL, { signedIn }
   return 'unavailable' in found ? sourcesDown() : json(200, found);
 }
 
-export async function answerSeriesVolumes(catalog: Catalog, url: URL, { signedIn }: { signedIn: boolean }) {
+export async function answerSeriesVolumes(catalog: Catalog, url: URL, { signedIn, language }: { signedIn: boolean; language: Language }) {
   if (!signedIn) return signedOut();
   const series = url.searchParams.get('series') ?? '';
   if (!isInventaireId(series)) return json(400, { error: 'InvalidSeries', message: 'Send a Series identifier (wd: or inv:).' });
-  const found = await catalog.seriesVolumes(series);
+  const found = await catalog.seriesVolumes(series, language);
   return 'unavailable' in found ? sourcesDown() : json(200, found);
 }
 

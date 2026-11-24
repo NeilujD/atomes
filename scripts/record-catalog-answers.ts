@@ -42,7 +42,7 @@ if (process.argv[2] === '--search') {
 
 if (process.argv[2] === '--find') {
   const catalog = createCatalog({ file: ':memory:', fetch: recording, host: 'record.local', accounts: { findDid: () => undefined } });
-  const found = await catalog.find(process.argv[3]);
+  const found = await catalog.find(process.argv[3], 'en');
   if ('unavailable' in found) throw new Error('A source failed');
   const row = (each: WorkResult) => `${each.id} ${each.also.join(',')} | ${each.title} | ${each.authors.join(', ')} | ${each.year}`;
   console.log(found.works.map(row).join('\n'));
@@ -72,7 +72,7 @@ if (process.argv[2] === '--find') {
 // Search (Catalog `seriesVolumes`) and the Editions of one Volume.
 if (process.argv[2] === '--series') {
   const catalog = createCatalog({ file: ':memory:', fetch: recording, host: 'record.local', accounts: { findDid: () => undefined } });
-  const found = await catalog.seriesVolumes(process.argv[3]);
+  const found = await catalog.seriesVolumes(process.argv[3], 'en');
   if ('unavailable' in found) throw new Error('A source failed');
   console.log(found.volumes.map(({ id, number, title }) => `${number} | ${title} | ${id}`).join('\n'));
   const volume = found.volumes.find(({ number }) => number === Number(process.argv[4]));
