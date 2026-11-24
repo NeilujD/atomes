@@ -22,7 +22,8 @@ test('Search → "Agatha Christie" → Author row → 20 Works → Show more →
 
   await works.first().getByRole('button').click();
   await expect(page.getByRole('heading', { name: 'And Then There Were None' })).toBeVisible();
-  await expect(page.getByRole('list', { name: 'Editions' }).getByRole('listitem').first()).toBeVisible();
+  // A Work of an Author page matched no words: the Preferred Language only (CORE-186).
+  await expect(page.getByRole('list', { name: 'English', exact: true }).getByRole('listitem').first()).toBeVisible();
 
   // Back goes to the Author, with the Works shown so far.
   await page.getByRole('button', { name: 'Agatha Christie', exact: true }).click();
