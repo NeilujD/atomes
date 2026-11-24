@@ -1,5 +1,6 @@
 ---
-// The body of a notice screen: the Privacy notice and the Legal notice. A Flow
+// The body of a notice screen: the Privacy notice, the Legal notice and What's
+// new (its own body in the slot, after the intro). A Flow
 // screen with no gate (openPaths), so it opens with no session. The close icon
 // steps back to the screen that opened it; Home else (src/lib/back.ts).
 import Icon from './Icon.astro';
@@ -9,11 +10,11 @@ import { requestLanguage, translator } from '../lib/i18n/i18n';
 interface Props {
   title: string;
   intro: string;
-  sections: { heading: string; texts: string[] }[];
-  updated: string;
+  sections?: { heading: string; texts: string[] }[];
+  updated?: string;
 }
 
-const { title, intro, sections, updated } = Astro.props;
+const { title, intro, sections = [], updated } = Astro.props;
 const t = translator(requestLanguage(Astro.request));
 const close = openerHref(Astro.request.headers.get('referer'), Astro.request.headers.get('host'));
 ---
@@ -35,7 +36,8 @@ const close = openerHref(Astro.request.headers.get('referer'), Astro.request.hea
       </section>
     ))
   }
-  <p class="updated">{updated}</p>
+  <slot />
+  {updated && <p class="updated">{updated}</p>}
 </article>
 
 <style>

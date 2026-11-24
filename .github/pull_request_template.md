@@ -4,7 +4,7 @@ Title: Conventional Commit, with the milestone or the Linear ticket as scope. It
   fix(CORE-123): …     Fix (patch)
   perf: / refactor: …  Improvement (patch)
   feat!: / fix!: …     Breaking change (major): needs a "### Migration" part below
-  docs: / ci: / chore: / test: / build: / style: / revert: …  not in the release notes
+  docs: / ci: / chore: / test: / build: / style: / revert: …  Maintenance: title only, no version bump
 -->
 
 ## Summary

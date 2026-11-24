@@ -1,0 +1,33 @@
+---
+// The paragraphs, lists and sub-headings ("Migration") of a release note.
+import RichText from './RichText.astro';
+import type { Block } from '../lib/server/changelog';
+
+interface Props {
+  blocks: Block[];
+}
+
+const { blocks } = Astro.props;
+---
+
+{
+  blocks.map((block) =>
+    block.kind === 'heading' ? (
+      <p class="note-heading">
+        <RichText parts={block.parts} />
+      </p>
+    ) : block.kind === 'list' ? (
+      <ul class="note-list">
+        {block.items.map((parts) => (
+          <li>
+            <RichText parts={parts} />
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p>
+        <RichText parts={block.parts} />
+      </p>
+    ),
+  )
+}

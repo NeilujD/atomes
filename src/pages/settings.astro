@@ -276,12 +276,12 @@ const pickers: { name: string; label: string; hint: string; checked: string; opt
         </form>
       </dialog>
     </section>
-    <!-- The Landing page (M12): what Atomes does, for a reader who wants to tell a friend. -->
-    {
-      landing && (
-        <section class="group" aria-labelledby="about-title">
-          <h2 class="small-heading" id="about-title">{t('settings.about')}</h2>
-          <div class="card group-card">
+    <section class="group" aria-labelledby="about-title">
+      <h2 class="small-heading" id="about-title">{t('settings.about')}</h2>
+      <div class="card group-card">
+        <!-- The Landing page (M12): what Atomes does, for a reader who wants to tell a friend. -->
+        {
+          landing && (
             <div class="row">
               <div>
                 <p class="row-label">{t('settings.about-atomes')}</p>
@@ -289,10 +289,18 @@ const pickers: { name: string; label: string; hint: string; checked: string; opt
               </div>
               <a class="button" href="/welcome">{t('settings.about-atomes')}</a>
             </div>
+          )
+        }
+        <!-- What's new: the GitHub Releases (src/pages/changelog.astro). -->
+        <div class="row">
+          <div>
+            <p class="row-label">{t('changelog.title')}</p>
+            <p class="row-hint">{t('settings.changelog-hint')}</p>
           </div>
-        </section>
-      )
-    }
+          <a class="button" href="/changelog">{t('changelog.title')}</a>
+        </div>
+      </div>
+    </section>
     <!-- The version of this server (package.json): set by each release (README, "Releasing"). -->
     <p class="version">{t('settings.version', version)}</p>
   </div>

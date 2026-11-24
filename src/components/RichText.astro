@@ -1,0 +1,27 @@
+---
+// Text parts of a release note (src/lib/server/changelog.ts): plain text,
+// code, bold and links, each escaped by Astro. Never HTML from the note.
+import type { Inline } from '../lib/server/changelog';
+
+interface Props {
+  parts: Inline[];
+}
+
+const { parts } = Astro.props;
+---
+
+{
+  parts.map((part) =>
+    part.kind === 'code' ? (
+      <code>{part.text}</code>
+    ) : part.kind === 'strong' ? (
+      <strong>{part.text}</strong>
+    ) : part.kind === 'link' ? (
+      <a href={part.href} rel="noopener noreferrer">
+        {part.text}
+      </a>
+    ) : (
+      part.text
+    ),
+  )
+}
