@@ -49,7 +49,7 @@ function screenWith(sources: Partial<Sources> = {}, props: Partial<SearchProps> 
   return calls;
 }
 
-const box = () => screen.getByLabelText<HTMLInputElement>('Title of the book');
+const box = () => screen.getByLabelText<HTMLInputElement>('Title or author');
 function searchFor(words: string) {
   fireEvent.input(box(), { target: { value: words } });
   fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -120,7 +120,7 @@ describe('Search mode', () => {
 
     searchFor('Dix petis negres');
 
-    expect(await screen.findByText('No Work found. Check the spelling, or try the author’s name.')).toBeTruthy();
+    expect(await screen.findByText('Nothing found for these words. Check the spelling, or try other words.')).toBeTruthy();
   });
 
   test('with no network: Search needs a connection, the words stay, and Scan is offered', async () => {

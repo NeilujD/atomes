@@ -9,7 +9,7 @@ import { expect, quickAdd, test } from './test';
 
 // Searches the words and opens the Christie Work.
 async function openChristie(page: Page) {
-  await page.getByLabel('Title of the book').fill('Dix petits nègres');
+  await page.getByLabel('Title or author').fill('Dix petits nègres');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: /^Dix Petits Nègres Agatha Christie · 1939/ }).click();
 }
@@ -50,7 +50,7 @@ test('Check → Search → an old title → Work → Edition → the Shelf Check
   // Back on the Editions; a reload keeps the words and the results.
   await expect(livreDePoche2020).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('Title of the book')).toHaveValue('Dix petits nègres');
+  await expect(page.getByLabel('Title or author')).toHaveValue('Dix petits nègres');
   await expect(page.getByRole('button', { name: /^Dix Petits Nègres Agatha Christie · 1939/ })).toBeVisible();
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'To Buy' }).click();
@@ -110,7 +110,7 @@ test('Quick Add → Search by title or author → a Volume Work → Edition → 
   await expect(page.getByRole('radio', { name: 'Search' })).toBeChecked();
   await expect(page).toHaveURL(/\/check\?mode=search$/);
 
-  await page.getByLabel('Title of the book').fill('Le Combat des chefs');
+  await page.getByLabel('Title or author').fill('Le Combat des chefs');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: /^Le Combat des chefs René Goscinny, Albert Uderzo · 1966/ }).click();
   // Astérix 7, Hachette, 2005: a Volume of a Series this reader neither follows nor dropped.
@@ -148,7 +148,7 @@ test('Settings → French preferred → "And Then There Were None" → a French 
   await expect(preferred.getByRole('radio', { name: 'Français' })).toBeChecked();
 
   await page.goto('/check?mode=search');
-  await page.getByLabel('Title of the book').fill('And Then There Were None');
+  await page.getByLabel('Title or author').fill('And Then There Were None');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('button', { name: /^And Then There Were None Agatha Christie · 1939/ }).click();
 

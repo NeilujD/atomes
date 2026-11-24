@@ -6,7 +6,7 @@ import { expect, test } from './test';
 test('Check → Search "Astérix" → Edition Line → "7 · Le Combat des chefs" → Edition → Add to To Buy → On To Buy', async ({ page, signIn }) => {
   await signIn();
   await page.goto('/check?mode=search');
-  await page.getByLabel('Title of the book').fill('Astérix');
+  await page.getByLabel('Title or author').fill('Astérix');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
 
   await page.getByRole('list', { name: 'Series' }).getByRole('button', { name: /^Astérix/ }).click();

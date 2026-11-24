@@ -6,7 +6,7 @@ import { expect, test } from './test';
 test('Search → "Agatha Christie" → Author row → 20 Works → Show more → a Work → its Editions', async ({ page, signIn }) => {
   await signIn();
   await page.goto('/check?mode=search');
-  await page.getByLabel('Title of the book').fill('Agatha Christie');
+  await page.getByLabel('Title or author').fill('Agatha Christie');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
 
   // Two other Inventaire Authors have her name and no birth year: hers shows.
