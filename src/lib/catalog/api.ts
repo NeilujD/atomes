@@ -126,7 +126,7 @@ export async function answerWorkEditions(catalog: Catalog, url: URL, { signedIn 
   return 'unavailable' in found ? sourcesDown() : json(200, found);
 }
 
-// The Works of an Author are 489 for Agatha Christie: 25 pages of 20.
+// The last page an Author list may ask for: 100 pages of 20 Works.
 const maxAuthorPage = 100;
 
 export async function answerAuthorWorks(catalog: Catalog, url: URL, { signedIn }: { signedIn: boolean }) {

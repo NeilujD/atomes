@@ -20,7 +20,7 @@
 import { writeFile } from 'node:fs/promises';
 import { createCatalog } from '../src/lib/catalog/catalog';
 import { fixtureDir, fixtureName } from '../src/lib/catalog/recorded.fake';
-import type { WorkResult } from '../src/lib/catalog/search';
+import { authorPageSize, type WorkResult } from '../src/lib/catalog/search';
 import type { SourceFetch } from '../src/lib/catalog/sources';
 import { bnfSearch, fetchFacts, politeFetch } from '../src/lib/catalog/sources';
 
@@ -55,7 +55,7 @@ if (process.argv[2] === '--find') {
     for (const page of [1, 2]) {
       const works = await catalog.authorWorks(author.id, page);
       if ('unavailable' in works) throw new Error('A source failed');
-      console.log(`${author.name}, page ${page} of ${Math.ceil(works.total / 20)}:\n${works.works.map(row).join('\n')}`);
+      console.log(`${author.name}, page ${page} of ${Math.ceil(works.total / authorPageSize)}:\n${works.works.map(row).join('\n')}`);
       if (page === 1) first = works.works[0];
     }
   }

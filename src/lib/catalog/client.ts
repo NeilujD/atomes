@@ -94,12 +94,12 @@ export async function findEditions(
   return foundAnswer<EditionsFound>(await fetch(`/api/catalog/find/editions?${query}`));
 }
 
-// One page (from 1) of 20 Works of an Author of Search, newest first.
 // The Volumes of a Series row of Search, by number (CORE-187).
 export async function findSeriesVolumes(series: Pick<SeriesResult, 'id'>): Promise<FoundAnswer<{ volumes: VolumeResult[] }>> {
   return foundAnswer<{ volumes: VolumeResult[] }>(await fetch(`/api/catalog/find/series?${new URLSearchParams({ series: series.id })}`));
 }
 
+// One page (from 1) of 20 Works of an Author of Search, newest first.
 export async function findAuthorWorks(author: Pick<AuthorResult, 'id'>, page: number): Promise<FoundAnswer<AuthorWorks>> {
   return foundAnswer<AuthorWorks>(await fetch(`/api/catalog/find/author?${new URLSearchParams({ author: author.id, page: String(page) })}`));
 }
