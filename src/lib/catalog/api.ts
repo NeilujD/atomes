@@ -18,16 +18,19 @@
 //   429: "Back to the sources".
 // GET /api/catalog/series?title=            → 200 { series: SeriesFound[] },
 //   400, 401: the Series of this Catalog by title, for a Series Correction.
-// GET /api/catalog/find?words=               → 200 { works: WorkResult[] },
-//   400, 401, 503: Search (ADR 0021), a signed-in reader's title words.
+// GET /api/catalog/find?words=               → 200 Found { works, authors },
+//   400, 401, 503: Search (ADR 0021), a signed-in reader's title or author words.
 // GET /api/catalog/find/editions?work=…      → 200 EditionsFound, 400, 401,
-//   503: the Editions of a Search row, its Work and the identifiers of `also`.
+//   503: the Editions of a Search row, its Work and the identifiers of `also`;
+//   a BnF row (`bnf:`) also sends the `words` of its search.
+// GET /api/catalog/find/author?author=…&page= → 200 AuthorWorks, 400, 401,
+//   503: one page of 20 Works of an Author of Search, newest first.
 // A Correction is the only request that sends who asks (the session cookie):
 // the routes check it and a write limit per Account (access.ts).
 import { isIsbn13 } from '../library/ids';
 import type { Catalog, Choice, Correction, Edition } from './catalog';
 import { parsePreferredLanguage } from './languages';
-import { isWorkResultId } from './search';
+import { isBnfWorkId, isInventaireId, isWorkResultId } from './search';
 
 const json = (status: number, body: unknown) => Response.json(body, { status });
 
@@ -112,7 +115,24 @@ export async function answerWorkEditions(catalog: Catalog, url: URL, { signedIn 
   const matched = url.searchParams.get('matched') ?? undefined;
   if (!language || (matched !== undefined && !/^[a-z]{2,3}$/.test(matched)))
     return json(400, { error: 'InvalidLanguage', message: 'Send a Preferred Language (fr, en, …, all) and a matched language code.' });
-  const found = await catalog.editions(ids, { language, matched });
+  // A BnF row opens again from the words of its search.
+  const words = ids.some(isBnfWorkId) ? typedText(url.searchParams.get('words')) : undefined;
+  if (ids.some(isBnfWorkId) && (!words || ids.length > 1))
+    return json(400, { error: 'InvalidWork', message: 'Send one BnF Work, with the words of its search.' });
+  const found = await catalog.editions(ids, { language, matched }, words);
+  return 'unavailable' in found ? sourcesDown() : json(200, found);
+}
+
+// The Works of an Author are 489 for Agatha Christie: 25 pages of 20.
+const maxAuthorPage = 100;
+
+export async function answerAuthorWorks(catalog: Catalog, url: URL, { signedIn }: { signedIn: boolean }) {
+  if (!signedIn) return signedOut();
+  const author = url.searchParams.get('author') ?? '';
+  const page = Number(url.searchParams.get('page') ?? '1');
+  if (!isInventaireId(author) || !Number.isInteger(page) || page < 1 || page > maxAuthorPage)
+    return json(400, { error: 'InvalidAuthor', message: `Send an Author identifier (wd: or inv:) and a page from 1 to ${maxAuthorPage}.` });
+  const found = await catalog.authorWorks(author, page);
   return 'unavailable' in found ? sourcesDown() : json(200, found);
 }
 

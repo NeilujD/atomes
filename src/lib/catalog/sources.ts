@@ -21,11 +21,13 @@ export const sourceUrls = {
   sudocPpns: (isbn: string) => `https://www.sudoc.fr/services/isbn2ppn/${isbn}&format=text/json`,
   sudocRecord: (ppn: string) => `https://www.sudoc.fr/${ppn}.xml`,
   inventaire: (uri: string) => `https://inventaire.io/api/entities?action=by-uris&uris=${encodeURIComponent(uri)}`,
-  // Search (ADR 0021): the Works Inventaire finds under the words, the
-  // entities that claim a value (the Editions of a Work), and one BnF query of
-  // 100 records at most (BnF does not sort).
+  // Search (ADR 0021): the Works and Authors Inventaire finds under the words,
+  // the entities that claim a value (the Editions of a Work), the Works of an
+  // Author with their dates, and one BnF query of 100 records at most (BnF
+  // does not sort).
   inventaireSearch: (words: string) =>
-    `https://inventaire.io/api/search?types=works&search=${encodeURIComponent(words)}&lang=fr&limit=10`,
+    `https://inventaire.io/api/search?types=works%7Chumans&search=${encodeURIComponent(words)}&lang=fr&limit=10`,
+  inventaireAuthorWorks: (author: string) => `https://inventaire.io/api/entities?action=author-works&uri=${encodeURIComponent(author)}`,
   inventaireReverse: (property: string, value: string) =>
     `https://inventaire.io/api/entities/reverse-claims?property=${encodeURIComponent(property)}&value=${encodeURIComponent(value)}`,
   bnfQuery: (query: string) =>

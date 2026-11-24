@@ -2,18 +2,22 @@
 // Editions from Inventaire and BnF, merged by ISBN-13. Only the typed words,
 // and the titles, authors and identifiers the sources gave back, leave the
 // server. The answers are kept 24 hours (`answerCache`).
+import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { isIsbn13 } from '../library/ids';
 import { bcp47 } from './languages';
 import { inTransaction } from '../server/migrate';
 import { key } from './facts';
 import { read, sourceUrls, type SourceFetch } from './sources';
-import { isbn10To13, isbns, publishedYear, subfield, unimarcRecords } from './unimarc';
+import { isbn10To13, isbns, publishedYear, subfield, unimarcRecords, type UnimarcRecord } from './unimarc';
 
 // A row of Search: one Work, under the title that matched the words.
 // `also`: the other identifiers of the same Work, whose Editions it shares.
 // `language`: the language of that title ("en"), null when no title of the
-// Work holds every word.
+// Work holds every word (and on a Work of an Author page); on a BnF row, the
+// language of its first record.
+// `words`: a BnF row (`bnf:`) only, the words of the search that found it,
+// which open it again.
 export interface WorkResult {
   id: string;
   also: string[];
@@ -21,7 +25,29 @@ export interface WorkResult {
   authors: string[];
   year: number | null;
   language: string | null;
+  words?: string;
 }
+
+// An Author row of Search (CORE-188): `works` counts their Works in Inventaire.
+export interface AuthorResult {
+  id: string;
+  name: string;
+  birthYear: number | null;
+  works: number;
+}
+
+export interface Found {
+  works: WorkResult[];
+  authors: AuthorResult[];
+}
+
+// One page of the Works of an Author, newest first; `total` counts them all.
+export interface AuthorWorks {
+  works: WorkResult[];
+  total: number;
+}
+
+export const authorPageSize = 20;
 
 // One Edition of a Work, as printed: its title, year, publisher and collection.
 // `language` is an ISO 639-2/B code, as BnF gives it ("fre").
@@ -57,8 +83,12 @@ export interface EditionsAsked {
   matched?: string;
 }
 
-// A Work identifier Search can open: Wikidata, or Inventaire.
-export const isWorkResultId = (id: string) => /^(?:wd:Q[1-9]\d*|inv:[0-9a-f]{32})$/.test(id);
+// A Wikidata or Inventaire entity: a Work or an Author.
+export const isInventaireId = (id: string) => /^(?:wd:Q[1-9]\d*|inv:[0-9a-f]{32})$/.test(id);
+// A BnF Work row: its Work authority, else a hash of its title and author.
+export const isBnfWorkId = (id: string) => /^bnf:(?:\d{8,9}|t[0-9a-f]{12})$/.test(id);
+// A Work identifier Search can open.
+export const isWorkResultId = (id: string) => isInventaireId(id) || isBnfWorkId(id);
 
 type Entity = {
   uri?: string;
@@ -117,29 +147,90 @@ function matchedTitle(words: string, work: Entity | undefined): { title: string;
 const titleKeys = (work: Entity | undefined) =>
   new Set([...Object.values(work?.labels ?? {}), ...Object.values(work?.aliases ?? {}).flat()].map(key));
 
-export async function findWorks(fetch: SourceFetch, words: string): Promise<WorkResult[]> {
+const hasEveryWord = (words: string, names: string[]) => {
+  const wanted = key(words).split(' ');
+  return names.some((name) => {
+    const has = key(name).split(' ');
+    return wanted.every((word) => has.includes(word));
+  });
+};
+
+const names = (entity: Entity | undefined) => [...Object.values(entity?.labels ?? {}), ...Object.values(entity?.aliases ?? {}).flat()];
+
+// Inventaire first (Works and Authors, one call); when it finds nothing, BnF.
+export async function find(fetch: SourceFetch, words: string): Promise<Found> {
   const response = await read(fetch, sourceUrls.inventaireSearch(words));
-  const results = response ? (((await response.json()) as { results?: { uri?: string; label?: string }[] }).results ?? []) : [];
-  const found = results.filter((each): each is { uri: string; label?: string } => !!each.uri && isWorkResultId(each.uri));
-  if (found.length === 0) return [];
+  const results = response ? (((await response.json()) as { results?: Hit[] }).results ?? []) : [];
+  const hits = (type: string) => results.filter((each): each is Hit & { uri: string } => each.type === type && !!each.uri && isInventaireId(each.uri));
+  const works = await workRows(fetch, hits('works'), (entity, shown) => {
+    const matched = matchedTitle(words, entity);
+    return { title: matched?.title ?? shown ?? label(entity), language: matched?.language ?? null };
+  });
+  await mergeShared(fetch, works.rows, works.entityOf);
+  const authors = await authorRows(fetch, words, hits('humans'));
+  if (works.rows.length > 0 || authors.length > 0) return { works: works.rows, authors };
+  return { works: (await bnfGroups(fetch, words)).map(({ row }) => row), authors: [] };
+}
+
+type Hit = { uri?: string; type?: string; label?: string };
+
+// Work rows for Inventaire Works, in their order, named by `titleOf`: the
+// title, and its language when it holds the words.
+async function workRows(
+  fetch: SourceFetch,
+  found: { uri: string; label?: string }[],
+  titleOf: (work: Entity | undefined, shown?: string) => { title: string | undefined; language: string | null },
+) {
   const works = await entities(fetch, found.map(({ uri }) => uri));
   const people = await entities(fetch, unique([...works.values()].flatMap((work) => claims(work, 'wdt:P50'))));
-
   const rows: WorkResult[] = [];
   const entityOf = new Map<string, Entity | undefined>();
   for (const { uri, label: shown } of found) {
     const entity = works.get(uri);
     const id = entity?.uri ?? uri;
-    if (!isWorkResultId(id) || rows.some((row) => row.id === id)) continue;
-    const matched = matchedTitle(words, entity);
-    const title = matched?.title ?? shown ?? label(entity);
+    if (!isInventaireId(id) || rows.some((row) => row.id === id)) continue;
+    const { title, language } = titleOf(entity, shown);
     if (!title) continue;
     const authors = claims(entity, 'wdt:P50').flatMap((author) => label(people.get(author)) ?? []);
-    rows.push({ id, also: [], title, authors, year: yearOf(claim(entity, 'wdt:P577')), language: matched?.language ?? null });
+    rows.push({ id, also: [], title, authors, year: yearOf(claim(entity, 'wdt:P577')), language });
     entityOf.set(id, entity);
   }
-  await mergeShared(fetch, rows, entityOf);
+  return { rows, entityOf };
+}
+
+// An Author whose name holds every typed word, and who has a Work: "christie
+// dix" names no Author. Their birth year tells apart two Authors of one name.
+async function authorRows(fetch: SourceFetch, words: string, found: { uri: string }[]): Promise<AuthorResult[]> {
+  const people = await entities(fetch, found.map(({ uri }) => uri));
+  const rows: AuthorResult[] = [];
+  for (const { uri } of found) {
+    const person = people.get(uri);
+    const id = person?.uri ?? uri;
+    const name = label(person);
+    if (!name || !isInventaireId(id) || rows.some((row) => row.id === id) || !hasEveryWord(words, names(person))) continue;
+    const count = (await authorWorkList(fetch, id)).length;
+    if (count > 0) rows.push({ id, name, birthYear: yearOf(claim(person, 'wdt:P569')), works: count });
+  }
   return rows;
+}
+
+// Every Work of an Author in Inventaire (its Works that claim `wdt:P50`), by
+// first publication year, newest first; the Works with no year last.
+async function authorWorkList(fetch: SourceFetch, author: string): Promise<string[]> {
+  const response = await read(fetch, sourceUrls.inventaireAuthorWorks(author));
+  const works = response ? (((await response.json()) as { works?: { uri?: string; date?: string }[] }).works ?? []) : [];
+  const dated = works
+    .filter((each): each is { uri: string; date?: string } => !!each.uri && isInventaireId(each.uri))
+    .map(({ uri, date }) => ({ uri, year: yearOf(date) ?? -Infinity }));
+  return unique(dated.sort((a, b) => b.year - a.year).map(({ uri }) => uri));
+}
+
+// One page of the Works of an Author (`page` from 1).
+export async function authorWorks(fetch: SourceFetch, author: string, page: number): Promise<AuthorWorks> {
+  const all = await authorWorkList(fetch, author);
+  const uris = all.slice((page - 1) * authorPageSize, page * authorPageSize);
+  const { rows } = await workRows(fetch, uris.map((uri) => ({ uri })), (work) => ({ title: label(work), language: null }));
+  return { works: rows, total: all.length };
 }
 
 // An Inventaire Work that may be a Wikidata Work of the results under another
@@ -217,19 +308,70 @@ async function bnfRecords(fetch: SourceFetch, query: string, seen: Set<string>):
   const response = await read(fetch, sourceUrls.bnfQuery(query));
   if (!response) return [];
   return unimarcRecords(await response.text()).flatMap((record) => {
-    const title = subfield(record, '200', 'a');
     const id = JSON.stringify(record);
-    if (!title || seen.has(id)) return [];
+    if (seen.has(id)) return [];
     seen.add(id);
-    return {
-      isbn: isbns(record).find(isIsbn13),
-      title,
-      year: publishedYear(record) ?? null,
-      publisher: subfield(record, '214', 'c') ?? subfield(record, '210', 'c') ?? null,
-      collection: subfield(record, '225', 'a') ?? null,
-      language: subfield(record, '101', 'a') ?? null,
-    };
+    return printedOf(record) ?? [];
   });
+}
+
+function printedOf(record: UnimarcRecord): Printed | undefined {
+  const title = subfield(record, '200', 'a');
+  if (!title) return undefined;
+  return {
+    isbn: isbns(record).find(isIsbn13),
+    title,
+    year: publishedYear(record) ?? null,
+    publisher: subfield(record, '214', 'c') ?? subfield(record, '210', 'c') ?? null,
+    collection: subfield(record, '225', 'a') ?? null,
+    language: subfield(record, '101', 'a') ?? null,
+  };
+}
+
+// The first author of a BnF record (700 `$b $a`, "Agatha Christie"), else
+// its statement of responsibility (200 `$f`).
+function bnfAuthor(record: UnimarcRecord): string | undefined {
+  const surname = subfield(record, '700', 'a');
+  return surname ? [subfield(record, '700', 'b'), surname].filter(Boolean).join(' ') : subfield(record, '200', 'f');
+}
+
+const bnfFallbackRows = 20;
+
+// When Inventaire finds nothing (ADR 0021): BnF records of printed text under
+// the words, as title or author, grouped into Works by their Work authority
+// (500 `$3`), else by title and author. BnF does not sort: the Works with an
+// authority first, then the others, each in the order BnF gave.
+async function bnfGroups(fetch: SourceFetch, words: string): Promise<{ row: WorkResult; records: UnimarcRecord[] }[]> {
+  const typed = cql(words);
+  if (!typed) return [];
+  const response = await read(fetch, sourceUrls.bnfQuery(`(bib.title all "${typed}" or bib.author all "${typed}") and bib.doctype any "a"`));
+  if (!response) return [];
+  const groups = new Map<string, { row: WorkResult; records: UnimarcRecord[] }>();
+  for (const record of unimarcRecords(await response.text())) {
+    const title = subfield(record, '200', 'a');
+    if (!title) continue;
+    const author = bnfAuthor(record);
+    const authority = /^\d{8,9}$/.exec(subfield(record, '500', '3') ?? '')?.[0];
+    const id = authority ? `bnf:${authority}` : `bnf:t${createHash('sha256').update(`${key(title)}|${key(author ?? '')}`).digest('hex').slice(0, 12)}`;
+    const group = groups.get(id) ?? {
+      row: {
+        id,
+        also: [],
+        title: (authority && subfield(record, '500', 'a')) || title,
+        authors: author ? [author] : [],
+        year: null,
+        language: bcp47[subfield(record, '101', 'a') ?? ''] ?? null,
+        words,
+      },
+      records: [],
+    };
+    const year = publishedYear(record);
+    if (year && (group.row.year === null || year < group.row.year)) group.row.year = year;
+    group.records.push(record);
+    groups.set(id, group);
+  }
+  const all = [...groups.values()];
+  return [...all.filter(({ row }) => !row.id.startsWith('bnf:t')), ...all.filter(({ row }) => row.id.startsWith('bnf:t'))].slice(0, bnfFallbackRows);
 }
 
 // A double quote would end the CQL string early.
@@ -251,8 +393,13 @@ async function bnfEditions(fetch: SourceFetch, work: Entity, author: string | un
   return [...byAuthority, ...byTitle];
 }
 
-// `ids`: the Work and the other identifiers of its row (WorkResult `also`).
-export async function workEditions(fetch: SourceFetch, ids: string[], asked: EditionsAsked = { language: 'all' }): Promise<EditionsFound> {
+// `ids`: the Work and the other identifiers of its row (WorkResult `also`);
+// `words`: the words of a BnF row, whose search gives its records again.
+export async function workEditions(fetch: SourceFetch, ids: string[], asked: EditionsAsked = { language: 'all' }, words?: string): Promise<EditionsFound> {
+  if (isBnfWorkId(ids[0])) {
+    const found = await bnfWorkEditions(fetch, ids[0], words ?? '');
+    return { ...found, sections: sections(found.editions, {}, asked) };
+  }
   const works = await entities(fetch, ids);
   const work = works.get(ids[0]);
   if (!work) return { editions: [], noIsbn: 0, sections: [] };
@@ -281,6 +428,17 @@ function sections(editions: EditionResult[], work: Entity, { language, matched }
     if (other.length > 0) found.push({ language: matched, matches: true, editions: other });
   }
   return found;
+}
+
+// A BnF row: its records in the search, and for a Work authority every record
+// BnF links to it (`bib.work2bib`).
+async function bnfWorkEditions(fetch: SourceFetch, id: string, words: string): Promise<Omit<EditionsFound, 'sections'>> {
+  const group = (await bnfGroups(fetch, words)).find(({ row }) => row.id === id);
+  if (!group) return { editions: [], noIsbn: 0 };
+  const seen = new Set(group.records.map((record) => JSON.stringify(record)));
+  const authority = /^bnf:(\d{8,9})$/.exec(id)?.[1];
+  const linked = authority ? await bnfRecords(fetch, `bib.work2bib any "${authority}"`, seen) : [];
+  return mergeByIsbn([...group.records.flatMap((record) => printedOf(record) ?? []), ...linked]);
 }
 
 // One Edition per ISBN-13, the year of its latest printing; the facts of its

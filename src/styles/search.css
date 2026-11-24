@@ -83,7 +83,7 @@
 }
 
 .search-pick:hover,
-.search-pick[aria-busy="true"] {
+.search-pick[aria-busy='true'] {
   background: var(--fill-chip);
 }
 
@@ -111,11 +111,11 @@
   color: var(--ink);
 }
 
-.search-mark[data-mark="owned"] {
+.search-mark[data-mark='owned'] {
   color: var(--owned-text);
 }
 
-.search-mark[data-mark="read"] {
+.search-mark[data-mark='read'] {
   color: var(--not-owned-text);
 }
 
@@ -129,4 +129,9 @@
    a language tag on the rows of another language. */
 .search-section {
   margin-top: var(--space-12);
+}
+
+/* "Show more" under the Works of an Author (CORE-188). */
+.search-more {
+  align-self: center;
 }
