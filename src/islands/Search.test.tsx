@@ -171,7 +171,7 @@ describe('Search mode', () => {
       screenWith({}, { marks: { library, toBuy: new Set(['9782253003960']) } });
 
       await openWork();
-      await screen.findByRole('list', { name: 'Editions' });
+      await screen.findByRole('list', { name: 'Français' });
 
       expect(within(editionRow(ilsEtaientDix)).getByText('In Library')).toBeTruthy();
       expect(within(editionRow('9782253003960')).getByText('On To Buy')).toBeTruthy();
@@ -234,7 +234,7 @@ describe('Search mode', () => {
       expect(within(row).getByText('Read, not in your Library')).toBeTruthy();
 
       fireEvent.click(row);
-      await screen.findByRole('list', { name: 'Editions' });
+      await screen.findByRole('list', { name: 'Français' });
       expect(screen.getByText('Read, not in your Library')).toBeTruthy();
       expect(within(editionRow(ilsEtaientDix)).queryByText('In Library')).toBeNull();
     });
