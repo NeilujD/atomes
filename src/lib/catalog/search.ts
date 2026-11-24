@@ -4,6 +4,7 @@
 // server. The answers are kept 24 hours (`answerCache`).
 import type { DatabaseSync } from 'node:sqlite';
 import { isIsbn13 } from '../library/ids';
+import { bcp47 } from './languages';
 import { inTransaction } from '../server/migrate';
 import { key } from './facts';
 import { read, sourceUrls, type SourceFetch } from './sources';
@@ -11,12 +12,15 @@ import { isbn10To13, isbns, publishedYear, subfield, unimarcRecords } from './un
 
 // A row of Search: one Work, under the title that matched the words.
 // `also`: the other identifiers of the same Work, whose Editions it shares.
+// `language`: the language of that title ("en"), null when no title of the
+// Work holds every word.
 export interface WorkResult {
   id: string;
   also: string[];
   title: string;
   authors: string[];
   year: number | null;
+  language: string | null;
 }
 
 // One Edition of a Work, as printed: its title, year, publisher and collection.
@@ -30,10 +34,27 @@ export interface EditionResult {
   language: string | null;
 }
 
+// The Editions in one language ("fr"; null: all languages). `matches`: the
+// language of the words searched, not the Preferred Language.
+export interface EditionSection {
+  language: string | null;
+  matches: boolean;
+  editions: EditionResult[];
+}
+
 // Newest first; `noIsbn` counts the Editions left out for having no ISBN.
+// `sections`: the Editions the reader sees, by Preferred Language.
 export interface EditionsFound {
   editions: EditionResult[];
   noIsbn: number;
+  sections: EditionSection[];
+}
+
+// The Editions to show: in the Preferred Language, or "all".
+export interface EditionsAsked {
+  language: string;
+  // The language of the title that matched the words (WorkResult `language`).
+  matched?: string;
 }
 
 // A Work identifier Search can open: Wikidata, or Inventaire.
@@ -71,17 +92,26 @@ async function entities(fetch: SourceFetch, uris: string[]): Promise<Map<string,
   return found;
 }
 
-// The title of the Work that holds every typed word, the shortest first; else
+// "en-gb" is English.
+const primary = (language: string) => language.split('-')[0].toLowerCase();
+
+// The title of the Work that holds every typed word, the shortest first, and
+// its language (a label before an alias); else undefined, and the caller takes
 // the label Inventaire gave in its answer.
-function matchedTitle(words: string, work: Entity | undefined): string | undefined {
+function matchedTitle(words: string, work: Entity | undefined): { title: string; language: string } | undefined {
   const wanted = key(words).split(' ');
-  const titles = [...Object.values(work?.labels ?? {}), ...Object.values(work?.aliases ?? {}).flat()];
-  return titles
-    .filter((title) => {
-      const has = key(title).split(' ');
-      return wanted.every((word) => has.includes(word));
-    })
-    .sort((a, b) => key(a).length - key(b).length)[0];
+  const titles = [
+    ...Object.entries(work?.labels ?? {}),
+    ...Object.entries(work?.aliases ?? {}).flatMap(([language, aliases]) => aliases.map((alias): [string, string] => [language, alias])),
+  ];
+  const [language, title] =
+    titles
+      .filter(([, title]) => {
+        const has = key(title).split(' ');
+        return wanted.every((word) => has.includes(word));
+      })
+      .sort(([, a], [, b]) => key(a).length - key(b).length)[0] ?? [];
+  return title && language ? { title, language: primary(language) } : undefined;
 }
 
 const titleKeys = (work: Entity | undefined) =>
@@ -101,10 +131,11 @@ export async function findWorks(fetch: SourceFetch, words: string): Promise<Work
     const entity = works.get(uri);
     const id = entity?.uri ?? uri;
     if (!isWorkResultId(id) || rows.some((row) => row.id === id)) continue;
-    const title = matchedTitle(words, entity) ?? shown ?? label(entity);
+    const matched = matchedTitle(words, entity);
+    const title = matched?.title ?? shown ?? label(entity);
     if (!title) continue;
     const authors = claims(entity, 'wdt:P50').flatMap((author) => label(people.get(author)) ?? []);
-    rows.push({ id, also: [], title, authors, year: yearOf(claim(entity, 'wdt:P577')) });
+    rows.push({ id, also: [], title, authors, year: yearOf(claim(entity, 'wdt:P577')), language: matched?.language ?? null });
     entityOf.set(id, entity);
   }
   await mergeShared(fetch, rows, entityOf);
@@ -149,6 +180,7 @@ const languages: Record<string, string> = {
   'wd:Q5146': 'por',
   'wd:Q7411': 'dut',
   'wd:Q7737': 'rus',
+  'wd:Q256': 'tur',
 };
 
 const isbnOf = (isbn13: string | undefined, isbn10: string | undefined): string | undefined => {
@@ -220,21 +252,40 @@ async function bnfEditions(fetch: SourceFetch, work: Entity, author: string | un
 }
 
 // `ids`: the Work and the other identifiers of its row (WorkResult `also`).
-export async function workEditions(fetch: SourceFetch, ids: string[]): Promise<EditionsFound> {
+export async function workEditions(fetch: SourceFetch, ids: string[], asked: EditionsAsked = { language: 'all' }): Promise<EditionsFound> {
   const works = await entities(fetch, ids);
   const work = works.get(ids[0]);
-  if (!work) return { editions: [], noIsbn: 0 };
+  if (!work) return { editions: [], noIsbn: 0, sections: [] };
   const authorId = claim(work, 'wdt:P50');
   const author = authorId ? label((await entities(fetch, [authorId])).get(authorId)) : undefined;
   const fromInventaire: Printed[] = [];
   for (const id of ids) if (works.has(id)) fromInventaire.push(...(await inventaireEditions(fetch, id)));
   const fromBnf = await bnfEditions(fetch, work, author);
-  return mergeByIsbn([...fromBnf, ...fromInventaire]);
+  const found = mergeByIsbn([...fromBnf, ...fromInventaire]);
+  return { ...found, sections: sections(found.editions, work, asked) };
+}
+
+// The Editions in the Preferred Language; then, apart, those in the language of
+// the words, unless the Work has the same label in both ("Dune"). "all": one list.
+function sections(editions: EditionResult[], work: Entity, { language, matched }: EditionsAsked): EditionSection[] {
+  if (language === 'all') return [{ language: null, matches: false, editions }];
+  const inLanguage = (wanted: string) => editions.filter((each) => each.language && bcp47[each.language] === wanted);
+  const labelIn = (wanted: string) =>
+    Object.entries(work.labels ?? {})
+      .filter(([each]) => primary(each) === wanted)
+      .map(([, title]) => key(title));
+  const sameLabel = (a: string, b: string) => labelIn(a).some((title) => labelIn(b).includes(title));
+  const found: EditionSection[] = [{ language, matches: false, editions: inLanguage(language) }];
+  if (matched && matched !== language && !sameLabel(matched, language)) {
+    const other = inLanguage(matched);
+    if (other.length > 0) found.push({ language: matched, matches: true, editions: other });
+  }
+  return found;
 }
 
 // One Edition per ISBN-13, the year of its latest printing; the facts of its
 // first source that has them, BnF first (the order of `printed`).
-function mergeByIsbn(printed: Printed[]): EditionsFound {
+function mergeByIsbn(printed: Printed[]): Omit<EditionsFound, 'sections'> {
   const byIsbn = new Map<string, Printed[]>();
   let noIsbn = 0;
   for (const each of printed) {

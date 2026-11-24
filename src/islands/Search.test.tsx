@@ -5,15 +5,23 @@ import type { EditionsFound, WorkResult } from '../lib/catalog/search';
 import type { Library } from '../lib/library/model';
 import { Search, type SearchProps, type Sources } from './Search';
 
-const work: WorkResult = { id: 'wd:Q214132', also: [], title: 'Dix Petits Nègres', authors: ['Agatha Christie'], year: 1939 };
+const work: WorkResult = { id: 'wd:Q214132', also: [], title: 'Dix Petits Nègres', authors: ['Agatha Christie'], year: 1939, language: 'fr' };
 const ilsEtaientDix = '9782253241782';
-const found: EditionsFound = {
-  editions: [
-    { isbn: ilsEtaientDix, title: 'Ils étaient dix', year: 2020, publisher: 'le Livre de poche', collection: 'Le livre de poche', language: 'fre' },
-    { isbn: '9782253003960', title: 'Dix petits nègres', year: 1995, publisher: 'Librairie générale française', collection: null, language: 'fre' },
+const french = [
+  { isbn: ilsEtaientDix, title: 'Ils étaient dix', year: 2020, publisher: 'le Livre de poche', collection: 'Le livre de poche', language: 'fre' },
+  { isbn: '9782253003960', title: 'Dix petits nègres', year: 1995, publisher: 'Librairie générale française', collection: null, language: 'fre' },
+];
+const english = [{ isbn: '9780062325549', title: 'And Then There Were None', year: 2011, publisher: 'HarperCollins', collection: null, language: 'eng' }];
+const found: EditionsFound = { editions: [...french, ...english], noIsbn: 23, sections: [{ language: 'fr', matches: false, editions: french }] };
+// "And Then There Were None", French preferred: French, then English apart.
+const twoSections: EditionsFound = {
+  ...found,
+  sections: [
+    { language: 'fr', matches: false, editions: french },
+    { language: 'en', matches: true, editions: english },
   ],
-  noIsbn: 23,
 };
+const allLanguages: EditionsFound = { ...found, sections: [{ language: null, matches: false, editions: [...english, ...french] }] };
 
 function screenWith(sources: Partial<Sources> = {}, props: Partial<SearchProps> = {}) {
   const calls = { words: [] as string[], picked: [] as string[], scans: 0 };
@@ -26,6 +34,7 @@ function screenWith(sources: Partial<Sources> = {}, props: Partial<SearchProps> 
         return Promise.resolve(undefined);
       }}
       onScan={() => calls.scans++}
+      preferred="fr"
       {...props}
     />,
   );
@@ -53,7 +62,7 @@ describe('Search mode', () => {
 
     await openWork();
 
-    const list = await screen.findByRole('list', { name: 'Editions' });
+    const list = await screen.findByRole('list', { name: 'Français' });
     expect(within(list).getAllByRole('listitem').map((row) => row.querySelector('.search-title')?.textContent)).toEqual([
       'Ils étaient dix',
       'Dix petits nègres',
@@ -95,7 +104,7 @@ describe('Search mode', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^Ils étaient dix/ }));
 
     expect(await screen.findByText('The book sources do not answer now.')).toBeTruthy();
-    expect(screen.getByRole('list', { name: 'Editions' })).toBeTruthy();
+    expect(screen.getByRole('list', { name: 'Français' })).toBeTruthy();
   });
 
   test('nothing found: says to check the spelling or try the author', async () => {
@@ -240,5 +249,65 @@ describe('Search mode', () => {
       });
       expect(row.querySelector('.search-mark')).toBeNull();
     });
+  });
+});
+
+describe('Search mode: the Preferred Language (CORE-186)', () => {
+  const titles = (list: HTMLElement) => within(list).getAllByRole('listitem').map((row) => row.querySelector('.search-title')?.textContent);
+  const tags = (list: HTMLElement) => within(list).getAllByRole('listitem').map((row) => row.querySelector('.search-tag')?.textContent ?? null);
+
+  test('asks the Editions in the Preferred Language, with the language of the words', async () => {
+    const editions = vi.fn<Sources['editions']>(() => Promise.resolve({ found }));
+    screenWith({ editions });
+
+    await openWork();
+
+    await screen.findByRole('list', { name: 'Français' });
+    expect(editions).toHaveBeenCalledWith(work, 'fr');
+  });
+
+  test('a title in another language: the Preferred Language first, then that language apart, each row tagged', async () => {
+    screenWith({ editions: () => Promise.resolve({ found: twoSections }) });
+
+    await openWork();
+
+    const first = await screen.findByRole('list', { name: 'Français' });
+    const second = screen.getByRole('list', { name: 'English · matches your search' });
+    expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Français', 'English · matches your search']);
+    expect(tags(first)).toEqual([null, null]);
+    expect(titles(second)).toEqual(['And Then There Were None']);
+    expect(tags(second)).toEqual(['English']);
+  });
+
+  test('"All languages": one list, a language tag on each row', async () => {
+    screenWith({ editions: () => Promise.resolve({ found: allLanguages }) }, { preferred: 'all' });
+
+    await openWork();
+
+    const list = await screen.findByRole('list', { name: 'Editions' });
+    expect(tags(list)).toEqual(['English', 'French', 'French']);
+    expect(screen.queryAllByRole('heading', { level: 3 })).toEqual([]);
+  });
+
+  test('no Edition in the Preferred Language: says so', async () => {
+    screenWith({ editions: () => Promise.resolve({ found: { ...found, sections: [{ language: 'fr', matches: false, editions: [] }] } }) });
+
+    await openWork();
+
+    expect(await screen.findByText('No Edition in this language. Choose another Preferred Language in Settings.')).toBeTruthy();
+  });
+
+  test('a change of the setting changes the list', async () => {
+    const editions = vi.fn<Sources['editions']>((_, language) => Promise.resolve({ found: language === 'all' ? allLanguages : found }));
+    screenWith({ editions });
+    await openWork();
+    await screen.findByRole('list', { name: 'Français' });
+
+    cleanup();
+    screenWith({ editions }, { preferred: 'all' });
+    await openWork();
+
+    expect(tags(await screen.findByRole('list', { name: 'Editions' }))).toEqual(['English', 'French', 'French']);
+    expect(editions).toHaveBeenLastCalledWith(work, 'all');
   });
 });

@@ -504,6 +504,12 @@ Ce que cette instance garde : ${privacy}`,
   'search.back': 'Tous les résultats',
   'search.editions': 'Éditions',
   'search.no-editions': 'Les sources de livres ne donnent aucune édition avec un ISBN pour cette œuvre.',
+  // Langue préférée (CORE-186).
+  'settings.preferred-language': 'Langue préférée',
+  'settings.preferred-language-hint': 'La recherche montre les éditions dans cette langue. Gardé sur cet appareil.',
+  'language.all': 'Toutes les langues',
+  'search.matches': (language) => `${language} · correspond à votre recherche`,
+  'search.none-in-language': 'Aucune édition dans cette langue. Choisissez une autre langue préférée dans les Réglages.',
   'search.no-isbn': (count) => (count === 1 ? '1 édition sans ISBN n’est pas montrée.' : `${count} éditions sans ISBN ne sont pas montrées.`),
 
   // Page d’une série (src/islands/Series.tsx)

@@ -3,22 +3,42 @@
 // opens a Work, and picks one of its Editions. The page then looks the ISBN
 // up and shows the Shelf Check answer, as after a scan. Only the words leave
 // the device, to the Atomes server; the results are not kept.
-import { useEffect, useState } from 'preact/hooks';
-import type { FoundAnswer } from '../lib/catalog/client';
-import type { EditionResult, EditionsFound, WorkResult } from '../lib/catalog/search';
-import { reportNetwork } from '../lib/connection';
-import { t } from '../lib/i18n/i18n';
-import { languageName } from '../lib/library/model';
-import { editionMark, workMark, type EditionMark, type SearchMarks } from '../lib/library/search-marks';
-import { isNetworkFailure } from '../lib/network';
+import { useEffect, useState } from "preact/hooks";
+import type { FoundAnswer } from "../lib/catalog/client";
+import {
+  nativeLanguageName,
+  type PreferredLanguage,
+} from "../lib/catalog/languages";
+import type {
+  EditionResult,
+  EditionSection,
+  EditionsFound,
+  WorkResult,
+} from "../lib/catalog/search";
+import { reportNetwork } from "../lib/connection";
+import { t } from "../lib/i18n/i18n";
+import { languageName } from "../lib/library/model";
+import {
+  editionMark,
+  workMark,
+  type EditionMark,
+  type SearchMarks,
+} from "../lib/library/search-marks";
+import { isNetworkFailure } from "../lib/network";
 
 export interface Sources {
   find(words: string): Promise<FoundAnswer<WorkResult[]>>;
-  editions(work: WorkResult): Promise<FoundAnswer<EditionsFound>>;
+  // `language`: the Preferred Language, which picks the Editions shown.
+  editions(
+    work: WorkResult,
+    language: PreferredLanguage,
+  ): Promise<FoundAnswer<EditionsFound>>;
 }
 
 export interface SearchProps {
   sources: Sources;
+  // The Preferred Language of this device (Settings), or "all".
+  preferred: PreferredLanguage;
   // The words of the address (`q`): searched at once, so a reload keeps the results.
   words?: string;
   // The words of each search, for the address.
@@ -31,7 +51,15 @@ export interface SearchProps {
   marks?: SearchMarks;
 }
 
-export function Search({ sources, words: given = '', onWords, onPick, onScan, marks }: SearchProps) {
+export function Search({
+  sources,
+  preferred,
+  words: given = "",
+  onWords,
+  onPick,
+  onScan,
+  marks,
+}: SearchProps) {
   const [words, setWords] = useState(given);
   const [works, setWorks] = useState<WorkResult[]>();
   const [work, setWork] = useState<WorkResult>();
@@ -42,24 +70,28 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan, ma
   // The Edition whose answer is coming.
   const [picking, setPicking] = useState<string>();
 
-  const say = (key: 'search.offline' | 'add.sources-down' | 'auth.session-ended') => setProblem({ text: t(key), offline: key === 'search.offline' });
+  const say = (
+    key: "search.offline" | "add.sources-down" | "auth.session-ended",
+  ) => setProblem({ text: t(key), offline: key === "search.offline" });
 
   // A source answer, or undefined with the problem shown.
-  async function ask<T>(question: () => Promise<FoundAnswer<T>>): Promise<T | undefined> {
+  async function ask<T>(
+    question: () => Promise<FoundAnswer<T>>,
+  ): Promise<T | undefined> {
     setProblem(undefined);
     if (!navigator.onLine) {
-      say('search.offline');
+      say("search.offline");
       return undefined;
     }
     setBusy(true);
     try {
       const answer = await question();
-      if ('found' in answer) return answer.found;
-      say('signedOut' in answer ? 'auth.session-ended' : 'add.sources-down');
+      if ("found" in answer) return answer.found;
+      say("signedOut" in answer ? "auth.session-ended" : "add.sources-down");
     } catch (error) {
       const offline = isNetworkFailure(error);
       if (offline) reportNetwork(false);
-      say(offline ? 'search.offline' : 'add.sources-down');
+      say(offline ? "search.offline" : "add.sources-down");
     } finally {
       setBusy(false);
     }
@@ -81,7 +113,7 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan, ma
   }, []);
 
   async function open(row: WorkResult) {
-    const answer = await ask(() => sources.editions(row));
+    const answer = await ask(() => sources.editions(row, preferred));
     if (!answer) return;
     setWork(row);
     setFound(answer);
@@ -114,7 +146,7 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan, ma
         noValidate
       >
         <label class="search-label" for="search-words">
-          {t('search.label')}
+          {t("search.label")}
         </label>
         <div class="search-row">
           <input
@@ -128,60 +160,85 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan, ma
             aria-describedby="search-problem"
             onInput={(event) => setWords(event.currentTarget.value)}
           />
-          <button class="button button-main" type="submit" disabled={busy} aria-busy={busy && !work ? 'true' : undefined}>
-            {t('search.submit')}
+          <button
+            class="button button-main"
+            type="submit"
+            disabled={busy}
+            aria-busy={busy && !work ? "true" : undefined}
+          >
+            {t("search.submit")}
           </button>
         </div>
-        <p class="search-hint" id="search-problem" data-error={problem ? '' : undefined} aria-live="polite">
-          {problem?.text ?? t('search.hint')}
+        <p
+          class="search-hint"
+          id="search-problem"
+          data-error={problem ? "" : undefined}
+          aria-live="polite"
+        >
+          {problem?.text ?? t("search.hint")}
         </p>
         {problem?.offline && (
           <button class="button search-scan" type="button" onClick={onScan}>
-            {t('add.scan')}
+            {t("add.scan")}
           </button>
         )}
       </form>
 
       {work && found ? (
         <section class="search-group" aria-labelledby="search-work">
-          <button class="button button-quiet search-back" type="button" onClick={() => setWork(undefined)}>
-            {t('search.back')}
+          <button
+            class="button button-quiet search-back"
+            type="button"
+            onClick={() => setWork(undefined)}
+          >
+            {t("search.back")}
           </button>
           <h2 class="search-work-title" id="search-work">
             {work.title}
           </h2>
-          <p class="search-hint">{[work.authors.join(', '), work.year].filter(Boolean).join(' · ')}</p>
+          <p class="search-hint">
+            {[work.authors.join(", "), work.year].filter(Boolean).join(" · ")}
+          </p>
           <WorkMarkLine work={work} marks={marks} />
           {found.editions.length === 0 ? (
-            <p class="search-hint">{t('search.no-editions')}</p>
+            <p class="search-hint">{t("search.no-editions")}</p>
           ) : (
-            <ul class="card search-list" aria-label={t('search.editions')}>
-              {found.editions.map((each) => (
-                <EditionRow
-                  key={each.isbn}
-                  edition={each}
-                  mark={marks && editionMark(each.isbn, marks)}
-                  busy={busy}
-                  picking={picking === each.isbn}
-                  onPick={() => void pick(each.isbn)}
-                />
-              ))}
-            </ul>
+            found.sections.map((section) => (
+              <EditionList
+                key={section.language}
+                section={section}
+                marks={marks}
+                busy={busy}
+                picking={picking}
+                onPick={(isbn) => void pick(isbn)}
+              />
+            ))
           )}
-          {found.noIsbn > 0 && <p class="search-hint">{t('search.no-isbn', found.noIsbn)}</p>}
+          {found.noIsbn > 0 && (
+            <p class="search-hint">{t("search.no-isbn", found.noIsbn)}</p>
+          )}
         </section>
       ) : (
         works && (
-          <section class="search-group" aria-label={t('search.works')}>
+          <section class="search-group" aria-label={t("search.works")}>
             {works.length === 0 ? (
-              <p class="search-hint">{t('search.nothing')}</p>
+              <p class="search-hint">{t("search.nothing")}</p>
             ) : (
               <ul class="card search-list">
                 {works.map((row) => (
                   <li class="search-item" key={row.id}>
-                    <button class="search-pick" type="button" disabled={busy} onClick={() => void open(row)}>
+                    <button
+                      class="search-pick"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void open(row)}
+                    >
                       <span class="search-title">{row.title}</span>
-                      <span class="search-line">{[row.authors.join(', '), row.year].filter(Boolean).join(' · ')}</span>
+                      <span class="search-line">
+                        {[row.authors.join(", "), row.year]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
                       <WorkMarkLine work={row} marks={marks} />
                     </button>
                   </li>
@@ -196,13 +253,67 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan, ma
 }
 
 // The Shelf Check answer of a Work, in the words of the result screen.
-function WorkMarkLine({ work, marks }: { work: WorkResult; marks?: SearchMarks }) {
+function WorkMarkLine({
+  work,
+  marks,
+}: {
+  work: WorkResult;
+  marks?: SearchMarks;
+}) {
   const mark = marks && workMark([work.id, ...work.also], marks);
   if (!mark) return null;
   return (
     <span class="search-mark" data-mark={mark.kind}>
-      {mark.kind === 'owned' ? t('check.owned') : t('check.read', t(`status.${mark.status}`))}
+      {mark.kind === "owned"
+        ? t("check.owned")
+        : t("check.read", t(`status.${mark.status}`))}
     </span>
+  );
+}
+
+// The Editions of one language, under its name in itself ("Français"); the
+// language of the words searched says so, and tags each row. All languages:
+// one list, no heading, each row tagged.
+function EditionList({
+  section,
+  marks,
+  busy,
+  picking,
+  onPick,
+}: {
+  section: EditionSection;
+  marks?: SearchMarks;
+  busy: boolean;
+  picking: string | undefined;
+  onPick: (isbn: string) => void;
+}) {
+  const name = section.language && nativeLanguageName(section.language);
+  const heading = name && (section.matches ? t("search.matches", name) : name);
+  const tagged = !section.language || section.matches;
+  return (
+    <>
+      {heading && <h3 class="small-heading search-section">{heading}</h3>}
+      {section.editions.length === 0 ? (
+        <p class="search-hint">{t("search.none-in-language")}</p>
+      ) : (
+        <ul
+          class="card search-list"
+          aria-label={heading || t("search.editions")}
+        >
+          {section.editions.map((each) => (
+            <EditionRow
+              key={each.isbn}
+              edition={each}
+              tagged={tagged}
+              mark={marks && editionMark(each.isbn, marks)}
+              busy={busy}
+              picking={picking === each.isbn}
+              onPick={() => onPick(each.isbn)}
+            />
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 
@@ -210,26 +321,38 @@ function WorkMarkLine({ work, marks }: { work: WorkResult; marks?: SearchMarks }
 function EditionRow({
   edition,
   mark,
+  tagged,
   busy,
   picking,
   onPick,
 }: {
   edition: EditionResult;
   mark?: EditionMark;
+  tagged: boolean;
   busy: boolean;
   picking: boolean;
   onPick: () => void;
 }) {
-  const line = [edition.year, edition.publisher, edition.collection, languageName(edition)].filter(Boolean).join(' · ');
+  const line = [edition.year, edition.publisher, edition.collection]
+    .filter(Boolean)
+    .join(" · ");
+  const tag = tagged && languageName(edition);
   return (
     <li class="search-item">
-      <button class="search-pick" type="button" disabled={busy} aria-busy={picking ? 'true' : undefined} onClick={onPick}>
+      <button
+        class="search-pick"
+        type="button"
+        disabled={busy}
+        aria-busy={picking ? "true" : undefined}
+        onClick={onPick}
+      >
         <span class="search-title">{edition.title}</span>
+        {tag && <span class="chip search-tag">{tag}</span>}
         <span class="search-line">{line}</span>
-        <span class="search-hint">{t('book.isbn', edition.isbn)}</span>
+        <span class="search-hint">{t("book.isbn", edition.isbn)}</span>
         {mark && (
           <span class="search-mark" data-mark={mark}>
-            {t(mark === 'owned' ? 'search.in-library' : 'search.on-to-buy')}
+            {t(mark === "owned" ? "search.in-library" : "search.on-to-buy")}
           </span>
         )}
       </button>

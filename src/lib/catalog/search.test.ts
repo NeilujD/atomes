@@ -38,23 +38,34 @@ afterEach(() => {
 const reader = { signedIn: true };
 const find = (catalog: Catalog, words: string, access = reader) =>
   answerFind(catalog, new URL(`http://atomes.test/api/catalog/find?${new URLSearchParams({ words })}`), access);
-const editionsOf = (catalog: Catalog, works: string[], access = reader) =>
-  answerWorkEditions(catalog, new URL(`http://atomes.test/api/catalog/find/editions?${new URLSearchParams(works.map((work) => ['work', work]))}`), access);
+// `language`: the Preferred Language; `matched`: the language of the label that matched the words.
+const editionsOf = (catalog: Catalog, works: string[], access = reader, { language, matched }: { language?: string; matched?: string } = {}) =>
+  answerWorkEditions(
+    catalog,
+    new URL(
+      `http://atomes.test/api/catalog/find/editions?${new URLSearchParams([
+        ...works.map((work) => ['work', work]),
+        ...(language ? [['language', language]] : []),
+        ...(matched ? [['matched', matched]] : []),
+      ])}`,
+    ),
+    access,
+  );
 const works = async (response: Response) => ((await response.json()) as { works: WorkResult[] }).works;
 const editions = async (response: Response) => (await response.json()) as EditionsFound;
 
 describe('Search: find a Work by title words (GET /api/catalog/find)', () => {
   test.each([
-    ['Dix petits nègres', 'Dix Petits Nègres'],
-    ['Ils étaient dix', 'Ils étaient dix'],
-    ['And Then There Were None', 'And Then There Were None'],
-  ])('"%s", an old, the new or the English title, gives the same Work first, under the title typed', async (words, title) => {
+    ['Dix petits nègres', 'Dix Petits Nègres', 'fr'],
+    ['Ils étaient dix', 'Ils étaient dix', 'fr'],
+    ['And Then There Were None', 'And Then There Were None', 'en'],
+  ])('"%s", an old, the new or the English title, gives the same Work first, under the title typed and its language', async (words, title, language) => {
     const { catalog } = setup();
 
     const response = await find(catalog, words);
 
     expect(response.status).toBe(200);
-    expect((await works(response))[0]).toEqual({ id: christie, also: [], title, authors: ['Agatha Christie'], year: 1939 });
+    expect((await works(response))[0]).toEqual({ id: christie, also: [], title, authors: ['Agatha Christie'], year: 1939, language });
   });
 
   test('only the typed words leave the server, to Inventaire', async () => {
@@ -201,5 +212,68 @@ describe('Search: the Editions of a Work (GET /api/catalog/find/editions)', () =
     // BnF finds no record by the ISBN-13 of an ISBN-10 record: the lookup asks both forms.
     const bnf = calls.find((url) => url.startsWith('https://catalogue.bnf.fr/'));
     expect(new URL(bnf!).searchParams.get('query')).toBe('bib.isbn adj "9782253017097" or bib.isbn adj "2253017094"');
+  });
+});
+
+describe('Search: the Editions in the Preferred Language, and in the language of the words (CORE-186)', () => {
+  const headings = (found: EditionsFound) => found.sections.map(({ language, matches }) => [language, matches]);
+  const languagesOf = (section: EditionsFound['sections'][number]) => new Set(section.editions.map(({ language }) => language));
+
+  test('"And Then There Were None" with French preferred: a French section, then an English section', async () => {
+    const { catalog } = setup();
+
+    const found = await editions(await editionsOf(catalog, [christie], reader, { language: 'fr', matched: 'en' }));
+
+    expect(headings(found)).toEqual([
+      ['fr', false],
+      ['en', true],
+    ]);
+    expect(languagesOf(found.sections[0])).toEqual(new Set(['fre']));
+    expect(languagesOf(found.sections[1])).toEqual(new Set(['eng']));
+    expect(found.sections[0].editions.find(({ isbn }) => isbn === '9782253241782')).toMatchObject({ title: 'Ils étaient dix' });
+    expect(found.sections[1].editions.find(({ isbn }) => isbn === '9780062325549')).toBeDefined();
+  });
+
+  test('"Ils étaient dix" with French preferred: the French section only', async () => {
+    const { catalog } = setup();
+
+    const found = await editions(await editionsOf(catalog, [christie], reader, { language: 'fr', matched: 'fr' }));
+
+    expect(headings(found)).toEqual([['fr', false]]);
+  });
+
+  test('a title that is the same in both languages ("Dune"): the Preferred Language only', async () => {
+    // The Work gets its English label in French too.
+    const work = sourceUrls.inventaire(christie);
+    const { catalog } = setup({
+      fetch: (recorded) => async (url) => {
+        if (url !== work) return recorded(url);
+        const body = (await (await recorded(url)).json()) as { entities: Record<string, { labels: Record<string, string> }> };
+        body.entities[christie].labels.fr = 'And Then There Were None';
+        return Response.json(body);
+      },
+    });
+
+    const found = await editions(await editionsOf(catalog, [christie], reader, { language: 'fr', matched: 'en' }));
+
+    expect(headings(found)).toEqual([['fr', false]]);
+  });
+
+  test('"All languages": one list, newest first, every row with its language', async () => {
+    const { catalog } = setup();
+
+    const found = await editions(await editionsOf(catalog, [christie], reader, { language: 'all', matched: 'en' }));
+
+    expect(headings(found)).toEqual([[null, false]]);
+    const [all] = found.sections;
+    expect(all.editions).toEqual(found.editions);
+    const years = all.editions.map(({ year }) => year ?? 0);
+    expect(years).toEqual([...years].sort((a, b) => b - a));
+    expect(all.editions.every(({ language }) => language)).toBe(true);
+  });
+
+  test.each([['xx-yy'], ['<b>']])('a bad language (%j) gives 400', async (language) => {
+    const { catalog } = setup();
+    expect((await editionsOf(catalog, [christie], reader, { language })).status).toBe(400);
   });
 });

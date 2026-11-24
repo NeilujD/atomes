@@ -26,6 +26,7 @@
 // the routes check it and a write limit per Account (access.ts).
 import { isIsbn13 } from '../library/ids';
 import type { Catalog, Choice, Correction, Edition } from './catalog';
+import { parsePreferredLanguage } from './languages';
 import { isWorkResultId } from './search';
 
 const json = (status: number, body: unknown) => Response.json(body, { status });
@@ -106,7 +107,12 @@ export async function answerWorkEditions(catalog: Catalog, url: URL, { signedIn 
   const ids = url.searchParams.getAll('work');
   if (ids.length === 0 || ids.length > maxWorkIds || !ids.every(isWorkResultId))
     return json(400, { error: 'InvalidWork', message: `Send 1 to ${maxWorkIds} Work identifiers (wd: or inv:).` });
-  const found = await catalog.editions(ids);
+  // The Preferred Language (none: all languages), and the language of the words (CORE-186).
+  const language = url.searchParams.has('language') ? parsePreferredLanguage(url.searchParams.get('language')) : 'all';
+  const matched = url.searchParams.get('matched') ?? undefined;
+  if (!language || (matched !== undefined && !/^[a-z]{2,3}$/.test(matched)))
+    return json(400, { error: 'InvalidLanguage', message: 'Send a Preferred Language (fr, en, …, all) and a matched language code.' });
+  const found = await catalog.editions(ids, { language, matched });
   return 'unavailable' in found ? sourcesDown() : json(200, found);
 }
 
