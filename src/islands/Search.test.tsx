@@ -388,7 +388,7 @@ describe('Search mode: Authors (CORE-188)', () => {
 describe('Search mode: Series and Volumes (CORE-187)', () => {
   const dargaud = { publisher: 'Dargaud', first: 1982, last: 1984, language: 'fre' };
   const hachette = { publisher: 'Hachette', first: 2001, last: 2004, language: 'fre' };
-  const asterix: SeriesResult = { id: 'wd:Q42490', title: 'Astérix', lines: [dargaud, hachette] };
+  const asterix: SeriesResult = { id: 'wd:Q42490', title: 'Astérix', sameAs: [], lines: [dargaud, hachette] };
   const combatDesChefs: VolumeResult = { id: 'wd:Q1194700', number: 7, title: 'Le Combat des chefs' };
   const volumes: VolumeResult[] = [
     { id: 'wd:Q618719', number: 1, title: 'Astérix le Gaulois' },
@@ -463,7 +463,12 @@ describe('Search mode: Series and Volumes (CORE-187)', () => {
     expect(within(list).getByText('Volume 7 · Le combat des chefs · Dargaud · 1982–1984')).toBeTruthy();
   });
 
-  test('a Series the reader follows shows their Shelf Check Series line', async () => {
+  // A follow keeps the identifier it was saved with: the Series row answers to its `sameAs` ones too.
+  const minted = 'atomes:atomes.test:01JD5Z8X7Q9W3E4R5T6Y7V8M9N';
+  test.each([
+    { follow: asterix.id, row: asterix },
+    { follow: minted, row: { ...asterix, sameAs: [minted] } },
+  ])('a Series the reader follows as $follow shows their Shelf Check Series line', async ({ follow, row }) => {
     const anchor = '9782012100015';
     const inLine = (volume: number): Edition => ({
       isbn: `97820121000${String(volume).padStart(2, '0')}`,
@@ -485,12 +490,12 @@ describe('Search mode: Series and Volumes (CORE-187)', () => {
     const library: Library = {
       copies: [line[0], line[2]].map((each, i) => ({ rkey: `c${i}`, value: { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-01T00:00:00.000Z' } })),
       readingStatuses: [],
-      follows: [{ rkey: asterix.id, value: { series: asterix.id, anchorIsbn: anchor, status: 'following', updatedAt: '2026-11-01T00:00:00.000Z' } }],
+      follows: [{ rkey: follow, value: { series: follow, anchorIsbn: anchor, status: 'following', updatedAt: '2026-11-01T00:00:00.000Z' } }],
       loans: [],
       toBuy: [],
     };
     const lineOf = vi.fn<Sources['line']>(() => Promise.resolve(line));
-    screenWith({ find: findSeries, line: lineOf }, { marks: { library, toBuy: new Set() } });
+    screenWith({ find: () => Promise.resolve({ found: { works: [], authors: [], series: [row] } }), line: lineOf }, { marks: { library, toBuy: new Set() } });
 
     searchFor('Astérix');
 

@@ -427,6 +427,17 @@ describe('Search: Series and Volumes (CORE-187)', () => {
     ]);
   });
 
+  test('a Series row answers to every identifier this Catalog knows for the Series, as a follow may hold any of them', async () => {
+    const { catalog } = setup();
+    expect((await series(await find(catalog, 'Astérix')))[0].sameAs).toEqual([]);
+    // SUDOC's Series of Asterix and the White Iris is "Aterix", linked by hand to Astérix (ADR 0010).
+    const aterix = (await catalog.lookup('9781408730218')) as { found: { series: { id: string } } };
+    await catalog.lookup('9782864976165'); // Inventaire's Series is wd:Q42490
+    catalog.link(aterix.found.series.id, asterix);
+
+    expect((await series(await find(catalog, 'Astérix')))[0].sameAs).toEqual([aterix.found.series.id]);
+  });
+
   test('the Volumes of a Series by number: "7 · Le Combat des chefs"; a Volume with no number has its title only, last', async () => {
     const { catalog } = setup();
 

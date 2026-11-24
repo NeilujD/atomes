@@ -39,10 +39,12 @@ export interface AuthorResult {
 }
 
 // A Series row of Search (CORE-187): its Edition Lines, which BnF lists
-// under its title.
+// under its title. `sameAs`: the other identifiers this Catalog knows for the
+// Series (ADR 0010), which a follow may hold.
 export interface SeriesResult {
   id: string;
   title: string;
+  sameAs: string[];
   lines: SeriesLine[];
 }
 
@@ -224,7 +226,7 @@ async function seriesRows(fetch: SourceFetch, words: string, language: Language)
     const lines = await seriesLines(fetch, title);
     // Lines that start the same year, by publisher.
     lines.sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity) || compare(a.publisher ?? '', b.publisher ?? ''));
-    if (lines.length > 0) rows.push({ id, title, lines });
+    if (lines.length > 0) rows.push({ id, title, sameAs: [], lines });
   }
   return rows;
 }

@@ -921,7 +921,16 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     lookup,
     cover,
     search,
-    find: (words, language) => searched((fetch) => find(fetch, words, language)),
+    find: async (words, language) => {
+      const found = await searched((fetch) => find(fetch, words, language));
+      if ('unavailable' in found) return found;
+      // A Series row answers to every identifier this Catalog knows for it.
+      const sameAs = (id: string) => {
+        const row = byIdentifier(id);
+        return row ? [row.id, ...toSeries(row).sameAs].filter((each) => each !== id) : [];
+      };
+      return { ...found, series: found.series.map((row) => ({ ...row, sameAs: sameAs(row.id) })) };
+    },
     editions: (work, asked, words) => searched((fetch) => workEditions(fetch, work, asked, words)),
     authorWorks: (author, page) => searched((fetch) => authorWorks(fetch, author, page)),
     seriesVolumes: (series, language) => searched(async (fetch) => ({ volumes: await seriesVolumes(fetch, series, language) })),

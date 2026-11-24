@@ -23,6 +23,7 @@ import type {
 } from '../lib/catalog/search';
 import { reportNetwork } from '../lib/connection';
 import { t } from '../lib/i18n/i18n';
+import { isSeries } from '../lib/library/ids';
 import { languageName, lineLabel } from '../lib/library/model';
 import { editionMark, workMark, type EditionMark, type SearchMarks } from '../lib/library/search-marks';
 import { seriesLine } from '../lib/library/shelf-check';
@@ -354,7 +355,7 @@ function inLine(found: EditionsFound, line: SeriesLine | undefined): EditionSect
 // The Shelf Check Series line of a Series the reader follows (or dropped),
 // in their Edition Line: "You have 12 of 40 · 3 missing". None otherwise.
 function SeriesMarkLine({ series, marks, sources }: { series: SeriesResult; marks?: SearchMarks; sources: Sources }) {
-  const anchor = marks?.library.follows.find(({ rkey }) => rkey === series.id)?.value.anchorIsbn;
+  const anchor = marks?.library.follows.find(({ rkey }) => isSeries(series, rkey))?.value.anchorIsbn;
   const [text, setText] = useState<string>();
   useEffect(() => {
     if (!marks || !anchor) return;
@@ -363,7 +364,7 @@ function SeriesMarkLine({ series, marks, sources }: { series: SeriesResult; mark
       .line(anchor)
       .catch(() => undefined)
       .then((volumes) => {
-        const counts = volumes && seriesLine({ id: series.id, title: series.title, sameAs: [] }, volumes, marks.library);
+        const counts = volumes && seriesLine(series, volumes, marks.library);
         if (live) setText(counts && t('check.series-line', counts.owned, counts.total, counts.missing));
       });
     return () => {
