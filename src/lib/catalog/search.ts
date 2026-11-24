@@ -159,17 +159,13 @@ const primary = (language: string) => language.split('-')[0].toLowerCase();
 // its language (a label before an alias); else undefined, and the caller takes
 // the label Inventaire gave in its answer.
 function matchedTitle(words: string, work: Entity | undefined): { title: string; language: string } | undefined {
-  const wanted = key(words).split(' ');
   const titles = [
     ...Object.entries(work?.labels ?? {}),
     ...Object.entries(work?.aliases ?? {}).flatMap(([language, aliases]) => aliases.map((alias): [string, string] => [language, alias])),
   ];
   const [language, title] =
     titles
-      .filter(([, title]) => {
-        const has = key(title).split(' ');
-        return wanted.every((word) => has.includes(word));
-      })
+      .filter(([, title]) => holdsEveryWord(words, title))
       .sort(([, a], [, b]) => key(a).length - key(b).length)[0] ?? [];
   return title && language ? { title, language: primary(language) } : undefined;
 }
@@ -177,13 +173,17 @@ function matchedTitle(words: string, work: Entity | undefined): { title: string;
 const titleKeys = (work: Entity | undefined) =>
   new Set([...Object.values(work?.labels ?? {}), ...Object.values(work?.aliases ?? {}).flat()].map(key));
 
-const hasEveryWord = (words: string, names: string[]) => {
-  const wanted = key(words).split(' ');
-  return names.some((name) => {
-    const has = key(name).split(' ');
-    return wanted.every((word) => has.includes(word));
-  });
+const holdsEveryWord = (words: string, name: string) => {
+  const has = key(name).split(' ');
+  return key(words)
+    .split(' ')
+    .every((word) => has.includes(word));
 };
+
+const hasEveryWord = (words: string, names: string[]) => names.some((name) => holdsEveryWord(words, name));
+
+// The results of an Inventaire search answer; none when it did not answer.
+const inventaireHits = async (response: Response | undefined) => (response ? (((await response.json()) as { results?: Hit[] }).results ?? []) : []);
 
 const names = (entity: Entity | undefined) => [...Object.values(entity?.labels ?? {}), ...Object.values(entity?.aliases ?? {}).flat()];
 
@@ -191,7 +191,7 @@ const names = (entity: Entity | undefined) => [...Object.values(entity?.labels ?
 // `language`: the reader's, to sort the Edition Lines of a Series.
 export async function find(fetch: SourceFetch, words: string, language: Language): Promise<Found> {
   const response = await read(fetch, sourceUrls.inventaireSearch(words));
-  const results = response ? (((await response.json()) as { results?: Hit[] }).results ?? []) : [];
+  const results = await inventaireHits(response);
   const hits = (type: string) => results.filter((each): each is Hit & { uri: string } => each.type === type && !!each.uri && isInventaireId(each.uri));
   const works = await workRows(fetch, hits('works'), (entity, shown) => {
     const matched = matchedTitle(words, entity);
@@ -209,7 +209,7 @@ export async function find(fetch: SourceFetch, words: string, language: Language
 // call: the Work and Author search keeps its 10 results.
 async function seriesRows(fetch: SourceFetch, words: string, language: Language): Promise<SeriesResult[]> {
   const response = await read(fetch, sourceUrls.inventaireSeriesSearch(words));
-  const results = response ? (((await response.json()) as { results?: Hit[] }).results ?? []) : [];
+  const results = await inventaireHits(response);
   const found = await entities(
     fetch,
     unique(results.flatMap(({ uri, type }) => (type === 'series' && uri && isInventaireId(uri) ? [uri] : []))),

@@ -16,10 +16,11 @@ const landing = landingPage(process.env);
 // The choices of the Display group, each a radio group of chips. The page
 // script checks the kept Appearance and contrast; the server knows the language.
 // '' follows the browser's language. Each language is named in itself.
-const pickers: { name: string; label: string; checked: string; options: { value: string; label: string; icon?: IconName; lang?: string }[] }[] = [
+const pickers: { name: string; label: string; hint: string; checked: string; options: { value: string; label: string; icon?: IconName; lang?: string }[] }[] = [
   {
     name: 'appearance',
     label: t('settings.appearance'),
+    hint: t('settings.on-this-device'),
     checked: 'system',
     options: [
       { value: 'system', label: t('appearance.system'), icon: 'monitor' },
@@ -30,6 +31,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
   {
     name: 'contrast',
     label: t('settings.contrast'),
+    hint: t('settings.on-this-device'),
     checked: 'system',
     options: [
       { value: 'system', label: t('contrast.system') },
@@ -39,6 +41,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
   {
     name: 'language',
     label: t('settings.language'),
+    hint: t('settings.on-this-device'),
     checked: parseLanguage(Astro.cookies.get(languageCookie)?.value) ?? '',
     options: [
       { value: '', label: t('language.browser') },
@@ -51,6 +54,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
   {
     name: 'preferred-language',
     label: t('settings.preferred-language'),
+    hint: t('settings.preferred-language-hint'),
     checked: appLanguage,
     options: preferredLanguages.map((language) =>
       language === 'all' ? { value: language, label: t('language.all') } : { value: language, label: nativeLanguageName(language), lang: language },
@@ -187,7 +191,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
                   {picker.label}
                 </p>
                 <p class="row-hint" id={`${picker.name}-hint`}>
-                  {picker.name === 'preferred-language' ? t('settings.preferred-language-hint') : t('settings.on-this-device')}
+                  {picker.hint}
                 </p>
               </div>
               <div class="choices" role="radiogroup" aria-labelledby={`${picker.name}-label`} aria-describedby={`${picker.name}-hint`}>
