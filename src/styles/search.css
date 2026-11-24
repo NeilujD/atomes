@@ -43,6 +43,15 @@
 
 .search-back {
   align-self: flex-start;
+  gap: var(--space-4);
+}
+
+/* The chevron of Back (Lucide chevron-left), before the name of the step it returns to. */
+.search-back svg {
+  flex: none;
+  width: var(--icon-size-inline);
+  height: var(--icon-size-inline);
+  stroke-width: var(--icon-stroke);
 }
 
 .search-work-title {
@@ -65,6 +74,7 @@
 }
 
 .search-pick {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -82,7 +92,7 @@
   cursor: pointer;
 }
 
-.search-pick:hover,
+.search-pick:hover:not(:disabled),
 .search-pick[aria-busy='true'] {
   background: var(--fill-chip);
 }
@@ -92,12 +102,124 @@
   font-weight: 600;
 }
 
+/* Proportional figures: tabular ones give the comma between two Author names
+   the width of a digit ("John Curran ,  Agatha Christie"). */
 .search-line {
   font-size: var(--type-small);
-  font-variant-numeric: tabular-nums;
 }
 
 /* Offline: to Scan mode, which works with no network. */
 .search-scan {
   align-self: flex-start;
+}
+
+/* The marks from the Library (CORE-185): the Shelf Check answer of a Work or
+   of an exact Edition, in the ownership colours (ui-direction, Q8): orange
+   owned, green read but not owned. On To Buy answers no ownership: ink. */
+.search-mark {
+  font-size: var(--type-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.search-mark[data-mark='owned'] {
+  color: var(--owned-text);
+}
+
+.search-mark[data-mark='read'] {
+  color: var(--not-owned-text);
+}
+
+/* Under the Scan button of Scan mode (CORE-185): to Search mode. */
+.search-link {
+  align-self: center;
+  font-size: var(--type-small);
+}
+
+/* Preferred Language (CORE-186): a heading for each language of Editions, and
+   a language tag on the rows of another language. */
+.search-section {
+  margin-top: var(--space-12);
+}
+
+/* "Show more" under the Works of an Author (CORE-188). */
+.search-more {
+  align-self: center;
+}
+
+/* One request at a time (CORE-192): while an answer comes, every row is
+   disabled and dims, but the tapped row, which shows that it loads. */
+.search-pick:disabled {
+  cursor: default;
+}
+
+.search-pick:disabled:not([aria-busy='true']) {
+  opacity: var(--alpha-disabled);
+}
+
+/* The row whose answer is coming: the spinner of a busy button (theme.css),
+   at the end of the row. */
+.search-pick[aria-busy='true'] {
+  padding-inline-end: calc(2 * var(--space-8) + var(--spinner));
+}
+
+.search-pick[aria-busy='true']::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--space-8);
+  width: var(--spinner);
+  height: var(--spinner);
+  margin-block: auto;
+  border: var(--stroke) solid var(--ink);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin var(--motion-spin) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-pick[aria-busy='true']::after {
+    animation-duration: var(--motion-spin-reduced);
+  }
+}
+
+/* The step comes in (Search.tsx, `show`): a deeper step slides in from the
+   right, Back slides it out to the right, new results fade in. A view
+   transition of the step only: the panel and the form stay still. The name
+   is given only during these transitions, so page transitions do not see it.
+   No motion with reduced motion (Search.tsx does not start one either). */
+@media (prefers-reduced-motion: no-preference) {
+  :root:active-view-transition-type(search-forward, search-back, search-fade) [data-frame='panel'] {
+    view-transition-name: none;
+  }
+
+  :root:active-view-transition-type(search-forward, search-back, search-fade) .search-step {
+    view-transition-name: search-step;
+  }
+
+  ::view-transition-group(search-step) {
+    animation-duration: var(--motion-slide);
+    animation-timing-function: var(--ease-arrive);
+  }
+
+  :root:active-view-transition-type(search-forward)::view-transition-new(search-step) {
+    animation: var(--motion-slide) var(--ease-arrive) both page-front-in;
+    mix-blend-mode: normal;
+  }
+
+  :root:active-view-transition-type(search-forward)::view-transition-old(search-step),
+  :root:active-view-transition-type(search-fade)::view-transition-old(search-step) {
+    animation: var(--motion-fade) ease-in both page-out;
+  }
+
+  :root:active-view-transition-type(search-back)::view-transition-old(search-step) {
+    z-index: 1;
+    animation: var(--motion-slide) var(--ease-arrive) both page-front-out;
+    mix-blend-mode: normal;
+  }
+
+  :root:active-view-transition-type(search-back)::view-transition-new(search-step),
+  :root:active-view-transition-type(search-fade)::view-transition-new(search-step) {
+    animation: var(--motion-fade) ease-out both page-in;
+  }
 }

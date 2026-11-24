@@ -18,15 +18,22 @@
 //   429: "Back to the sources".
 // GET /api/catalog/series?title=            → 200 { series: SeriesFound[] },
 //   400, 401: the Series of this Catalog by title, for a Series Correction.
-// GET /api/catalog/find?words=               → 200 { works: WorkResult[] },
-//   400, 401, 503: Search (ADR 0021), a signed-in reader's title words.
+// GET /api/catalog/find?words=               → 200 Found { works, authors, series },
+//   400, 401, 503: Search (ADR 0021), a signed-in reader's title or author words.
 // GET /api/catalog/find/editions?work=…      → 200 EditionsFound, 400, 401,
-//   503: the Editions of a Search row, its Work and the identifiers of `also`.
+//   503: the Editions of a Search row, its Work and the identifiers of `also`;
+//   a BnF row (`bnf:`) also sends the `words` of its search.
+// GET /api/catalog/find/author?author=…&page= → 200 AuthorWorks, 400, 401,
+//   503: one page of 20 Works of an Author of Search, newest first.
+// GET /api/catalog/find/series?series=…      → 200 { volumes }, 400, 401, 503:
+//   the Volumes of a Series row of Search, by number (CORE-187).
 // A Correction is the only request that sends who asks (the session cookie):
 // the routes check it and a write limit per Account (access.ts).
+import type { Language } from '../i18n/i18n';
 import { isIsbn13 } from '../library/ids';
 import type { Catalog, Choice, Correction, Edition } from './catalog';
-import { isWorkResultId } from './search';
+import { parsePreferredLanguage } from './languages';
+import { isBnfWorkId, isInventaireId, isWorkResultId } from './search';
 
 const json = (status: number, body: unknown) => Response.json(body, { status });
 
@@ -90,11 +97,11 @@ export async function answerSearch(catalog: Catalog, url: URL, { signedIn }: { s
 }
 
 // Search (ADR 0021): only the words leave the server, for a signed-in reader.
-export async function answerFind(catalog: Catalog, url: URL, { signedIn }: { signedIn: boolean }) {
+export async function answerFind(catalog: Catalog, url: URL, { signedIn, language }: { signedIn: boolean; language: Language }) {
   if (!signedIn) return signedOut();
   const words = typedText(url.searchParams.get('words'));
   if (!words) return json(400, { error: 'InvalidSearch', message: 'Send title or author words, 300 characters at most.' });
-  const found = await catalog.find(words);
+  const found = await catalog.find(words, language);
   return 'unavailable' in found ? sourcesDown() : json(200, found);
 }
 
@@ -106,7 +113,37 @@ export async function answerWorkEditions(catalog: Catalog, url: URL, { signedIn 
   const ids = url.searchParams.getAll('work');
   if (ids.length === 0 || ids.length > maxWorkIds || !ids.every(isWorkResultId))
     return json(400, { error: 'InvalidWork', message: `Send 1 to ${maxWorkIds} Work identifiers (wd: or inv:).` });
-  const found = await catalog.editions(ids);
+  // The Preferred Language (none: all languages), and the language of the words (CORE-186).
+  const language = url.searchParams.has('language') ? parsePreferredLanguage(url.searchParams.get('language')) : 'all';
+  const matched = url.searchParams.get('matched') ?? undefined;
+  if (!language || (matched !== undefined && !/^[a-z]{2,3}$/.test(matched)))
+    return json(400, { error: 'InvalidLanguage', message: 'Send a Preferred Language (fr, en, …, all) and a matched language code.' });
+  // A BnF row opens again from the words of its search.
+  const words = ids.some(isBnfWorkId) ? typedText(url.searchParams.get('words')) : undefined;
+  if (ids.some(isBnfWorkId) && (!words || ids.length > 1))
+    return json(400, { error: 'InvalidWork', message: 'Send one BnF Work, with the words of its search.' });
+  const found = await catalog.editions(ids, { language, matched }, words);
+  return 'unavailable' in found ? sourcesDown() : json(200, found);
+}
+
+// The last page an Author list may ask for: 100 pages of 20 Works.
+const maxAuthorPage = 100;
+
+export async function answerAuthorWorks(catalog: Catalog, url: URL, { signedIn }: { signedIn: boolean }) {
+  if (!signedIn) return signedOut();
+  const author = url.searchParams.get('author') ?? '';
+  const page = Number(url.searchParams.get('page') ?? '1');
+  if (!isInventaireId(author) || !Number.isInteger(page) || page < 1 || page > maxAuthorPage)
+    return json(400, { error: 'InvalidAuthor', message: `Send an Author identifier (wd: or inv:) and a page from 1 to ${maxAuthorPage}.` });
+  const found = await catalog.authorWorks(author, page);
+  return 'unavailable' in found ? sourcesDown() : json(200, found);
+}
+
+export async function answerSeriesVolumes(catalog: Catalog, url: URL, { signedIn, language }: { signedIn: boolean; language: Language }) {
+  if (!signedIn) return signedOut();
+  const series = url.searchParams.get('series') ?? '';
+  if (!isInventaireId(series)) return json(400, { error: 'InvalidSeries', message: 'Send a Series identifier (wd: or inv:).' });
+  const found = await catalog.seriesVolumes(series, language);
   return 'unavailable' in found ? sourcesDown() : json(200, found);
 }
 

@@ -2,25 +2,87 @@
 // Editions from Inventaire and BnF, merged by ISBN-13. Only the typed words,
 // and the titles, authors and identifiers the sources gave back, leave the
 // server. The answers are kept 24 hours (`answerCache`).
+import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
+import { compareText, type Language } from '../i18n/i18n';
 import { isIsbn13 } from '../library/ids';
+import { bcp47 } from './languages';
 import { inTransaction } from '../server/migrate';
-import { key } from './facts';
+import { key, volumeNumber } from './facts';
+import { lineName, sameLine, samePublisher, type LineName } from './lines';
 import { read, sourceUrls, type SourceFetch } from './sources';
-import { isbn10To13, isbns, publishedYear, subfield, unimarcRecords } from './unimarc';
+import { isbn10To13, isbns, publishedYear, subfield, unimarcFacts, unimarcRecords, type UnimarcRecord } from './unimarc';
 
 // A row of Search: one Work, under the title that matched the words.
 // `also`: the other identifiers of the same Work, whose Editions it shares.
+// `language`: the language of that title ("en"), null when no title of the
+// Work holds every word (and on a Work of an Author page); on a BnF row, the
+// language of its first record.
+// `words`: a BnF row (`bnf:`) only, the words of the search that found it,
+// which open it again.
+// `shortStory`: the Work is a short story (Inventaire `wdt:P7937`), often
+// printed only in a book of stories (CORE-193).
 export interface WorkResult {
   id: string;
   also: string[];
   title: string;
   authors: string[];
   year: number | null;
+  language: string | null;
+  words?: string;
+  shortStory?: true;
 }
+
+// An Author row of Search (CORE-188): `works` counts their Works in Inventaire.
+export interface AuthorResult {
+  id: string;
+  name: string;
+  birthYear: number | null;
+  works: number;
+}
+
+// A Series row of Search (CORE-187): its Edition Lines, which BnF lists
+// under its title. `sameAs`: the other identifiers this Catalog knows for the
+// Series (ADR 0010), which a follow may hold.
+export interface SeriesResult {
+  id: string;
+  title: string;
+  sameAs: string[];
+  lines: SeriesLine[];
+}
+
+// An Edition Line of Search, named as on the Series page (lineName: the
+// publisher and the years of its Editions), in one language ("fre", as BnF
+// gives it; null: unknown).
+export type SeriesLine = LineName & { language: string | null };
+
+// A Volume of a Series (glossary): a Work with a Series and a number in
+// Inventaire (`wdt:P179`, `wdt:P1545`). `number` or `title` may be missing,
+// not both.
+export interface VolumeResult {
+  id: string;
+  number: number | null;
+  title: string | null;
+}
+
+export interface Found {
+  works: WorkResult[];
+  authors: AuthorResult[];
+  series: SeriesResult[];
+}
+
+// One page of the Works of an Author, newest first; `total` counts them all.
+export interface AuthorWorks {
+  works: WorkResult[];
+  total: number;
+}
+
+export const authorPageSize = 20;
 
 // One Edition of a Work, as printed: its title, year, publisher and collection.
 // `language` is an ISO 639-2/B code, as BnF gives it ("fre").
+// An Edition of a Volume also gives its Volume number and title (either may
+// be null) and the name of its Edition Line (null: no publisher known).
 export interface EditionResult {
   isbn: string;
   title: string;
@@ -28,16 +90,43 @@ export interface EditionResult {
   publisher: string | null;
   collection: string | null;
   language: string | null;
+  volume?: number | null;
+  volumeTitle?: string | null;
+  line?: SeriesLine | null;
+}
+
+// The Editions in one language ("fr"; null: all languages). `matches`: the
+// language of the words searched, not the Preferred Language.
+export interface EditionSection {
+  language: string | null;
+  matches: boolean;
+  editions: EditionResult[];
 }
 
 // Newest first; `noIsbn` counts the Editions left out for having no ISBN.
+// `sections`: the Editions the reader sees, by Preferred Language.
+// `printedIn`: for a Work with no Edition, the books it is printed in
+// (Inventaire `wdt:P1433`), as Work rows that open on their own Editions (CORE-193).
 export interface EditionsFound {
   editions: EditionResult[];
   noIsbn: number;
+  sections: EditionSection[];
+  printedIn?: WorkResult[];
 }
 
-// A Work identifier Search can open: Wikidata, or Inventaire.
-export const isWorkResultId = (id: string) => /^(?:wd:Q[1-9]\d*|inv:[0-9a-f]{32})$/.test(id);
+// The Editions to show: in the Preferred Language, or "all".
+export interface EditionsAsked {
+  language: string;
+  // The language of the title that matched the words (WorkResult `language`).
+  matched?: string;
+}
+
+// A Wikidata or Inventaire entity: a Work or an Author.
+export const isInventaireId = (id: string) => /^(?:wd:Q[1-9]\d*|inv:[0-9a-f]{32})$/.test(id);
+// A BnF Work row: its Work authority, else a hash of its title and author.
+export const isBnfWorkId = (id: string) => /^bnf:(?:\d{8,9}|t[0-9a-f]{12})$/.test(id);
+// A Work identifier Search can open.
+export const isWorkResultId = (id: string) => isInventaireId(id) || isBnfWorkId(id);
 
 type Entity = {
   uri?: string;
@@ -53,6 +142,8 @@ const claim = (entity: Entity | undefined, property: string) => claims(entity, p
 const label = (entity: Entity | undefined) => entity?.labels && (entity.labels.fr ?? entity.labels.en ?? Object.values(entity.labels)[0]);
 const yearOf = (date: string | undefined) => (date && /^\d{4}/.test(date) ? Number(date.slice(0, 4)) : null);
 const unique = <T>(values: T[]) => [...new Set(values)];
+// The form of a short story (Wikidata "short story", in `wdt:P7937`).
+const shortStoryForm = 'wd:Q49084';
 
 // Inventaire entities by URI, 50 per request; a requested URI that Inventaire
 // redirects gets the entity it now names.
@@ -71,44 +162,200 @@ async function entities(fetch: SourceFetch, uris: string[]): Promise<Map<string,
   return found;
 }
 
-// The title of the Work that holds every typed word, the shortest first; else
+// "en-gb" is English.
+const primary = (language: string) => language.split('-')[0].toLowerCase();
+
+// The title of the Work that holds every typed word, the shortest first, and
+// its language (a label before an alias); else undefined, and the caller takes
 // the label Inventaire gave in its answer.
-function matchedTitle(words: string, work: Entity | undefined): string | undefined {
-  const wanted = key(words).split(' ');
-  const titles = [...Object.values(work?.labels ?? {}), ...Object.values(work?.aliases ?? {}).flat()];
-  return titles
-    .filter((title) => {
-      const has = key(title).split(' ');
-      return wanted.every((word) => has.includes(word));
-    })
-    .sort((a, b) => key(a).length - key(b).length)[0];
+function matchedTitle(words: string, work: Entity | undefined): { title: string; language: string } | undefined {
+  const titles = [
+    ...Object.entries(work?.labels ?? {}),
+    ...Object.entries(work?.aliases ?? {}).flatMap(([language, aliases]) => aliases.map((alias): [string, string] => [language, alias])),
+  ];
+  const [language, title] =
+    titles
+      .filter(([, title]) => holdsEveryWord(words, title))
+      .sort(([, a], [, b]) => key(a).length - key(b).length)[0] ?? [];
+  return title && language ? { title, language: primary(language) } : undefined;
 }
 
 const titleKeys = (work: Entity | undefined) =>
   new Set([...Object.values(work?.labels ?? {}), ...Object.values(work?.aliases ?? {}).flat()].map(key));
 
-export async function findWorks(fetch: SourceFetch, words: string): Promise<WorkResult[]> {
+const holdsEveryWord = (words: string, name: string) => {
+  const has = key(name).split(' ');
+  return key(words)
+    .split(' ')
+    .every((word) => has.includes(word));
+};
+
+const hasEveryWord = (words: string, names: string[]) => names.some((name) => holdsEveryWord(words, name));
+
+// The results of an Inventaire search answer; none when it did not answer.
+const inventaireHits = async (response: Response | undefined) => (response ? (((await response.json()) as { results?: Hit[] }).results ?? []) : []);
+
+const names = (entity: Entity | undefined) => [...Object.values(entity?.labels ?? {}), ...Object.values(entity?.aliases ?? {}).flat()];
+
+// Inventaire first (Works and Authors, one call; then Series); when it finds nothing, BnF.
+// `language`: the reader's, to sort the Edition Lines of a Series.
+export async function find(fetch: SourceFetch, words: string, language: Language): Promise<Found> {
   const response = await read(fetch, sourceUrls.inventaireSearch(words));
-  const results = response ? (((await response.json()) as { results?: { uri?: string; label?: string }[] }).results ?? []) : [];
-  const found = results.filter((each): each is { uri: string; label?: string } => !!each.uri && isWorkResultId(each.uri));
-  if (found.length === 0) return [];
+  const results = await inventaireHits(response);
+  const hits = (type: string) => results.filter((each): each is Hit & { uri: string } => each.type === type && !!each.uri && isInventaireId(each.uri));
+  const works = await workRows(fetch, hits('works'), (entity, shown) => {
+    const matched = matchedTitle(words, entity);
+    return { title: matched?.title ?? shown ?? label(entity), language: matched?.language ?? null };
+  });
+  await mergeShared(fetch, works.rows, works.entityOf);
+  const authors = await authorRows(fetch, words, hits('humans'));
+  const series = await seriesRows(fetch, words, language);
+  if (works.rows.length > 0 || authors.length > 0 || series.length > 0) return { works: works.rows, authors, series };
+  return { works: (await bnfGroups(fetch, words)).map(({ row }) => row), authors: [], series: [] };
+}
+
+// The Series Inventaire finds under the words, whose name holds every word,
+// with the Edition Lines BnF lists under their title. A second Inventaire
+// call: the Work and Author search keeps its 10 results.
+async function seriesRows(fetch: SourceFetch, words: string, language: Language): Promise<SeriesResult[]> {
+  const response = await read(fetch, sourceUrls.inventaireSeriesSearch(words));
+  const results = await inventaireHits(response);
+  const found = await entities(
+    fetch,
+    unique(results.flatMap(({ uri, type }) => (type === 'series' && uri && isInventaireId(uri) ? [uri] : []))),
+  );
+  const rows: SeriesResult[] = [];
+  const compare = compareText(language);
+  for (const [uri, entity] of found) {
+    const id = entity.uri ?? uri;
+    const title = label(entity);
+    if (!title || !isInventaireId(id) || rows.some((row) => row.id === id) || !hasEveryWord(words, names(entity))) continue;
+    // A Series with no Edition Line has no Edition to pick.
+    const lines = await seriesLines(fetch, title);
+    // Lines that start the same year, by publisher.
+    lines.sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity) || compare(a.publisher ?? '', b.publisher ?? ''));
+    if (lines.length > 0) rows.push({ id, title, sameAs: [], lines });
+  }
+  return rows;
+}
+
+// The Edition Lines of a Series in one BnF search of its title (100 records,
+// printed text): the records with a Series that holds every word of the title
+// and a Volume number, by Series, publisher (under either name) and language;
+// the oldest line first.
+// BnF does not sort: a large Series may have lines past these 100 records.
+async function seriesLines(fetch: SourceFetch, title: string): Promise<SeriesLine[]> {
+  const typed = cql(title);
+  const response = typed && (await read(fetch, sourceUrls.bnfQuery(`bib.title all "${typed}" and bib.doctype any "a"`)));
+  if (!response) return [];
+  const groups: { series: string; publisher: string; language: string | null; listed: { publisher: string; year: number | null }[] }[] = [];
+  for (const record of unimarcRecords(await response.text())) {
+    const facts = unimarcFacts(record, 'BnF');
+    const { publisher } = facts;
+    const series = facts.series?.title;
+    if (!isbns(record).some(isIsbn13) || !facts.volumes?.length || !series || !publisher || !hasEveryWord(title, [series])) continue;
+    const language = facts.language ?? null;
+    let group = groups.find((each) => each.series === key(series) && each.language === language && samePublisher(each.publisher, publisher));
+    if (!group) groups.push((group = { series: key(series), publisher, language, listed: [] }));
+    group.listed.push({ publisher, year: facts.year ?? null });
+  }
+  // Two groups that read the same (publisher, years and language) show once.
+  const lines: SeriesLine[] = [];
+  for (const { language, listed } of groups) {
+    const line = { ...lineName(listed), language };
+    if (!lines.some((each) => sameLine(each, line))) lines.push(line);
+  }
+  return lines.sort((a, b) => (a.first ?? Infinity) - (b.first ?? Infinity));
+}
+
+// The Volume title of a title: none when it says only the Series and the
+// number ("One Piece", "Spy x Family - Tome 16", "One Piece, Tome 56").
+function volumeTitle(title: string | null | undefined, series: string): string | null {
+  if (!title) return null;
+  const seriesWords = key(series).split(' ');
+  const rest = key(title)
+    .split(' ')
+    .filter((word) => word && !seriesWords.includes(word) && !/^(?:\d+|tome|t|vol|volume|n|no|numero)$/.test(word));
+  return rest.length > 0 ? title : null;
+}
+
+// The Volumes of a Series in Inventaire, by number; those with no number last,
+// by title in the reader's `language`.
+export async function seriesVolumes(fetch: SourceFetch, series: string, language: Language): Promise<VolumeResult[]> {
+  const seriesTitle = label((await entities(fetch, [series])).get(series)) ?? '';
+  const response = await read(fetch, sourceUrls.inventaireReverse('wdt:P179', series));
+  const uris = response ? (((await response.json()) as { uris?: string[] }).uris ?? []).filter(isInventaireId) : [];
+  const volumes: VolumeResult[] = [];
+  for (const [uri, work] of await entities(fetch, uris)) {
+    const id = work.uri ?? uri;
+    const number = volumeNumber(claim(work, 'wdt:P1545')) ?? null;
+    const title = volumeTitle(label(work), seriesTitle);
+    if (isInventaireId(id) && (number !== null || title) && !volumes.some((each) => each.id === id)) volumes.push({ id, number, title });
+  }
+  const compare = compareText(language);
+  return volumes.sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity) || compare(a.title ?? '', b.title ?? ''));
+}
+
+type Hit = { uri?: string; type?: string; label?: string };
+
+// Work rows for Inventaire Works, in their order, named by `titleOf`: the
+// title, and its language when it holds the words.
+async function workRows(
+  fetch: SourceFetch,
+  found: { uri: string; label?: string }[],
+  titleOf: (work: Entity | undefined, shown?: string) => { title: string | undefined; language: string | null },
+) {
   const works = await entities(fetch, found.map(({ uri }) => uri));
   const people = await entities(fetch, unique([...works.values()].flatMap((work) => claims(work, 'wdt:P50'))));
-
   const rows: WorkResult[] = [];
   const entityOf = new Map<string, Entity | undefined>();
   for (const { uri, label: shown } of found) {
     const entity = works.get(uri);
     const id = entity?.uri ?? uri;
-    if (!isWorkResultId(id) || rows.some((row) => row.id === id)) continue;
-    const title = matchedTitle(words, entity) ?? shown ?? label(entity);
+    if (!isInventaireId(id) || rows.some((row) => row.id === id)) continue;
+    const { title, language } = titleOf(entity, shown);
     if (!title) continue;
     const authors = claims(entity, 'wdt:P50').flatMap((author) => label(people.get(author)) ?? []);
-    rows.push({ id, also: [], title, authors, year: yearOf(claim(entity, 'wdt:P577')) });
+    const shortStory = claims(entity, 'wdt:P7937').includes(shortStoryForm);
+    rows.push({ id, also: [], title, authors, year: yearOf(claim(entity, 'wdt:P577')), language, ...(shortStory && { shortStory }) });
     entityOf.set(id, entity);
   }
-  await mergeShared(fetch, rows, entityOf);
+  return { rows, entityOf };
+}
+
+// An Author whose name holds every typed word, and who has a Work: "christie
+// dix" names no Author. Their birth year tells apart two Authors of one name.
+async function authorRows(fetch: SourceFetch, words: string, found: { uri: string }[]): Promise<AuthorResult[]> {
+  const people = await entities(fetch, found.map(({ uri }) => uri));
+  const rows: AuthorResult[] = [];
+  for (const { uri } of found) {
+    const person = people.get(uri);
+    const id = person?.uri ?? uri;
+    const name = label(person);
+    if (!name || !isInventaireId(id) || rows.some((row) => row.id === id) || !hasEveryWord(words, names(person))) continue;
+    const count = (await authorWorkList(fetch, id)).length;
+    if (count > 0) rows.push({ id, name, birthYear: yearOf(claim(person, 'wdt:P569')), works: count });
+  }
   return rows;
+}
+
+// Every Work of an Author in Inventaire (its Works that claim `wdt:P50`), by
+// first publication year, newest first; the Works with no year last.
+async function authorWorkList(fetch: SourceFetch, author: string): Promise<string[]> {
+  const response = await read(fetch, sourceUrls.inventaireAuthorWorks(author));
+  const works = response ? (((await response.json()) as { works?: { uri?: string; date?: string }[] }).works ?? []) : [];
+  const dated = works
+    .filter((each): each is { uri: string; date?: string } => !!each.uri && isInventaireId(each.uri))
+    .map(({ uri, date }) => ({ uri, year: yearOf(date) ?? -Infinity }));
+  return unique(dated.sort((a, b) => b.year - a.year).map(({ uri }) => uri));
+}
+
+// One page of the Works of an Author (`page` from 1).
+export async function authorWorks(fetch: SourceFetch, author: string, page: number): Promise<AuthorWorks> {
+  const all = await authorWorkList(fetch, author);
+  const uris = all.slice((page - 1) * authorPageSize, page * authorPageSize);
+  const { rows } = await workRows(fetch, uris.map((uri) => ({ uri })), (work) => ({ title: label(work), language: null }));
+  return { works: rows, total: all.length };
 }
 
 // An Inventaire Work that may be a Wikidata Work of the results under another
@@ -135,7 +382,12 @@ async function mergeShared(fetch: SourceFetch, rows: WorkResult[], entityOf: Map
   }
 }
 
-type Printed = Omit<EditionResult, 'isbn'> & { isbn: string | undefined };
+// `inSeries`: the Volume a BnF record gives (461 `$v`, 200 `$h`), and its
+// title, none when 200 `$a` says only the Series (One Piece).
+type Printed = Omit<EditionResult, 'isbn' | 'volume' | 'volumeTitle' | 'line'> & {
+  isbn: string | undefined;
+  inSeries?: { volume: number; title: string | null };
+};
 
 // Inventaire gives the language as a Wikidata item; the app reads BnF codes.
 const languages: Record<string, string> = {
@@ -149,6 +401,7 @@ const languages: Record<string, string> = {
   'wd:Q5146': 'por',
   'wd:Q7411': 'dut',
   'wd:Q7737': 'rus',
+  'wd:Q256': 'tur',
 };
 
 const isbnOf = (isbn13: string | undefined, isbn10: string | undefined): string | undefined => {
@@ -185,19 +438,74 @@ async function bnfRecords(fetch: SourceFetch, query: string, seen: Set<string>):
   const response = await read(fetch, sourceUrls.bnfQuery(query));
   if (!response) return [];
   return unimarcRecords(await response.text()).flatMap((record) => {
-    const title = subfield(record, '200', 'a');
     const id = JSON.stringify(record);
-    if (!title || seen.has(id)) return [];
+    if (seen.has(id)) return [];
     seen.add(id);
-    return {
-      isbn: isbns(record).find(isIsbn13),
-      title,
-      year: publishedYear(record) ?? null,
-      publisher: subfield(record, '214', 'c') ?? subfield(record, '210', 'c') ?? null,
-      collection: subfield(record, '225', 'a') ?? null,
-      language: subfield(record, '101', 'a') ?? null,
-    };
+    return printedOf(record) ?? [];
   });
+}
+
+function printedOf(record: UnimarcRecord): Printed | undefined {
+  const title = subfield(record, '200', 'a');
+  if (!title) return undefined;
+  const facts = unimarcFacts(record, 'BnF');
+  const volume = facts.volumes?.[0];
+  const series = facts.series?.title;
+  return {
+    ...(volume !== undefined && series && { inSeries: { volume, title: facts.volumeTitle ?? volumeTitle(title, series) } }),
+    isbn: isbns(record).find(isIsbn13),
+    title,
+    year: publishedYear(record) ?? null,
+    publisher: subfield(record, '214', 'c') ?? subfield(record, '210', 'c') ?? null,
+    collection: subfield(record, '225', 'a') ?? null,
+    language: subfield(record, '101', 'a') ?? null,
+  };
+}
+
+// The first author of a BnF record (700 `$b $a`, "Agatha Christie"), else
+// its statement of responsibility (200 `$f`).
+function bnfAuthor(record: UnimarcRecord): string | undefined {
+  const surname = subfield(record, '700', 'a');
+  return surname ? [subfield(record, '700', 'b'), surname].filter(Boolean).join(' ') : subfield(record, '200', 'f');
+}
+
+const bnfFallbackRows = 20;
+
+// When Inventaire finds nothing (ADR 0021): BnF records of printed text under
+// the words, as title or author, grouped into Works by their Work authority
+// (500 `$3`), else by title and author. BnF does not sort: the Works with an
+// authority first, then the others, each in the order BnF gave.
+async function bnfGroups(fetch: SourceFetch, words: string): Promise<{ row: WorkResult; records: UnimarcRecord[] }[]> {
+  const typed = cql(words);
+  if (!typed) return [];
+  const response = await read(fetch, sourceUrls.bnfQuery(`(bib.title all "${typed}" or bib.author all "${typed}") and bib.doctype any "a"`));
+  if (!response) return [];
+  const groups = new Map<string, { row: WorkResult; records: UnimarcRecord[] }>();
+  for (const record of unimarcRecords(await response.text())) {
+    const title = subfield(record, '200', 'a');
+    if (!title) continue;
+    const author = bnfAuthor(record);
+    const authority = /^\d{8,9}$/.exec(subfield(record, '500', '3') ?? '')?.[0];
+    const id = authority ? `bnf:${authority}` : `bnf:t${createHash('sha256').update(`${key(title)}|${key(author ?? '')}`).digest('hex').slice(0, 12)}`;
+    const group = groups.get(id) ?? {
+      row: {
+        id,
+        also: [],
+        title: (authority && subfield(record, '500', 'a')) || title,
+        authors: author ? [author] : [],
+        year: null,
+        language: bcp47[subfield(record, '101', 'a') ?? ''] ?? null,
+        words,
+      },
+      records: [],
+    };
+    const year = publishedYear(record);
+    if (year && (group.row.year === null || year < group.row.year)) group.row.year = year;
+    group.records.push(record);
+    groups.set(id, group);
+  }
+  const all = [...groups.values()];
+  return [...all.filter(({ row }) => !row.id.startsWith('bnf:t')), ...all.filter(({ row }) => row.id.startsWith('bnf:t'))].slice(0, bnfFallbackRows);
 }
 
 // A double quote would end the CQL string early.
@@ -219,23 +527,99 @@ async function bnfEditions(fetch: SourceFetch, work: Entity, author: string | un
   return [...byAuthority, ...byTitle];
 }
 
-// `ids`: the Work and the other identifiers of its row (WorkResult `also`).
-export async function workEditions(fetch: SourceFetch, ids: string[]): Promise<EditionsFound> {
+// `ids`: the Work and the other identifiers of its row (WorkResult `also`);
+// `words`: the words of a BnF row, whose search gives its records again.
+export async function workEditions(fetch: SourceFetch, ids: string[], asked: EditionsAsked = { language: 'all' }, words?: string): Promise<EditionsFound> {
+  if (isBnfWorkId(ids[0])) {
+    const found = await bnfWorkEditions(fetch, ids[0], words ?? '');
+    return { ...found, sections: sections(found.editions, {}, asked) };
+  }
   const works = await entities(fetch, ids);
   const work = works.get(ids[0]);
-  if (!work) return { editions: [], noIsbn: 0 };
+  if (!work) return { editions: [], noIsbn: 0, sections: [] };
   const authorId = claim(work, 'wdt:P50');
   const author = authorId ? label((await entities(fetch, [authorId])).get(authorId)) : undefined;
   const fromInventaire: Printed[] = [];
   for (const id of ids) if (works.has(id)) fromInventaire.push(...(await inventaireEditions(fetch, id)));
   const fromBnf = await bnfEditions(fetch, work, author);
-  return mergeByIsbn([...fromBnf, ...fromInventaire]);
+  const { inSeries, ...found } = mergeByIsbn([...fromBnf, ...fromInventaire]);
+  const series = claim(work, 'wdt:P179');
+  if (series) await asVolume(fetch, work, series, found.editions, inSeries);
+  const printedIn = found.editions.length === 0 ? await booksPrintedIn(fetch, work) : [];
+  return { ...found, sections: sections(found.editions, work, asked), ...(printedIn.length > 0 && { printedIn }) };
+}
+
+// The books a Work with no Edition is printed in (a short story in a book of
+// stories), as Work rows. Asked only for such a Work: no request on the
+// normal path.
+async function booksPrintedIn(fetch: SourceFetch, work: Entity): Promise<WorkResult[]> {
+  const books = unique(claims(work, 'wdt:P1433').filter(isInventaireId));
+  if (books.length === 0) return [];
+  const { rows } = await workRows(fetch, books.map((uri) => ({ uri })), (book) => ({ title: label(book), language: null }));
+  return rows;
+}
+
+// The Editions of a Volume: each with its Volume number, from its BnF record,
+// else from the Work; its title as the Volume list gives it (the Work's), else
+// from its BnF record; and its Edition Line name, the Series line
+// BnF lists with the same publisher and language, else the name of the
+// Editions of this Volume with that publisher and language.
+async function asVolume(fetch: SourceFetch, work: Entity, series: string, editions: EditionResult[], inSeries: Map<string, Printed['inSeries']>) {
+  const seriesTitle = label((await entities(fetch, [series])).get(series)) ?? '';
+  const lines = seriesTitle ? await seriesLines(fetch, seriesTitle) : [];
+  const number = volumeNumber(claim(work, 'wdt:P1545')) ?? null;
+  const title = volumeTitle(label(work), seriesTitle);
+  const sameGroup = (a: EditionResult, b: { publisher: string | null; language: string | null }) =>
+    !!a.publisher && !!b.publisher && samePublisher(a.publisher, b.publisher) && (a.language === b.language || !a.language || !b.language);
+  for (const edition of editions) {
+    const own = inSeries.get(edition.isbn);
+    edition.volume = own?.volume ?? number;
+    edition.volumeTitle = title ?? own?.title ?? null;
+    edition.line = !edition.publisher
+      ? null
+      : (lines.find((line) => sameGroup(edition, line)) ?? {
+          ...lineName(editions.filter((other) => sameGroup(other, edition))),
+          publisher: edition.publisher,
+          language: edition.language,
+        });
+  }
+}
+
+// The Editions in the Preferred Language; then, apart, those in the language of
+// the words, unless the Work has the same label in both ("Dune"). "all": one list.
+function sections(editions: EditionResult[], work: Entity, { language, matched }: EditionsAsked): EditionSection[] {
+  if (language === 'all') return [{ language: null, matches: false, editions }];
+  const inLanguage = (wanted: string) => editions.filter((each) => each.language && bcp47[each.language] === wanted);
+  const labelIn = (wanted: string) =>
+    Object.entries(work.labels ?? {})
+      .filter(([each]) => primary(each) === wanted)
+      .map(([, title]) => key(title));
+  const sameLabel = (a: string, b: string) => labelIn(a).some((title) => labelIn(b).includes(title));
+  const found: EditionSection[] = [{ language, matches: false, editions: inLanguage(language) }];
+  if (matched && matched !== language && !sameLabel(matched, language)) {
+    const other = inLanguage(matched);
+    if (other.length > 0) found.push({ language: matched, matches: true, editions: other });
+  }
+  return found;
+}
+
+// A BnF row: its records in the search, and for a Work authority every record
+// BnF links to it (`bib.work2bib`).
+async function bnfWorkEditions(fetch: SourceFetch, id: string, words: string): Promise<Omit<EditionsFound, 'sections'>> {
+  const group = (await bnfGroups(fetch, words)).find(({ row }) => row.id === id);
+  if (!group) return { editions: [], noIsbn: 0 };
+  const seen = new Set(group.records.map((record) => JSON.stringify(record)));
+  const authority = /^bnf:(\d{8,9})$/.exec(id)?.[1];
+  const linked = authority ? await bnfRecords(fetch, `bib.work2bib any "${authority}"`, seen) : [];
+  const { editions, noIsbn } = mergeByIsbn([...group.records.flatMap((record) => printedOf(record) ?? []), ...linked]);
+  return { editions, noIsbn };
 }
 
 // One Edition per ISBN-13, the year of its latest printing; the facts of its
 // first source that has them, BnF first (the order of `printed`).
-function mergeByIsbn(printed: Printed[]): EditionsFound {
+function mergeByIsbn(printed: Printed[]): Omit<EditionsFound, 'sections'> & { inSeries: Map<string, Printed['inSeries']> } {
   const byIsbn = new Map<string, Printed[]>();
+  const inSeries = new Map<string, Printed['inSeries']>();
   let noIsbn = 0;
   for (const each of printed) {
     if (!each.isbn) noIsbn++;
@@ -243,6 +627,8 @@ function mergeByIsbn(printed: Printed[]): EditionsFound {
   }
   const editions = [...byIsbn].map(([isbn, all]): EditionResult => {
     const latest = [...all].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    const volume = latest.find((each) => each.inSeries)?.inSeries;
+    if (volume) inSeries.set(isbn, volume);
     const pick = <K extends keyof Printed>(field: K) => latest.map((each) => each[field]).find((value) => value !== null) ?? null;
     return {
       isbn,
@@ -254,7 +640,7 @@ function mergeByIsbn(printed: Printed[]): EditionsFound {
     };
   });
   editions.sort((a, b) => (b.year ?? -Infinity) - (a.year ?? -Infinity) || (a.isbn < b.isbn ? -1 : 1));
-  return { editions, noIsbn };
+  return { editions, noIsbn, inSeries };
 }
 
 // Search answers kept 24 hours (ADR 0021), so the instance asks each source

@@ -4,11 +4,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { answerEdition, answerFind, answerWorkEditions } from './api';
+import { answerAuthorWorks, answerEdition, answerFind, answerSeriesVolumes, answerWorkEditions } from './api';
 import type { Catalog } from './catalog';
 import { createCatalog } from './catalog';
 import { recordedFetch } from './recorded.fake';
-import type { EditionsFound, WorkResult } from './search';
+import type { AuthorResult, AuthorWorks, EditionsFound, Found, VolumeResult, WorkResult } from './search';
 import { sourceUrls, type SourceFetch } from './sources';
 
 const christie = 'wd:Q214132'; // "Ils étaient dix", once "Dix petits nègres", "And Then There Were None" in English
@@ -37,24 +37,42 @@ afterEach(() => {
 
 const reader = { signedIn: true };
 const find = (catalog: Catalog, words: string, access = reader) =>
-  answerFind(catalog, new URL(`http://atomes.test/api/catalog/find?${new URLSearchParams({ words })}`), access);
-const editionsOf = (catalog: Catalog, works: string[], access = reader) =>
-  answerWorkEditions(catalog, new URL(`http://atomes.test/api/catalog/find/editions?${new URLSearchParams(works.map((work) => ['work', work]))}`), access);
+  answerFind(catalog, new URL(`http://atomes.test/api/catalog/find?${new URLSearchParams({ words })}`), { language: 'en', ...access });
+// `language`: the Preferred Language; `matched`: the language of the label that matched the words.
+const editionsOf = (catalog: Catalog, works: string[], access = reader, { language, matched }: { language?: string; matched?: string } = {}) =>
+  answerWorkEditions(
+    catalog,
+    new URL(
+      `http://atomes.test/api/catalog/find/editions?${new URLSearchParams([
+        ...works.map((work) => ['work', work]),
+        ...(language ? [['language', language]] : []),
+        ...(matched ? [['matched', matched]] : []),
+      ])}`,
+    ),
+    access,
+  );
 const works = async (response: Response) => ((await response.json()) as { works: WorkResult[] }).works;
+const authors = async (response: Response) => ((await response.json()) as { authors: AuthorResult[] }).authors;
+const worksOf = (catalog: Catalog, author: string, page?: string, access = reader) =>
+  answerAuthorWorks(
+    catalog,
+    new URL(`http://atomes.test/api/catalog/find/author?${new URLSearchParams({ author, ...(page !== undefined && { page }) })}`),
+    access,
+  );
 const editions = async (response: Response) => (await response.json()) as EditionsFound;
 
 describe('Search: find a Work by title words (GET /api/catalog/find)', () => {
   test.each([
-    ['Dix petits nègres', 'Dix Petits Nègres'],
-    ['Ils étaient dix', 'Ils étaient dix'],
-    ['And Then There Were None', 'And Then There Were None'],
-  ])('"%s", an old, the new or the English title, gives the same Work first, under the title typed', async (words, title) => {
+    ['Dix petits nègres', 'Dix Petits Nègres', 'fr'],
+    ['Ils étaient dix', 'Ils étaient dix', 'fr'],
+    ['And Then There Were None', 'And Then There Were None', 'en'],
+  ])('"%s", an old, the new or the English title, gives the same Work first, under the title typed and its language', async (words, title, language) => {
     const { catalog } = setup();
 
     const response = await find(catalog, words);
 
     expect(response.status).toBe(200);
-    expect((await works(response))[0]).toEqual({ id: christie, also: [], title, authors: ['Agatha Christie'], year: 1939 });
+    expect((await works(response))[0]).toEqual({ id: christie, also: [], title, authors: ['Agatha Christie'], year: 1939, language });
   });
 
   test('only the typed words leave the server, to Inventaire', async () => {
@@ -63,8 +81,10 @@ describe('Search: find a Work by title words (GET /api/catalog/find)', () => {
     await find(catalog, 'Ils étaient dix');
 
     expect(calls[0]).toBe(sourceUrls.inventaireSearch('Ils étaient dix'));
-    // Then the Works and Authors Inventaire gave back, by their identifiers.
-    expect(calls.slice(1).every((url) => new URL(url).searchParams.get('action') === 'by-uris')).toBe(true);
+    // Then the Works and Authors Inventaire gave back, by their identifiers, and its Series search.
+    expect(
+      calls.slice(1).every((url) => new URL(url).searchParams.get('action') === 'by-uris' || url === sourceUrls.inventaireSeriesSearch('Ils étaient dix')),
+    ).toBe(true);
   });
 
   test('two Works that share an Edition ISBN are one row, with the Wikidata identifier', async () => {
@@ -201,5 +221,311 @@ describe('Search: the Editions of a Work (GET /api/catalog/find/editions)', () =
     // BnF finds no record by the ISBN-13 of an ISBN-10 record: the lookup asks both forms.
     const bnf = calls.find((url) => url.startsWith('https://catalogue.bnf.fr/'));
     expect(new URL(bnf!).searchParams.get('query')).toBe('bib.isbn adj "9782253017097" or bib.isbn adj "2253017094"');
+  });
+});
+
+describe('Search: the Editions in the Preferred Language, and in the language of the words (CORE-186)', () => {
+  const headings = (found: EditionsFound) => found.sections.map(({ language, matches }) => [language, matches]);
+  const languagesOf = (section: EditionsFound['sections'][number]) => new Set(section.editions.map(({ language }) => language));
+
+  test('"And Then There Were None" with French preferred: a French section, then an English section', async () => {
+    const { catalog } = setup();
+
+    const found = await editions(await editionsOf(catalog, [christie], reader, { language: 'fr', matched: 'en' }));
+
+    expect(headings(found)).toEqual([
+      ['fr', false],
+      ['en', true],
+    ]);
+    expect(languagesOf(found.sections[0])).toEqual(new Set(['fre']));
+    expect(languagesOf(found.sections[1])).toEqual(new Set(['eng']));
+    expect(found.sections[0].editions.find(({ isbn }) => isbn === '9782253241782')).toMatchObject({ title: 'Ils étaient dix' });
+    expect(found.sections[1].editions.find(({ isbn }) => isbn === '9780062325549')).toBeDefined();
+  });
+
+  test('"Ils étaient dix" with French preferred: the French section only', async () => {
+    const { catalog } = setup();
+
+    const found = await editions(await editionsOf(catalog, [christie], reader, { language: 'fr', matched: 'fr' }));
+
+    expect(headings(found)).toEqual([['fr', false]]);
+  });
+
+  test('a title that is the same in both languages ("Dune"): the Preferred Language only', async () => {
+    // The Work gets its English label in French too.
+    const work = sourceUrls.inventaire(christie);
+    const { catalog } = setup({
+      fetch: (recorded) => async (url) => {
+        if (url !== work) return recorded(url);
+        const body = (await (await recorded(url)).json()) as { entities: Record<string, { labels: Record<string, string> }> };
+        body.entities[christie].labels.fr = 'And Then There Were None';
+        return Response.json(body);
+      },
+    });
+
+    const found = await editions(await editionsOf(catalog, [christie], reader, { language: 'fr', matched: 'en' }));
+
+    expect(headings(found)).toEqual([['fr', false]]);
+  });
+
+  test('"All languages": one list, newest first, every row with its language', async () => {
+    const { catalog } = setup();
+
+    const found = await editions(await editionsOf(catalog, [christie], reader, { language: 'all', matched: 'en' }));
+
+    expect(headings(found)).toEqual([[null, false]]);
+    const [all] = found.sections;
+    expect(all.editions).toEqual(found.editions);
+    const years = all.editions.map(({ year }) => year ?? 0);
+    expect(years).toEqual([...years].sort((a, b) => b - a));
+    expect(all.editions.every(({ language }) => language)).toBe(true);
+  });
+
+  test.each([['xx-yy'], ['<b>']])('a bad language (%j) gives 400', async (language) => {
+    const { catalog } = setup();
+    expect((await editionsOf(catalog, [christie], reader, { language })).status).toBe(400);
+  });
+});
+
+const agatha = 'wd:Q35064';
+
+describe('Search: Authors (CORE-188)', () => {
+  test('"Agatha Christie" gives her Author row, with her number of Works', async () => {
+    const { catalog } = setup();
+
+    const rows = await authors(await find(catalog, 'Agatha Christie'));
+
+    expect(rows[0]).toEqual({ id: agatha, name: 'Agatha Christie', birthYear: 1890, works: 385 });
+  });
+
+  test('the Works of an Author: 20 per page, newest first; page 2 goes on with no repeat', async () => {
+    const { catalog } = setup();
+
+    const first = (await (await worksOf(catalog, agatha)).json()) as AuthorWorks;
+    const second = (await (await worksOf(catalog, agatha, '2')).json()) as AuthorWorks;
+
+    expect(first.total).toBe(385);
+    expect(first.works).toHaveLength(20);
+    expect(second.works).toHaveLength(20);
+    const years = [...first.works, ...second.works].map(({ year }) => year ?? 0);
+    expect(years).toEqual([...years].sort((a, b) => b - a));
+    const ids = [...first.works, ...second.works].map(({ id }) => id);
+    expect(new Set(ids).size).toBe(40);
+    expect(first.works.every(({ authors }) => authors.includes('Agatha Christie'))).toBe(true);
+  });
+
+  test('two Authors with the same name both show, with their birth years', async () => {
+    const { catalog } = setup();
+
+    const rows = await authors(await find(catalog, 'Alexandre Dumas'));
+
+    expect(rows.filter(({ name }) => name === 'Alexandre Dumas').map(({ id, birthYear }) => [id, birthYear])).toEqual(
+      expect.arrayContaining([
+        ['wd:Q38337', 1802],
+        ['wd:Q169150', 1824],
+      ]),
+    );
+  });
+
+  test('an Author row needs every typed word in the name', async () => {
+    const { catalog } = setup();
+
+    expect(await authors(await find(catalog, 'christie dix'))).toEqual([]);
+  });
+
+  test('signed out: 401, and no source is asked', async () => {
+    const { catalog, calls } = setup();
+
+    expect((await worksOf(catalog, agatha, '1', { signedIn: false })).status).toBe(401);
+    expect(calls).toEqual([]);
+  });
+
+  test.each([
+    ['isbn:9782253241782', '1'],
+    ['wd:Q35064', '0'],
+    ['wd:Q35064', '1.5'],
+    ['wd:Q35064', '101'],
+    ['wd:Q35064', 'x'],
+  ])('bad Author or page (%s, %s) gives 400', async (author, page) => {
+    const { catalog } = setup();
+    expect((await worksOf(catalog, author, page)).status).toBe(400);
+  });
+
+  test('Inventaire down: the Works of an Author give 503', async () => {
+    const { catalog } = setup({ down: ['inventaire.io'] });
+    expect((await worksOf(catalog, agatha)).status).toBe(503);
+  });
+});
+
+describe('Search: mixed words and the BnF fallback (CORE-188)', () => {
+  test('"christie dix", author and title words, finds the Work', async () => {
+    const { catalog } = setup();
+
+    const rows = await works(await find(catalog, 'christie dix'));
+
+    expect(rows.map(({ id }) => id)).toContain(christie);
+  });
+
+  test('a word Inventaire does not know goes to BnF, printed text only, as Work rows grouped by Work authority', async () => {
+    const { catalog, calls } = setup();
+
+    const rows = await works(await find(catalog, 'Plouguerneau'));
+
+    const bnf = calls.find((url) => url.startsWith('https://catalogue.bnf.fr/'));
+    expect(new URL(bnf!).searchParams.get('query')).toBe(
+      '(bib.title all "Plouguerneau" or bib.author all "Plouguerneau") and bib.doctype any "a"',
+    );
+    expect(rows.find(({ id }) => id === 'bnf:87198521')).toMatchObject({ title: 'Des Lotrian du Léon, de 1600 à 1994', words: 'Plouguerneau' });
+    expect(rows.find(({ id }) => id === 'bnf:87198539')).toBeDefined();
+    expect(new Set(rows.map(({ id }) => id)).size).toBe(rows.length);
+    expect(rows.every(({ id }) => /^bnf:/.test(id))).toBe(true);
+  });
+
+  test('a BnF Work row opens on its Editions', async () => {
+    const { catalog } = setup();
+    const rows = await works(await find(catalog, 'Plouguerneau'));
+    const row = rows.find(({ id }) => id === 'bnf:87198521')!;
+
+    const response = await answerWorkEditions(
+      catalog,
+      new URL(`http://atomes.test/api/catalog/find/editions?${new URLSearchParams({ work: row.id, words: row.words! })}`),
+      reader,
+    );
+
+    expect(response.status).toBe(200);
+    expect((await editions(response)).editions.length).toBeGreaterThan(0);
+  });
+
+  test('a BnF Work row with no words gives 400', async () => {
+    const { catalog } = setup();
+    expect((await editionsOf(catalog, ['bnf:87198521'])).status).toBe(400);
+  });
+});
+
+describe('Search: Series and Volumes (CORE-187)', () => {
+  const asterix = 'wd:Q42490';
+  const combatDesChefs = 'wd:Q1194700'; // Astérix 7
+  const series = async (response: Response) => ((await response.json()) as Found).series;
+  const volumesOf = (catalog: Catalog, id: string, access = reader) =>
+    answerSeriesVolumes(catalog, new URL(`http://atomes.test/api/catalog/find/series?${new URLSearchParams({ series: id })}`), { language: 'en', ...access });
+  const volumes = async (response: Response) => ((await response.json()) as { volumes: VolumeResult[] }).volumes;
+
+  test('"Astérix" gives a Series row with its Edition Lines, each named by its publisher and years', async () => {
+    const { catalog } = setup();
+
+    const rows = await series(await find(catalog, 'Astérix'));
+
+    // Inventaire also finds "Asterix Omnibus" and a German Series, which BnF lists no Edition Line of.
+    expect(rows.map(({ id, title }) => ({ id, title }))).toEqual([{ id: asterix, title: 'Astérix' }]);
+    expect(rows[0].lines).toEqual([
+      { publisher: 'Éditions Albert René', first: 1981, last: 1983, language: 'dut' },
+      { publisher: 'Dargaud', first: 1982, last: 1984, language: 'fre' },
+      { publisher: 'Éditions G.P.', first: 1983, last: 1984, language: 'fre' },
+      { publisher: 'Hachette', first: 2001, last: 2004, language: 'fre' },
+      { publisher: 'Éditions France loisirs', first: 2015, last: 2017, language: 'fre' },
+      { publisher: 'les Éditions Albert René', first: 2018, last: 2018, language: 'fre' },
+    ]);
+  });
+
+  test('a Series row answers to every identifier this Catalog knows for the Series, as a follow may hold any of them', async () => {
+    const { catalog } = setup();
+    expect((await series(await find(catalog, 'Astérix')))[0].sameAs).toEqual([]);
+    // SUDOC's Series of Asterix and the White Iris is "Aterix", linked by hand to Astérix (ADR 0010).
+    const aterix = (await catalog.lookup('9781408730218')) as { found: { series: { id: string } } };
+    await catalog.lookup('9782864976165'); // Inventaire's Series is wd:Q42490
+    catalog.link(aterix.found.series.id, asterix);
+
+    expect((await series(await find(catalog, 'Astérix')))[0].sameAs).toEqual([aterix.found.series.id]);
+  });
+
+  test('the Volumes of a Series by number: "7 · Le Combat des chefs"; a Volume with no number has its title only, last', async () => {
+    const { catalog } = setup();
+
+    const response = await volumesOf(catalog, asterix);
+
+    expect(response.status).toBe(200);
+    const all = await volumes(response);
+    expect(all[6]).toEqual({ id: combatDesChefs, number: 7, title: 'Le Combat des chefs' });
+    expect(all.slice(0, 41).map(({ number }) => number)).toEqual(Array.from({ length: 41 }, (_, i) => i + 1));
+    expect(all.slice(41).every(({ number }) => number === null)).toBe(true);
+    expect(all).toContainEqual({ id: 'wd:Q97188282', number: null, title: "Le Menhir d'or" });
+  });
+
+  test('"Le Combat des chefs" gives the Volume 7 Work; its Editions carry the Volume number, the title of the Volume list and their Edition Line name', async () => {
+    const { catalog } = setup();
+
+    expect((await works(await find(catalog, 'Le Combat des chefs')))[0].id).toBe(combatDesChefs);
+    const found = await editions(await editionsOf(catalog, [combatDesChefs]));
+
+    expect(found.editions.find(({ isbn }) => isbn === '9782012101395')).toMatchObject({
+      volume: 7,
+      volumeTitle: 'Le Combat des chefs',
+      line: { publisher: 'Hachette', first: 2001, last: 2004, language: 'fre' },
+    });
+    // Every Edition Line: the Dargaud Edition of 1984 too.
+    expect(found.editions.find(({ isbn }) => isbn === '9782205001709')?.line).toEqual({ publisher: 'Dargaud', first: 1982, last: 1984, language: 'fre' });
+  });
+
+  test('a Volume BnF gives with a number only (One Piece 56) has no Volume title', async () => {
+    const { catalog } = setup();
+
+    const volume56 = (await volumes(await volumesOf(catalog, 'wd:Q28667972'))).find(({ number }) => number === 56)!;
+    const found = await editions(await editionsOf(catalog, [volume56.id]));
+
+    expect(found.editions.find(({ isbn }) => isbn === '9782723478991')).toMatchObject({ volume: 56, volumeTitle: null });
+  });
+
+  test('the Editions of a Work that is no Volume carry no Volume', async () => {
+    const { catalog } = setup();
+
+    const found = await editions(await editionsOf(catalog, [christie]));
+
+    expect(found.editions.every((each) => !('volume' in each) && !('line' in each))).toBe(true);
+  });
+
+  test('the Volumes of a Series: signed out 401, a bad identifier 400, Inventaire down 503', async () => {
+    expect((await volumesOf(setup().catalog, asterix, { signedIn: false })).status).toBe(401);
+    expect((await volumesOf(setup().catalog, 'Q42490')).status).toBe(400);
+    expect((await volumesOf(setup({ down: ['inventaire.io'] }).catalog, asterix)).status).toBe(503);
+  });
+});
+
+describe('Search: a short story printed in a book (CORE-193)', () => {
+  // "Le Dieu solitaire", a short story of Agatha Christie, never printed as a book of its own.
+  const dieuSolitaire = 'wd:Q17177225';
+  // "Tant que brillera le jour" ("While the Light Lasts and Other Stories"), the book it is printed in.
+  const tantQueBrillera = 'wd:Q656127';
+
+  test('a short story with no Edition gives the book it is printed in, whose Editions have an ISBN', async () => {
+    const { catalog } = setup();
+
+    const story = await editions(await editionsOf(catalog, [dieuSolitaire]));
+    expect(story.editions).toEqual([]);
+    expect(story.printedIn).toEqual([
+      { id: tantQueBrillera, also: [], title: 'Tant que brillera le jour', authors: ['Agatha Christie'], year: 1997, language: null },
+    ]);
+
+    const book = await editions(await editionsOf(catalog, [tantQueBrillera]));
+    expect(book.editions.length).toBeGreaterThan(0);
+    expect(book.editions.every(({ isbn }) => /^97[89]\d{10}$/.test(isbn))).toBe(true);
+    expect(book.printedIn).toBeUndefined();
+  });
+
+  test('a Work row of a short story says so, on the Author page; a collection of stories does not', async () => {
+    const { catalog } = setup();
+
+    const { works: rows } = (await (await worksOf(catalog, agatha)).json()) as AuthorWorks;
+
+    expect(rows.find(({ id }) => id === dieuSolitaire)?.shortStory).toBe(true);
+    expect(rows.find(({ id }) => id === tantQueBrillera)?.shortStory).toBeUndefined();
+  });
+
+  test('a Work with no Edition and no book it is printed in gives none', async () => {
+    const { catalog } = setup();
+
+    const found = await editions(await editionsOf(catalog, [christieInventaire]));
+
+    expect(found.editions).toEqual([]);
+    expect(found.printedIn).toBeUndefined();
   });
 });

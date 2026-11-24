@@ -146,7 +146,7 @@ bun scripts/record-catalog-answers.ts 9782253241782 9782253017097
 
 | File | Answer |
 |---|---|
-| `inventaire-search-*.json` (3) | Inventaire Work search of each title (`/api/search?types=works`): `wd:Q214132` first for all three |
+| `inventaire-search-*.json` (3) | Inventaire search of Works and Authors for each title (`/api/search?types=works\|humans`, recorded again on 2026-11-24 for CORE-188): `wd:Q214132` first for all three |
 | `inventaire-batch-*.json` | The Works and Authors of each search; the 41 Editions of `wd:Q214132` (32 with an ISBN, 9 with none) and their publishers and collections; the 2 Editions of `inv:9cc51ef9d8cd911a9eac07523f69232f` (same title and Author, no ISBN) |
 | `inventaire-reverse-*.json` (2) | `wdt:P629` reverse claims of `wd:Q214132` and of `inv:9cc51ef9…` |
 | `inventaire-wd-Q214132.json`, `inventaire-wd-Q35064.json` | The Work (BnF Work authority `wdt:P268` 17796845t) and Agatha Christie |
@@ -156,3 +156,67 @@ bun scripts/record-catalog-answers.ts 9782253241782 9782253017097
 | 9782253017097 | Dix petits nègres, Le Livre de poche, 1977: BnF holds only its ISBN-10 (2-253-01709-4) and finds it by the ISBN-10 only; unknown to Inventaire. Open Library did not answer (connection reset), so it has no file: "unknown" |
 
 Merged by ISBN-13: 45 Editions (BnF 22, Inventaire 32, both 9), 23 with no ISBN (14 BnF records, 9 Inventaire Editions).
+
+"I have it" in Search (CORE-185), for `e2e/search.spec.ts`, recorded on 2026-11-24:
+
+```sh
+bun scripts/record-catalog-answers.ts --find "Le Combat des chefs"
+bun scripts/record-catalog-answers.ts --fill 9782012101395
+```
+
+| File | Answer |
+|---|---|
+| `inventaire-search-da941a96f5de.json` | Inventaire search "Le Combat des chefs" (Works and Authors, `types=works|humans`; recorded again for CORE-188's search URL): `wd:Q1194700` (Goscinny, Uderzo, 1966) first, then 3 Inventaire Works of the same album and other books; no Author holds every word |
+| `inventaire-batch-*.json` (7), `inventaire-reverse-605feadb1945.json`, `inventaire-wd-Q1194700.json`, `inventaire-wd-Q192214.json` | The Works and Authors of the search, the `wdt:P629` Editions of `wd:Q1194700` and their publishers, the Work and René Goscinny |
+| `bnf-search-db1ebf3c9471-1.xml` | BnF `bib.title adj "Le Combat des chefs" and bib.author all "René Goscinny" and bib.doctype any "a"` |
+| 9782012101395 | Le combat des chefs, Hachette, 2005 ("Une aventure d'Astérix"): Astérix 7 (Inventaire `wd:Q42490`), the Edition the E2E journey says "I have it" for |
+| `bnf-search-98906e501fb5-*.xml` (5 pages) | The BnF Series search of the `--fill`: its Edition Line holds Volume 7 only, enough for Series Onboarding to open |
+
+Merged by ISBN-13: 14 Editions with an ISBN, 5 with none.
+
+Search by Author, mixed words and the BnF fallback (CORE-188), for `search.test.ts` and `e2e/search-author.spec.ts`, recorded on 2026-11-24. The files of the 3 Christie searches of 2026-11-23 stayed as recorded then:
+
+```sh
+bun scripts/record-catalog-answers.ts --find "Agatha Christie"
+bun scripts/record-catalog-answers.ts --find "christie dix"
+bun scripts/record-catalog-answers.ts --find "Alexandre Dumas"
+bun scripts/record-catalog-answers.ts --find "Plouguerneau"
+```
+
+| File | Answer |
+|---|---|
+| `inventaire-search-*.json` (4) | "Agatha Christie": Works, `wd:Q35064` and 2 `inv:` Authors of the same name with no birth year. "christie dix": `wd:Q214132` first, Authors without "dix" in their name. "Alexandre Dumas": `wd:Q38337` (1802) and `wd:Q169150` (1824), both named "Alexandre Dumas". "Plouguerneau": no result |
+| `inventaire-author-works-*.json` (9) | `action=author-works` of each Author: 385 Works for `wd:Q35064`, 309 for `wd:Q38337`, 11 for `wd:Q169150`, 1 for the `inv:` Authors, none for Authors with no Work |
+| `inventaire-batch-*.json` | The Works and Authors of each search; pages 1 and 2 of the Works of Agatha Christie and of `wd:Q38337`; the Editions of `wd:Q141526821` (And Then There Were None, 2025, first of page 1) and of `inv:7bc1d7a89950b1f391aeb99029439e63` |
+| `inventaire-reverse-*.json` (2), `inventaire-wd-Q141526821.json`, `inventaire-inv-*.json`, `inventaire-wd-Q38337.json` | The Editions and the Work of the first Work of page 1 of each Author |
+| `bnf-search-*.xml` (4) | BnF `(bib.title all "Plouguerneau" or bib.author all "Plouguerneau") and bib.doctype any "a"`: 52 records, 2 with a Work authority (500 `$3` 87198521, 87198539); `bib.work2bib any "87198521"`; the BnF title and author queries of the first Works of page 1 |
+
+Series and Volumes (CORE-187), for `search.test.ts` and `e2e/search-series.spec.ts`, recorded on 2026-11-24. Only the files these tests read were kept:
+
+```sh
+bun scripts/record-catalog-answers.ts --find "Astérix"
+bun scripts/record-catalog-answers.ts --series wd:Q42490 7
+bun scripts/record-catalog-answers.ts --find "One Piece"
+bun scripts/record-catalog-answers.ts --series wd:Q28667972 56
+```
+
+| File | Answer |
+|---|---|
+| `inventaire-search-*.json` (4) | The Works and Authors search (`types=works\|humans`) and the Series search (`types=series`) of "Astérix" and of "One Piece". "Astérix": `wd:Q42490` Astérix, `wd:Q1469187` (Kauka adaptations) and `wd:Q104843697` (Asterix Omnibus), which BnF lists no Edition Line of. "One Piece": `wd:Q28667972` first, then lists of anime episodes |
+| `bnf-search-*.xml` | BnF `bib.title all "Astérix" and bib.doctype any "a"` (588 records, the first 100): 6 Edition Lines with a Volume number (Hachette · 2001–2004 among them). The same for "One Piece" (5 Glénat lines). The BnF Work and title queries of Volume 7 (`wd:Q1194700`) and Volume 56 |
+| `inventaire-reverse-*.json`, `inventaire-batch-*.json`, `inventaire-inv-*.json`, `inventaire-wd-Q2010.json` | The Volumes of each Series (`wdt:P179`): Astérix 1 to 41 and 11 Works with no number ("Le Menhir d'or"), One Piece by number; the Editions of Volume 7 and of One Piece 56 and their publishers; Eiichirō Oda |
+
+Volume 7, merged by ISBN-13: the Hachette Editions of 2001 to 2025 named "Hachette · 2001–2004", the line BnF lists; Dargaud 1984 in "Dargaud · 1982–1984". One Piece 56, Glénat 2011 (9782723478991): number 56, no Volume title (BnF 200 `$a` is "One Piece").
+
+A short story printed in a book of stories (CORE-193), for `search.test.ts` and `e2e/search-story.spec.ts`, recorded on 2026-11-24:
+
+```sh
+bun scripts/record-catalog-answers.ts --editions wd:Q17177225
+bun scripts/record-catalog-answers.ts 9780002326438
+```
+
+| File | Answer |
+|---|---|
+| `inventaire-wd-Q17177225.json`, `inventaire-reverse-*.json`, `bnf-search-*.xml` | "Le Dieu solitaire" (short story, `wdt:P7937` `wd:Q49084`; printed in `wdt:P1433` `wd:Q656127`): no Inventaire Edition, BnF 0 records |
+| `inventaire-wd-Q656127.json`, `inventaire-reverse-*.json`, `inventaire-batch-*.json` (2), `bnf-search-*.xml` | "Tant que brillera le jour" (`wd:Q656127`): 4 Inventaire Editions and their Works, BnF records by title and Author; 10 Editions with an ISBN, merged. BnF also gives "Miss Marple tire sa révérence" (France Loisirs) under that title |
+| 9780002326438 | While the Light Lasts and Other Stories, HarperCollins, 1997: the Edition the E2E journey picks (English, the reader's Preferred Language); BnF, Inventaire (Work `wd:Q656127`) and Open Library know it, SUDOC does not |

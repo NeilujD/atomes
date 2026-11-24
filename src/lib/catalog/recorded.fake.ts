@@ -23,6 +23,8 @@ export function fixtureName(url: string): string {
   if (host === 'inventaire.io' && pathname === '/api/search') return `inventaire-search-${hash(searchParams.toString())}.json`;
   if (host === 'inventaire.io' && pathname.endsWith('/reverse-claims'))
     return `inventaire-reverse-${hash(`${searchParams.get('property')}=${searchParams.get('value')}`)}.json`;
+  if (host === 'inventaire.io' && searchParams.get('action') === 'author-works')
+    return `inventaire-author-works-${hash(searchParams.get('uri') ?? '')}.json`;
   const uris = searchParams.get('uris') ?? '';
   if (host === 'inventaire.io' && uris.includes('|')) return `inventaire-batch-${hash(uris)}.json`;
   if (host === 'inventaire.io') return `inventaire-${uris.replace(':', '-')}.json`;

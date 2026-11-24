@@ -5,19 +5,22 @@ import Sharing from '../islands/Sharing';
 import AppShell from '../layouts/AppShell.astro';
 import { version } from '../../package.json';
 import { languageCookie, parseLanguage, requestLanguage, translator } from '../lib/i18n/i18n';
+import { nativeLanguageName, preferredLanguages } from '../lib/catalog/languages';
 import { landingPage } from '../lib/server/settings';
 
-const t = translator(requestLanguage(Astro.request));
+const appLanguage = requestLanguage(Astro.request);
+const t = translator(appLanguage);
 // The Landing page (M12) exists only when the instance has it.
 const landing = landingPage(process.env);
 
 // The choices of the Display group, each a radio group of chips. The page
 // script checks the kept Appearance and contrast; the server knows the language.
 // '' follows the browser's language. Each language is named in itself.
-const pickers: { name: string; label: string; checked: string; options: { value: string; label: string; icon?: IconName; lang?: string }[] }[] = [
+const pickers: { name: string; label: string; hint: string; checked: string; options: { value: string; label: string; icon?: IconName; lang?: string }[] }[] = [
   {
     name: 'appearance',
     label: t('settings.appearance'),
+    hint: t('settings.on-this-device'),
     checked: 'system',
     options: [
       { value: 'system', label: t('appearance.system'), icon: 'monitor' },
@@ -28,6 +31,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
   {
     name: 'contrast',
     label: t('settings.contrast'),
+    hint: t('settings.on-this-device'),
     checked: 'system',
     options: [
       { value: 'system', label: t('contrast.system') },
@@ -37,12 +41,24 @@ const pickers: { name: string; label: string; checked: string; options: { value:
   {
     name: 'language',
     label: t('settings.language'),
+    hint: t('settings.on-this-device'),
     checked: parseLanguage(Astro.cookies.get(languageCookie)?.value) ?? '',
     options: [
       { value: '', label: t('language.browser') },
       { value: 'fr', label: t('language.fr'), lang: 'fr' },
       { value: 'en', label: t('language.en'), lang: 'en' },
     ],
+  },
+  // Preferred Language (CORE-186): the page script checks the kept one; none
+  // follows the app language.
+  {
+    name: 'preferred-language',
+    label: t('settings.preferred-language'),
+    hint: t('settings.preferred-language-hint'),
+    checked: appLanguage,
+    options: preferredLanguages.map((language) =>
+      language === 'all' ? { value: language, label: t('language.all') } : { value: language, label: nativeLanguageName(language), lang: language },
+    ),
   },
 ];
 ---
@@ -175,7 +191,7 @@ const pickers: { name: string; label: string; checked: string; options: { value:
                   {picker.label}
                 </p>
                 <p class="row-hint" id={`${picker.name}-hint`}>
-                  {t('settings.on-this-device')}
+                  {picker.hint}
                 </p>
               </div>
               <div class="choices" role="radiogroup" aria-labelledby={`${picker.name}-label`} aria-describedby={`${picker.name}-hint`}>
@@ -295,7 +311,9 @@ const pickers: { name: string; label: string; checked: string; options: { value:
   } from '../lib/appearance';
   import { confirmSignOut } from '../lib/auth/confirm-sign-out';
   import { checkedAccount, signOutHere } from '../lib/auth/server-client';
-  import { parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
+  import { pageLanguage, parseLanguage, saveLanguage, t } from '../lib/i18n/i18n';
+  import { parsePreferredLanguage } from '../lib/catalog/languages';
+  import { readPreferredLanguage, savePreferredLanguage } from '../lib/preferred-language';
   import { loadSession, type AuthState } from '../lib/auth/session';
   import { deleteAccount } from '../lib/auth/delete-account';
   import { deviceData } from '../lib/auth/device-data';
@@ -543,6 +561,16 @@ const pickers: { name: string; label: string; checked: string; options: { value:
     radio.addEventListener('change', () => {
       saveLanguage(parseLanguage(radio.value));
       location.reload();
+    });
+  }
+
+  // The Preferred Language picks the Editions of Search; until the reader picks one, the app language.
+  const storedPreferred = readPreferredLanguage(pageLanguage());
+  for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="preferred-language"]')) {
+    radio.checked = radio.value === storedPreferred;
+    radio.addEventListener('change', () => {
+      const language = parsePreferredLanguage(radio.value);
+      if (language) savePreferredLanguage(language);
     });
   }
 
