@@ -7,7 +7,8 @@
 // device (ADR 0003). Offline (CORE-37), the answer comes from this device
 // only: the Library copy and the Catalog data kept for it
 // (src/lib/catalog/device.ts); no ISBN is sent, and a Copy added waits in the
-// write queue. The Atomes server only gets the ISBN to look up, never the
+// write queue; Search finds the words in the books this device keeps
+// (CORE-191). The Atomes server only gets the ISBN to look up, never the
 // answer (ADR 0001). An ISBN the Catalog does not know: the reader types the
 // book in the form of this page.
 import Icon from '../components/Icon.astro';
@@ -202,7 +203,8 @@ const answers = [
   import { editionWork, readIsbn } from '../lib/library/ids';
   import { cameraProblem, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
   import { reportNetwork, reportWaiting } from '../lib/connection';
-  import { pageLanguage, t } from '../lib/i18n/i18n';
+  import { compareText, pageLanguage, t } from '../lib/i18n/i18n';
+  import { deviceBooks, matchOnDevice, type DeviceBook } from '../lib/library/device-search';
   import { readPreferredLanguage } from '../lib/preferred-language';
   import { saveFollow } from '../lib/library/follow';
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
@@ -972,15 +974,32 @@ const answers = [
     renderSearch();
   }
 
+  // Search with no network: the books this device keeps for Shelf Check
+  // (device-search.ts), read from the cache once for each Library read.
+  let keptBooks: { library: Library; books: Promise<DeviceBook[]> } | undefined;
+  async function searchOnDevice(words: string) {
+    const read = marks?.library ?? (await readLibrary());
+    if (!read) return undefined;
+    if (keptBooks?.library !== read) keptBooks = { library: read, books: deviceBooks(read, device) };
+    return matchOnDevice(words, await keptBooks.books, compareText(pageLanguage()));
+  }
+
   function renderSearch() {
     render(
       h(Search, {
-        sources: { find: findWorks, editions: findEditions, authorWorks: findAuthorWorks, seriesVolumes: findSeriesVolumes, line: editionLine },
+        sources: {
+          find: findWorks,
+          editions: findEditions,
+          authorWorks: findAuthorWorks,
+          seriesVolumes: findSeriesVolumes,
+          line: editionLine,
+          onDevice: searchOnDevice,
+        },
         preferred: readPreferredLanguage(pageLanguage()),
         words: new URLSearchParams(location.search).get('q') ?? '',
         onWords: (words: string) => keepInAddress({ q: words }),
         onPick: pick,
-        // Search needs a connection; a scan, or a typed ISBN, does not.
+        // Search finds only the books of this device offline; a scan, or a typed ISBN, finds any.
         onScan: () => {
           showMode('scan');
           if (scanButton.hidden) typeInstead();
