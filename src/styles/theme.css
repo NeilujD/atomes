@@ -29,9 +29,6 @@
    * and 10.6:1 in high contrast (theme.test.ts keeps it at 4.5:1 or more).
    */
   --danger-base: light-dark(#a8322b, #ef9a92);
-  /* Caution, offline only: the app still works, partly (ink 6.5:1 light, 7.9:1 dark on the tint). */
-  --caution: light-dark(#7a4f00, #f2c14e);
-  --caution-tint: light-dark(#fcefc9, #3a2f12);
   --cover-edge: light-dark(rgb(23 24 28 / 0.08), rgb(255 255 255 / 0.1));
   --scrim: light-dark(rgb(23 24 28 / 0.45), rgb(0 0 0 / 0.62));
   /* The edge of a page that slides over another (src/styles/page-transitions.css). */
