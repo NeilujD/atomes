@@ -5,7 +5,8 @@
 // the device, to the Atomes server; the results are not kept.
 import { useEffect, useState } from 'preact/hooks';
 import type { FoundAnswer } from '../lib/catalog/client';
-import type { EditionResult, EditionsFound, WorkResult } from '../lib/catalog/search';
+import { nativeLanguageName, type PreferredLanguage } from '../lib/catalog/languages';
+import type { EditionResult, EditionSection, EditionsFound, WorkResult } from '../lib/catalog/search';
 import { reportNetwork } from '../lib/connection';
 import { t } from '../lib/i18n/i18n';
 import { languageName } from '../lib/library/model';
@@ -13,11 +14,14 @@ import { isNetworkFailure } from '../lib/network';
 
 export interface Sources {
   find(words: string): Promise<FoundAnswer<WorkResult[]>>;
-  editions(work: WorkResult): Promise<FoundAnswer<EditionsFound>>;
+  // `language`: the Preferred Language, which picks the Editions shown.
+  editions(work: WorkResult, language: PreferredLanguage): Promise<FoundAnswer<EditionsFound>>;
 }
 
 export interface SearchProps {
   sources: Sources;
+  // The Preferred Language of this device (Settings), or "all".
+  preferred: PreferredLanguage;
   // The words of the address (`q`): searched at once, so a reload keeps the results.
   words?: string;
   // The words of each search, for the address.
@@ -28,7 +32,7 @@ export interface SearchProps {
   onScan: () => void;
 }
 
-export function Search({ sources, words: given = '', onWords, onPick, onScan }: SearchProps) {
+export function Search({ sources, preferred, words: given = '', onWords, onPick, onScan }: SearchProps) {
   const [words, setWords] = useState(given);
   const [works, setWorks] = useState<WorkResult[]>();
   const [work, setWork] = useState<WorkResult>();
@@ -78,7 +82,7 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan }: 
   }, []);
 
   async function open(row: WorkResult) {
-    const answer = await ask(() => sources.editions(row));
+    const answer = await ask(() => sources.editions(row, preferred));
     if (!answer) return;
     setWork(row);
     setFound(answer);
@@ -151,11 +155,9 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan }: 
           {found.editions.length === 0 ? (
             <p class="search-hint">{t('search.no-editions')}</p>
           ) : (
-            <ul class="card search-list" aria-label={t('search.editions')}>
-              {found.editions.map((each) => (
-                <EditionRow key={each.isbn} edition={each} busy={busy} picking={picking === each.isbn} onPick={() => void pick(each.isbn)} />
-              ))}
-            </ul>
+            found.sections.map((section) => (
+              <EditionList key={section.language} section={section} busy={busy} picking={picking} onPick={(isbn) => void pick(isbn)} />
+            ))
           )}
           {found.noIsbn > 0 && <p class="search-hint">{t('search.no-isbn', found.noIsbn)}</p>}
         </section>
@@ -183,13 +185,67 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan }: 
   );
 }
 
+// The Editions of one language, under its name in itself ("Français"); the
+// language of the words searched says so, and tags each row. All languages:
+// one list, no heading, each row tagged.
+function EditionList({
+  section,
+  busy,
+  picking,
+  onPick,
+}: {
+  section: EditionSection;
+  busy: boolean;
+  picking: string | undefined;
+  onPick: (isbn: string) => void;
+}) {
+  const name = section.language && nativeLanguageName(section.language);
+  const heading = name && (section.matches ? t('search.matches', name) : name);
+  const tagged = !section.language || section.matches;
+  return (
+    <>
+      {heading && <h3 class="small-heading search-section">{heading}</h3>}
+      {section.editions.length === 0 ? (
+        <p class="search-hint">{t('search.none-in-language')}</p>
+      ) : (
+        <ul class="card search-list" aria-label={heading || t('search.editions')}>
+          {section.editions.map((each) => (
+            <EditionRow
+              key={each.isbn}
+              edition={each}
+              tagged={tagged}
+              busy={busy}
+              picking={picking === each.isbn}
+              onPick={() => onPick(each.isbn)}
+            />
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 // One Edition, as printed; a tap shows its Shelf Check answer.
-function EditionRow({ edition, busy, picking, onPick }: { edition: EditionResult; busy: boolean; picking: boolean; onPick: () => void }) {
-  const line = [edition.year, edition.publisher, edition.collection, languageName(edition)].filter(Boolean).join(' · ');
+function EditionRow({
+  edition,
+  tagged,
+  busy,
+  picking,
+  onPick,
+}: {
+  edition: EditionResult;
+  tagged: boolean;
+  busy: boolean;
+  picking: boolean;
+  onPick: () => void;
+}) {
+  const line = [edition.year, edition.publisher, edition.collection].filter(Boolean).join(' · ');
+  const tag = tagged && languageName(edition);
   return (
     <li class="search-item">
       <button class="search-pick" type="button" disabled={busy} aria-busy={picking ? 'true' : undefined} onClick={onPick}>
         <span class="search-title">{edition.title}</span>
+        {tag && <span class="chip search-tag">{tag}</span>}
         <span class="search-line">{line}</span>
         <span class="search-hint">{t('book.isbn', edition.isbn)}</span>
       </button>

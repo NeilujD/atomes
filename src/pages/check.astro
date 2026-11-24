@@ -191,7 +191,8 @@ const answers = [
   import { editionWork, readIsbn } from '../lib/library/ids';
   import { cameraProblem, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
   import { reportNetwork, reportWaiting } from '../lib/connection';
-  import { t } from '../lib/i18n/i18n';
+  import { pageLanguage, t } from '../lib/i18n/i18n';
+  import { readPreferredLanguage } from '../lib/preferred-language';
   import { saveFollow } from '../lib/library/follow';
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
   import { addedOn, bookHref, currentStatus, statusChange, type Library } from '../lib/library/model';
@@ -938,6 +939,7 @@ const answers = [
   render(
     h(Search, {
       sources: { find: findWorks, editions: findEditions },
+      preferred: readPreferredLanguage(pageLanguage()),
       words: new URLSearchParams(location.search).get('q') ?? '',
       onWords: (words: string) => keepInAddress({ q: words }),
       onPick: pick,

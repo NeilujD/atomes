@@ -503,6 +503,12 @@ What this instance keeps: ${privacy}`,
   'search.back': 'All results',
   'search.editions': 'Editions',
   'search.no-editions': 'The book sources list no Edition with an ISBN for this Work.',
+  // Preferred Language (CORE-186).
+  'settings.preferred-language': 'Preferred Language',
+  'settings.preferred-language-hint': 'Search shows the Editions in this language. Kept on this device.',
+  'language.all': 'All languages',
+  'search.matches': (language: string) => `${language} · matches your search`,
+  'search.none-in-language': 'No Edition in this language. Choose another Preferred Language in Settings.',
   'search.no-isbn': (count: number) => (count === 1 ? '1 Edition with no ISBN is not shown.' : `${count} Editions with no ISBN are not shown.`),
 
   // Series page (src/islands/Series.tsx)

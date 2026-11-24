@@ -101,3 +101,9 @@
 .search-scan {
   align-self: flex-start;
 }
+
+/* Preferred Language (CORE-186): a heading for each language of Editions, and
+   a language tag on the rows of another language. */
+.search-section {
+  margin-top: var(--space-12);
+}

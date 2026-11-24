@@ -4,6 +4,7 @@
 // for a Series Correction (ADR 0017), and the words of a Search (ADR 0021).
 // Rejects like fetch when the Atomes server cannot be reached.
 import type { Choice, Correction, Edition, LineSummary, Lookup, SearchFound, SeriesFound } from './catalog';
+import type { PreferredLanguage } from './languages';
 import type { EditionsFound, WorkResult } from './search';
 
 // The cover of an Edition, served by the Atomes server (api.ts): the browser
@@ -78,9 +79,14 @@ export async function findWorks(words: string): Promise<FoundAnswer<WorkResult[]
   return 'found' in answer ? { found: answer.found.works } : answer;
 }
 
-// The Editions of a Search row: its Work, then its other identifiers.
-export async function findEditions(work: Pick<WorkResult, 'id' | 'also'>): Promise<FoundAnswer<EditionsFound>> {
-  const query = new URLSearchParams([work.id, ...work.also].map((id) => ['work', id]));
+// The Editions of a Search row: its Work, then its other identifiers; in the
+// Preferred Language, and apart in the language of the words (CORE-186).
+export async function findEditions(work: Pick<WorkResult, 'id' | 'also' | 'language'>, language: PreferredLanguage): Promise<FoundAnswer<EditionsFound>> {
+  const query = new URLSearchParams([
+    ...[work.id, ...work.also].map((id) => ['work', id]),
+    ['language', language],
+    ...(work.language ? [['matched', work.language]] : []),
+  ]);
   return foundAnswer<EditionsFound>(await fetch(`/api/catalog/find/editions?${query}`));
 }
 

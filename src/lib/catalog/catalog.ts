@@ -24,7 +24,7 @@ import {
 import { inTransaction, migrate } from '../server/migrate';
 import { catalogSteps, type DidAccounts } from './migrations';
 import { dropSharedWorks, losesWork } from './shared-works';
-import { answerCache, findWorks, workEditions, type EditionsFound, type WorkResult } from './search';
+import { answerCache, findWorks, workEditions, type EditionsAsked, type EditionsFound, type WorkResult } from './search';
 import { shownEditions } from './shown';
 import type { Publisher, SourceFetch } from './sources';
 import { bnfSearch, fetchFacts, inventaireEditions, isCoverUrl, type Listed } from './sources';
@@ -165,7 +165,8 @@ export interface Catalog {
   find(words: string): Promise<{ works: WorkResult[] } | { unavailable: true }>;
   // The Editions of the Work of a Search row (its identifier, then `also`),
   // from Inventaire and BnF, merged by ISBN-13, newest first.
-  editions(work: string[]): Promise<EditionsFound | { unavailable: true }>;
+  // `asked`: the Preferred Language and the language of the words, for its sections.
+  editions(work: string[], asked?: EditionsAsked): Promise<EditionsFound | { unavailable: true }>;
   // Keeps the reader's choice for an ISBN no source knows. Every reader of the
   // instance gets it; a later choice replaces it, and so does a source that
   // learns the ISBN, whole (no merge).
@@ -903,7 +904,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     cover,
     search,
     find: (words) => searched(async (fetch) => ({ works: await findWorks(fetch, words) })),
-    editions: (work) => searched((fetch) => workEditions(fetch, work)),
+    editions: (work, asked) => searched((fetch) => workEditions(fetch, work, asked)),
     choose,
     correct,
     uncorrect,

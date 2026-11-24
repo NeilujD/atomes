@@ -4,6 +4,7 @@ import { expect, quickAdd, test } from './test';
 // Search mode of Check a book (ADR 0021, CORE-184, CORE-190) on the recorded
 // Catalog: an old title finds the Work, whose Editions come newest first under
 // the title printed on each. A picked Edition gets the Shelf Check answer of a scan.
+// The Preferred Language picks the Editions shown (CORE-186).
 
 // Searches the words and opens the Christie Work.
 async function openChristie(page: Page) {
@@ -12,7 +13,9 @@ async function openChristie(page: Page) {
   await page.getByRole('button', { name: /^Dix Petits Nègres Agatha Christie · 1939/ }).click();
 }
 
-const editions = (page: Page) => page.getByRole('list', { name: 'Editions' }).getByRole('listitem');
+// The reader's app language is English, so the Preferred Language is too: the
+// French Editions of the French words come apart, after the English ones (CORE-186).
+const editions = (page: Page) => page.getByRole('list', { name: 'Français · matches your search' }).getByRole('listitem');
 
 test('Check → Search → an old title → Work → Edition → the Shelf Check answer → Add to To Buy', async ({ page, signIn }) => {
   await signIn();
@@ -96,4 +99,28 @@ test('Search: an owned Edition gets the owned answer of a scan, with nothing to 
   await page.goBack();
   await expect(answer).toBeHidden();
   await expect(editions(page).first()).toBeVisible();
+});
+
+test('Settings → French preferred → "And Then There Were None" → a French section, then an English section', async ({ page, signIn }) => {
+  await signIn();
+  await page.goto('/settings');
+  const preferred = page.getByRole('radiogroup', { name: 'Preferred Language' });
+  // With no choice, it follows the app language.
+  await expect(preferred.getByRole('radio', { name: 'English' })).toBeChecked();
+  await preferred.getByRole('radio', { name: 'Français' }).check();
+  await page.reload();
+  await expect(preferred.getByRole('radio', { name: 'Français' })).toBeChecked();
+
+  await page.goto('/check?mode=search');
+  await page.getByLabel('Title of the book').fill('And Then There Were None');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await page.getByRole('button', { name: /^And Then There Were None Agatha Christie · 1939/ }).click();
+
+  await expect(page.locator('.search-section')).toHaveText(['Français', 'English · matches your search']);
+  const french = page.getByRole('list', { name: 'Français', exact: true });
+  await expect(french.getByRole('listitem').first().locator('.search-title')).toHaveText('Ils étaient dix');
+  await expect(french.locator('.search-tag')).toHaveCount(0);
+  const english = page.getByRole('list', { name: 'English · matches your search' }).getByRole('listitem');
+  await expect(english.filter({ hasText: 'ISBN 9780062325549' })).toContainText('And Then There Were None');
+  await expect(english.first().locator('.search-tag')).toHaveText('English');
 });
