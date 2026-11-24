@@ -519,6 +519,12 @@ What this instance keeps: ${privacy}`,
   'search.authors': 'Authors',
   'search.author-works': (count: number) => (count === 1 ? '1 Work' : `${count} Works`),
   'search.show-more': 'Show more',
+  // Search: Series and Volumes (CORE-187)
+  'search.series': 'Series',
+  'search.series-lines': (count: number) => (count === 1 ? '1 Edition Line' : `${count} Edition Lines`),
+  'search.edition-lines': 'Edition Lines',
+  'search.volumes': 'Volumes',
+  'search.volume': (label: string) => `Volume ${label}`,
 
   // Series page (src/islands/Series.tsx)
   'series.title': 'Series',

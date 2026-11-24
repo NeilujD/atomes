@@ -105,6 +105,10 @@ export interface LineName {
   last: number | null;
 }
 
+// One Edition Line of Search (CORE-187): the same name and language.
+export const sameLine = (a: LineName & { language: string | null }, b: LineName & { language: string | null }) =>
+  a.publisher === b.publisher && a.first === b.first && a.last === b.last && a.language === b.language;
+
 export function lineName(editions: { publisher: string | null; year?: number | null }[]): LineName {
   const counts = new Map<string, number>();
   for (const { publisher } of editions) if (publisher) counts.set(publisher, (counts.get(publisher) ?? 0) + 1);

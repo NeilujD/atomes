@@ -27,6 +27,9 @@ export const sourceUrls = {
   // does not sort).
   inventaireSearch: (words: string) =>
     `https://inventaire.io/api/search?types=works%7Chumans&search=${encodeURIComponent(words)}&lang=fr&limit=10`,
+  // The Series (CORE-187), apart: the Work and Author search keeps its 10 results.
+  inventaireSeriesSearch: (words: string) =>
+    `https://inventaire.io/api/search?types=series&search=${encodeURIComponent(words)}&lang=fr&limit=5`,
   inventaireAuthorWorks: (author: string) => `https://inventaire.io/api/entities?action=author-works&uri=${encodeURIComponent(author)}`,
   inventaireReverse: (property: string, value: string) =>
     `https://inventaire.io/api/entities/reverse-claims?property=${encodeURIComponent(property)}&value=${encodeURIComponent(value)}`,

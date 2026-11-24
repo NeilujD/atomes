@@ -6,6 +6,7 @@
 //        bun scripts/record-catalog-answers.ts --fill 9791042021030
 //        bun scripts/record-catalog-answers.ts --search "Kaamelott" "Casterman"
 //        bun scripts/record-catalog-answers.ts --find "Dix petits nègres"
+//        bun scripts/record-catalog-answers.ts --series wd:Q42490 7
 // `--fill` also records the BnF search and Inventaire answers that list the
 // whole Edition Line of each ISBN (Catalog `volumes`). `--search` records the
 // BnF search by a typed title and an optional publisher (Catalog `search`).
@@ -13,7 +14,8 @@
 // `find`) and the Editions of its first Work (Catalog `editions`). When the
 // Search finds an Author, it also records the first 2 pages of their Works
 // (Catalog `authorWorks`), and the Editions of the first Work of page 1
-// instead.
+// instead. A Series row prints its Edition Lines: record the Volumes of one
+// with `--fill <anchor>`.
 // Review the diff before committing: answers change when the sources fix data.
 import { writeFile } from 'node:fs/promises';
 import { createCatalog } from '../src/lib/catalog/catalog';
@@ -45,6 +47,8 @@ if (process.argv[2] === '--find') {
   const row = (each: WorkResult) => `${each.id} ${each.also.join(',')} | ${each.title} | ${each.authors.join(', ')} | ${each.year}`;
   console.log(found.works.map(row).join('\n'));
   console.log(found.authors.map(({ id, name, birthYear, works }) => `Author ${id} | ${name} | ${birthYear} | ${works} Works`).join('\n'));
+  for (const { id, title, lines } of found.series)
+    console.log(`Series ${id} | ${title}\n${lines.map(({ publisher, first, last, language }) => `  ${publisher} | ${first}–${last} | ${language}`).join('\n')}`);
   let first = found.works[0];
   const author = found.authors[0];
   if (author) {
@@ -60,6 +64,21 @@ if (process.argv[2] === '--find') {
     console.log(editions.editions.map(({ isbn, year, title, publisher, collection, language }) => `${isbn} ${year} ${language} | ${title} | ${publisher} | ${collection}`).join('\n'));
     console.log('No ISBN:', editions.noIsbn);
   }
+  catalog.close();
+  process.exit(0);
+}
+
+// `--series <Series identifier> <Volume number>`: the Volumes of a Series of
+// Search (Catalog `seriesVolumes`) and the Editions of one Volume.
+if (process.argv[2] === '--series') {
+  const catalog = createCatalog({ file: ':memory:', fetch: recording, host: 'record.local', accounts: { findDid: () => undefined } });
+  const found = await catalog.seriesVolumes(process.argv[3]);
+  if ('unavailable' in found) throw new Error('A source failed');
+  console.log(found.volumes.map(({ id, number, title }) => `${number} | ${title} | ${id}`).join('\n'));
+  const volume = found.volumes.find(({ number }) => number === Number(process.argv[4]));
+  const editions = volume && (await catalog.editions([volume.id]));
+  if (editions && !('unavailable' in editions))
+    console.log(editions.editions.map((each) => `${each.isbn} ${each.year} | ${each.volume} · ${each.volumeTitle} | ${each.line?.publisher} ${each.line?.first}–${each.line?.last}`).join('\n'));
   catalog.close();
   process.exit(0);
 }

@@ -4,11 +4,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { answerAuthorWorks, answerEdition, answerFind, answerWorkEditions } from './api';
+import { answerAuthorWorks, answerEdition, answerFind, answerSeriesVolumes, answerWorkEditions } from './api';
 import type { Catalog } from './catalog';
 import { createCatalog } from './catalog';
 import { recordedFetch } from './recorded.fake';
-import type { AuthorResult, AuthorWorks, EditionsFound, WorkResult } from './search';
+import type { AuthorResult, AuthorWorks, EditionsFound, Found, VolumeResult, WorkResult } from './search';
 import { sourceUrls, type SourceFetch } from './sources';
 
 const christie = 'wd:Q214132'; // "Ils étaient dix", once "Dix petits nègres", "And Then There Were None" in English
@@ -81,8 +81,10 @@ describe('Search: find a Work by title words (GET /api/catalog/find)', () => {
     await find(catalog, 'Ils étaient dix');
 
     expect(calls[0]).toBe(sourceUrls.inventaireSearch('Ils étaient dix'));
-    // Then the Works and Authors Inventaire gave back, by their identifiers.
-    expect(calls.slice(1).every((url) => new URL(url).searchParams.get('action') === 'by-uris')).toBe(true);
+    // Then the Works and Authors Inventaire gave back, by their identifiers, and its Series search.
+    expect(
+      calls.slice(1).every((url) => new URL(url).searchParams.get('action') === 'by-uris' || url === sourceUrls.inventaireSeriesSearch('Ils étaient dix')),
+    ).toBe(true);
   });
 
   test('two Works that share an Edition ISBN are one row, with the Wikidata identifier', async () => {
@@ -397,5 +399,82 @@ describe('Search: mixed words and the BnF fallback (CORE-188)', () => {
   test('a BnF Work row with no words gives 400', async () => {
     const { catalog } = setup();
     expect((await editionsOf(catalog, ['bnf:87198521'])).status).toBe(400);
+  });
+});
+
+describe('Search: Series and Volumes (CORE-187)', () => {
+  const asterix = 'wd:Q42490';
+  const combatDesChefs = 'wd:Q1194700'; // Astérix 7
+  const series = async (response: Response) => ((await response.json()) as Found).series;
+  const volumesOf = (catalog: Catalog, id: string, access = reader) =>
+    answerSeriesVolumes(catalog, new URL(`http://atomes.test/api/catalog/find/series?${new URLSearchParams({ series: id })}`), access);
+  const volumes = async (response: Response) => ((await response.json()) as { volumes: VolumeResult[] }).volumes;
+
+  test('"Astérix" gives a Series row with its Edition Lines, each named by its publisher and years', async () => {
+    const { catalog } = setup();
+
+    const rows = await series(await find(catalog, 'Astérix'));
+
+    // Inventaire also finds "Asterix Omnibus" and a German Series, which BnF lists no Edition Line of.
+    expect(rows.map(({ id, title }) => ({ id, title }))).toEqual([{ id: asterix, title: 'Astérix' }]);
+    expect(rows[0].lines).toEqual([
+      { publisher: 'Éditions Albert René', first: 1981, last: 1983, language: 'dut' },
+      { publisher: 'Dargaud', first: 1982, last: 1984, language: 'fre' },
+      { publisher: 'Éditions G.P.', first: 1983, last: 1984, language: 'fre' },
+      { publisher: 'Hachette', first: 2001, last: 2004, language: 'fre' },
+      { publisher: 'Éditions France loisirs', first: 2015, last: 2017, language: 'fre' },
+      { publisher: 'les Éditions Albert René', first: 2018, last: 2018, language: 'fre' },
+    ]);
+  });
+
+  test('the Volumes of a Series by number: "7 · Le Combat des chefs"; a Volume with no number has its title only, last', async () => {
+    const { catalog } = setup();
+
+    const response = await volumesOf(catalog, asterix);
+
+    expect(response.status).toBe(200);
+    const all = await volumes(response);
+    expect(all[6]).toEqual({ id: combatDesChefs, number: 7, title: 'Le Combat des chefs' });
+    expect(all.slice(0, 41).map(({ number }) => number)).toEqual(Array.from({ length: 41 }, (_, i) => i + 1));
+    expect(all.slice(41).every(({ number }) => number === null)).toBe(true);
+    expect(all).toContainEqual({ id: 'wd:Q97188282', number: null, title: "Le Menhir d'or" });
+  });
+
+  test('"Le Combat des chefs" gives the Volume 7 Work; its Editions carry the Volume number and title and their Edition Line name', async () => {
+    const { catalog } = setup();
+
+    expect((await works(await find(catalog, 'Le Combat des chefs')))[0].id).toBe(combatDesChefs);
+    const found = await editions(await editionsOf(catalog, [combatDesChefs]));
+
+    expect(found.editions.find(({ isbn }) => isbn === '9782012101395')).toMatchObject({
+      volume: 7,
+      volumeTitle: 'Le combat des chefs',
+      line: { publisher: 'Hachette', first: 2001, last: 2004, language: 'fre' },
+    });
+    // Every Edition Line: the Dargaud Edition of 1984 too.
+    expect(found.editions.find(({ isbn }) => isbn === '9782205001709')?.line).toEqual({ publisher: 'Dargaud', first: 1982, last: 1984, language: 'fre' });
+  });
+
+  test('a Volume BnF gives with a number only (One Piece 56) has no Volume title', async () => {
+    const { catalog } = setup();
+
+    const volume56 = (await volumes(await volumesOf(catalog, 'wd:Q28667972'))).find(({ number }) => number === 56)!;
+    const found = await editions(await editionsOf(catalog, [volume56.id]));
+
+    expect(found.editions.find(({ isbn }) => isbn === '9782723478991')).toMatchObject({ volume: 56, volumeTitle: null });
+  });
+
+  test('the Editions of a Work that is no Volume carry no Volume', async () => {
+    const { catalog } = setup();
+
+    const found = await editions(await editionsOf(catalog, [christie]));
+
+    expect(found.editions.every((each) => !('volume' in each) && !('line' in each))).toBe(true);
+  });
+
+  test('the Volumes of a Series: signed out 401, a bad identifier 400, Inventaire down 503', async () => {
+    expect((await volumesOf(setup().catalog, asterix, { signedIn: false })).status).toBe(401);
+    expect((await volumesOf(setup().catalog, 'Q42490')).status).toBe(400);
+    expect((await volumesOf(setup({ down: ['inventaire.io'] }).catalog, asterix)).status).toBe(503);
   });
 });

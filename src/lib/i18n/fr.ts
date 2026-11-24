@@ -515,6 +515,11 @@ Ce que cette instance garde : ${privacy}`,
   'search.authors': 'Auteurs',
   'search.author-works': (count) => (count === 1 ? '1 œuvre' : `${count} œuvres`),
   'search.show-more': 'Afficher plus',
+  'search.series': 'Séries',
+  'search.series-lines': (count) => (count === 1 ? '1 édition' : `${count} éditions`),
+  'search.edition-lines': 'Éditions de la série',
+  'search.volumes': 'Tomes',
+  'search.volume': (label) => `Tome ${label}`,
 
   // Page d’une série (src/islands/Series.tsx)
   'series.title': 'Série',
