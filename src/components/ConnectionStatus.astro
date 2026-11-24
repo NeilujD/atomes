@@ -1,5 +1,5 @@
 ---
-// "Offline", the saves that wait on this device, and Reconnect (src/lib/connection.ts).
+// "Offline", the saves that wait on this device, and Reconnect as an icon (src/lib/connection.ts).
 // Shown only while offline. AppShell puts one in the sidebar (desktop) and one
 // above the tab bar (phone); the other one is not displayed, so it is not read out.
 import { requestLanguage, translator } from '../lib/i18n/i18n';
@@ -20,22 +20,27 @@ const t = translator(requestLanguage(Astro.request));
       <span>{t('connection.offline')}</span>
     </p>
     <p class="waiting" data-connection-waiting></p>
-    <button class="button reconnect" type="button" data-reconnect>
+    <button
+      class="button reconnect"
+      type="button"
+      data-reconnect
+      aria-label={t('connection.reconnect')}
+      title={t('connection.reconnect')}
+    >
       <Icon name="refresh-cw" />
-      <span>{t('connection.reconnect')}</span>
     </button>
   </div>
 </div>
 
 <style>
-  /* Yellow (caution), not red: offline, Atomes still works, partly. */
+  /* Grey and quiet, not a colour role: offline, Atomes still works, partly. */
   .body {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    background: var(--caution-tint);
-    color: var(--caution);
+    background: var(--fill-card);
+    color: var(--secondary);
   }
 
   .state {
@@ -44,7 +49,7 @@ const t = translator(requestLanguage(Astro.request));
     gap: 8px;
     min-width: 0;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
   }
 
   .waiting {
@@ -61,18 +66,20 @@ const t = translator(requestLanguage(Astro.request));
     content: '· ';
   }
 
+  /* The icon alone: a square as tall as a button; its name is the label and the tooltip. */
   .reconnect,
   .reconnect:hover:not(:disabled) {
-    padding: 0 8px;
+    width: var(--button-height);
+    padding: 0;
     border-color: transparent;
     background: transparent;
-    color: var(--caution);
-    font-size: 13px;
-    --busy-ink: var(--caution);
+    color: var(--secondary);
+    --busy-ink: var(--secondary);
   }
 
   .reconnect:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--caution) 12%, transparent);
+    background: var(--fill-chip);
+    color: var(--ink);
   }
 
   /* Busy: the spinner alone (theme.css), whatever order the styles load in. */
@@ -116,6 +123,6 @@ const t = translator(requestLanguage(Astro.request));
   /* Phone: a strip on top of the tab bar, under the thumb, never over the content. */
   .bar .body {
     padding: 0 12px 0 20px;
-    border-top: 1px solid color-mix(in oklab, var(--caution) 25%, transparent);
+    border-top: var(--hairline) solid var(--line);
   }
 </style>
