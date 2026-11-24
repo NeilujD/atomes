@@ -34,6 +34,7 @@ function screenWith(sources: Partial<Sources> = {}, props: Partial<SearchProps> 
         authorWorks: () => Promise.resolve({ found: { works: [], total: 0 } }),
         seriesVolumes: () => Promise.resolve({ found: { volumes: [] } }),
         line: () => Promise.resolve(undefined),
+        onDevice: () => Promise.resolve(undefined),
         ...sources,
       }}
       onWords={(words) => calls.words.push(words)}
@@ -145,6 +146,48 @@ describe('Search mode', () => {
     expect(find).not.toHaveBeenCalled();
     expect(box().value).toBe('Dix petits nègres');
     expect(screen.getByRole('button', { name: 'Scan the barcode' })).toBeTruthy();
+  });
+
+  describe('with no network, the books this device keeps', () => {
+    const kept = [{ isbn: ilsEtaientDix, title: 'Ils étaient dix', year: 2020, publisher: 'le Livre de poche', collection: null, language: 'fre' }];
+
+    test('offline: the matches of the device, and a tap gives their Shelf Check; nothing is asked', async () => {
+      vi.stubGlobal('navigator', { ...navigator, onLine: false });
+      const find = vi.fn<Sources['find']>();
+      const editions = vi.fn<Sources['editions']>();
+      const onDevice = vi.fn<Sources['onDevice']>(() => Promise.resolve(kept));
+      const calls = screenWith({ find, editions, onDevice });
+
+      searchFor('ils etaient');
+
+      fireEvent.click(await screen.findByRole('button', { name: /^Ils étaient dix/ }));
+      expect(screen.getByText('No connection: only the books kept on this device.')).toBeTruthy();
+      expect(onDevice).toHaveBeenCalledWith('ils etaient');
+      await vi.waitFor(() => expect(calls.picked).toEqual([ilsEtaientDix]));
+      expect(find).not.toHaveBeenCalled();
+      expect(editions).not.toHaveBeenCalled();
+    });
+
+    test('a weak signal: the search fails on its way, the device answers', async () => {
+      screenWith({ find: () => Promise.reject(new TypeError('Failed to fetch')), onDevice: () => Promise.resolve(kept) });
+
+      searchFor('ils etaient');
+
+      expect(await screen.findByRole('button', { name: /^Ils étaient dix/ })).toBeTruthy();
+    });
+
+    test('no match: not a sure answer, so the words stay and Scan is offered', async () => {
+      vi.stubGlobal('navigator', { ...navigator, onLine: false });
+      const calls = screenWith({ onDevice: () => Promise.resolve([]) });
+
+      searchFor('Dix petits nègres');
+
+      expect(await screen.findByText(/^Nothing on this device matches these words. The book can still be new/)).toBeTruthy();
+      expect(screen.queryByText(/not in your Library/i)).toBeNull();
+      expect(box().value).toBe('Dix petits nègres');
+      fireEvent.click(screen.getByRole('button', { name: 'Scan the barcode' }));
+      expect(calls.scans).toBe(1);
+    });
   });
 
   test('sources down: no Scan button, a scan would not help', async () => {
