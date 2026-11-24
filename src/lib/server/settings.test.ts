@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { appEnvironment, landingPage, publicOrigin, readSettings, SettingsError } from './settings';
+import { appEnvironment, landingPage, publicOrigin, readSettings, rybbit, SettingsError } from './settings';
 
 const sessionKey = Buffer.alloc(32, 7).toString('base64');
 const privateJwk = JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'x', y: 'y', d: 'private-part-of-the-key', kid: 'key-1' });
@@ -205,6 +205,45 @@ describe('LANDING_PAGE', () => {
 
   test('a start refuses a value that is not on or off', () => {
     expect(problemsOf({ ...local, LANDING_PAGE: 'no' })).toEqual(['LANDING_PAGE must be on or off. Found: no']);
+  });
+});
+
+// Audience measurement: off unless the instance gives its Rybbit script and site ID.
+describe('RYBBIT_SCRIPT_URL and RYBBIT_SITE_ID', () => {
+  const scriptUrl = 'https://analytics.example.org/api/script.js';
+
+  test('both set: the script, its site ID and the origin the CSP allows', () => {
+    const env = { RYBBIT_SCRIPT_URL: ` ${scriptUrl} `, RYBBIT_SITE_ID: ' 61cbdf4317e7 ' };
+
+    expect(problemsOf({ ...local, ...env })).toEqual([]);
+    expect(rybbit(env)).toEqual({ scriptUrl, siteId: '61cbdf4317e7', origin: 'https://analytics.example.org' });
+  });
+
+  test('neither set: no script', () => {
+    expect(rybbit({})).toBeUndefined();
+  });
+
+  test.each([
+    ['only the script', { RYBBIT_SCRIPT_URL: scriptUrl }, ['RYBBIT_SCRIPT_URL and RYBBIT_SITE_ID go together: set both, or neither.']],
+    ['only the site ID', { RYBBIT_SITE_ID: '61cbdf4317e7' }, ['RYBBIT_SCRIPT_URL and RYBBIT_SITE_ID go together: set both, or neither.']],
+    [
+      'an http script',
+      { RYBBIT_SCRIPT_URL: 'http://analytics.example.org/api/script.js', RYBBIT_SITE_ID: '61cbdf4317e7' },
+      ['RYBBIT_SCRIPT_URL must be the https URL of a Rybbit script.js, for example https://analytics.example.org/api/script.js. Found: http://analytics.example.org/api/script.js'],
+    ],
+    [
+      'not a script.js',
+      { RYBBIT_SCRIPT_URL: 'https://analytics.example.org/', RYBBIT_SITE_ID: '61cbdf4317e7' },
+      ['RYBBIT_SCRIPT_URL must be the https URL of a Rybbit script.js, for example https://analytics.example.org/api/script.js. Found: https://analytics.example.org/'],
+    ],
+    [
+      'a site ID with a quote',
+      { RYBBIT_SCRIPT_URL: scriptUrl, RYBBIT_SITE_ID: 'a"b' },
+      ['RYBBIT_SITE_ID must be the site ID Rybbit gives, letters and digits only. Found: a"b'],
+    ],
+  ])('a start refuses %s, and the pages load no script', (_, env, problems) => {
+    expect(problemsOf({ ...local, ...env })).toEqual(problems);
+    expect(rybbit(env)).toBeUndefined();
   });
 });
 

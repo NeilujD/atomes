@@ -117,6 +117,18 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
   const landing = env.LANDING_PAGE?.trim() || 'off';
   if (landing !== 'on' && landing !== 'off') problems.push(`LANDING_PAGE must be on or off. Found: ${landing}`);
 
+  const scriptUrl = env.RYBBIT_SCRIPT_URL?.trim();
+  const siteId = env.RYBBIT_SITE_ID?.trim();
+  if (Boolean(scriptUrl) !== Boolean(siteId)) {
+    problems.push('RYBBIT_SCRIPT_URL and RYBBIT_SITE_ID go together: set both, or neither.');
+  }
+  if (scriptUrl && !isRybbitScript(scriptUrl)) {
+    problems.push(`RYBBIT_SCRIPT_URL must be the https URL of a Rybbit script.js, for example https://analytics.example.org/api/script.js. Found: ${scriptUrl}`);
+  }
+  if (siteId && !isSiteId(siteId)) {
+    problems.push(`RYBBIT_SITE_ID must be the site ID Rybbit gives, letters and digits only. Found: ${siteId}`);
+  }
+
   const port = Number(env.PORT ?? 4321);
   if (!Number.isInteger(port) || port <= 0) problems.push(`PORT must be a port number. Found: ${String(env.PORT)}`);
 
@@ -139,6 +151,34 @@ export function readSettings(env: Record<string, string | undefined>, { sendsMai
 // environment, as appEnvironment: readSettings has refused a wrong value at start.
 export function landingPage(env: Record<string, string | undefined>): boolean {
   return env.LANDING_PAGE?.trim() === 'on';
+}
+
+// The Rybbit script that measures the audience of the pages (cookieless, self-hosted
+// by the operator): RYBBIT_SCRIPT_URL, its https script.js, and RYBBIT_SITE_ID.
+// Read by the pages from the environment, as appEnvironment: readSettings has
+// refused a wrong value at start. Undefined when not set (local development, E2E,
+// an instance that measures nothing).
+export interface Rybbit {
+  scriptUrl: string;
+  siteId: string;
+  // Where the script loads from and sends its events: the CSP allows it.
+  origin: string;
+}
+
+export function rybbit(env: Record<string, string | undefined>): Rybbit | undefined {
+  const scriptUrl = env.RYBBIT_SCRIPT_URL?.trim();
+  const siteId = env.RYBBIT_SITE_ID?.trim();
+  if (!scriptUrl || !siteId || !isRybbitScript(scriptUrl) || !isSiteId(siteId)) return undefined;
+  return { scriptUrl, siteId, origin: new URL(scriptUrl).origin };
+}
+
+// The script finds its host in its own src, before `/script.js`.
+function isRybbitScript(value: string): boolean {
+  return isHttpsOrigin(value) && new URL(value).pathname.endsWith('/script.js');
+}
+
+function isSiteId(value: string): boolean {
+  return /^[A-Za-z0-9]{1,64}$/.test(value);
 }
 
 // The facts of the Legal notice (/legal) that change with each instance:

@@ -783,6 +783,9 @@ What this instance keeps: ${privacy}`,
   'privacy.processor-mail': (processor: string) => `${processor} sends your Sign-in Codes, and the mail to a person an Admin adds: it receives the email address and the mail, for this only.`,
   'privacy.processor-backups': (processor: string) => `Every hour, an encrypted copy of the Library is sent to ${processor}, and kept for 30 days.`,
   'privacy.no-backups': 'No copy of the Library leaves the server of this instance.',
+  // Draft (Rybbit audience measurement): to be approved by the owner, with the new date.
+  'privacy.processor-analytics': (host: string) =>
+    `To see how the instance is used, ${host} counts the visits with Rybbit: for each page, its address and title, the page you came from, your screen size, your language and your country. It sets no cookie, does not keep your IP address, and never learns your Account.`,
   'privacy.shared-heading': 'What you share',
   'privacy.shared':
     'Shared records (Reading Statuses, Followed Series, Labels) go to your AT Protocol account, where anyone can read them. Nothing is Shared until you turn it on. Copies, Loans and To Buy are never Shared.',
@@ -794,7 +797,7 @@ What this instance keeps: ${privacy}`,
     'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account.',
   'privacy.rights-backups': 'The encrypted backups still hold it for up to 30 days.',
   'privacy.requests': 'For any other request, write to the contact above.',
-  'privacy.updated': 'Last change: 20 November 2026.',
+  'privacy.updated': 'Last change: 24 November 2026.',
   // Legal notice (src/pages/legal.astro, CORE-160), approved by the owner on
   // 2026-11-19 (CORE-162). A change to it needs the owner's approval and a new date.
   'legal.title': 'Legal notice',
@@ -905,8 +908,8 @@ What this instance keeps: ${privacy}`,
   'landing.principle-private-text': 'Nothing you add is public. You choose what to share, by category, and you can keep any single book apart.',
   'landing.principle-yours': 'What you share stays yours',
   'landing.principle-yours-text': 'Shared records go to your own Personal Data Server, in open lexicons under the MIT license. Any app can read them; you can leave with them.',
-  'landing.principle-quiet': 'No feed, no ads, no tracking',
-  'landing.principle-quiet-text': 'No timeline, no recommendation engine, no analytics. Atomes does one job: your shelves.',
+  'landing.principle-quiet': 'No feed, no ads, no tracking cookies',
+  'landing.principle-quiet-text': 'No timeline, no recommendation engine. Atomes does one job: your shelves.',
   'landing.honest-title': 'To be honest',
   'landing.honest':
     'Today, your private records live on the Atomes instance you use, not on your Personal Data Server: the AT Protocol has no private records yet. The person who runs the instance could read them. The admin panel does not show who you are: it names each Account by a short code. To see your email address, an Admin must type a reason, and the Admin Log keeps it. This is a rule of the app, not a lock. If that matters to you, run your own instance. The Catalog only ever learns which ISBNs are looked up, never who owns them.',

@@ -11,13 +11,15 @@ import Notice from '../components/Notice.astro';
 import AppShell from '../layouts/AppShell.astro';
 import { requestLanguage, translator } from '../lib/i18n/i18n';
 import { notGiven } from '../lib/notice';
-import { legalFacts, privacyFacts } from '../lib/server/settings';
+import { legalFacts, privacyFacts, rybbit } from '../lib/server/settings';
 
 const t = translator(requestLanguage(Astro.request));
 // The operator is the publisher of the Legal notice: settings of this instance (LEGAL_*).
 const { publisher: operator, contact } = legalFacts(process.env);
 // Who helps: settings too (PRIVACY_*); backups only where the instance has them.
 const { mailProcessor, backups, backupProcessor } = privacyFacts(process.env);
+// Audience measurement, only where the instance has it (RYBBIT_*): named by its host.
+const analytics = rybbit(process.env);
 const backupText = backupProcessor ? t('privacy.processor-backups', backupProcessor) : notGiven(t, 'PRIVACY_BACKUP_PROCESSOR');
 
 const sections = [
@@ -33,7 +35,11 @@ const sections = [
   },
   {
     heading: t('privacy.processors-heading'),
-    texts: [mailProcessor ? t('privacy.processor-mail', mailProcessor) : notGiven(t, 'PRIVACY_MAIL_PROCESSOR'), backups ? backupText : t('privacy.no-backups')],
+    texts: [
+      mailProcessor ? t('privacy.processor-mail', mailProcessor) : notGiven(t, 'PRIVACY_MAIL_PROCESSOR'),
+      backups ? backupText : t('privacy.no-backups'),
+      ...(analytics ? [t('privacy.processor-analytics', new URL(analytics.origin).host)] : []),
+    ],
   },
   { heading: t('privacy.shared-heading'), texts: [t('privacy.shared')] },
   { heading: t('privacy.basis-heading'), texts: [t('privacy.basis')] },
