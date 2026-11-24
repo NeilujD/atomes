@@ -279,7 +279,7 @@ async function add(page: Page, code: string, onboard: Onboard = {}) {
   await page.goto(`${origin}/check`);
   await page.getByLabel('ISBN', { exact: true }).fill(code);
   await page.getByRole('button', { name: 'Look up' }).click();
-  await page.getByRole('button', { name: 'Add to Library' }).click();
+  await page.getByRole('button', { name: 'I have it' }).click();
   const save = page.getByRole('button', { name: 'Save', exact: true });
   const added = page.getByText(/is in your Library/);
   await save.or(added).first().waitFor();

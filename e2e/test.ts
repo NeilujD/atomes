@@ -63,12 +63,12 @@ export const test = base.extend<{ signIn: () => Promise<void>; devServerPage: vo
   ],
 });
 
-// Quick Add by ISBN on Check a book, as a reader who types it: Add to Library on the result screen.
+// Quick Add by ISBN on Check a book, as a reader who types it: "I have it" on the result screen.
 export async function quickAdd(page: Page, isbn: string): Promise<void> {
   await page.goto('/check');
   await page.getByLabel('ISBN', { exact: true }).fill(isbn);
   await page.getByRole('button', { name: 'Look up' }).click();
-  await page.getByRole('button', { name: 'Add to Library' }).click();
+  await page.getByRole('button', { name: 'I have it' }).click();
 }
 
 // Drags the Cover flow by `covers` covers (positive: toward the end), then

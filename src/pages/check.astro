@@ -83,6 +83,8 @@ const answers = [
         <Icon name="scan-barcode" />
         <span>{t('add.scan')}</span>
       </button>
+      <!-- To Search mode, for a book with no barcode at hand (CORE-185). A link, so it works before the scripts run. -->
+      <a class="search-link" href="/check?mode=search" data-search-link>{t('check.search-link')}</a>
 
       <form class="isbn-form" data-isbn-form>
         <label class="label" for="isbn">{t('add.isbn')}</label>
@@ -185,21 +187,22 @@ const answers = [
   import { ShelfCheckResult } from '../islands/ShelfCheckResult';
   import { openOwnSpace } from '../lib/auth/server-client';
   import type { Edition } from '../lib/catalog/catalog';
-  import { coverUrl, findEditions, findWorks, lookupEdition, lookupVolumes } from '../lib/catalog/client';
+  import { coverUrl, findEditions, findWorks, lookupEdition, lookupEditions, lookupVolumes } from '../lib/catalog/client';
   import { deviceCatalog } from '../lib/catalog/device';
   import { quickAddCopy, saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
   import { editionWork, readIsbn } from '../lib/library/ids';
   import { cameraProblem, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
   import { reportNetwork, reportWaiting } from '../lib/connection';
-  import { t } from '../lib/i18n/i18n';
+  import { pageLanguage, t } from '../lib/i18n/i18n';
   import { saveFollow } from '../lib/library/follow';
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
   import { addedOn, bookHref, currentStatus, statusChange, type Library } from '../lib/library/model';
   import { followOnRead, noOnboarding } from '../lib/library/onboarding';
   import { saveReadingStatus, statuses, type Status } from '../lib/library/reading-status';
   import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, readerLine, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
-  import { followSeries } from '../lib/library/series';
-  import { handAdd, saveToBuy } from '../lib/library/to-buy';
+  import type { SearchMarks } from '../lib/library/search-marks';
+  import { askCollected, followSeries } from '../lib/library/series';
+  import { handAdd, saveToBuy, toBuyList } from '../lib/library/to-buy';
   import { latestOnly } from '../lib/latest';
   import { lockWhileSaving } from '../lib/save-lock';
   import { spaceErrorMessage, type Space, type WriteState } from '../lib/space/queued-store';
@@ -706,7 +709,7 @@ const answers = [
     return isbnInput;
   }
 
-  // Add to Library, Add and mark as read (`read`), Add another Copy. Once
+  // I have it, Add and mark as read (`read`), Add another Copy. Once
   // saved, with no Series Onboarding, the screen closes and the reader goes
   // back to where the lookup came from: the camera, or the ISBN field.
   async function addFromResult(shown: Result, read: boolean) {
@@ -760,6 +763,7 @@ const answers = [
     resultDialog.close();
     if (shown.from === 'scan' && !scanButton.hidden) void scan();
     else if (shown.from === 'typed') isbnInput.focus();
+    else void loadMarks();
   }
 
   // Aborted when the camera view closes, for any reason (Close, Escape, a book found).
@@ -931,25 +935,53 @@ const answers = [
   function showMode(mode: 'scan' | 'search') {
     for (const choice of modeChoices) choice.checked = choice.value === mode;
     keepInAddress({ mode: mode === 'search' ? mode : undefined });
+    if (mode === 'search' && !marks) void loadMarks();
   }
 
   for (const choice of modeChoices) choice.addEventListener('change', () => showMode(choice.value === 'search' ? 'search' : 'scan'));
+  // The Search link of Scan mode: the same page, so no reload.
+  document.querySelector('[data-search-link]')!.addEventListener('click', (event) => {
+    event.preventDefault();
+    showMode('search');
+    document.querySelector<HTMLInputElement>('#search-words')?.focus();
+  });
 
-  render(
-    h(Search, {
-      sources: { find: findWorks, editions: findEditions },
-      words: new URLSearchParams(location.search).get('q') ?? '',
-      onWords: (words: string) => keepInAddress({ q: words }),
-      onPick: pick,
-      // Search needs a connection; a scan, or a typed ISBN, does not.
-      onScan: () => {
-        showMode('scan');
-        if (scanButton.hidden) typeInstead();
-        else void scan();
-      },
-    }),
-    searchRoot,
-  );
+  // The marks of Search (search-marks.ts): the Library on this device, and the
+  // ISBNs on To Buy, hand-added and computed from the Followed Series. Read
+  // when Search mode shows, and again after a save from it.
+  let marks: SearchMarks | undefined;
+  async function loadMarks() {
+    const read = await readLibrary();
+    if (!read) return;
+    const followed = read.follows.filter(({ value }) => value.status === 'following').map(({ value }) => value);
+    const lines = new Map<string, Edition[]>();
+    const editions = new Map<string, Edition>();
+    await askCollected(followed, read, lines, editions, { volumes: editionLine, editions: lookupEditions }).catch(() => undefined);
+    const computed = toBuyList(read, lines, editions, pageLanguage()).followed.map(({ isbn }) => isbn);
+    marks = { library: read, toBuy: new Set([...computed, ...read.toBuy.map(({ value }) => value.isbn)]) };
+    renderSearch();
+  }
+
+  function renderSearch() {
+    render(
+      h(Search, {
+        sources: { find: findWorks, editions: findEditions },
+        words: new URLSearchParams(location.search).get('q') ?? '',
+        onWords: (words: string) => keepInAddress({ q: words }),
+        onPick: pick,
+        // Search needs a connection; a scan, or a typed ISBN, does not.
+        onScan: () => {
+          showMode('scan');
+          if (scanButton.hidden) typeInstead();
+          else void scan();
+        },
+        marks,
+      }),
+      searchRoot,
+    );
+  }
+  renderSearch();
+  if (modeChoices.some((choice) => choice.value === 'search' && choice.checked)) void loadMarks();
 
   // From the Book page ("Add another Copy") or an old Quick Add link (/add): the ISBN is already known.
   const given = new URLSearchParams(location.search).get('isbn');

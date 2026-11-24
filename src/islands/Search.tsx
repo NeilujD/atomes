@@ -9,6 +9,7 @@ import type { EditionResult, EditionsFound, WorkResult } from '../lib/catalog/se
 import { reportNetwork } from '../lib/connection';
 import { t } from '../lib/i18n/i18n';
 import { languageName } from '../lib/library/model';
+import { editionMark, workMark, type EditionMark, type SearchMarks } from '../lib/library/search-marks';
 import { isNetworkFailure } from '../lib/network';
 
 export interface Sources {
@@ -26,9 +27,11 @@ export interface SearchProps {
   onPick: (isbn: string) => Promise<string | undefined>;
   // To Scan mode: Search needs a connection, a scan does not.
   onScan: () => void;
+  // The marks from the Library on this device; none while it loads, or signed out.
+  marks?: SearchMarks;
 }
 
-export function Search({ sources, words: given = '', onWords, onPick, onScan }: SearchProps) {
+export function Search({ sources, words: given = '', onWords, onPick, onScan, marks }: SearchProps) {
   const [words, setWords] = useState(given);
   const [works, setWorks] = useState<WorkResult[]>();
   const [work, setWork] = useState<WorkResult>();
@@ -148,12 +151,20 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan }: 
             {work.title}
           </h2>
           <p class="search-hint">{[work.authors.join(', '), work.year].filter(Boolean).join(' · ')}</p>
+          <WorkMarkLine work={work} marks={marks} />
           {found.editions.length === 0 ? (
             <p class="search-hint">{t('search.no-editions')}</p>
           ) : (
             <ul class="card search-list" aria-label={t('search.editions')}>
               {found.editions.map((each) => (
-                <EditionRow key={each.isbn} edition={each} busy={busy} picking={picking === each.isbn} onPick={() => void pick(each.isbn)} />
+                <EditionRow
+                  key={each.isbn}
+                  edition={each}
+                  mark={marks && editionMark(each.isbn, marks)}
+                  busy={busy}
+                  picking={picking === each.isbn}
+                  onPick={() => void pick(each.isbn)}
+                />
               ))}
             </ul>
           )}
@@ -171,6 +182,7 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan }: 
                     <button class="search-pick" type="button" disabled={busy} onClick={() => void open(row)}>
                       <span class="search-title">{row.title}</span>
                       <span class="search-line">{[row.authors.join(', '), row.year].filter(Boolean).join(' · ')}</span>
+                      <WorkMarkLine work={row} marks={marks} />
                     </button>
                   </li>
                 ))}
@@ -183,8 +195,31 @@ export function Search({ sources, words: given = '', onWords, onPick, onScan }: 
   );
 }
 
+// The Shelf Check answer of a Work, in the words of the result screen.
+function WorkMarkLine({ work, marks }: { work: WorkResult; marks?: SearchMarks }) {
+  const mark = marks && workMark([work.id, ...work.also], marks);
+  if (!mark) return null;
+  return (
+    <span class="search-mark" data-mark={mark.kind}>
+      {mark.kind === 'owned' ? t('check.owned') : t('check.read', t(`status.${mark.status}`))}
+    </span>
+  );
+}
+
 // One Edition, as printed; a tap shows its Shelf Check answer.
-function EditionRow({ edition, busy, picking, onPick }: { edition: EditionResult; busy: boolean; picking: boolean; onPick: () => void }) {
+function EditionRow({
+  edition,
+  mark,
+  busy,
+  picking,
+  onPick,
+}: {
+  edition: EditionResult;
+  mark?: EditionMark;
+  busy: boolean;
+  picking: boolean;
+  onPick: () => void;
+}) {
   const line = [edition.year, edition.publisher, edition.collection, languageName(edition)].filter(Boolean).join(' · ');
   return (
     <li class="search-item">
@@ -192,6 +227,11 @@ function EditionRow({ edition, busy, picking, onPick }: { edition: EditionResult
         <span class="search-title">{edition.title}</span>
         <span class="search-line">{line}</span>
         <span class="search-hint">{t('book.isbn', edition.isbn)}</span>
+        {mark && (
+          <span class="search-mark" data-mark={mark}>
+            {t(mark === 'owned' ? 'search.in-library' : 'search.on-to-buy')}
+          </span>
+        )}
       </button>
     </li>
   );
