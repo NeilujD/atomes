@@ -42,6 +42,7 @@ test('offline, Search finds a Library title on this device and gives its Shelf C
   await page.getByLabel('Title or author').fill('Astérix');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByText(/^Nothing on this device matches these words/)).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Editions' })).toBeHidden();
   await expect(page.getByLabel('Title or author')).toHaveValue('Astérix');
   await expect(page.getByRole('button', { name: 'Scan the barcode' })).toBeVisible();
 

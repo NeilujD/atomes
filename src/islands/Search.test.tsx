@@ -176,6 +176,18 @@ describe('Search mode', () => {
       expect(await screen.findByRole('button', { name: /^Ils étaient dix/ })).toBeTruthy();
     });
 
+    test('no match after a match: the results of the words before go', async () => {
+      vi.stubGlobal('navigator', { ...navigator, onLine: false });
+      screenWith({ onDevice: (words) => Promise.resolve(words === 'ils etaient' ? kept : []) });
+
+      searchFor('ils etaient');
+      expect(await screen.findByRole('button', { name: /^Ils étaient dix/ })).toBeTruthy();
+      searchFor('asterix');
+
+      expect(await screen.findByText(/^Nothing on this device matches these words/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /^Ils étaient dix/ })).toBeNull();
+    });
+
     test('no match: not a sure answer, so the words stay and Scan is offered', async () => {
       vi.stubGlobal('navigator', { ...navigator, onLine: false });
       const calls = screenWith({ onDevice: () => Promise.resolve([]) });

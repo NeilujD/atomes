@@ -176,7 +176,7 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
       () => sources.find(typed),
       () => void searchDevice(typed),
     );
-    if (answer) showResults({ kind: 'results', found: answer });
+    if (answer) showResults([{ kind: 'results', found: answer }]);
   }
 
   // With no network: the books this device keeps for Shelf Check. No match is
@@ -187,15 +187,17 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
     setPending('search');
     const editions = await sources.onDevice(typed).catch(() => undefined);
     if (running.current !== request) return;
-    if (editions?.length) return showResults({ kind: 'device', editions });
+    if (editions?.length) return showResults([{ kind: 'device', editions }]);
+    // No match is an answer for these words: the results of the words before go.
+    if (editions) showResults([]);
     stop();
     say(editions ? 'search.device-nothing' : 'search.offline');
   }
 
-  // New results replace every step; the history entries of the steps before go.
-  function showResults(step: Step) {
+  // New results (or none) replace every step; the history entries of the steps before go.
+  function showResults(next: Step[]) {
     const depth = shown.current.length - 1;
-    show([step], 'fade');
+    show(next, 'fade');
     if (depth > 0) history.go(-depth);
   }
 
