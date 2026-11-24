@@ -72,3 +72,25 @@ test('with backups but no processor named, the notice says which settings are mi
   expect(html).not.toContain('Scaleway');
   expect(html).not.toContain('Cloudflare');
 });
+
+// Audience measurement (RYBBIT_*): a page loads the script only where the
+// instance sets it, and the Privacy notice tells it then.
+test('with Rybbit set, each page loads its script and the Privacy notice names it', async () => {
+  vi.stubEnv('RYBBIT_SCRIPT_URL', 'https://analytics.example.org/api/script.js');
+  vi.stubEnv('RYBBIT_SITE_ID', '61cbdf4317e7');
+
+  const html = await render();
+
+  expect(html).toMatch(/<script src="https:\/\/analytics\.example\.org\/api\/script\.js" data-site-id="61cbdf4317e7" defer><\/script>/);
+  expect(html).toContain('analytics.example.org counts the visits with Rybbit');
+});
+
+test('with no Rybbit, no page loads a script from another host, and the notice says nothing of it', async () => {
+  vi.stubEnv('RYBBIT_SCRIPT_URL', '');
+  vi.stubEnv('RYBBIT_SITE_ID', '');
+
+  const html = await render();
+
+  expect(html).not.toContain('<script src=');
+  expect(html).not.toContain('Rybbit');
+});

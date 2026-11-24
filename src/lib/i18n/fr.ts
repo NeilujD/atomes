@@ -768,6 +768,8 @@ Ce que cette instance garde : ${privacy}`,
     `${processor} envoie vos codes de connexion, et l’e-mail à une personne qu’un administrateur ajoute : il reçoit l’adresse e-mail et l’e-mail, pour cela seulement.`,
   'privacy.processor-backups': (processor) => `Chaque heure, une copie chiffrée de la bibliothèque part vers ${processor}, et y reste 30 jours.`,
   'privacy.no-backups': 'Aucune copie de la bibliothèque ne quitte le serveur de cette instance.',
+  'privacy.processor-analytics': (host) =>
+    `Pour voir comment l’instance sert, ${host} compte les visites avec Rybbit : pour chaque page, son adresse et son titre, la page d’où vous venez, la taille de votre écran, votre langue et votre pays. Il ne pose aucun cookie, ne garde pas votre adresse IP et ne connaît jamais votre compte.`,
   'privacy.shared-heading': 'Ce que vous partagez',
   'privacy.shared':
     'Les enregistrements partagés (statuts de lecture, séries suivies, étiquettes) vont sur votre compte AT Protocol, où tout le monde peut les lire. Rien n’est partagé tant que vous ne l’activez pas. Les exemplaires, les prêts et la liste À acheter ne sont jamais partagés.',
@@ -779,7 +781,7 @@ Ce que cette instance garde : ${privacy}`,
     'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés.',
   'privacy.rights-backups': 'Les sauvegardes chiffrées la gardent encore 30 jours au plus.',
   'privacy.requests': 'Pour toute autre demande, écrivez au contact ci-dessus.',
-  'privacy.updated': 'Dernière modification : 20 novembre 2026.',
+  'privacy.updated': 'Dernière modification : 24 novembre 2026.',
   // Legal notice (src/pages/legal.astro, CORE-160), approved by the owner on
   // 2026-11-19 (CORE-162). A change to it needs the owner's approval and a new date.
   'legal.title': 'Mentions légales',
@@ -888,8 +890,8 @@ Ce que cette instance garde : ${privacy}`,
   'landing.principle-private-text': 'Rien de ce que vous ajoutez n’est public. Vous choisissez quoi partager, par catégorie, et vous pouvez garder n’importe quel livre à part.',
   'landing.principle-yours': 'Ce que vous partagez reste à vous',
   'landing.principle-yours-text': 'Les enregistrements partagés vont sur votre propre PDS, dans des lexiques ouverts sous licence MIT. Toute app peut les lire ; vous pouvez partir avec.',
-  'landing.principle-quiet': 'Ni fil, ni publicité, ni pistage',
-  'landing.principle-quiet-text': 'Pas de fil d’actualité, pas de moteur de recommandation, pas de mesure d’audience. Atomes fait une seule chose : vos étagères.',
+  'landing.principle-quiet': 'Ni fil, ni publicité, ni cookie de pistage',
+  'landing.principle-quiet-text': 'Pas de fil d’actualité, pas de moteur de recommandation. Atomes fait une seule chose : vos étagères.',
   'landing.honest-title': 'En toute franchise',
   'landing.honest':
     'Aujourd’hui, vos enregistrements privés vivent sur l’instance Atomes que vous utilisez, pas sur votre PDS : l’AT Protocol n’a pas encore d’enregistrements privés. La personne qui gère l’instance pourrait les lire. Le panneau d’administration ne montre pas qui vous êtes : il nomme chaque compte par un code court. Pour voir votre adresse e-mail, un administrateur doit saisir un motif, que le journal d’administration garde. C’est une règle de l’app, pas un verrou. Si cela compte pour vous, hébergez votre propre instance. Le catalogue n’apprend que les ISBN recherchés, jamais qui les possède.',

@@ -4,7 +4,7 @@
 // (ADR 0013) allows it by its hash. A page adds its own tags in the slot.
 import { createHash } from 'node:crypto';
 import { appIcons } from '../lib/environment';
-import { appEnvironment } from '../lib/server/settings';
+import { appEnvironment, rybbit } from '../lib/server/settings';
 
 interface Props {
   title: string;
@@ -16,6 +16,13 @@ const { title, boot } = Astro.props;
 Astro.csp?.insertScriptHash(`sha256-${createHash('sha256').update(boot).digest('base64')}`);
 // Outside production, the favicon and home screen icon are orange (src/lib/environment.ts).
 const icons = appIcons(appEnvironment(process.env));
+// Audience measurement, where the instance sets it (RYBBIT_*, settings.ts): the
+// CSP lets the script load from its host and send its events there.
+const analytics = rybbit(process.env);
+if (analytics) {
+  Astro.csp?.insertScriptResource(analytics.origin);
+  Astro.csp?.insertDirective(`connect-src 'self' ${analytics.origin}`);
+}
 ---
 
 <meta charset="utf-8" />
@@ -28,4 +35,5 @@ const icons = appIcons(appEnvironment(process.env));
 <link rel="apple-touch-icon" href={icons.appleTouch} />
 <meta name="generator" content={Astro.generator} />
 <title>{title}</title>
+{analytics && <script is:inline src={analytics.scriptUrl} data-site-id={analytics.siteId} defer />}
 <slot />
