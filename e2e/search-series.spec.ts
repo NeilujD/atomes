@@ -17,7 +17,7 @@ test('Check → Search "Astérix" → Edition Line → "7 · Le Combat des chefs
   const editions = page.getByRole('list', { name: 'Editions' }).getByRole('listitem');
   await expect(editions.filter({ hasText: 'Dargaud' })).toHaveCount(0);
   const hachette2005 = editions.filter({ hasText: 'ISBN 9782012101395' });
-  await expect(hachette2005).toContainText('Volume 7 · Le combat des chefs · Hachette · 2001–2004');
+  await expect(hachette2005).toContainText('Volume 7 · Le Combat des chefs · Hachette · 2001–2004');
   await hachette2005.getByRole('button').click();
 
   const answer = page.getByRole('dialog', { name: 'Shelf Check' });

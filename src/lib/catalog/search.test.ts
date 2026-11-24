@@ -451,7 +451,7 @@ describe('Search: Series and Volumes (CORE-187)', () => {
     expect(all).toContainEqual({ id: 'wd:Q97188282', number: null, title: "Le Menhir d'or" });
   });
 
-  test('"Le Combat des chefs" gives the Volume 7 Work; its Editions carry the Volume number and title and their Edition Line name', async () => {
+  test('"Le Combat des chefs" gives the Volume 7 Work; its Editions carry the Volume number, the title of the Volume list and their Edition Line name', async () => {
     const { catalog } = setup();
 
     expect((await works(await find(catalog, 'Le Combat des chefs')))[0].id).toBe(combatDesChefs);
@@ -459,7 +459,7 @@ describe('Search: Series and Volumes (CORE-187)', () => {
 
     expect(found.editions.find(({ isbn }) => isbn === '9782012101395')).toMatchObject({
       volume: 7,
-      volumeTitle: 'Le combat des chefs',
+      volumeTitle: 'Le Combat des chefs',
       line: { publisher: 'Hachette', first: 2001, last: 2004, language: 'fre' },
     });
     // Every Edition Line: the Dargaud Edition of 1984 too.

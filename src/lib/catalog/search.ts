@@ -539,21 +539,22 @@ export async function workEditions(fetch: SourceFetch, ids: string[], asked: Edi
   return { ...found, sections: sections(found.editions, work, asked) };
 }
 
-// The Editions of a Volume: each with its Volume number and title, from its
-// BnF record, else from the Work; and its Edition Line name, the Series line
+// The Editions of a Volume: each with its Volume number, from its BnF record,
+// else from the Work; its title as the Volume list gives it (the Work's), else
+// from its BnF record; and its Edition Line name, the Series line
 // BnF lists with the same publisher and language, else the name of the
 // Editions of this Volume with that publisher and language.
 async function asVolume(fetch: SourceFetch, work: Entity, series: string, editions: EditionResult[], inSeries: Map<string, Printed['inSeries']>) {
   const seriesTitle = label((await entities(fetch, [series])).get(series)) ?? '';
   const lines = seriesTitle ? await seriesLines(fetch, seriesTitle) : [];
   const number = volumeNumber(claim(work, 'wdt:P1545')) ?? null;
-  const title = volumeTitle(work.labels?.fr ?? label(work), seriesTitle);
+  const title = volumeTitle(label(work), seriesTitle);
   const sameGroup = (a: EditionResult, b: { publisher: string | null; language: string | null }) =>
     !!a.publisher && !!b.publisher && samePublisher(a.publisher, b.publisher) && (a.language === b.language || !a.language || !b.language);
   for (const edition of editions) {
     const own = inSeries.get(edition.isbn);
     edition.volume = own?.volume ?? number;
-    edition.volumeTitle = own ? own.title : title;
+    edition.volumeTitle = title ?? own?.title ?? null;
     edition.line = !edition.publisher
       ? null
       : (lines.find((line) => sameGroup(edition, line)) ?? {

@@ -398,8 +398,8 @@ describe('Search mode: Series and Volumes (CORE-187)', () => {
   ];
   const hachette2005 = '9782012101395';
   const volume7 = [
-    { isbn: hachette2005, title: 'Le combat des chefs', year: 2005, publisher: 'Hachette', collection: null, language: 'fre', volume: 7, volumeTitle: 'Le combat des chefs', line: hachette },
-    { isbn: '9782205001709', title: 'Le combat des chefs', year: 1984, publisher: 'Dargaud', collection: null, language: 'fre', volume: 7, volumeTitle: 'Le combat des chefs', line: dargaud },
+    { isbn: hachette2005, title: 'Le combat des chefs', year: 2005, publisher: 'Hachette', collection: null, language: 'fre', volume: 7, volumeTitle: 'Le Combat des chefs', line: hachette },
+    { isbn: '9782205001709', title: 'Le combat des chefs', year: 1984, publisher: 'Dargaud', collection: null, language: 'fre', volume: 7, volumeTitle: 'Le Combat des chefs', line: dargaud },
   ];
   const volume7Found: EditionsFound = { editions: volume7, noIsbn: 0, sections: [{ language: 'fr', matches: false, editions: volume7 }] };
   const findSeries = () => Promise.resolve({ found: { works: [], authors: [], series: [asterix] } });
@@ -459,8 +459,8 @@ describe('Search mode: Series and Volumes (CORE-187)', () => {
 
     const list = await screen.findByRole('list', { name: 'Français' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(2);
-    expect(within(list).getByText('Volume 7 · Le combat des chefs · Hachette · 2001–2004')).toBeTruthy();
-    expect(within(list).getByText('Volume 7 · Le combat des chefs · Dargaud · 1982–1984')).toBeTruthy();
+    expect(within(list).getByText('Volume 7 · Le Combat des chefs · Hachette · 2001–2004')).toBeTruthy();
+    expect(within(list).getByText('Volume 7 · Le Combat des chefs · Dargaud · 1982–1984')).toBeTruthy();
   });
 
   // A follow keeps the identifier it was saved with: the Series row answers to its `sameAs` ones too.
