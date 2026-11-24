@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/preact';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { EditionsFound, WorkResult } from '../lib/catalog/search';
+import type { Library } from '../lib/library/model';
 import { Search, type SearchProps, type Sources } from './Search';
 
 const work: WorkResult = { id: 'wd:Q214132', also: [], title: 'Dix Petits Nègres', authors: ['Agatha Christie'], year: 1939 };
@@ -136,5 +137,108 @@ describe('Search mode', () => {
 
     expect(await screen.findByText(/book sources/i)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Scan the barcode' })).toBeNull();
+  });
+  describe('marks from the Library on this device', () => {
+    const empty: Library = {
+      copies: [],
+      readingStatuses: [],
+      follows: [],
+      loans: [],
+      toBuy: [],
+    };
+    const createdAt = '2026-11-01T00:00:00.000Z';
+    const editionRow = (isbn: string) => screen.getByText(`ISBN ${isbn}`).closest('li')!;
+
+    test('an owned Edition shows In Library, an Edition on To Buy shows On To Buy, another shows none', async () => {
+      const library: Library = {
+        ...empty,
+        copies: [
+          {
+            rkey: 'c1',
+            value: { isbn: ilsEtaientDix, works: [work.id], createdAt },
+          },
+        ],
+      };
+      screenWith({}, { marks: { library, toBuy: new Set(['9782253003960']) } });
+
+      await openWork();
+      await screen.findByRole('list', { name: 'Editions' });
+
+      expect(within(editionRow(ilsEtaientDix)).getByText('In Library')).toBeTruthy();
+      expect(within(editionRow('9782253003960')).getByText('On To Buy')).toBeTruthy();
+      expect(within(editionRow(ilsEtaientDix)).queryByText('On To Buy')).toBeNull();
+    });
+
+    test('a Work row has the Work mark: owned in any Edition, under any of its identifiers', async () => {
+      const library: Library = {
+        ...empty,
+        copies: [
+          {
+            rkey: 'c1',
+            value: {
+              isbn: '9782253017097',
+              works: ['inv:9cc51ef9d8cd911a9eac07523f69232f'],
+              createdAt,
+            },
+          },
+        ],
+      };
+      screenWith(
+        {
+          find: () =>
+            Promise.resolve({
+              found: [{ ...work, also: ['inv:9cc51ef9d8cd911a9eac07523f69232f'] }],
+            }),
+        },
+        { marks: { library, toBuy: new Set() } },
+      );
+
+      searchFor('Dix petits nègres');
+
+      const row = await screen.findByRole('button', {
+        name: /^Dix Petits Nègres/,
+      });
+      expect(within(row).getByText('Already in your Library')).toBeTruthy();
+    });
+
+    test('a read Work shows the read mark, whatever the Edition, on its row and over its Editions', async () => {
+      const library: Library = {
+        ...empty,
+        readingStatuses: [
+          {
+            rkey: work.id,
+            value: {
+              work: work.id,
+              isbn: '9782253017097',
+              status: 'read',
+              updatedAt: createdAt,
+            },
+          },
+        ],
+      };
+      screenWith({}, { marks: { library, toBuy: new Set() } });
+
+      searchFor('Dix petits nègres');
+      const row = await screen.findByRole('button', {
+        name: /^Dix Petits Nègres/,
+      });
+      expect(within(row).getByText('Read, not in your Library')).toBeTruthy();
+
+      fireEvent.click(row);
+      await screen.findByRole('list', { name: 'Editions' });
+      expect(screen.getByText('Read, not in your Library')).toBeTruthy();
+      expect(within(editionRow(ilsEtaientDix)).queryByText('In Library')).toBeNull();
+    });
+
+    test('a Work neither owned nor read has no mark', async () => {
+      screenWith({}, { marks: { library: empty, toBuy: new Set() } });
+
+      searchFor('Dix petits nègres');
+
+      const row = await screen.findByRole('button', {
+        name: /^Dix Petits Nègres/,
+      });
+      expect(row.querySelector('.search-mark')).toBeNull();
+    });
   });
 });

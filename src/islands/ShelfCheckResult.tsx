@@ -41,7 +41,7 @@ export interface ResultProps {
   // While a Copy or a To Buy record saves: which button shows it.
   saving?: 'add' | 'read' | 'to-buy';
   // Where Check a book was opened from: from To Buy, Add to To Buy is the
-  // main action; from anywhere else, Add to Library is.
+  // main action; from anywhere else, I have it is.
   entry: 'check' | 'to-buy';
   // The browser can open a camera.
   canScan: boolean;
@@ -167,8 +167,8 @@ export function ShelfCheckResult(props: ResultProps) {
   );
 }
 
-// Not owned: Add to Library, Add and mark as read, and Add to To Buy, whose
-// first is the main action of the entry. Owned: Scan another book, and Add
+// Not owned: I have it (a Copy, as Quick Add makes), Add and mark as read,
+// and Add to To Buy, whose first is the main action of the entry (CORE-185). Owned: Scan another book, and Add
 // another Copy (To Buy refuses a book the reader owns). No Catalog data
 // offline: nothing to add.
 function Actions({ book, check, saving, entry, canScan, onScan, onAdd, onToBuy }: ResultProps) {
@@ -199,7 +199,7 @@ function Actions({ book, check, saving, entry, canScan, onScan, onAdd, onToBuy }
     <div class="result-actions">
       {toBuyFirst && toBuy}
       <button class={`result-action ${toBuyFirst ? 'result-secondary' : 'result-primary'}`} type="button" {...busy('add')} onClick={() => onAdd(false)}>
-        {t('add.submit')}
+        {t('check.have-it')}
       </button>
       {check.status !== 'read' && (
         <button class="result-action result-secondary" type="button" {...busy('read')} onClick={() => onAdd(true)}>

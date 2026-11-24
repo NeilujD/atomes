@@ -1,11 +1,11 @@
 import { expect, test } from './test';
 
 // The Series card of a Series not followed comes after the answer on the
-// result screen (it waits for the Edition Line). Add to Library must not move
+// result screen (it waits for the Edition Line). "I have it" must not move
 // when it comes: a tap aimed at it would land elsewhere.
-test('Check a book: Add to Library stays in place when the Series card comes', async ({ page, signIn }) => {
+test('Check a book: "I have it" stays in place when the Series card comes', async ({ page, signIn }) => {
   await signIn();
-  // Hold the Edition Line until Add to Library is on screen.
+  // Hold the Edition Line until "I have it" is on screen.
   let release = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
   await page.route('**/api/catalog/editions/*/volumes', async (route) => {
@@ -18,7 +18,7 @@ test('Check a book: Add to Library stays in place when the Series card comes', a
   await page.getByLabel('ISBN', { exact: true }).fill('9782723478991');
   await page.getByRole('button', { name: 'Look up' }).click();
   await expect(page.getByText('Not in your Library', { exact: true })).toBeVisible();
-  const add = page.getByRole('button', { name: 'Add to Library' });
+  const add = page.getByRole('button', { name: 'I have it' });
   const before = (await add.boundingBox())!;
   release();
 

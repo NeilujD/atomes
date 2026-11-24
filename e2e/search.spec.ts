@@ -3,7 +3,8 @@ import { expect, quickAdd, test } from './test';
 
 // Search mode of Check a book (ADR 0021, CORE-184, CORE-190) on the recorded
 // Catalog: an old title finds the Work, whose Editions come newest first under
-// the title printed on each. A picked Edition gets the Shelf Check answer of a scan.
+// the title printed on each. A picked Edition gets the Shelf Check answer of a scan;
+// "I have it" makes the Copy of Quick Add (CORE-185).
 
 // Searches the words and opens the Christie Work.
 async function openChristie(page: Page) {
@@ -35,10 +36,10 @@ test('Check → Search → an old title → Work → Edition → the Shelf Check
   await expect(livreDePoche2020).toContainText('2020 · le Livre de poche');
   await livreDePoche2020.getByRole('button', { name: /^Ils étaient dix/ }).click();
 
-  // The answer of a scan; from Check, Add to Library is the main action.
+  // The answer of a scan; from Check, "I have it" is the main action.
   const answer = page.getByRole('dialog', { name: 'Shelf Check' });
   await expect(answer.getByText('Not in your Library', { exact: true })).toBeVisible();
-  await expect(answer.getByRole('button', { name: 'Add to Library' })).toHaveClass(/result-primary/);
+  await expect(answer.getByRole('button', { name: 'I have it' })).toHaveClass(/result-primary/);
   await answer.getByRole('button', { name: 'Add to To Buy' }).click();
   await expect(answer).toBeHidden();
   await expect(page.getByRole('status').filter({ hasText: 'Ils étaient dix is on your To Buy list.' }).first()).toBeVisible();
@@ -96,4 +97,39 @@ test('Search: an owned Edition gets the owned answer of a scan, with nothing to 
   await page.goBack();
   await expect(answer).toBeHidden();
   await expect(editions(page).first()).toBeVisible();
+});
+
+test('Quick Add → Search by title or author → a Volume Work → Edition → "I have it" → Series Onboarding; Search then marks it', async ({ page, signIn }) => {
+  await signIn();
+  // The link under the scanner of Quick Add (CORE-185): Search mode, on the same page.
+  await page.goto('/check');
+  await page.getByRole('link', { name: 'Search by title or author' }).click();
+  await expect(page.getByRole('radio', { name: 'Search' })).toBeChecked();
+  await expect(page).toHaveURL(/\/check\?mode=search$/);
+
+  await page.getByLabel('Title of the book').fill('Le Combat des chefs');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await page.getByRole('button', { name: /^Le Combat des chefs René Goscinny, Albert Uderzo · 1966/ }).click();
+  // Astérix 7, Hachette, 2005: a Volume of a Series this reader neither follows nor dropped.
+  await editions(page).filter({ hasText: 'ISBN 9782012101395' }).getByRole('button').click();
+
+  const answer = page.getByRole('dialog', { name: 'Shelf Check' });
+  await expect(answer.getByText('Not in your Library', { exact: true })).toBeVisible();
+  const haveIt = answer.getByRole('button', { name: 'I have it' });
+  await expect(haveIt).toHaveClass(/result-primary/);
+  await haveIt.click();
+  await expect(page).toHaveURL(/\/onboarding\?isbn=9782012101395$/);
+  await expect(page.getByRole('heading', { name: /^Which Volumes/ })).toBeVisible();
+
+  // The Copy was saved before Series Onboarding: it is in the Library.
+  await page.goto('/library');
+  await expect(page.locator('main').getByText(/combat des chefs/i).first()).toBeVisible();
+
+  // Search now marks the Work and the exact Edition.
+  await page.goto('/check?mode=search&q=Le+Combat+des+chefs');
+  const work = page.getByRole('button', { name: /^Le Combat des chefs René Goscinny, Albert Uderzo · 1966/ });
+  await expect(work).toContainText('Already in your Library');
+  await work.click();
+  await expect(editions(page).filter({ hasText: 'ISBN 9782012101395' })).toContainText('In Library');
+  await expect(editions(page).filter({ hasText: 'In Library' })).toHaveCount(1);
 });

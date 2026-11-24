@@ -47,7 +47,7 @@ function screenFor(check: ShelfCheck, change: Partial<ResultProps> = {}) {
 }
 
 describe('the Shelf Check result screen', () => {
-  test('not in the Library: green, the Series title and Volume, authors and publisher, chips, Add to Library, Add and mark as read, Add to To Buy', () => {
+  test('not in the Library: green, the Series title and Volume, authors and publisher, chips, I have it, Add and mark as read, Add to To Buy', () => {
     const { calls, screen: shown } = screenFor({ kind: 'new', status: 'unread', followed: null });
 
     expect(shown.dataset.tone).toBe('go');
@@ -56,7 +56,7 @@ describe('the Shelf Check result screen', () => {
     expect(screen.queryByRole('link')).toBeNull();
     expect(screen.getByText('Eiichirō Oda · Glénat')).toBeTruthy();
     expect([...shown.querySelectorAll('.result-chip')].map((chip) => chip.textContent)).toEqual(['French', '18 cm', 'ISBN 9782723478991', 'Private']);
-    fireEvent.click(screen.getByRole('button', { name: 'Add to Library' }));
+    fireEvent.click(screen.getByRole('button', { name: 'I have it' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add and mark as read' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add to To Buy' }));
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
@@ -68,22 +68,22 @@ describe('the Shelf Check result screen', () => {
   const actions = (shown: HTMLElement) =>
     [...shown.querySelectorAll<HTMLButtonElement>('.result-action')].map((each) => `${each.classList.contains('result-primary') ? 'main' : 'other'}: ${each.textContent}`);
 
-  test('from Check: Add to Library is the main action, Add to To Buy another', () => {
+  test('from Check: I have it is the main action, Add to To Buy another', () => {
     const { screen: shown } = screenFor({ kind: 'new', status: 'unread', followed: null });
 
-    expect(actions(shown)).toEqual(['main: Add to Library', 'other: Add and mark as read', 'other: Add to To Buy']);
+    expect(actions(shown)).toEqual(['main: I have it', 'other: Add and mark as read', 'other: Add to To Buy']);
   });
 
   test('from To Buy: Add to To Buy is the main action', () => {
     const { screen: shown } = screenFor({ kind: 'missing', status: 'unread', followed: onePiece }, { entry: 'to-buy' });
 
-    expect(actions(shown)).toEqual(['main: Add to To Buy', 'other: Add to Library', 'other: Add and mark as read']);
+    expect(actions(shown)).toEqual(['main: Add to To Buy', 'other: I have it', 'other: Add and mark as read']);
   });
 
-  test('read, not owned, from To Buy: Add to To Buy, then Add to Library', () => {
+  test('read, not owned, from To Buy: Add to To Buy, then I have it', () => {
     const { screen: shown } = screenFor({ kind: 'read', status: 'read', followed: null }, { entry: 'to-buy' });
 
-    expect(actions(shown)).toEqual(['main: Add to To Buy', 'other: Add to Library']);
+    expect(actions(shown)).toEqual(['main: Add to To Buy', 'other: I have it']);
   });
 
   test('owned, from To Buy too: no Add to To Buy (To Buy refuses a book the reader owns)', () => {
@@ -110,7 +110,7 @@ describe('the Shelf Check result screen', () => {
     const { screen: shown } = screenFor({ kind: 'read', status: 'read', followed: null });
     expect(shown.dataset.tone).toBe('go');
     expect(screen.getByText('Read, not in your Library')).toBeTruthy();
-    // Already read: only Add to Library.
+    // Already read: only I have it.
     expect(screen.queryByRole('button', { name: 'Add and mark as read' })).toBeNull();
     expect(screen.getByRole('link', { name: 'One Piece, Volume 56' }).getAttribute('href')).toBe('/book?work=inv%3A56');
   });
@@ -136,7 +136,7 @@ describe('the Shelf Check result screen', () => {
     expect(shown.dataset.tone).toBe('unknown');
     expect(screen.getByText('Cannot tell on this device')).toBeTruthy();
     expect(screen.getByText('This device does not know this book yet. Check online later.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Add to Library' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'I have it' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Scan the barcode' })).toBeNull();
   });
 
@@ -170,7 +170,7 @@ describe('the Shelf Check result screen', () => {
     screenFor({ kind: 'new', status: 'unread', followed: null }, { saving: 'read' });
 
     expect(screen.getByRole('button', { name: 'Add and mark as read' }).getAttribute('aria-busy')).toBe('true');
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add to Library' }).disabled).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'I have it' }).disabled).toBe(true);
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Close' }).disabled).toBe(true);
   });
 
@@ -178,6 +178,6 @@ describe('the Shelf Check result screen', () => {
     screenFor({ kind: 'new', status: 'unread', followed: null }, { saving: 'to-buy' });
 
     expect(screen.getByRole('button', { name: 'Add to To Buy' }).getAttribute('aria-busy')).toBe('true');
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add to Library' }).disabled).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'I have it' }).disabled).toBe(true);
   });
 });

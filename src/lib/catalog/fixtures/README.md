@@ -156,3 +156,20 @@ bun scripts/record-catalog-answers.ts 9782253241782 9782253017097
 | 9782253017097 | Dix petits nègres, Le Livre de poche, 1977: BnF holds only its ISBN-10 (2-253-01709-4) and finds it by the ISBN-10 only; unknown to Inventaire. Open Library did not answer (connection reset), so it has no file: "unknown" |
 
 Merged by ISBN-13: 45 Editions (BnF 22, Inventaire 32, both 9), 23 with no ISBN (14 BnF records, 9 Inventaire Editions).
+
+"I have it" in Search (CORE-185), for `e2e/search.spec.ts`, recorded on 2026-11-24:
+
+```sh
+bun scripts/record-catalog-answers.ts --find "Le Combat des chefs"
+bun scripts/record-catalog-answers.ts --fill 9782012101395
+```
+
+| File | Answer |
+|---|---|
+| `inventaire-search-5ed2406946fd.json` | Inventaire Work search "Le Combat des chefs": `wd:Q1194700` (Goscinny, Uderzo, 1966) first, then 3 Inventaire Works of the same album and other books |
+| `inventaire-batch-*.json` (4), `inventaire-reverse-605feadb1945.json`, `inventaire-wd-Q1194700.json`, `inventaire-wd-Q192214.json` | The Works and Authors of the search, the `wdt:P629` Editions of `wd:Q1194700` and their publishers, the Work and René Goscinny |
+| `bnf-search-db1ebf3c9471-1.xml` | BnF `bib.title adj "Le Combat des chefs" and bib.author all "René Goscinny" and bib.doctype any "a"` |
+| 9782012101395 | Le combat des chefs, Hachette, 2005 ("Une aventure d'Astérix"): Astérix 7 (Inventaire `wd:Q42490`), the Edition the E2E journey says "I have it" for |
+| `bnf-search-98906e501fb5-*.xml` (5 pages) | The BnF Series search of the `--fill`: its Edition Line holds Volume 7 only, enough for Series Onboarding to open |
+
+Merged by ISBN-13: 14 Editions with an ISBN, 5 with none.

@@ -101,3 +101,26 @@
 .search-scan {
   align-self: flex-start;
 }
+
+/* The marks from the Library (CORE-185): the Shelf Check answer of a Work or
+   of an exact Edition, in the ownership colours (ui-direction, Q8): orange
+   owned, green read but not owned. On To Buy answers no ownership: ink. */
+.search-mark {
+  font-size: var(--type-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.search-mark[data-mark='owned'] {
+  color: var(--owned-text);
+}
+
+.search-mark[data-mark='read'] {
+  color: var(--not-owned-text);
+}
+
+/* Under the Scan button of Scan mode (CORE-185): to Search mode. */
+.search-link {
+  align-self: center;
+  font-size: var(--type-small);
+}
