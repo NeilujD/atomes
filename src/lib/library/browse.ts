@@ -159,7 +159,7 @@ function searchedText(book: LibraryBook, searchIn: SearchIn): string {
 }
 
 // "asterix" finds "Astérix", "coeur" finds "Cœur": no accents, no case, ligatures split.
-function fold(text: string): string {
+export function fold(text: string): string {
   return text
     .normalize('NFD')
     .replace(/\p{M}/gu, '')

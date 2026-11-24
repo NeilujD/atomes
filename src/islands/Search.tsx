@@ -3,7 +3,9 @@
 // words, opens a Work (or an Author, then one of their Works; or a Series,
 // then an Edition Line, then a Volume), and picks one of its Editions. The page then looks the ISBN
 // up and shows the Shelf Check answer, as after a scan. Only the words leave
-// the device, to the Atomes server; the results are not kept.
+// the device, to the Atomes server; the results are not kept. With no
+// network, the words are looked for in the books this device keeps for Shelf
+// Check (src/lib/library/device-search.ts), and nothing leaves it.
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { Edition } from '../lib/catalog/catalog';
 import type { FoundAnswer } from '../lib/catalog/client';
@@ -40,6 +42,9 @@ export interface Sources {
   // The Volumes of the reader's Edition Line by its anchor ISBN, for the
   // Series line of a Followed Series; undefined when it cannot be asked.
   line(anchor: string): Promise<Edition[] | undefined>;
+  // With no network: the Editions on this device that hold every word;
+  // undefined when this device has no copy of the Library.
+  onDevice(words: string): Promise<EditionResult[] | undefined>;
 }
 
 export interface SearchProps {
@@ -65,7 +70,9 @@ type Step =
   | { kind: 'author'; row: AuthorResult; works: WorkResult[]; total: number; page: number }
   | { kind: 'series'; row: SeriesResult; volumes: VolumeResult[] }
   | { kind: 'line'; row: SeriesResult; volumes: VolumeResult[]; line: SeriesLine }
-  | { kind: 'work'; row: WorkResult; found: EditionsFound };
+  | { kind: 'work'; row: WorkResult; found: EditionsFound }
+  // The results with no network, from this device.
+  | { kind: 'device'; editions: EditionResult[] };
 
 // How the next step comes in (src/styles/search.css): a deeper step slides in
 // from the right, Back slides it out, new results fade in.
@@ -85,7 +92,8 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
   // Ends the view transition once the new step is on the page.
   const drawn = useRef<() => void>(undefined);
 
-  const say = (key: 'search.offline' | 'add.sources-down' | 'auth.session-ended') => setProblem({ text: t(key), offline: key === 'search.offline' });
+  const say = (key: 'search.offline' | 'search.device-nothing' | 'add.sources-down' | 'auth.session-ended') =>
+    setProblem({ text: t(key), offline: key === 'search.offline' || key === 'search.device-nothing' });
 
   function stop() {
     running.current = undefined;
@@ -94,11 +102,12 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
 
   // A source answer, or undefined with the problem shown. On an answer the
   // request still runs (the current step stays, dimmed) until `show`.
-  async function ask<T>(key: string, question: () => Promise<FoundAnswer<T>>): Promise<T | undefined> {
+  // `offline` runs when there is no network, before the request or on its way.
+  async function ask<T>(key: string, question: () => Promise<FoundAnswer<T>>, offline = () => say('search.offline')): Promise<T | undefined> {
     if (running.current) return undefined;
     setProblem(undefined);
     if (!navigator.onLine) {
-      say('search.offline');
+      offline();
       return undefined;
     }
     const request = {};
@@ -112,9 +121,13 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
       say('signedOut' in answer ? 'auth.session-ended' : 'add.sources-down');
     } catch (error) {
       if (running.current !== request) return undefined;
-      const offline = isNetworkFailure(error);
-      if (offline) reportNetwork(false);
-      say(offline ? 'search.offline' : 'add.sources-down');
+      stop();
+      if (!isNetworkFailure(error)) say('add.sources-down');
+      else {
+        reportNetwork(false);
+        offline();
+      }
+      return undefined;
     }
     stop();
     return undefined;
@@ -158,11 +171,33 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
 
   async function search(typed: string) {
     if (!typed) return;
-    const answer = await ask('search', () => sources.find(typed));
-    if (!answer) return;
+    const answer = await ask(
+      'search',
+      () => sources.find(typed),
+      () => void searchDevice(typed),
+    );
+    if (answer) showResults([{ kind: 'results', found: answer }]);
+  }
+
+  // With no network: the books this device keeps for Shelf Check. No match is
+  // not "not in your Library": the book can still be one this device does not know.
+  async function searchDevice(typed: string) {
+    const request = {};
+    running.current = request;
+    setPending('search');
+    const editions = await sources.onDevice(typed).catch(() => undefined);
+    if (running.current !== request) return;
+    if (editions?.length) return showResults([{ kind: 'device', editions }]);
+    // No match is an answer for these words: the results of the words before go.
+    if (editions) showResults([]);
+    stop();
+    say(editions ? 'search.device-nothing' : 'search.offline');
+  }
+
+  // New results (or none) replace every step; the history entries of the steps before go.
+  function showResults(next: Step[]) {
     const depth = shown.current.length - 1;
-    show([{ kind: 'results', found: answer }], 'fade');
-    // The history entries of the steps before go.
+    show(next, 'fade');
     if (depth > 0) history.go(-depth);
   }
 
@@ -323,6 +358,23 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
             )}
             {step.found.noIsbn > 0 && <p class="search-hint">{t('search.no-isbn', step.found.noIsbn)}</p>}
           </section>
+        ) : step?.kind === 'device' ? (
+          <section class="search-group">
+            <p class="search-hint">{t('search.on-device')}</p>
+            <ul class="card search-list" aria-label={t('search.editions')}>
+              {step.editions.map((each) => (
+                <EditionRow
+                  key={each.isbn}
+                  edition={each}
+                  tagged={false}
+                  mark={marks && editionMark(each.isbn, marks)}
+                  busy={busy}
+                  picking={pending === each.isbn}
+                  onPick={() => void pick(each.isbn)}
+                />
+              ))}
+            </ul>
+          </section>
         ) : step?.kind === 'line' ? (
           <section class="search-group" aria-labelledby="search-line">
             {back}
@@ -396,7 +448,7 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
 
 // The name of a step, on the Back button that returns to it.
 function stepName(step: Step): string {
-  if (step.kind === 'results') return t('search.back');
+  if (step.kind === 'results' || step.kind === 'device') return t('search.back');
   if (step.kind === 'author') return step.row.name;
   if (step.kind === 'line') return lineLabel(step.line);
   return step.row.title;

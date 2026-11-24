@@ -1,6 +1,6 @@
 # Search by title or author, from Inventaire then BnF, merged by ISBN
 
-Status: accepted (2026-11-23); amended 2026-11-23 (Search is a mode of Check a book) and 2026-11-24 (a short story shows the book it is printed in). Amends ADR 0010 (what leaves the server) and the source order of spike 0002 (`docs/spikes/0002-catalog-sources-barcode-and-space-records.md`) for Search only. Built in milestone "M14 · Search". Spec: Linear document "Spec: M14 · Search".
+Status: accepted (2026-11-23); amended 2026-11-23 (Search is a mode of Check a book) 2026-11-24 (a short story shows the book it is printed in) and 2026-11-24 (Search offline finds the books this device keeps). Amends ADR 0010 (what leaves the server) and the source order of spike 0002 (`docs/spikes/0002-catalog-sources-barcode-and-space-records.md`) for Search only. Built in milestone "M14 · Search". Spec: Linear document "Spec: M14 · Search".
 
 A reader can add a book only with its barcode (Quick Add) or by typing its ISBN (To Buy). A reader who heard of a book and does not have it in their hands knows neither. The only search by words today is the BnF search by title and publisher of the amendment of 2026-11-11 to ADR 0010. Quick Add uses it for an ISBN that no source knows. It cannot find a Work under another title: "Dix petits nègres" (the old French title of Agatha Christie's novel) is "Ils étaient dix" in French since 2020, and "And Then There Were None" in English. It cannot search by author either. Decision (grilling of 2026-11-23, Q1 to Q25): **Search finds Works, Series and Authors by title or author words in one box. Inventaire finds the Work under any of its titles. The Editions of the Work come from Inventaire and BnF, merged by ISBN-13.**
 
@@ -65,7 +65,7 @@ Owner feedback (CORE-190): sometimes the barcode and the ISBN cannot be read (a 
 - **One answer.** The pick runs the normal lookup of the ISBN, as a scan does, and shows the Shelf Check result screen: in your Library, read, missing from a Series, or not in your Library.
 - **The main action follows the entry.** The answer of a book the reader does not own always has Add to To Buy. From To Buy (its "+" and its empty-list button, `from=to-buy`), Add to To Buy is the main action; from anywhere else, Add to Library is. The rule of the add is To Buy's (refused when the reader owns the Work or has it on To Buy). An owned answer has no Add to To Buy.
 - **One typed-ISBN field**, in Scan mode only. The typed-ISBN field of the Search screen is removed: a known ISBN goes through Scan mode and its answer.
-- **Offline.** Search mode says it needs a connection, keeps the words, and offers Scan. Scan mode keeps its offline answer from the device. Only the scan and the typed ISBN must work offline; Search offline from the device data is a follow-up (CORE-191).
+- **Offline.** Search mode says it needs a connection, keeps the words, and offers Scan. Scan mode keeps its offline answer from the device. Only the scan and the typed ISBN must work offline; Search offline from the device data is a follow-up (CORE-191). Changed by the second amendment of 2026-11-24 below.
 - **No fuzzy matching of our own.** Inventaire already accepts "10" for "Dix", no accents, and the singular for the plural (live test of 2026-11-23: "10 petits negres" gives "Ils étaient dix" at rank 1). When nothing is found, the screen asks to check the spelling, or to try the author's name.
 - Rejected: two screens, Search apart from Check a book. The reader would get two answers for one question, and Search would not tell what they own.
 - `GLOSSARY.md`: Shelf Check is the answer (owned, read, missing); it starts from a scan, a typed ISBN or Search. "Search" leaves its words to avoid.
@@ -81,3 +81,14 @@ Owner test (CORE-193): Search "Agatha Christie" → her Author row → "Le Dieu 
 - Rejected: list the Editions of the book in place of the short story's. The reader would see Editions under a title they did not tap, with no word of why.
 - ADR 0010: nothing new leaves the server. The only new identifiers sent are Inventaire Work identifiers that Inventaire itself gave.
 - The record script gets `--editions <Work>`, which records the Editions of a Work and of each book it is printed in.
+
+## Amendment 2026-11-24: Search offline finds the books this device keeps
+
+Shops often have a weak signal (CORE-191). The device already keeps, for the Shelf Check offline, the Catalog answers of the Editions of the Library and the Edition Lines of the Followed Series (`src/lib/catalog/device.ts`). Decision (triage of CORE-191): **with no network, Search mode looks for the words in these books, and a pick gets the Shelf Check answer of a scan offline. No word and no ISBN leaves the device.**
+
+- **When.** The browser is offline, or the search fails on its way with a network error (a weak signal). Online, nothing changes.
+- **What.** The kept Editions of the Library (its Copies and Reading Statuses), each Volume of the kept Edition Lines of the Followed Series, and what the reader typed for a Copy no source knows. Each ISBN shows once.
+- **Matching.** Accents, case and the œ and æ ligatures do not count; every word must be in the title, the Volume title, the Series title or an author. No aliases: "10" does not find "Dix" offline, as only the server knows the other titles of a Work.
+- **Results.** One list of Editions with no Work step: the device keeps Editions, not Works. A line says the results are only the books of this device.
+- **No match** is not "not in your Library": the book can still be one this device does not know. The screen says so, keeps the words and offers Scan.
+- This is not a cache of search results: the device searches the book data it keeps for Shelf Check, and keeps nothing more.
