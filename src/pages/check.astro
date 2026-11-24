@@ -187,7 +187,16 @@ const answers = [
   import { ShelfCheckResult } from '../islands/ShelfCheckResult';
   import { openOwnSpace } from '../lib/auth/server-client';
   import type { Edition } from '../lib/catalog/catalog';
-  import { coverUrl, findAuthorWorks, findEditions, findWorks, lookupEdition, lookupEditions, lookupVolumes } from '../lib/catalog/client';
+  import {
+    coverUrl,
+    findAuthorWorks,
+    findEditions,
+    findSeriesVolumes,
+    findWorks,
+    lookupEdition,
+    lookupEditions,
+    lookupVolumes,
+  } from '../lib/catalog/client';
   import { deviceCatalog } from '../lib/catalog/device';
   import { quickAddCopy, saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
   import { editionWork, readIsbn } from '../lib/library/ids';
@@ -966,7 +975,7 @@ const answers = [
   function renderSearch() {
     render(
       h(Search, {
-        sources: { find: findWorks, editions: findEditions, authorWorks: findAuthorWorks },
+        sources: { find: findWorks, editions: findEditions, authorWorks: findAuthorWorks, seriesVolumes: findSeriesVolumes, line: editionLine },
         preferred: readPreferredLanguage(pageLanguage()),
         words: new URLSearchParams(location.search).get('q') ?? '',
         onWords: (words: string) => keepInAddress({ q: words }),

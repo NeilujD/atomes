@@ -24,7 +24,18 @@ import {
 import { inTransaction, migrate } from '../server/migrate';
 import { catalogSteps, type DidAccounts } from './migrations';
 import { dropSharedWorks, losesWork } from './shared-works';
-import { answerCache, authorWorks, find, workEditions, type AuthorWorks, type EditionsAsked, type EditionsFound, type Found } from './search';
+import {
+  answerCache,
+  authorWorks,
+  find,
+  seriesVolumes,
+  workEditions,
+  type AuthorWorks,
+  type EditionsAsked,
+  type EditionsFound,
+  type Found,
+  type VolumeResult,
+} from './search';
 import { shownEditions } from './shown';
 import type { Publisher, SourceFetch } from './sources';
 import { bnfSearch, fetchFacts, inventaireEditions, isCoverUrl, type Listed } from './sources';
@@ -171,6 +182,8 @@ export interface Catalog {
   editions(work: string[], asked?: EditionsAsked, words?: string): Promise<EditionsFound | { unavailable: true }>;
   // One page of 20 Works of an Author of Search, newest first (CORE-188).
   authorWorks(author: string, page: number): Promise<AuthorWorks | { unavailable: true }>;
+  // The Volumes of a Series row of Search, by number (CORE-187).
+  seriesVolumes(series: string): Promise<{ volumes: VolumeResult[] } | { unavailable: true }>;
   // Keeps the reader's choice for an ISBN no source knows. Every reader of the
   // instance gets it; a later choice replaces it, and so does a source that
   // learns the ISBN, whole (no merge).
@@ -910,6 +923,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     find: (words) => searched((fetch) => find(fetch, words)),
     editions: (work, asked, words) => searched((fetch) => workEditions(fetch, work, asked, words)),
     authorWorks: (author, page) => searched((fetch) => authorWorks(fetch, author, page)),
+    seriesVolumes: (series) => searched(async (fetch) => ({ volumes: await seriesVolumes(fetch, series) })),
     choose,
     correct,
     uncorrect,

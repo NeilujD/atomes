@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/preact';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { AuthorResult, AuthorWorks, EditionsFound, WorkResult } from '../lib/catalog/search';
+import type { Edition } from '../lib/catalog/catalog';
+import type { AuthorResult, AuthorWorks, EditionsFound, SeriesResult, VolumeResult, WorkResult } from '../lib/catalog/search';
 import type { Library } from '../lib/library/model';
 import { Search, type SearchProps, type Sources } from './Search';
 
@@ -28,9 +29,11 @@ function screenWith(sources: Partial<Sources> = {}, props: Partial<SearchProps> 
   render(
     <Search
       sources={{
-        find: () => Promise.resolve({ found: { works: [work], authors: [] } }),
+        find: () => Promise.resolve({ found: { works: [work], authors: [], series: [] } }),
         editions: () => Promise.resolve({ found }),
         authorWorks: () => Promise.resolve({ found: { works: [], total: 0 } }),
+        seriesVolumes: () => Promise.resolve({ found: { volumes: [] } }),
+        line: () => Promise.resolve(undefined),
         ...sources,
       }}
       onWords={(words) => calls.words.push(words)}
@@ -85,7 +88,7 @@ describe('Search mode', () => {
   });
 
   test('the words of the address are searched at once: a reload keeps the results', async () => {
-    const find = vi.fn<Sources['find']>(() => Promise.resolve({ found: { works: [work], authors: [] } }));
+    const find = vi.fn<Sources['find']>(() => Promise.resolve({ found: { works: [work], authors: [], series: [] } }));
     screenWith({ find }, { words: 'dix petits' });
 
     expect(await screen.findByRole('button', { name: /^Dix Petits Nègres/ })).toBeTruthy();
@@ -113,7 +116,7 @@ describe('Search mode', () => {
   });
 
   test('nothing found: says to check the spelling or try the author', async () => {
-    screenWith({ find: () => Promise.resolve({ found: { works: [], authors: [] } }) });
+    screenWith({ find: () => Promise.resolve({ found: { works: [], authors: [], series: [] } }) });
 
     searchFor('Dix petis negres');
 
@@ -201,7 +204,7 @@ describe('Search mode', () => {
         {
           find: () =>
             Promise.resolve({
-              found: { works: [{ ...work, also: ['inv:9cc51ef9d8cd911a9eac07523f69232f'] }], authors: [] },
+              found: { works: [{ ...work, also: ['inv:9cc51ef9d8cd911a9eac07523f69232f'] }], authors: [], series: [] },
             }),
         },
         { marks: { library, toBuy: new Set() } },
@@ -334,7 +337,7 @@ const worksPage = (page: number): AuthorWorks => ({
 describe('Search mode: Authors (CORE-188)', () => {
   test('an Author row opens their Works, 20 at a time; Show more adds 20, until all show', async () => {
     const authorWorks = vi.fn<Sources['authorWorks']>((_, page) => Promise.resolve({ found: worksPage(page) }));
-    screenWith({ find: () => Promise.resolve({ found: { works: [work], authors: [agatha] } }), authorWorks });
+    screenWith({ find: () => Promise.resolve({ found: { works: [work], authors: [agatha], series: [] } }), authorWorks });
 
     searchFor('Agatha Christie');
     fireEvent.click(await screen.findByRole('button', { name: 'Agatha Christie · 45 Works' }));
@@ -356,7 +359,7 @@ describe('Search mode: Authors (CORE-188)', () => {
 
   test('a Work of an Author opens its Editions; Back goes to the Author, then to all results', async () => {
     const editions = vi.fn<Sources['editions']>(() => Promise.resolve({ found }));
-    screenWith({ find: () => Promise.resolve({ found: { works: [], authors: [agatha] } }), editions, authorWorks: (_, page) => Promise.resolve({ found: worksPage(page) }) });
+    screenWith({ find: () => Promise.resolve({ found: { works: [], authors: [agatha], series: [] } }), editions, authorWorks: (_, page) => Promise.resolve({ found: worksPage(page) }) });
 
     searchFor('Agatha Christie');
     fireEvent.click(await screen.findByRole('button', { name: 'Agatha Christie · 45 Works' }));
@@ -372,12 +375,126 @@ describe('Search mode: Authors (CORE-188)', () => {
 
   test('two Authors with the same name show their birth years', async () => {
     const dumas = (id: string, birthYear: number | null, works: number): AuthorResult => ({ id, name: 'Alexandre Dumas', birthYear, works });
-    screenWith({ find: () => Promise.resolve({ found: { works: [], authors: [dumas('wd:Q38337', 1802, 309), dumas('wd:Q169150', 1824, 11), dumas('inv:2c0e', null, 1)] } }) });
+    screenWith({ find: () => Promise.resolve({ found: { works: [], authors: [dumas('wd:Q38337', 1802, 309), dumas('wd:Q169150', 1824, 11), dumas('inv:2c0e', null, 1)], series: [] } }) });
 
     searchFor('Alexandre Dumas');
 
     expect(await screen.findByRole('button', { name: 'Alexandre Dumas (1802) · 309 Works' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Alexandre Dumas (1824) · 11 Works' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Alexandre Dumas · 1 Work' })).toBeTruthy();
+  });
+});
+
+describe('Search mode: Series and Volumes (CORE-187)', () => {
+  const dargaud = { publisher: 'Dargaud', first: 1982, last: 1984, language: 'fre' };
+  const hachette = { publisher: 'Hachette', first: 2001, last: 2004, language: 'fre' };
+  const asterix: SeriesResult = { id: 'wd:Q42490', title: 'Astérix', lines: [dargaud, hachette] };
+  const combatDesChefs: VolumeResult = { id: 'wd:Q1194700', number: 7, title: 'Le Combat des chefs' };
+  const volumes: VolumeResult[] = [
+    { id: 'wd:Q618719', number: 1, title: 'Astérix le Gaulois' },
+    combatDesChefs,
+    { id: 'inv:0b0b', number: 56, title: null },
+    { id: 'wd:Q97188282', number: null, title: "Le Menhir d'or" },
+  ];
+  const hachette2005 = '9782012101395';
+  const volume7 = [
+    { isbn: hachette2005, title: 'Le combat des chefs', year: 2005, publisher: 'Hachette', collection: null, language: 'fre', volume: 7, volumeTitle: 'Le combat des chefs', line: hachette },
+    { isbn: '9782205001709', title: 'Le combat des chefs', year: 1984, publisher: 'Dargaud', collection: null, language: 'fre', volume: 7, volumeTitle: 'Le combat des chefs', line: dargaud },
+  ];
+  const volume7Found: EditionsFound = { editions: volume7, noIsbn: 0, sections: [{ language: 'fr', matches: false, editions: volume7 }] };
+  const findSeries = () => Promise.resolve({ found: { works: [], authors: [], series: [asterix] } });
+
+  test('Series → Edition Line → Volume → its Editions in that line: the pick is that Edition', async () => {
+    // English preferred: no English Edition, and the French Edition Line still shows its Editions.
+    const editions = vi.fn<Sources['editions']>(() => Promise.resolve({ found: { ...volume7Found, sections: [{ language: 'en', matches: false, editions: [] }] } }));
+    const calls = screenWith({ find: findSeries, seriesVolumes: () => Promise.resolve({ found: { volumes } }), editions }, { preferred: 'en' });
+
+    searchFor('Astérix');
+    fireEvent.click(await screen.findByRole('button', { name: /^Astérix/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Hachette · 2001–2004/ }));
+    fireEvent.click(await screen.findByRole('button', { name: '7 · Le Combat des chefs' }));
+
+    // One list: the Edition Line has one language, whatever the Preferred Language.
+    const list = await screen.findByRole('list', { name: 'Editions' });
+    expect(editions.mock.calls[0][0].id).toBe(combatDesChefs.id);
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    fireEvent.click(within(list).getByRole('button', { name: /^Le combat des chefs/ }));
+    expect(calls.picked).toEqual([hachette2005]);
+  });
+
+  test('a Volume shows its number and title, its number only, or its title only', async () => {
+    screenWith({ find: findSeries, seriesVolumes: () => Promise.resolve({ found: { volumes } }) });
+
+    searchFor('Astérix');
+    fireEvent.click(await screen.findByRole('button', { name: /^Astérix/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Dargaud/ }));
+
+    const list = await screen.findByRole('list', { name: 'Volumes' });
+    expect(within(list).getAllByRole('button').map((each) => each.textContent)).toEqual(['1 · Astérix le Gaulois', '7 · Le Combat des chefs', '56', "Le Menhir d'or"]);
+  });
+
+  test('Back goes from the Editions to the Volumes, to the Edition Lines, to all results', async () => {
+    screenWith({ find: findSeries, seriesVolumes: () => Promise.resolve({ found: { volumes } }), editions: () => Promise.resolve({ found: volume7Found }) });
+
+    searchFor('Astérix');
+    fireEvent.click(await screen.findByRole('button', { name: /^Astérix/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Hachette · 2001–2004/ }));
+    fireEvent.click(await screen.findByRole('button', { name: '7 · Le Combat des chefs' }));
+    await screen.findByRole('list', { name: 'Editions' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hachette · 2001–2004' }));
+    expect(await screen.findByRole('list', { name: 'Volumes' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Astérix' }));
+    expect(await screen.findByRole('list', { name: 'Edition Lines' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'All results' }));
+    expect(await screen.findByRole('button', { name: /^Astérix/ })).toBeTruthy();
+  });
+
+  test('a Volume found by its title shows its Editions in every Edition Line, each with its Volume and Edition Line name', async () => {
+    const volumeWork: WorkResult = { id: combatDesChefs.id, also: [], title: 'Le Combat des chefs', authors: ['René Goscinny'], year: 1966, language: 'fr' };
+    screenWith({ find: () => Promise.resolve({ found: { works: [volumeWork], authors: [], series: [] } }), editions: () => Promise.resolve({ found: volume7Found }) });
+
+    searchFor('Le Combat des chefs');
+    fireEvent.click(await screen.findByRole('button', { name: /^Le Combat des chefs/ }));
+
+    const list = await screen.findByRole('list', { name: 'Français' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2);
+    expect(within(list).getByText('Volume 7 · Le combat des chefs · Hachette · 2001–2004')).toBeTruthy();
+    expect(within(list).getByText('Volume 7 · Le combat des chefs · Dargaud · 1982–1984')).toBeTruthy();
+  });
+
+  test('a Series the reader follows shows their Shelf Check Series line', async () => {
+    const anchor = '9782012100015';
+    const inLine = (volume: number): Edition => ({
+      isbn: `97820121000${String(volume).padStart(2, '0')}`,
+      title: `Volume ${volume}`,
+      volumeTitle: null,
+      authors: [],
+      publisher: 'Hachette',
+      language: 'fre',
+      format: null,
+      cover: null,
+      work: { id: `wd:Q${volume}`, title: `Volume ${volume}` },
+      series: { id: asterix.id, title: 'Astérix', sameAs: [] },
+      volumes: [volume],
+      volume,
+      sources: ['BnF'],
+      fetchedAt: '2026-11-01T00:00:00.000Z',
+    });
+    const line = [1, 2, 3].map(inLine);
+    const library: Library = {
+      copies: [line[0], line[2]].map((each, i) => ({ rkey: `c${i}`, value: { isbn: each.isbn, works: [each.work.id], createdAt: '2026-11-01T00:00:00.000Z' } })),
+      readingStatuses: [],
+      follows: [{ rkey: asterix.id, value: { series: asterix.id, anchorIsbn: anchor, status: 'following', updatedAt: '2026-11-01T00:00:00.000Z' } }],
+      loans: [],
+      toBuy: [],
+    };
+    const lineOf = vi.fn<Sources['line']>(() => Promise.resolve(line));
+    screenWith({ find: findSeries, line: lineOf }, { marks: { library, toBuy: new Set() } });
+
+    searchFor('Astérix');
+
+    expect(await screen.findByText(/^You have 2 of 3/)).toBeTruthy();
+    expect(lineOf).toHaveBeenCalledWith(anchor);
   });
 });

@@ -1,17 +1,31 @@
 // Search (glossary; ADR 0021), the Search mode of Check a book
 // (src/pages/check.astro, which renders it): the reader types title or author
-// words, opens a Work (or an Author, then one of their Works), and picks one
-// of its Editions. The page then looks the ISBN
+// words, opens a Work (or an Author, then one of their Works; or a Series,
+// then an Edition Line, then a Volume), and picks one of its Editions. The page then looks the ISBN
 // up and shows the Shelf Check answer, as after a scan. Only the words leave
 // the device, to the Atomes server; the results are not kept.
 import { useEffect, useState } from 'preact/hooks';
+import type { Edition } from '../lib/catalog/catalog';
 import type { FoundAnswer } from '../lib/catalog/client';
 import { nativeLanguageName, type PreferredLanguage } from '../lib/catalog/languages';
-import type { AuthorResult, AuthorWorks, EditionResult, EditionSection, EditionsFound, Found, WorkResult } from '../lib/catalog/search';
+import { sameLine } from '../lib/catalog/lines';
+import type {
+  AuthorResult,
+  AuthorWorks,
+  EditionResult,
+  EditionSection,
+  EditionsFound,
+  Found,
+  SeriesLine,
+  SeriesResult,
+  VolumeResult,
+  WorkResult,
+} from '../lib/catalog/search';
 import { reportNetwork } from '../lib/connection';
 import { t } from '../lib/i18n/i18n';
-import { languageName } from '../lib/library/model';
+import { languageName, lineLabel } from '../lib/library/model';
 import { editionMark, workMark, type EditionMark, type SearchMarks } from '../lib/library/search-marks';
+import { seriesLine } from '../lib/library/shelf-check';
 import { isNetworkFailure } from '../lib/network';
 
 export interface Sources {
@@ -20,6 +34,11 @@ export interface Sources {
   editions(work: WorkResult, language: PreferredLanguage): Promise<FoundAnswer<EditionsFound>>;
   // One page (from 1) of 20 Works of an Author, newest first.
   authorWorks(author: AuthorResult, page: number): Promise<FoundAnswer<AuthorWorks>>;
+  // The Volumes of a Series, by number (CORE-187).
+  seriesVolumes(series: SeriesResult): Promise<FoundAnswer<{ volumes: VolumeResult[] }>>;
+  // The Volumes of the reader's Edition Line by its anchor ISBN, for the
+  // Series line of a Followed Series; undefined when it cannot be asked.
+  line(anchor: string): Promise<Edition[] | undefined>;
 }
 
 export interface SearchProps {
@@ -43,6 +62,8 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
   const [results, setResults] = useState<Found>();
   // The open Author: the pages of their Works shown so far.
   const [author, setAuthor] = useState<{ row: AuthorResult; works: WorkResult[]; total: number; page: number }>();
+  // The open Series: its Volumes, and the Edition Line picked.
+  const [series, setSeries] = useState<{ row: SeriesResult; volumes: VolumeResult[]; line?: SeriesLine }>();
   const [work, setWork] = useState<WorkResult>();
   const [found, setFound] = useState<EditionsFound>();
   // Why the last search or pick did not work; the words stay in the box.
@@ -81,6 +102,7 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
     if (!answer) return;
     setResults(answer);
     setAuthor(undefined);
+    setSeries(undefined);
     setWork(undefined);
     setFound(undefined);
   }
@@ -102,6 +124,16 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
     if (!answer) return;
     setAuthor({ row, works: answer.works, total: answer.total, page: 1 });
   }
+
+  async function openSeries(row: SeriesResult) {
+    const answer = await ask(() => sources.seriesVolumes(row));
+    if (!answer) return;
+    setSeries({ row, volumes: answer.volumes });
+  }
+
+  // A Volume opens as the Work it is.
+  const openVolume = (volume: VolumeResult) =>
+    open({ id: volume.id, also: [], title: volumeLabel(volume.number, volume.title), authors: [], year: null, language: null });
 
   async function showMore() {
     if (!author) return;
@@ -169,7 +201,7 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
       {work && found ? (
         <section class="search-group" aria-labelledby="search-work">
           <button class="button button-quiet search-back" type="button" onClick={() => setWork(undefined)}>
-            {author ? author.row.name : t('search.back')}
+            {author ? author.row.name : series?.line ? lineLabel(series.line) : t('search.back')}
           </button>
           <h2 class="search-work-title" id="search-work">
             {work.title}
@@ -179,7 +211,7 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
           {found.editions.length === 0 ? (
             <p class="search-hint">{t('search.no-editions')}</p>
           ) : (
-            found.sections.map((section) => (
+            inLine(found, series?.line).map((section) => (
               <EditionList
                 key={section.language}
                 section={section}
@@ -191,6 +223,43 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
             ))
           )}
           {found.noIsbn > 0 && <p class="search-hint">{t('search.no-isbn', found.noIsbn)}</p>}
+        </section>
+      ) : series?.line ? (
+        <section class="search-group" aria-labelledby="search-line">
+          <button class="button button-quiet search-back" type="button" onClick={() => setSeries({ ...series, line: undefined })}>
+            {series.row.title}
+          </button>
+          <h2 class="search-work-title" id="search-line">
+            {lineLabel(series.line)}
+          </h2>
+          <ul class="card search-list" aria-label={t('search.volumes')}>
+            {series.volumes.map((volume) => (
+              <li class="search-item" key={volume.id}>
+                <button class="search-pick" type="button" disabled={busy} onClick={() => void openVolume(volume)}>
+                  <span class="search-title">{volumeLabel(volume.number, volume.title)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : series ? (
+        <section class="search-group" aria-labelledby="search-series">
+          <button class="button button-quiet search-back" type="button" onClick={() => setSeries(undefined)}>
+            {t('search.back')}
+          </button>
+          <h2 class="search-work-title" id="search-series">
+            {series.row.title}
+          </h2>
+          <ul class="card search-list" aria-label={t('search.edition-lines')}>
+            {series.row.lines.map((line) => (
+              <li class="search-item" key={`${lineLabel(line)}|${line.language}`}>
+                <button class="search-pick" type="button" onClick={() => setSeries({ ...series, line })}>
+                  <span class="search-title">{lineLabel(line)}</span>
+                  {line.language && <span class="chip search-tag">{languageName(line)}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : author ? (
         <section class="search-group" aria-labelledby="search-author">
@@ -215,10 +284,23 @@ export function Search({ sources, preferred, words: given = '', onWords, onPick,
       ) : (
         results && (
           <section class="search-group" aria-label={t('search.works')}>
-            {results.works.length === 0 && results.authors.length === 0 ? (
+            {results.works.length === 0 && results.authors.length === 0 && results.series.length === 0 ? (
               <p class="search-hint">{t('search.nothing')}</p>
             ) : (
               <>
+                {results.series.length > 0 && (
+                  <ul class="card search-list" aria-label={t('search.series')}>
+                    {results.series.map((row) => (
+                      <li class="search-item" key={row.id}>
+                        <button class="search-pick" type="button" disabled={busy} onClick={() => void openSeries(row)}>
+                          <span class="search-title">{row.title}</span>
+                          <span class="search-line">{t('search.series-lines', row.lines.length)}</span>
+                          <SeriesMarkLine series={row} marks={marks} sources={sources} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {results.authors.length > 0 && (
                   <ul class="card search-list" aria-label={t('search.authors')}>
                     {results.authors.map((row) => (
@@ -255,6 +337,40 @@ function WorkMarkLine({ work, marks }: { work: WorkResult; marks?: SearchMarks }
       {mark.kind === 'owned' ? t('check.owned') : t('check.read', t(`status.${mark.status}`))}
     </span>
   );
+}
+
+// "7 · Le Combat des chefs"; the number only, or the title only, when the
+// sources give no other.
+const volumeLabel = (number: number | null | undefined, title: string | null | undefined) =>
+  [number, title].filter((each) => each !== null && each !== undefined).join(' · ');
+
+// The Editions of the Edition Line picked in a Series, in one list: the line
+// has one language, whatever the Preferred Language. Otherwise the sections.
+function inLine(found: EditionsFound, line: SeriesLine | undefined): EditionSection[] {
+  if (!line) return found.sections;
+  return [{ language: null, matches: false, editions: found.editions.filter((each) => each.line && sameLine(each.line, line)) }];
+}
+
+// The Shelf Check Series line of a Series the reader follows (or dropped),
+// in their Edition Line: "You have 12 of 40 · 3 missing". None otherwise.
+function SeriesMarkLine({ series, marks, sources }: { series: SeriesResult; marks?: SearchMarks; sources: Sources }) {
+  const anchor = marks?.library.follows.find(({ rkey }) => rkey === series.id)?.value.anchorIsbn;
+  const [text, setText] = useState<string>();
+  useEffect(() => {
+    if (!marks || !anchor) return;
+    let live = true;
+    void sources
+      .line(anchor)
+      .catch(() => undefined)
+      .then((volumes) => {
+        const counts = volumes && seriesLine({ id: series.id, title: series.title, sameAs: [] }, volumes, marks.library);
+        if (live) setText(counts && t('check.series-line', counts.owned, counts.total, counts.missing));
+      });
+    return () => {
+      live = false;
+    };
+  }, [anchor, marks, series]);
+  return text ? <span class="search-mark">{text}</span> : null;
 }
 
 // The Editions of one language, under its name in itself ("Français"); the
@@ -336,6 +452,9 @@ function EditionRow({
   onPick: () => void;
 }) {
   const line = [edition.year, edition.publisher, edition.collection].filter(Boolean).join(' · ');
+  // An Edition of a Volume: "Volume 7 · Le Combat des chefs · Hachette · 2001–2004".
+  const volume = volumeLabel(edition.volume, edition.volumeTitle);
+  const inSeries = [volume && t('search.volume', volume), edition.line && lineLabel(edition.line)].filter(Boolean).join(' · ');
   const tag = tagged && languageName(edition);
   return (
     <li class="search-item">
@@ -343,6 +462,7 @@ function EditionRow({
         <span class="search-title">{edition.title}</span>
         {tag && <span class="chip search-tag">{tag}</span>}
         <span class="search-line">{line}</span>
+        {inSeries && <span class="search-line">{inSeries}</span>}
         <span class="search-hint">{t('book.isbn', edition.isbn)}</span>
         {mark && (
           <span class="search-mark" data-mark={mark}>

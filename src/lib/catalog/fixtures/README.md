@@ -190,3 +190,20 @@ bun scripts/record-catalog-answers.ts --find "Plouguerneau"
 | `inventaire-batch-*.json` | The Works and Authors of each search; pages 1 and 2 of the Works of Agatha Christie and of `wd:Q38337`; the Editions of `wd:Q141526821` (And Then There Were None, 2025, first of page 1) and of `inv:7bc1d7a89950b1f391aeb99029439e63` |
 | `inventaire-reverse-*.json` (2), `inventaire-wd-Q141526821.json`, `inventaire-inv-*.json`, `inventaire-wd-Q38337.json` | The Editions and the Work of the first Work of page 1 of each Author |
 | `bnf-search-*.xml` (4) | BnF `(bib.title all "Plouguerneau" or bib.author all "Plouguerneau") and bib.doctype any "a"`: 52 records, 2 with a Work authority (500 `$3` 87198521, 87198539); `bib.work2bib any "87198521"`; the BnF title and author queries of the first Works of page 1 |
+
+Series and Volumes (CORE-187), for `search.test.ts` and `e2e/search-series.spec.ts`, recorded on 2026-11-24. Only the files these tests read were kept:
+
+```sh
+bun scripts/record-catalog-answers.ts --find "Astérix"
+bun scripts/record-catalog-answers.ts --series wd:Q42490 7
+bun scripts/record-catalog-answers.ts --find "One Piece"
+bun scripts/record-catalog-answers.ts --series wd:Q28667972 56
+```
+
+| File | Answer |
+|---|---|
+| `inventaire-search-*.json` (4) | The Works and Authors search (`types=works\|humans`) and the Series search (`types=series`) of "Astérix" and of "One Piece". "Astérix": `wd:Q42490` Astérix, `wd:Q1469187` (Kauka adaptations) and `wd:Q104843697` (Asterix Omnibus), which BnF lists no Edition Line of. "One Piece": `wd:Q28667972` first, then lists of anime episodes |
+| `bnf-search-*.xml` | BnF `bib.title all "Astérix" and bib.doctype any "a"` (588 records, the first 100): 6 Edition Lines with a Volume number (Hachette · 2001–2004 among them). The same for "One Piece" (5 Glénat lines). The BnF Work and title queries of Volume 7 (`wd:Q1194700`) and Volume 56 |
+| `inventaire-reverse-*.json`, `inventaire-batch-*.json`, `inventaire-inv-*.json`, `inventaire-wd-Q2010.json` | The Volumes of each Series (`wdt:P179`): Astérix 1 to 41 and 11 Works with no number ("Le Menhir d'or"), One Piece by number; the Editions of Volume 7 and of One Piece 56 and their publishers; Eiichirō Oda |
+
+Volume 7, merged by ISBN-13: the Hachette Editions of 2001 to 2025 named "Hachette · 2001–2004", the line BnF lists; Dargaud 1984 in "Dargaud · 1982–1984". One Piece 56, Glénat 2011 (9782723478991): number 56, no Volume title (BnF 200 `$a` is "One Piece").

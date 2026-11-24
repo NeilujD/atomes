@@ -81,7 +81,8 @@ export function shelfCheck(isbn: string, edition: Checked | undefined, library: 
 }
 
 // Undefined for a book of no Series, or a line with no numbered Volume.
-function seriesLine(series: Series | null | undefined, line: Edition[], library: Library): SeriesLine | undefined {
+// Search shows it on a Series row too (CORE-187).
+export function seriesLine(series: Series | null | undefined, line: Edition[], library: Library): SeriesLine | undefined {
   if (!series) return undefined;
   const standing = seriesStanding(line, library);
   const total = standing.spines.at(-1)?.volume;
