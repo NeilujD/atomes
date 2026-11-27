@@ -45,15 +45,16 @@ export async function lookupEditions(isbns: string[]): Promise<Map<string, Editi
 
 // The Volumes the Catalog knows in the Edition Line of `isbn` (its anchor
 // Edition first looked up), by Volume number, and every Edition Line of its
-// Series (none in an answer kept from before CORE-95). Undefined when the
+// Series (none in an answer kept from before CORE-95). `fillFailed`: a book
+// source failed for the line, so more Volumes may exist. Undefined when the
 // Catalog does not know the ISBN or cannot answer.
 export async function lookupVolumes(
   isbn: string,
-): Promise<{ series: Edition['series']; volumes: Edition[]; lines: LineSummary[] } | undefined> {
+): Promise<{ series: Edition['series']; volumes: Edition[]; lines: LineSummary[]; fillFailed: boolean } | undefined> {
   const response = await fetch(volumesPath(isbn));
   if (!response.ok) return undefined;
-  const answer = (await response.json()) as { series: Edition['series']; volumes: Answered[]; lines?: LineSummary[] };
-  return { series: answer.series, volumes: answer.volumes.map(withVolumes), lines: answer.lines ?? [] };
+  const answer = (await response.json()) as { series: Edition['series']; volumes: Answered[]; lines?: LineSummary[]; fillFailed?: boolean };
+  return { series: answer.series, volumes: answer.volumes.map(withVolumes), lines: answer.lines ?? [], fillFailed: answer.fillFailed === true };
 }
 
 export type SearchAnswer = { found: SearchFound } | { signedOut: true } | { unavailable: true };

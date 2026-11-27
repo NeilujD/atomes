@@ -111,7 +111,7 @@ for (const isbn of process.argv.slice(2).filter((arg) => arg !== '--fill')) {
   const catalog = createCatalog({ file: ':memory:', fetch: recording, host: 'record.local', accounts: { findDid: () => undefined } });
   const found = await catalog.lookup(isbn);
   if ('found' in found) {
-    const volumes = await catalog.volumes(found.found, { fill: true });
+    const { volumes } = await catalog.volumes(found.found, { fill: true });
     console.log(isbn, 'Edition Line:', volumes.map((each) => `${each.volume} ${each.isbn} ${each.work.id}`).join('\n'));
   }
   catalog.close();

@@ -36,6 +36,11 @@
   width: 100%;
 }
 
+/* "Owned" (Series page): the fifth action takes the whole first row. */
+.selection-owned {
+  grid-column: 1 / -1;
+}
+
 .selection-choices {
   justify-content: flex-start;
 }

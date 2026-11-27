@@ -39,6 +39,11 @@ const steppers = [
         </div>
         <h1 class="title" id="onboarding-title" tabindex="-1" data-heading>{t('onboarding.heading')}</h1>
         <p class="hint" data-intro></p>
+        <!-- A book source failed for the Edition Line: more Volumes may exist. -->
+        <div class="fill-failed" data-fill-failed hidden>
+          <p class="hint">{t('onboarding.fill-failed')}</p>
+          <button class="button" type="button" data-fill-retry>{t('onboarding.fill-retry')}</button>
+        </div>
       </div>
 
       <!-- From a later Volume: asked before the ranges and the tiles. -->
@@ -181,6 +186,8 @@ const steppers = [
   // Skip and the close icon: "not now".
   const skips = [...form.querySelectorAll<HTMLAnchorElement>('[data-skip]')];
   const scanBox = card.querySelector<HTMLElement>('[data-volume-scan]')!;
+  const fillFailed = form.querySelector<HTMLElement>('[data-fill-failed]')!;
+  const fillRetry = fillFailed.querySelector<HTMLButtonElement>('[data-fill-retry]')!;
 
   const isbn = new URLSearchParams(location.search).get('isbn') ?? '';
   const bookHref = (work: string) => `/book?work=${encodeURIComponent(work)}`;
@@ -227,6 +234,8 @@ const steppers = [
       // Not while the reader types in it: the caret would jump.
       if (document.activeElement !== field) field.value = String(value);
       const owned = kindOf(stepper) === 'owned';
+      // "All (up to N)": N grows when "Try again" fills the Edition Line.
+      if (owned) stepper.querySelector('[data-shortcut]')!.textContent = t('onboarding.up-to', shown.steps.at(-1)!);
       stepper.querySelector('[data-label]')!.textContent =
         value === 0 ? t(owned ? 'onboarding.own-none' : 'onboarding.read-none') : t(owned ? 'onboarding.own-up-to' : 'onboarding.read-up-to');
       // A shortcut that changes nothing is noise.
@@ -404,11 +413,25 @@ const steppers = [
 
   async function newLine(anchor: Onboarding['anchor']) {
     const answered = await lookupVolumes(anchor.isbn).catch(() => undefined);
-    if (!answered) return toast(t('add.lookup-unreachable'), { error: true });
+    if (!answered) {
+      toast(t('add.lookup-unreachable'), { error: true });
+      return undefined;
+    }
     onboarding = seriesOnboarding(anchor, answered.volumes, library);
     showUnknown(onboarding);
+    fillFailed.hidden = !answered.fillFailed;
     render(onboarding);
+    return answered;
   }
+
+  // The fill of the Edition Line failed: ask again, the choices stay.
+  fillRetry.addEventListener('click', () => {
+    if (!onboarding || fillRetry.disabled) return;
+    fillRetry.disabled = true;
+    void newLine(onboarding.anchor)
+      .then((answered) => answered?.fillFailed && toast(t('onboarding.fill-still-failed'), { error: true }))
+      .finally(() => (fillRetry.disabled = false));
+  });
 
   // The Catalog knows only the Volumes someone looked up: say how many
   // numbers get no Copy.
@@ -503,8 +526,7 @@ const steppers = [
       ? t('onboarding.in-edition', line)
       : t('onboarding.in-added-edition');
     showUnknown(shown);
-    const all = form.querySelector<HTMLButtonElement>('[data-stepper="owned"] [data-shortcut]')!;
-    all.textContent = t('onboarding.up-to', shown.steps.at(-1)!);
+    fillFailed.hidden = !answered!.fillFailed;
     followSwitch.checked = choices.follow;
     for (const skip of skips) skip.href = bookHref(anchor.work.id);
     // A long Series: the range of the added Volume starts open.
@@ -671,6 +693,17 @@ const steppers = [
     display: flex;
     flex-direction: column;
     gap: var(--space-14);
+  }
+
+  .fill-failed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-8) var(--space-12);
+  }
+
+  .fill-failed[hidden] {
+    display: none;
   }
 
   .tap-mode {

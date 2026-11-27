@@ -164,8 +164,9 @@ export interface Catalog {
   // The Volumes of the Edition Line of `anchor` (ADR 0010), by Volume number.
   // Only `anchor` when it has no Series. With `fill`, asks BnF for the whole
   // Edition Line at most once a week; the Volumes known so far without `fill`
-  // or when that fails.
-  volumes(anchor: Edition, options: { fill: boolean }): Promise<Edition[]>;
+  // or when that fails. `fillFailed`: a source failed for this line, now or in
+  // the rest after a failed fill; the reader may try again later.
+  volumes(anchor: Edition, options: { fill: boolean }): Promise<{ volumes: Edition[]; fillFailed: boolean }>;
   // Every Edition Line this Catalog knows in the Series of `edition`, the
   // earliest first. None when the Edition is in no Series.
   lines(edition: Edition): LineSummary[];
@@ -229,8 +230,9 @@ const missTtlMs = 24 * 3600 * 1000;
 // New Volumes come out about once a month in a Series.
 const fillTtlMs = 7 * 24 * 3600 * 1000;
 // After a failed fill, the sources rest: each /volumes call of a signed-in
-// reader must not start a new BnF search while a source is down.
-const fillRetryMs = 3600 * 1000;
+// reader must not start a new BnF search while a source is down. Short enough
+// that "Try again" of Series Onboarding works the same visit.
+const fillRetryMs = 5 * 60 * 1000;
 
 // Pictures only, never SVG: it can hold scripts.
 const coverTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -535,24 +537,26 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
   // Volume or omnibus range ("1-2" next to Volumes 1 and 2) in each line (see
   // `better` below). Like a lookup, nothing is stored when a source fails, so
   // Work identifiers stay the ones a lookup gives.
-  // Calls at the same time for one Edition Line share one fill.
-  const filling = new Map<string, Promise<void>>();
+  // Calls at the same time for one Edition Line share one fill. False when a
+  // source failed, now or in the rest after a failed fill.
+  const filling = new Map<string, Promise<boolean>>();
   const failedAt = new Map<string, string>();
 
-  function fillOnce(anchor: Edition & { series: Series }, line: string): Promise<void> {
+  function fillOnce(anchor: Edition & { series: Series }, line: string): Promise<boolean> {
     const running = filling.get(line) ?? fill(anchor, line).finally(() => filling.delete(line));
     filling.set(line, running);
     return running;
   }
 
-  async function fill(anchor: Edition & { series: Series }, line: string): Promise<void> {
+  async function fill(anchor: Edition & { series: Series }, line: string): Promise<boolean> {
     const filled = db.prepare('select filled_at from line_fill where edition_line = ?').get(line) as { filled_at: string } | undefined;
-    if ((filled && age(filled.filled_at) < fillTtlMs) || !anchor.publisher) return;
+    if ((filled && age(filled.filled_at) < fillTtlMs) || !anchor.publisher) return true;
     const failed = failedAt.get(line);
-    if (failed && age(failed) < fillRetryMs) return;
+    if (failed && age(failed) < fillRetryMs) return false;
     const fail = (error: unknown) => {
       failedAt.set(line, now().toISOString());
       console.warn('Catalog source failed:', error instanceof Error ? error.message : error);
+      return false;
     };
     let listed: Listed[];
     try {
@@ -577,6 +581,8 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const omnibus = (volumes: number[] | undefined) => (volumes?.length ?? 0) > 1;
     const recordOf = (each: Listed) => each.facts.series?.bnfId;
     const ofKind = inSeries.filter((each) => !recordOf(each) || omnibus(each.facts.volumes) === omnibus(anchor.volumes));
+    // The anchor's line, once another Series row of this Series is linked to its own.
+    const at = linkSeriesOfLine(anchor, new Set(inSeries.flatMap((each) => recordOf(each) ?? []))) ? (shownLineAt(anchor.isbn) ?? line) : line;
 
     // Overlapping records are separate Edition Lines (amendment 2026-11-14):
     // every Edition of this key moves to the line of its record's group.
@@ -588,7 +594,7 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     const groups = recordGroups(ofKind.map((each) => ({ record: recordOf(each), volumes: each.facts.volumes! })));
     const firstGroup = groups.values().next().value;
     const groupIds = new Set(groups.values());
-    const prefix = line.split('|').slice(0, 3).join('|');
+    const prefix = at.split('|').slice(0, 3).join('|');
     const series = prefix.slice(0, prefix.indexOf('|') + 1);
     // The source data only: a Series Correction lies over it whatever the fill does.
     type KeyRow = Pick<EditionRow, 'isbn' | 'edition_line' | 'bnf_id' | 'volumes'>;
@@ -603,12 +609,12 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     }
     const lineFor = (record: string | undefined) => {
       const group = (record && groups.get(record)) || firstGroup;
-      return group ? (keyOf.get(group) ?? lineKey(prefix, height, group)) : line;
+      return group ? (keyOf.get(group) ?? lineKey(prefix, height, group)) : at;
     };
     const byIsbn = new Map(ofKind.map((each) => [each.isbn, each]));
     const movedTo = (row: KeyRow, found: Listed | undefined, record: string | undefined) => {
       const otherKind = !found && record && omnibus(row.volumes ? (JSON.parse(row.volumes) as number[]) : []) !== omnibus(anchor.volumes);
-      if (otherKind) return row.edition_line === line ? lineFor(undefined) : row.edition_line!;
+      if (otherKind) return row.edition_line === at ? lineFor(undefined) : row.edition_line!;
       const current = lineRecord(row.edition_line!);
       return found || (record && groups.has(record)) || !current || !groupIds.has(current) ? lineFor(record) : row.edition_line!;
     };
@@ -693,16 +699,39 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     }));
     inTransaction(db, () => {
       move();
+      let skipped = 0;
       for (const { target, found } of merged) {
         // The Series this Catalog gives it must be the line's; the size was checked above.
         const editionPrefix = found && prefixOf(found.edition);
         if (found && editionPrefix && samePrefix(target, editionPrefix)) write(found.edition, found.record, target);
+        else skipped += 1;
       }
+      if (skipped > 0) console.warn(`Catalog fill of ${at} left out ${skipped} of ${merged.length} Editions: another Series, or no Series.`);
       dropSharedWorks(db, Number(series.slice(0, -1)));
-      for (const each of new Set([line, ...picked.keys()]))
+      for (const each of new Set([at, ...picked.keys()]))
         db.prepare('insert or replace into line_fill (edition_line, filled_at) values (?, ?)').run(each, now().toISOString());
     });
     failedAt.delete(line);
+    return true;
+  }
+
+  // One Series under two Series rows: Inventaire gives One Piece 56 the
+  // Series wd:Q673 and Volume 1 wd:Q28667972, two shared identifiers, so the
+  // Catalog keeps two Series (seriesFor), and the Volumes BnF lists for the
+  // line of Volume 1 went to the other one. When BnF lists, in the anchor's
+  // Edition Line (same Series title, publisher, language and size), a Volume
+  // under the BnF Series record of another Series of that title, both are one
+  // Series: they are linked as `link` does (ADR 0010, amendment 2026-11-27).
+  // True when a Series was linked: the anchor's line may have moved.
+  function linkSeriesOfLine(anchor: Edition & { series: Series }, records: Set<string>): boolean {
+    const own = byIdentifier(anchor.series.id);
+    if (!own) return false;
+    const others = seriesRows('series.n in (select series from series_title where title_key = ?)', seriesKey(anchor.series.title)).filter(
+      (row) => row.n !== own.n && row.bnf_id !== null && records.has(row.bnf_id),
+    );
+    if (others.length === 0) return false;
+    inTransaction(db, () => others.reduce((kept, row) => mergeSeries(seriesRow('series.n = ?', kept)!, row), own.n));
+    return true;
   }
 
   // What `run` gives, with every change it made to the Catalog file undone.
@@ -948,13 +977,13 @@ export function createCatalog(options: { file: string; fetch: SourceFetch; host:
     },
     async volumes(edition, { fill }) {
       const line = shownLineAt(edition.isbn);
-      if (!line || !edition.series) return [edition];
-      if (fill) await fillOnce({ ...edition, series: edition.series }, line);
+      if (!line || !edition.series) return { volumes: [edition], fillFailed: false };
+      const filled = !fill || (await fillOnce({ ...edition, series: edition.series }, line));
       // The fill may move the anchor to the line of its BnF Series record.
       const rows = db
         .prepare(`${selectEdition} where edition.edition_line = ? order by edition.volume is null, edition.volume, edition.isbn`)
         .all(shownLineAt(edition.isbn) ?? line) as EditionRow[];
-      return rows.map(toEdition);
+      return { volumes: rows.map(toEdition), fillFailed: !filled };
     },
     lines(edition) {
       const series = edition.series && byIdentifier(edition.series.id);

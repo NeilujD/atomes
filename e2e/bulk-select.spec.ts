@@ -4,13 +4,13 @@ import { expect, quickAdd, test } from './test';
 // Bulk select (CORE-109), on a 390 px phone: "Select" in the Library, a tap
 // picks a book, the bar at the bottom puts a Label on every picked Work with
 // one toast, and Undo takes it off. On the Series page, a tap on a spine picks
-// its Volume, and one action sets their Reading Status.
+// its Volume, and one action sets their Reading Status or marks them Owned.
 
 // Leave a page only once its islands have loaded: an island whose load the
 // navigation stops is an unhandled rejection in WebKit.
 const islandsLoaded = (page: Page) => expect(page.locator('astro-island[ssr]')).toHaveCount(0);
 
-test('pick three books, add the Label Shōnen to all of them, Undo takes it off; then set Read on two Volumes of a Series', async ({ page, signIn }) => {
+test('pick three books, add the Label Shōnen to all of them, Undo takes it off; then set Read on two Volumes of a Series and mark two others Owned', async ({ page, signIn }) => {
   test.slow();
   await signIn();
   // One Piece 56 and 112 (Glénat), and La Horde du Contrevent.
@@ -75,5 +75,17 @@ test('pick three books, add the Label Shōnen to all of them, Undo takes it off;
   await expect(page.getByText('Read: 2 books.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Volume 56: read' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Volume 112: read' })).toBeVisible();
+
+  // Volumes 1 and 2 are on the shelf too: "Owned" adds a Copy of each, Undo takes them off.
+  await page.getByRole('button', { name: 'Volume 1: not owned' }).click();
+  await page.getByRole('button', { name: 'Volume 2: not owned' }).click();
+  await bar.getByRole('button', { name: 'Owned', exact: true }).click();
+  const ownedToast = page.locator('[data-toast]').filter({ hasText: '2 Volumes marked owned.' });
+  await expect(ownedToast).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Volume 1: owned, not read' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Volume 2: owned, not read' })).toBeVisible();
+  await ownedToast.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByRole('button', { name: 'Volume 1: not owned' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Volume 2: not owned' })).toBeVisible();
   await islandsLoaded(page);
 });

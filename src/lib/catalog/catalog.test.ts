@@ -406,7 +406,7 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
     expect(calls.filter((url) => url.includes('bib.title')).length).toBe(1);
   });
 
-  test('after a failed fill the sources rest for an hour, then are asked again', async () => {
+  test('after a failed fill the sources rest for 5 minutes, then are asked again; the answer says the fill failed', async () => {
     let clock = new Date('2026-11-06T10:00:00.000Z');
     const sources = recordedFetch();
     let bnfDown = false;
@@ -417,14 +417,20 @@ describe('Volumes of a whole Edition Line, from a BnF search (Series Onboarding)
     await answerEdition(catalog, spyFamily16);
     const searches = () => sources.calls.filter((url) => url.includes('bib.title')).length;
 
+    const answer = async () =>
+      (await (await answerVolumes(catalog, spyFamily16, signedIn)).json()) as { volumes: Edition[]; fillFailed: boolean };
+
     bnfDown = true;
-    expect(await volumesOf(catalog, spyFamily16)).toHaveLength(1);
+    expect(await answer()).toMatchObject({ volumes: [{ isbn: spyFamily16 }], fillFailed: true });
     bnfDown = false;
-    expect(await volumesOf(catalog, spyFamily16)).toHaveLength(1);
+    clock = new Date('2026-11-06T10:04:59.000Z');
+    expect(await answer()).toMatchObject({ volumes: [{ isbn: spyFamily16 }], fillFailed: true });
     expect(searches()).toBe(0);
 
-    clock = new Date('2026-11-06T11:00:01.000Z');
-    expect(await volumesOf(catalog, spyFamily16)).toHaveLength(16);
+    clock = new Date('2026-11-06T10:05:01.000Z');
+    const filled = await answer();
+    expect(filled.volumes).toHaveLength(16);
+    expect(filled.fillFailed).toBe(false);
   });
 
   test('when a source is down nothing is added, and the next call asks again', async () => {
@@ -457,6 +463,18 @@ describe('Edition Lines by book size (ADR 0010, amendment 2026-11-12)', () => {
     expect(fromVolume1[0].isbn).toBe(onePiece1);
     expect(fromVolume56[0].isbn).toBe('9782723433358');
     expect(heights(fromVolume1)).toEqual(new Set(['18', '19']));
+  });
+
+  test('One Piece 56 looked up first, then Volume 1: the fill of Volume 1 gives every Volume, in one Series', async () => {
+    // Inventaire gives 56 the Series wd:Q673 and 1 the Series wd:Q28667972:
+    // two Series rows, one Edition Line (production, 2026-11-27).
+    const { catalog } = setup();
+    await answerEdition(catalog, onePiece56);
+    const volumes = await volumesOf(catalog, onePiece1);
+
+    expect(volumes.map((v) => v.volume)).toEqual(Array.from({ length: 113 }, (_, i) => i + 1).filter((n) => n !== 13));
+    expect(new Set(volumes.map((v) => v.series?.id)).size).toBe(1);
+    expect((await volumesOf(catalog, onePiece56)).map((v) => v.isbn)).toEqual(volumes.map((v) => v.isbn));
   });
 
   test('books of the same Series title and size that are not the run lose their Volume number to the run', async () => {

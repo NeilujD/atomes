@@ -69,7 +69,7 @@ This ADR first said the Edition Line is derived from publisher, language and for
 Series Onboarding (CORE-31) needs every Volume of an Edition Line, but a Catalog knew only the ISBNs readers had looked up (One Piece: 1 of 113). When the Volumes of an Edition Line are asked for, the Catalog now searches BnF by Series title and publisher (`bib.title all … and bib.publisher all …`, 50 records per page, at most 500), at most once a week per Edition Line, and asks Inventaire for the Works of the new ISBNs, 50 per request.
 
 - An Edition counts when it has a Volume number, the Series title, the publisher and the language of the line, and the BnF Series record (461 `$0`) of the line, or none (limited to omnibus Editions by the 2026-11-12 amendment). One Edition per Volume number: one the Catalog has already, else the latest printing. Measured on 2026-11-06: One Piece, Glénat: 112 of 113 Volumes (BnF gives no Volume number for 13) in 7.5 s; Spy x Family, Kurokawa: 16 of 16.
-- Like a lookup, nothing is stored when a source fails, so a listed Volume gets the Work identifier a lookup would give it. `/volumes` needs no sign-in, so calls at the same time for one Edition Line share one fill, and after a failed fill the sources are not asked again for an hour.
+- Like a lookup, nothing is stored when a source fails, so a listed Volume gets the Work identifier a lookup would give it. `/volumes` needs no sign-in, so calls at the same time for one Edition Line share one fill, and after a failed fill the sources are not asked again for an hour (5 minutes since the amendment 2026-11-27).
 - Only a Series title and a publisher leave the server, never an ISBN a reader asked about, and they say nothing about who asked (ADR 0001).
 - Rejected: a full lookup (four sources) per Volume, about 4 minutes for One Piece at one request per second per host; Inventaire's Series to Works links, 37 Works for One Piece.
 
@@ -207,3 +207,11 @@ ADR 0021 adds Search: a signed-in reader finds a Work, a Series or an Author by 
 - What leaves the server now also includes the words of a Search, sent to Inventaire and BnF. They say nothing about who asked (ADR 0001), and no ISBN of the Library leaves with them.
 - The pick runs the normal lookup of its ISBN and adds a To Buy record or a Copy. Search adds no record type and changes no lexicon. An Edition with no ISBN cannot be picked.
 - The answers of Search stay 24 hours in a cache table of `catalog.sqlite`. It is a cache, not Catalog data: it holds no identifier that a reader record uses.
+
+## Amendment 2026-11-27: a fill links two Series of one Edition Line
+
+On production, the owner scanned One Piece Volume 1 (Glénat) after Volume 56, and Series Onboarding found no other Volume. Inventaire gives Volume 56 the Series `wd:Q673` and Volume 1 `wd:Q28667972`: two shared identifiers, so the Catalog kept two Series (amendment 2026-11-11). The fill of the line of Volume 1 put the Volumes BnF lists in the Series of Volume 56, through its BnF Series record. They were then not in the line's Series, so the fill wrote none of them, and it marked the line filled for a week with no log line.
+
+- **A fill links the Series of one Edition Line.** When BnF lists, in the anchor's Edition Line (same Series title, publisher, language and book size), a Volume under the BnF Series record of another Series with the same title, the two Series become one, as `scripts/link-series.ts` does: the best identifier stays the main one and the other is a `same_as` link. Two Series with different shared identifiers stay apart in every other case.
+- **A fill that leaves out an Edition says so in the log:** `Catalog fill of <line> left out <n> of <m> Editions`.
+- **A failed fill says so.** The `/volumes` answer has `fillFailed` when a book source failed for the line; Series Onboarding then offers "Try again". After a failed fill, the sources rest for 5 minutes, not an hour.

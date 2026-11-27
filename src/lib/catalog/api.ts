@@ -3,10 +3,11 @@
 // first check access (access.ts): a signed-out client over its limit gets 429.
 //
 // GET /api/catalog/editions/{isbn}          → 200 Edition, 400, 404, 429, 503
-// GET /api/catalog/editions/{isbn}/volumes  → 200 { series, volumes, lines }:
-//   the known Volumes of the Edition Line of that (anchor) ISBN, by Volume
-//   number, and every Edition Line of its Series, named (LineSummary).
-//   Only a signed-in reader starts a fill of the Edition Line.
+// GET /api/catalog/editions/{isbn}/volumes  → 200 { series, volumes, lines,
+//   fillFailed }: the known Volumes of the Edition Line of that (anchor) ISBN,
+//   by Volume number, and every Edition Line of its Series, named
+//   (LineSummary). Only a signed-in reader starts a fill of the Edition Line;
+//   `fillFailed` when a book source failed for it (more Volumes may exist).
 // GET /api/catalog/editions/{isbn}/cover    → 200 picture, 400, 404, 429, 503
 // GET /api/catalog/search?title=&publisher= → 200 SearchFound, 400, 401, 503:
 //   a signed-in reader looks for an ISBN no source knows by its title (CORE-40).
@@ -57,8 +58,8 @@ export const answerEdition = (catalog: Catalog, isbn: string | undefined) =>
 
 export const answerVolumes = (catalog: Catalog, isbn: string | undefined, options: { fill: boolean }) =>
   withEdition(catalog, isbn, async (edition) => {
-    const volumes = await catalog.volumes(edition, options);
-    return json(200, { series: edition.series, volumes, lines: catalog.lines(edition) });
+    const { volumes, fillFailed } = await catalog.volumes(edition, options);
+    return json(200, { series: edition.series, volumes, lines: catalog.lines(edition), fillFailed });
   });
 
 export async function answerCover(catalog: Catalog, raw: string | undefined) {
