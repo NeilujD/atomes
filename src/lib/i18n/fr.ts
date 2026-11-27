@@ -232,14 +232,20 @@ Ce que cette instance garde : ${privacy}`,
 
   // Partage (Réglages, page d'un livre ; glossaire : Shared, Private)
   'sharing.title': 'Partage',
-  'sharing.hint': 'Exemplaires, prêts et À acheter ne sont jamais partagés.',
+  'sharing.hint':
+    'Exemplaires, prêts et À acheter ne sont jamais partagés. Quand vous arrêtez de partager, Atomes supprime les enregistrements de votre compte AT Protocol, mais d’autres applis ont pu en garder une copie.',
   'sharing.readingStatuses': 'Statuts de lecture',
   'sharing.follows': 'Séries suivies',
   'sharing.labels': 'Étiquettes',
-  'sharing.shared': 'Partagé : tout le monde peut les lire.',
+  'sharing.shared': 'Partagé : public sur votre compte AT Protocol. Tout le monde peut les lire, même sans compte Atomes.',
   'sharing.private': 'Privé : vous seul les voyez.',
   'sharing.consent':
     "Pour partager, Atomes a besoin de l'autorisation d'écrire sur votre compte AT Protocol : statuts de lecture, séries suivies et étiquettes seulement. Votre PDS vous la demande une fois, quand vous vous reconnectez.",
+  'sharing.confirm-title': (category) => `Partager « ${category} » ?`,
+  'sharing.confirm-text':
+    'Atomes les met sur votre compte AT Protocol. Tout le monde peut les lire, même sans compte Atomes, et voir qu’ils sont à vous. Si vous arrêtez de partager, Atomes les y supprime, mais d’autres applis ont pu en garder une copie.',
+  'sharing.confirm': 'Partager',
+  'sharing.cancel': 'Annuler',
   'sharing.still-shared': 'Encore sur votre compte AT Protocol : Atomes réessaie.',
   'sharing.needs-link': 'Pour partager, liez un compte Bluesky dans Compte, plus haut.',
   'sharing.sign-in-again': 'Se reconnecter',
@@ -780,7 +786,7 @@ Ce que cette instance garde : ${privacy}`,
     `Pour voir comment l’instance sert, ${host} compte les visites avec Rybbit : pour chaque page, son adresse et son titre, la page d’où vous venez, la taille de votre écran, votre langue et votre pays. Il ne pose aucun cookie, ne garde pas votre adresse IP et ne connaît jamais votre compte.`,
   'privacy.shared-heading': 'Ce que vous partagez',
   'privacy.shared':
-    'Les enregistrements partagés (statuts de lecture, séries suivies, étiquettes) vont sur votre compte AT Protocol, où tout le monde peut les lire. Rien n’est partagé tant que vous ne l’activez pas. Les exemplaires, les prêts et la liste À acheter ne sont jamais partagés.',
+    'Les enregistrements partagés (statuts de lecture, séries suivies, étiquettes) vont sur votre compte AT Protocol, où tout le monde peut les lire, même sans compte Atomes, et voir qu’ils sont à vous. D’autres applis du réseau AT Protocol peuvent les copier. Quand vous arrêtez de partager, Atomes les supprime de votre compte AT Protocol, mais ne peut pas supprimer ces copies. Rien n’est partagé tant que vous ne l’activez pas. Les exemplaires, les prêts et la liste À acheter ne sont jamais partagés.',
   'privacy.basis-heading': 'Pourquoi',
   'privacy.basis':
     'L’instance garde ces données pour vous rendre le service que vous avez demandé : votre bibliothèque sur tous vos appareils. Elle ne les vend jamais et ne s’en sert jamais pour de la publicité.',
@@ -789,7 +795,7 @@ Ce que cette instance garde : ${privacy}`,
     'Dans Réglages, « Exporter ma bibliothèque » donne un fichier JSON avec chaque enregistrement de votre bibliothèque, lisible par toute app AT Protocol. « Supprimer mon compte » efface de l’instance votre bibliothèque, vos choix de partage, votre compte et vos sessions, et de votre compte AT Protocol vos enregistrements partagés.',
   'privacy.rights-backups': 'Les sauvegardes chiffrées la gardent encore 30 jours au plus.',
   'privacy.requests': 'Pour toute autre demande, écrivez au contact ci-dessus.',
-  'privacy.updated': 'Dernière modification : 24 novembre 2026.',
+  'privacy.updated': 'Dernière modification : 27 novembre 2026.',
   // Legal notice (src/pages/legal.astro, CORE-160), approved by the owner on
   // 2026-11-19 (CORE-162). A change to it needs the owner's approval and a new date.
   'legal.title': 'Mentions légales',

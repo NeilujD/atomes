@@ -66,7 +66,7 @@ The frame keeps its own icon buttons (`.frame-icon` in `AppShell`, Q13).
 
 **The frame (Q13).** Sidebar, view header, panel and tab bar stay as written below.
 
-**Destructive actions.** A destructive action offers Undo in its toast, not a confirm dialog. An action that cannot be undone (Delete my account, Sign out) keeps the confirm dialog.
+**Destructive actions.** A destructive action offers Undo in its toast, not a confirm dialog. An action that cannot be undone (Delete my account, Sign out, sharing the first category: other apps can keep a copy) keeps the confirm dialog.
 
 ## What Linear did, and what Atomes does with it
 

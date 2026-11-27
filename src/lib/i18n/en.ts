@@ -234,14 +234,20 @@ What this instance keeps: ${privacy}`,
 
   // Sharing (Settings, Book page; glossary: Shared, Private)
   'sharing.title': 'Sharing',
-  'sharing.hint': 'Copies, Loans and To Buy are never Shared.',
+  'sharing.hint':
+    'Copies, Loans and To Buy are never Shared. When you stop sharing, Atomes deletes the records from your AT Protocol account, but other apps may have kept a copy.',
   'sharing.readingStatuses': 'Reading Statuses',
   'sharing.follows': 'Followed Series',
   'sharing.labels': 'Labels',
-  'sharing.shared': 'Shared: anyone can read them.',
+  'sharing.shared': 'Shared: public on your AT Protocol account. Anyone can read them, with no Atomes account.',
   'sharing.private': 'Private: only you see them.',
   'sharing.consent':
     'To share, Atomes needs permission to write on your AT Protocol account: Reading Statuses, Followed Series and Labels only. Your PDS asks you once, when you sign in again.',
+  'sharing.confirm-title': (category: string) => `Share ${category}?`,
+  'sharing.confirm-text':
+    'Atomes puts them on your AT Protocol account. Anyone can read them, with no Atomes account, and see that they are yours. If you stop sharing, Atomes deletes them there, but other apps may have kept a copy.',
+  'sharing.confirm': 'Share',
+  'sharing.cancel': 'Cancel',
   'sharing.still-shared': 'Still on your AT Protocol account: Atomes tries again.',
   'sharing.needs-link': 'To share, link a Bluesky account in Account, above.',
   'sharing.sign-in-again': 'Sign in again',
@@ -797,7 +803,7 @@ What this instance keeps: ${privacy}`,
     `To see how the instance is used, ${host} counts the visits with Rybbit: for each page, its address and title, the page you came from, your screen size, your language and your country. It sets no cookie, does not keep your IP address, and never learns your Account.`,
   'privacy.shared-heading': 'What you share',
   'privacy.shared':
-    'Shared records (Reading Statuses, Followed Series, Labels) go to your AT Protocol account, where anyone can read them. Nothing is Shared until you turn it on. Copies, Loans and To Buy are never Shared.',
+    'Shared records (Reading Statuses, Followed Series, Labels) go to your AT Protocol account, where anyone can read them, with no Atomes account, and see that they are yours. Other apps of the AT Protocol network can copy them. When you stop sharing, Atomes deletes them from your AT Protocol account, but it cannot delete those copies. Nothing is Shared until you turn it on. Copies, Loans and To Buy are never Shared.',
   'privacy.basis-heading': 'Why',
   'privacy.basis':
     'The instance keeps this data to give you the service you asked for: your Library on all your devices. It never sells it and never uses it for advertising.',
@@ -806,7 +812,7 @@ What this instance keeps: ${privacy}`,
     'In Settings, "Export my Library" gives one JSON file with every record of your Library, which any AT Protocol app can read. "Delete my account" removes your Library, your sharing choices, your Account and your sessions from the instance, and your Shared records from your AT Protocol account.',
   'privacy.rights-backups': 'The encrypted backups still hold it for up to 30 days.',
   'privacy.requests': 'For any other request, write to the contact above.',
-  'privacy.updated': 'Last change: 24 November 2026.',
+  'privacy.updated': 'Last change: 27 November 2026.',
   // Legal notice (src/pages/legal.astro, CORE-160), approved by the owner on
   // 2026-11-19 (CORE-162). A change to it needs the owner's approval and a new date.
   'legal.title': 'Legal notice',
