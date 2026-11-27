@@ -1,8 +1,11 @@
 // The Sharing group of Settings, a Preact island (ADR 0014): the reader shares
 // Reading Statuses, Followed Series or Labels by category (glossary: Shared).
 // The server writes and deletes the records on the PDS (src/lib/server/sharing.ts);
-// this file only renders and asks.
-import { useEffect, useState } from 'preact/hooks';
+// this file only renders and asks. The first category the reader shares asks
+// first: other apps can copy what is Shared, so stopping later does not undo it
+// (ui-direction: an action that cannot be undone keeps the confirm dialog). Once
+// one category is Shared, the reader knows: the next ones share at once.
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { t } from '../lib/i18n/i18n';
 import { categoryNames, type Category, type SharingState } from '../lib/sharing/categories';
 import { sharingClient, type SharingAnswer, type SharingClient } from '../lib/sharing/client';
@@ -35,6 +38,9 @@ export function Sharing({ client, signInAgain }: { client: SharingClient; signIn
   const [unlinked, setUnlinked] = useState(false);
   const [problem, setProblem] = useState<string>();
   const [busy, setBusy] = useState(false);
+  // The category the confirm dialog asks about.
+  const [asked, setAsked] = useState<Category>();
+  const dialog = useRef<HTMLDialogElement>(null);
 
   async function run(ask: () => Promise<SharingAnswer>) {
     setBusy(true);
@@ -61,6 +67,21 @@ export function Sharing({ client, signInAgain }: { client: SharingClient; signIn
   }, [client]);
 
   const share = (category: Category, shared: boolean) => void run(() => client.setShared(category, shared));
+
+  // The first category turned on waits for the confirm dialog; the switch stays
+  // off until the server answers.
+  function toggle(category: Category, switchInput: HTMLInputElement) {
+    const nothingShared = !categoryNames.some((name) => state?.shared[name]);
+    if (!switchInput.checked || !nothingShared) return share(category, switchInput.checked);
+    switchInput.checked = false;
+    setAsked(category);
+    dialog.current?.showModal();
+  }
+
+  function answer(confirmed: boolean) {
+    dialog.current?.close();
+    if (confirmed && asked) share(asked, true);
+  }
 
   return (
     <div class="sharing">
@@ -95,7 +116,7 @@ export function Sharing({ client, signInAgain }: { client: SharingClient; signIn
               checked={state.shared[category]}
               // Turning off needs no permission: the server deletes as soon as it can.
               disabled={busy || ((needsConsent || unlinked) && !state.shared[category])}
-              onChange={(event) => share(category, event.currentTarget.checked)}
+              onChange={(event) => toggle(category, event.currentTarget)}
             />
           </div>
         ))}
@@ -113,6 +134,23 @@ export function Sharing({ client, signInAgain }: { client: SharingClient; signIn
           {problem}
         </p>
       )}
+      {/* Cancel comes first, so the dialog focuses it. */}
+      <dialog ref={dialog} class="confirm" aria-labelledby="sharing-confirm-title" aria-describedby="sharing-confirm-text">
+        <h2 class="confirm-title" id="sharing-confirm-title">
+          {asked && t('sharing.confirm-title', t(`sharing.${asked}`))}
+        </h2>
+        <p class="confirm-text" id="sharing-confirm-text">
+          {t('sharing.confirm-text')}
+        </p>
+        <div class="confirm-actions">
+          <button class="button" type="button" onClick={() => answer(false)}>
+            {t('sharing.cancel')}
+          </button>
+          <button class="button button-main" type="button" onClick={() => answer(true)}>
+            {t('sharing.confirm')}
+          </button>
+        </div>
+      </dialog>
     </div>
   );
 }
