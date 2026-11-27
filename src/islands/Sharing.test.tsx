@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { afterEach, describe, expect, test } from 'vitest';
 import type { Category, SharingState } from '../lib/sharing/categories';
 import type { SharingAnswer, SharingClient } from '../lib/sharing/client';
@@ -16,7 +16,7 @@ const allPrivate: SharingState = {
 // A server that keeps what the reader shares, and answers `next` once when set.
 function fakeServer(start: SharingState = allPrivate) {
   let state = start;
-  const server = { next: undefined as SharingAnswer | undefined, synced: 0, signIns: 0 };
+  const server = { next: undefined as SharingAnswer | undefined, synced: 0, signIns: 0, changes: 0 };
   const answer = (change: () => void): Promise<SharingAnswer> => {
     const once = server.next;
     server.next = undefined;
@@ -26,7 +26,10 @@ function fakeServer(start: SharingState = allPrivate) {
   };
   const client: SharingClient = {
     load: () => answer(() => undefined),
-    setShared: (category: Category, shared: boolean) => answer(() => (state = { ...state, shared: { ...state.shared, [category]: shared } })),
+    setShared: (category: Category, shared: boolean) => {
+      server.changes += 1;
+      return answer(() => (state = { ...state, shared: { ...state.shared, [category]: shared } }));
+    },
     setPrivate: () => answer(() => undefined),
     setPrivateWorks: () => answer(() => undefined),
     sync: () =>
@@ -40,6 +43,12 @@ function fakeServer(start: SharingState = allPrivate) {
 }
 
 const input = (element: HTMLElement) => element as HTMLInputElement;
+
+// Turns a switch on, then answers its confirm dialog.
+function turnOn(toggle: HTMLInputElement, name: string, button: 'Share' | 'Cancel') {
+  fireEvent.click(toggle);
+  fireEvent.click(within(screen.getByRole('dialog', { name: `Share ${name}?` })).getByRole('button', { name: button }));
+}
 
 afterEach(cleanup);
 
@@ -57,12 +66,48 @@ describe('Sharing in Settings', () => {
     fakeServer();
     const statuses = input(await screen.findByRole('switch', { name: 'Reading Statuses' }));
 
-    fireEvent.click(statuses);
+    turnOn(statuses, 'Reading Statuses', 'Share');
     await waitFor(() => expect(statuses.checked).toBe(true));
-    expect(screen.getByText('Shared: anyone can read them.')).toBeTruthy();
+    expect(screen.getByText('Shared: public on your AT Protocol account. Anyone can read them, with no Atomes account.')).toBeTruthy();
 
     fireEvent.click(statuses);
     await waitFor(() => expect(statuses.checked).toBe(false));
+  });
+
+  test('asks before sharing the first category: Cancel keeps it Private and asks the server nothing', async () => {
+    const server = fakeServer();
+    const statuses = input(await screen.findByRole('switch', { name: 'Reading Statuses' }));
+
+    fireEvent.click(statuses);
+    const dialog = screen.getByRole<HTMLDialogElement>('dialog', { name: 'Share Reading Statuses?' });
+    expect(dialog.open).toBe(true);
+    expect(statuses.checked).toBe(false);
+    expect(within(dialog).getByText(/other apps may have kept a copy/)).toBeTruthy();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(dialog.open).toBe(false);
+    expect(statuses.checked).toBe(false);
+    expect(server.changes).toBe(0);
+  });
+
+  test('once a category is Shared, sharing another one asks nothing', async () => {
+    const server = fakeServer({ ...allPrivate, shared: { ...allPrivate.shared, labels: true } });
+    const follows = input(await screen.findByRole('switch', { name: 'Followed Series' }));
+
+    fireEvent.click(follows);
+    await waitFor(() => expect(follows.checked).toBe(true));
+    expect(screen.getByRole<HTMLDialogElement>('dialog', { hidden: true }).open).toBe(false);
+    expect(server.changes).toBe(1);
+  });
+
+  test('unsharing asks nothing', async () => {
+    const server = fakeServer({ ...allPrivate, shared: { ...allPrivate.shared, labels: true } });
+    const labels = input(await screen.findByRole('switch', { name: 'Labels' }));
+
+    fireEvent.click(labels);
+    await waitFor(() => expect(labels.checked).toBe(false));
+    expect(screen.getByRole<HTMLDialogElement>('dialog', { hidden: true }).open).toBe(false);
+    expect(server.changes).toBe(1);
   });
 
   test('without the permission, gives the reason and signs in again; nothing is shared', async () => {
@@ -88,7 +133,7 @@ describe('Sharing in Settings', () => {
     const labels = input(await screen.findByRole('switch', { name: 'Labels' }));
 
     server.next = { needsConsent: true };
-    fireEvent.click(labels);
+    turnOn(labels, 'Labels', 'Share');
 
     expect(await screen.findByRole('button', { name: 'Sign in again' })).toBeTruthy();
     expect(labels.checked).toBe(false);
@@ -99,7 +144,7 @@ describe('Sharing in Settings', () => {
     const follows = input(await screen.findByRole('switch', { name: 'Followed Series' }));
 
     server.next = { unreachable: true };
-    fireEvent.click(follows);
+    turnOn(follows, 'Followed Series', 'Share');
 
     expect(await screen.findByText('Could not reach the server or your PDS. Nothing changed.')).toBeTruthy();
     expect(follows.checked).toBe(false);
@@ -128,5 +173,5 @@ test('an unshared category whose records the PDS still holds says so next to its
   const statuses = await screen.findByRole('switch', { name: 'Reading Statuses' });
   expect(statuses.getAttribute('aria-describedby')).toBe('sharing-readingStatuses-state');
   expect(document.getElementById('sharing-readingStatuses-state')!.textContent).toBe('Still on your AT Protocol account: Atomes tries again.');
-  expect(document.getElementById('sharing-labels-state')!.textContent).toBe('Shared: anyone can read them.');
+  expect(document.getElementById('sharing-labels-state')!.textContent).toBe('Shared: public on your AT Protocol account. Anyone can read them, with no Atomes account.');
 });
