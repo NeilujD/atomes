@@ -219,11 +219,44 @@
   gap: var(--space-10);
 }
 
-/* Holds the place of the Series card while its Edition Line loads. */
-.result-card-skeleton {
+/* The Series card while its Edition Line loads: at its height, a spinner in
+   the head and a sweep in the tone along the bar. */
+.result-card-loading {
   flex: none;
-  height: var(--shelf-card-height);
-  animation: pulse var(--motion-pulse) ease-in-out infinite;
+  min-height: var(--shelf-card-height);
+}
+
+.result-spinner {
+  flex: none;
+  align-self: center;
+  width: var(--spinner);
+  height: var(--spinner);
+  border: var(--stroke) solid var(--text-quiet);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin var(--motion-spin) linear infinite;
+}
+
+.result-bar-loading {
+  overflow: hidden;
+}
+
+.result-bar-sweep {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30%;
+  border-radius: var(--radius-pill);
+  background: var(--tone);
+  animation: result-sweep var(--motion-sweep) ease-in-out infinite;
+}
+
+@keyframes result-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
 }
 
 .result-card-head {
@@ -413,8 +446,12 @@
 
 /* Nothing moves (the glow and halo: glow.css). */
 @media (prefers-reduced-motion: reduce) {
-  .result-card-skeleton {
+  .result-bar-sweep {
     animation: none;
+  }
+
+  .result-spinner {
+    animation-duration: var(--motion-spin-reduced);
   }
 
   .result-action[aria-busy='true']::after,
