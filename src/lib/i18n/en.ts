@@ -290,6 +290,9 @@ What this instance keeps: ${privacy}`,
   'add.no-onboarding.followed': (series: string) => `You already follow ${series}, so no question about its other Volumes.`,
   'add.no-onboarding.dropped': (series: string) =>
     `You stopped following ${series}, so no question about its other Volumes.`,
+  // The toast action after an add: the reader had the book before (ADR 0019).
+  'add.already-mine': 'Already mine',
+  'add.no-day': (title: string) => `${title} has no date now: it counts in All time, not in this year.`,
   'check.title': 'Check a book',
   // The answer of Shelf Check (the pill of the result screen, the line of a typed book).
   'check.owned': 'Already in your Library',

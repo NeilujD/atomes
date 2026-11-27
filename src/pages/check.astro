@@ -199,7 +199,7 @@ const answers = [
     lookupVolumes,
   } from '../lib/catalog/client';
   import { deviceCatalog } from '../lib/catalog/device';
-  import { quickAddCopy, saveCopy, typedDetails, type BookDetails, type TypedFields } from '../lib/library/copy';
+  import { gotOn, quickAddCopy, saveCopy, typedDetails, type BookDetails, type Copy, type TypedFields } from '../lib/library/copy';
   import { editionWork, readIsbn } from '../lib/library/ids';
   import { cameraProblem, loadReader, openCamera, watchBarcodes } from '../lib/scan/barcode';
   import { reportNetwork, reportWaiting } from '../lib/connection';
@@ -210,7 +210,7 @@ const answers = [
   import { loadLibrary, savedText, sendWhenOnline, waitingCount, worstState } from '../lib/library/library';
   import { addedOn, bookHref, currentStatus, statusChange, type Library } from '../lib/library/model';
   import { followOnRead, noOnboarding } from '../lib/library/onboarding';
-  import { saveReadingStatus, statuses, type Status } from '../lib/library/reading-status';
+  import { saveReadingStatus, statuses, type ReadingStatus, type Status } from '../lib/library/reading-status';
   import { catalogAnswer, deviceShelfCheck, followedLine, keptOnDevice, readerLine, shelfCheck, type ShelfCheck } from '../lib/library/shelf-check';
   import type { SearchMarks } from '../lib/library/search-marks';
   import { askCollected, followSeries } from '../lib/library/series';
@@ -662,9 +662,20 @@ const answers = [
       const now = new Date();
       const { isbn, work } = current;
       const states: WriteState[] = [];
-      states.push((await saveCopy(space, quickAddCopy({ isbn, work, details: typedBook }, now))).state);
+      const copy = quickAddCopy({ isbn, work, details: typedBook }, now);
+      const saved = await saveCopy(space, copy);
+      states.push(saved.state);
       const change = chosen && statusChange(work, isbn, chosen, library, now, { dated: true });
       if (change) states.push(await saveReadingStatus(space, change));
+      // "Already mine" saves the same add again with no day (ADR 0019,
+      // amendment 2026-11-27): from the Library before this add, so a day
+      // the reader had already set stays.
+      const before = library;
+      const undated = () => {
+        const later = new Date();
+        const status = chosen && statusChange(work, isbn, chosen, before, later, { dated: false });
+        return { copy: gotOn(copy, ''), rkey: saved.rkey, status };
+      };
       const follow = chosen && followOnRead(current.edition, chosen, library, now);
       if (follow) states.push(await saveFollow(space, follow));
       const state = worstState(states);
@@ -686,17 +697,36 @@ const answers = [
       const note = why === 'no-series' ? '' : t(`add.no-onboarding.${why}`, seriesTitle);
 
       const link = { href: bookHref(work), label: t('link.book-page') };
+      // Not for a refused save: there is no add to take the day from.
+      const action = state === 'refused' ? undefined : { label: t('add.already-mine'), run: () => void forgetDays(space, title, undated()) };
       const close = toast([t('add.added', title), await savedText(space, state), note].filter(Boolean).join(' '), {
         link,
+        action,
         error: state === 'refused',
       });
       if (state === 'waiting') {
         sendLater(space, () => {
           close();
-          toast(`${t('add.added', title)} ${t('saved.sent')}`, { link });
+          toast(`${t('add.added', title)} ${t('saved.sent')}`, { link, action });
         });
       }
       return 'saved';
+    } catch (error) {
+      toast(spaceErrorMessage(error), { error: true });
+    }
+  }
+
+  // "Already mine": the Copy just added, and its Reading Status, with no day,
+  // so the add counts in All time, not in this year (ADR 0019).
+  async function forgetDays(space: Space, title: string, undated: { copy: Copy; rkey: string; status: ReadingStatus | undefined }) {
+    try {
+      const states = [(await saveCopy(space, undated.copy, undated.rkey)).state];
+      if (undated.status) states.push(await saveReadingStatus(space, undated.status));
+      const state = worstState(states);
+      if (state !== 'refused') reportNetwork(state === 'sent');
+      reportWaiting(await waitingCount(space));
+      toast(`${t('add.no-day', title)} ${await savedText(space, state)}`, { error: state === 'refused' });
+      if (state === 'waiting') sendLater(space);
     } catch (error) {
       toast(spaceErrorMessage(error), { error: true });
     }

@@ -37,3 +37,11 @@ A reader cannot see what they read and got over time. The Library answers "do I 
 - Charts are HTML and CSS with no chart library (spike 0005, section A); their colours are in `docs/design/ui-direction.md`.
 - "Pages read" counts the pages of the dated reads of the period, from the Catalog page count. An omnibus Copy's pages are split equally between its Works (`stats.ts`): reading every Volume of an omnibus counts the book once, and one Volume read counts its share.
 - The share picture holds its colours as hex (`src/lib/library/picture-colours.ts`), the dark values of `theme.css`, on purpose: a canvas reads no CSS variable. `picture-colours.test.ts` fails when one differs from `theme.css`. This is the same exception as the Sign-in Code email (ADR 0018).
+
+## Amendment 2026-11-27: "Already mine" after an add
+
+A reader who fills a new Library scans books they have had for years. Quick Add dated each one today, so the year showed them as got (and, with "Add and mark as read", as read) this year. Decision of the owner, 2026-11-27: **the toast after an add in Shelf Check has an action, "Already mine" ("Déjà à moi")**. One tap saves the same add again with no day: the Copy loses `acquiredAt`, and the Reading Status the add set loses the days it set (a day the reader had set before stays). The book then counts in All time, not in a year, as a book of Series Onboarding does.
+
+- The default stays "today": a book scanned in a shop is a book got today, and only the reader knows otherwise.
+- The action is on the toast of every add from Shelf Check (I have it, Add and mark as read, Add another Copy, the typed form), not on a refused save. When Series Onboarding opens, there is no toast: the reader corrects that one Copy on its Book page.
+- Rejected: a question before each add (one more tap on every scan), a setting for an import phase (a mode the reader must remember to leave), and no day on Quick Add (a real purchase would count nowhere in the year).
