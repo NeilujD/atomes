@@ -160,10 +160,14 @@ describe('the Shelf Check result screen', () => {
     expect(parseFloat(shown.querySelector<HTMLElement>('.result-bar-mark')!.style.left)).toBeCloseTo(55.5);
   });
 
-  test('while the Edition Line loads, the place of the Series card is kept', () => {
-    const { screen: shown } = screenFor({ kind: 'new', status: 'unread', followed: null }, { seriesLoading: true });
+  test('while the Edition Line loads: the Series card says so, and the actions do not wait', () => {
+    const { calls } = screenFor({ kind: 'new', status: 'unread', followed: null }, { seriesLoading: true });
 
-    expect(shown.querySelector('.result-card-skeleton')).not.toBeNull();
+    const card = screen.getByRole('region', { name: 'Your Series' });
+    expect(card.getAttribute('aria-busy')).toBe('true');
+    expect(card.textContent).toContain('Finding the other Volumes of One Piece… No need to wait.');
+    fireEvent.click(screen.getByRole('button', { name: 'I have it' }));
+    expect(calls).toEqual(['add']);
   });
 
   test('while a Copy saves: its button is busy, no other button works', () => {

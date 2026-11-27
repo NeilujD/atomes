@@ -34,7 +34,8 @@ export interface ResultProps {
   cover: string | null;
   // When the first Copy was added (owned).
   addedAt?: string;
-  // The Series card is coming (its Edition Line loads): keep its place.
+  // The Series card is coming (its Edition Line loads): a loading card in its
+  // place, that says the actions need not wait for it.
   seriesLoading?: boolean;
   // While the follow saves: a second tap cannot save twice.
   following?: boolean;
@@ -141,7 +142,7 @@ export function ShelfCheckResult(props: ResultProps) {
         {check.series ? (
           <SeriesCard series={check.series} volumes={volumes} following={props.following ?? false} onFollow={props.onFollow} />
         ) : (
-          seriesLoading && <div class="card result-card result-card-skeleton" aria-hidden="true" />
+          seriesLoading && edition?.series && <SeriesCardLoading series={edition.series.title} />
         )}
         {added && <p class="result-quiet result-added">{added}</p>}
 
@@ -208,6 +209,23 @@ function Actions({ book, check, saving, entry, canScan, onScan, onAdd, onToBuy }
       )}
       {!toBuyFirst && toBuy}
     </div>
+  );
+}
+
+// The Series card while the Edition Line loads, at its height: a spinner, a
+// sweep on the bar, and a line that says the reader can go on meanwhile.
+function SeriesCardLoading({ series }: { series: string }) {
+  return (
+    <section class="card result-card result-card-loading" aria-label={t('check.your-series')} aria-busy="true">
+      <div class="result-card-head">
+        <span class="result-card-title">{t('check.your-series')}</span>
+        <span class="result-spinner" aria-hidden="true" />
+      </div>
+      <div class="result-bar result-bar-loading" aria-hidden="true">
+        <span class="result-bar-sweep" />
+      </div>
+      <p class="result-quiet">{t('check.series-loading', series)}</p>
+    </section>
   );
 }
 
