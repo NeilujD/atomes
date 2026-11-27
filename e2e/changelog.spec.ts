@@ -5,8 +5,9 @@ const { version } = JSON.parse(readFileSync(new URL('../package.json', import.me
 
 // What's new (/changelog): the GitHub Releases, cut into categories. The E2E
 // server answers with the recorded Releases (CHANGELOG_SOURCE=recorded,
-// src/lib/server/changelog.fake.ts): the real v1.0.0 and a sample v1.1.0
-// with every category.
+// src/lib/server/changelog.fake.ts): the real v1.0.0, a sample v1.1.0
+// with every category, and an empty Release of the package.json version
+// when it is not one of them (a release PR bumps it).
 
 test('A reader opens What’s new from Settings, reads each category, and comes back', async ({ page, signIn }) => {
   await signIn();
