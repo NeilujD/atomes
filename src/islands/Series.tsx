@@ -528,6 +528,7 @@ export function Series({ isbn, markVolume = false, sources }: { isbn: string; ma
           library={library}
           onSaved={afterSave}
           sources={sources.selection ?? liveSelection}
+          owned
         />
       )}
 

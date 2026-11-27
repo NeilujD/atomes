@@ -4,11 +4,13 @@
 import type { Correction, Edition, NewSeries } from '../catalog/catalog';
 import type { Language } from '../i18n/i18n';
 import type { Space, WriteState } from '../space/queued-store';
+import { copyCollection, type Copy } from './copy';
 import { attach, detach, labelCollection, labelNamed, type Label } from './label';
 import { worstState } from './library';
-import { statusChange, type Library } from './model';
+import { isOwned, statusChange, type Library } from './model';
 import { readingStatusCollection, type Status } from './reading-status';
 import { putRecord, type Saved } from './records';
+import { toBuyCollection } from './to-buy';
 
 // A book picked in select mode: its Work, and the Edition a new Reading Status points at.
 export interface Picked {
@@ -37,6 +39,27 @@ export async function writeAll(space: Space, writes: RecordWrite[]): Promise<Wri
     states.push(value === null ? await space.delete(collection, rkey) : await putRecord(space, collection, rkey, value));
   }
   return worstState(states);
+}
+
+// "Owned" on the Series page: a Copy of each picked Edition whose Volume the
+// reader does not own in any printing. Like the Copies of Series Onboarding,
+// it has no day: the books were got before. As with "I bought it", the
+// Edition leaves To Buy when it was put there by hand. Undo deletes the
+// Copies and puts those To Buy records back.
+export function ownedBulk(picked: Picked[], library: Library, now: Date, newKey: () => string): Bulk {
+  const bulk: Bulk = { writes: [], undo: [] };
+  for (const { work, isbn } of picked) {
+    if (isOwned({ isbn, work: { id: work, title: '' } }, library)) continue;
+    const rkey = newKey();
+    const copy: Copy = { isbn, works: [work], createdAt: now.toISOString() };
+    bulk.writes.push({ collection: copyCollection, rkey, value: copy });
+    bulk.undo.push({ collection: copyCollection, rkey, value: null });
+    const listed = library.toBuy.find(({ value }) => value.isbn === isbn);
+    if (!listed) continue;
+    bulk.writes.push({ collection: toBuyCollection, rkey: listed.rkey, value: null });
+    bulk.undo.push({ collection: toBuyCollection, rkey: listed.rkey, value: listed.value });
+  }
+  return bulk;
 }
 
 // The Reading Status `status` on every picked Work not at it yet. Undo puts

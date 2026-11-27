@@ -1,6 +1,6 @@
 // Bulk select (CORE-109), shared by the Library and the Series page: the bar
 // at the bottom with the count, "Select all", "Done" and four actions (Label,
-// Reading Status, Private, Move to Series). Each action ends with one toast
+// Reading Status, Private, Move to Series), and "Owned" on the Series page. Each action ends with one toast
 // with Undo. The rules are in src/lib/library/bulk.ts; Move to Series is the
 // Series Correction sheet (src/islands/SeriesCorrection.tsx).
 import { useRef, useState } from 'preact/hooks';
@@ -8,7 +8,8 @@ import type { Edition } from '../lib/catalog/catalog';
 import { correctEdition, findSeries, refreshCorrected, uncorrectEdition } from '../lib/catalog/client';
 import { reportNetwork, reportWaiting } from '../lib/connection';
 import { pageLanguage, t } from '../lib/i18n/i18n';
-import { addLabelBulk, moveUndo, privacyChange, removeLabelBulk, statusBulk, writeAll, type Bulk, type Picked } from '../lib/library/bulk';
+import { addLabelBulk, moveUndo, ownedBulk, privacyChange, removeLabelBulk, statusBulk, writeAll, type Bulk, type Picked } from '../lib/library/bulk';
+import { copyCollection } from '../lib/library/copy';
 import { labelsAtoZ, listLabels, type Label } from '../lib/library/label';
 import { savedText, sendWhenOnline } from '../lib/library/library';
 import type { Library } from '../lib/library/model';
@@ -47,11 +48,13 @@ export interface SelectionBarProps {
   // the Catalog now gives after Move to Series.
   onSaved: (moved?: Edition[]) => Promise<void> | void;
   sources: SelectionSources;
+  // The Series page: "Owned" adds a Copy of each picked Volume not owned yet.
+  owned?: boolean;
 }
 
 type Sheet = 'label' | 'status' | 'private';
 
-export function SelectionBar({ picked, onAll, onDone, space, library, onSaved, sources }: SelectionBarProps) {
+export function SelectionBar({ picked, onAll, onDone, space, library, onSaved, sources, owned = false }: SelectionBarProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [sheet, setSheet] = useState<Sheet>();
   const [labels, setLabels] = useState<Saved<Label>[]>([]);
@@ -123,6 +126,11 @@ export function SelectionBar({ picked, onAll, onDone, space, library, onSaved, s
       },
       (error) => toast(spaceErrorMessage(error), { error: true }),
     );
+  }
+
+  function markOwned() {
+    const bulk = ownedBulk(picked, library, new Date(), newRecordKey);
+    save(bulk, t('select.owned-saved', bulk.writes.filter(({ collection }) => collection === copyCollection).length));
   }
 
   // The typed name, or the name of a Label of the list; an existing Label keeps its own spelling.
@@ -199,6 +207,11 @@ export function SelectionBar({ picked, onAll, onDone, space, library, onSaved, s
         </button>
       </div>
       <div class="selection-row selection-actions">
+        {owned && (
+          <button class="button selection-owned" type="button" disabled={none} onClick={markOwned}>
+            {t('select.owned')}
+          </button>
+        )}
         <button class="button" type="button" aria-haspopup="dialog" disabled={none} onClick={() => open('label')}>
           {t('select.label')}
         </button>

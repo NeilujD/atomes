@@ -57,3 +57,29 @@ test('One Piece 56 for a reader with no One Piece: Save with no other tap adds n
   await expect(page.getByText(/^Saved\./)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo' })).toBeHidden();
 });
+
+test('a fill of the Edition Line that failed says so; Try again gets the other Volumes, and the choices stay', async ({ page, signIn }) => {
+  await signIn();
+  // Kaamelott 9, Casterman: its whole Edition Line is recorded.
+  // The first answer Series Onboarding gets is the one of a server whose book
+  // sources failed: only the Volume added, and `fillFailed`. (Quick Add asks too.)
+  let failed = true;
+  await page.route('**/api/catalog/editions/9782203085053/volumes', async (route) => {
+    const response = await route.fetch();
+    if (!failed || !page.url().includes('/onboarding')) return route.fulfill({ response });
+    failed = false;
+    const answer = (await response.json()) as { volumes: { isbn: string }[] };
+    await route.fulfill({ response, json: { ...answer, volumes: answer.volumes.filter(({ isbn }) => isbn === '9782203085053'), fillFailed: true } });
+  });
+  await quickAdd(page, '9782203085053');
+
+  await expect(page.getByRole('heading', { name: /Which Volumes of Kaamelott/i })).toBeFocused();
+  const notice = page.getByText(/The book sources did not answer/);
+  await expect(notice).toBeVisible();
+  await page.getByRole('button', { name: 'Yes' }).click();
+
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(notice).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Volume 1, owned, not read' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'All (up to 9)' })).toBeHidden();
+});

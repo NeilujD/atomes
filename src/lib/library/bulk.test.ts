@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import type { Edition } from '../catalog/catalog';
-import { addLabelBulk, type Bulk, moveCorrections, moveUndo, privacyChange, removeLabelBulk, statusBulk, writeAll } from './bulk';
+import { addLabelBulk, type Bulk, moveCorrections, moveUndo, ownedBulk, privacyChange, removeLabelBulk, statusBulk, writeAll } from './bulk';
+import { copyCollection, type Copy } from './copy';
 import { labelCollection, type Label } from './label';
 import { memorySpace } from './memory-space.fake';
 import type { Library } from './model';
 import { readingStatusCollection, type ReadingStatus } from './reading-status';
 import type { Saved } from './records';
+import { toBuyCollection, type ToBuy } from './to-buy';
 
 const at = '2026-11-15T10:00:00.000Z';
 const now = new Date(at);
@@ -15,6 +17,51 @@ const picked = [1, 2, 3, 4, 5].map((volume) => ({ work: `wd:Q${volume}`, isbn: `
 const reading: ReadingStatus = { work: 'wd:Q2', isbn: '9782723434622', status: 'reading', updatedAt: '2026-11-01T00:00:00.000Z' };
 const read: ReadingStatus = { work: 'wd:Q3', isbn: '9782723434623', status: 'read', finishedAt: '2026-11-02T00:00:00.000Z', updatedAt: '2026-11-02T00:00:00.000Z' };
 const library: Library = { ...empty, readingStatuses: [reading, read].map((value) => ({ rkey: value.work, value })) };
+
+describe('Mark many Volumes owned (Series page)', () => {
+  const keys = () => {
+    let n = 0;
+    return () => `k${(n += 1)}`;
+  };
+  const owned: Copy = { isbn: '9782723434621', works: ['wd:Q1'], createdAt: '2026-11-01T00:00:00.000Z' };
+  // Volume 4 in another printing: the Copy holds its Work.
+  const otherPrinting: Copy = { isbn: '9782723499994', works: ['wd:Q4'], createdAt: '2026-11-01T00:00:00.000Z' };
+  const listed: ToBuy = { isbn: '9782723434623', createdAt: '2026-11-03T00:00:00.000Z' };
+  const shelf: Library = {
+    ...empty,
+    copies: [owned, otherPrinting].map((value, index) => ({ rkey: `c${index}`, value })),
+    toBuy: [{ rkey: listed.isbn, value: listed }],
+  };
+
+  test('one Copy with no day for each Volume not owned yet; one owned in any printing gets none', () => {
+    const { writes } = ownedBulk(picked, shelf, now, keys());
+
+    expect(writes.filter(({ collection }) => collection === copyCollection)).toEqual([
+      { collection: copyCollection, rkey: 'k1', value: { isbn: '9782723434622', works: ['wd:Q2'], createdAt: at } },
+      { collection: copyCollection, rkey: 'k2', value: { isbn: '9782723434623', works: ['wd:Q3'], createdAt: at } },
+      { collection: copyCollection, rkey: 'k3', value: { isbn: '9782723434625', works: ['wd:Q5'], createdAt: at } },
+    ]);
+  });
+
+  test('a Volume put on To Buy by hand leaves it, as with "I bought it"; Undo puts it back and deletes the Copies', async () => {
+    const { space, stored } = memorySpace();
+    await space.put(toBuyCollection, listed.isbn, { $type: toBuyCollection, ...listed });
+    const { writes, undo } = ownedBulk(picked, shelf, now, keys());
+
+    expect(writes.filter(({ collection }) => collection === toBuyCollection)).toEqual([{ collection: toBuyCollection, rkey: listed.isbn, value: null }]);
+    expect(await writeAll(space, writes)).toBe('sent');
+    expect(stored(copyCollection)).toHaveLength(3);
+    expect(stored(toBuyCollection)).toEqual([]);
+
+    await writeAll(space, undo);
+    expect(stored(copyCollection)).toEqual([]);
+    expect(stored(toBuyCollection)).toEqual([{ rkey: listed.isbn, value: { $type: toBuyCollection, ...listed } }]);
+  });
+
+  test('nothing to write when every Volume is owned', () => {
+    expect(ownedBulk(picked.slice(0, 1), shelf, now, keys())).toEqual({ writes: [], undo: [] });
+  });
+});
 
 describe('Set a Reading Status on many Works', () => {
   test('writes the new status of each Work that changes, and leaves one already at it', () => {
